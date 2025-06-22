@@ -7,7 +7,7 @@
 
 import { db } from '@/lib/db';
 import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics } from '@/types';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 
 // Helper to convert database snake_case to JS camelCase
 // e.g., on_time_delivery_rate -> onTimeDeliveryRate
@@ -25,6 +25,7 @@ const toCamelCase = (rows: any[]) => {
 
 /**
  * Retrieves the company ID for a given Firebase user UID.
+ * This is a critical function; if it fails, we throw because we can't identify the tenant.
  * @param uid The Firebase user ID.
  * @returns A promise that resolves to the company ID string or null if not found.
  */
@@ -34,14 +35,15 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
         const { rows } = await db.query(sqlQuery, [uid]);
         return rows[0]?.company_id || null;
     } catch (error) {
-        console.error('Database query failed in getCompanyIdForUser:', error);
-        throw new Error('Failed to retrieve user company information.');
+        console.error('CRITICAL: Database query failed in getCompanyIdForUser:', error);
+        throw new Error('Failed to retrieve user company information. The database may be down.');
     }
 }
 
 /**
  * Creates a new company and a user associated with it in the database.
  * This function uses a transaction to ensure both operations succeed or fail together.
+ * This is a critical function and will throw on failure.
  * @param uid The Firebase user ID.
  * @param email The user's email.
  * @param companyName The name of the new company.
@@ -65,7 +67,7 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         return companyId;
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Database transaction failed in createCompanyAndUserInDB:', error);
+        console.error('CRITICAL: Database transaction failed in createCompanyAndUserInDB:', error);
         throw new Error('Failed to create company and user in database.');
     } finally {
         client.release();
@@ -74,6 +76,7 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
 
 /**
  * Executes a query to fetch data for chart generation from PostgreSQL.
+ * Returns an empty array on database failure.
  * @param query A natural language description of the data needed.
  * @param companyId The ID of the company whose data is being queried.
  * @returns An array of data matching the query.
@@ -148,13 +151,14 @@ export async function getDataForChart(query: string, companyId: string): Promise
         const { rows } = await db.query(sqlQuery, params);
         return rows.map(row => ({...row, value: parseFloat(row.value)}));
     } catch (error) {
-        console.error('Database query failed in getDataForChart:', error);
-        throw new Error('Failed to fetch chart data from the database.');
+        console.error('[DB Service] Query failed in getDataForChart. Returning empty array.', error);
+        return [];
     }
 }
 
 /**
  * Retrieves dead stock items from the database for the AI flow.
+ * Returns an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise that resolves to an array of dead stock products.
  */
@@ -171,13 +175,14 @@ export async function getDeadStockFromDB(companyId: string): Promise<Product[]> 
             last_sold_date: format(new Date(row.last_sold_date), 'yyyy-MM-dd')
         }))) as Product[];
     } catch (error) {
-        console.error('Database query failed in getDeadStockFromDB:', error);
-        throw new Error('Failed to fetch dead stock data.');
+        console.error('[DB Service] Query failed in getDeadStockFromDB. Returning empty array.', error);
+        return [];
     }
 }
 
 /**
  * Retrieves suppliers from the database, ranked by performance.
+ * Returns an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise that resolves to an array of suppliers.
  */
@@ -192,13 +197,14 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
         const { rows } = await db.query(sqlQuery, [companyId]);
         return toCamelCase(rows) as Supplier[];
     } catch (error) {
-        console.error('Database query failed in getSuppliersFromDB:', error);
-        throw new Error('Failed to fetch supplier data.');
+        console.error('[DB Service] Query failed in getSuppliersFromDB. Returning empty array.', error);
+        return [];
     }
 }
 
 /**
  * Retrieves all inventory items for a company.
+ * Returns an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise that resolves to an array of inventory items.
  */
@@ -217,13 +223,14 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
             lastSold: format(new Date(row.last_sold_date), 'yyyy-MM-dd')
         }));
     } catch (error) {
-        console.error('Database query failed in getInventoryItems:', error);
-        throw new Error('Failed to fetch inventory items.');
+        console.error('[DB Service] Query failed in getInventoryItems. Returning empty array.', error);
+        return [];
     }
 }
 
 /**
  * Retrieves data for the Dead Stock page.
+ * Returns default values on database failure.
  * @param companyId The company's ID.
  */
 export async function getDeadStockPageData(companyId: string) {
@@ -245,14 +252,15 @@ export async function getDeadStockPageData(companyId: string) {
 
         return { deadStockItems, totalDeadStockValue };
     } catch (error) {
-        console.error('Database query failed in getDeadStockPageData:', error);
-        throw new Error('Failed to fetch dead stock page data.');
+        console.error('[DB Service] Query failed in getDeadStockPageData. Returning default values.', error);
+        return { deadStockItems: [], totalDeadStockValue: 0 };
     }
 }
 
 
 /**
  * Fabricates alerts based on current inventory data.
+ * Returns an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise resolving to an array of alerts.
  */
@@ -291,17 +299,25 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 
         return [...lowStockAlerts, ...deadStockAlerts];
     } catch (error) {
-        console.error('Database query failed in getAlertsFromDB:', error);
-        throw new Error('Failed to generate alerts from database.');
+        console.error('[DB Service] Query failed in getAlertsFromDB. Returning empty array.', error);
+        return [];
     }
 }
 
 /**
  * Retrieves key metrics for the dashboard.
+ * Returns default values on database failure.
  * @param companyId The company's ID.
  * @returns A promise resolving to an object with dashboard metrics.
  */
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
+    const defaultMetrics: DashboardMetrics = {
+        inventoryValue: 0,
+        deadStockValue: 0,
+        onTimeDeliveryRate: 0,
+        predictiveAlert: null,
+    };
+    
     try {
         const client = await db.connect();
         try {
@@ -342,7 +358,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
             client.release();
         }
     } catch (error) {
-        console.error('Database query failed in getDashboardMetrics:', error);
-        throw new Error('Failed to fetch dashboard metrics.');
+        console.error('[DB Service] Query failed in getDashboardMetrics. Returning default values.', error);
+        return defaultMetrics;
     }
 }
