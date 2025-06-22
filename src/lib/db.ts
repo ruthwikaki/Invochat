@@ -39,8 +39,20 @@ export async function testDbConnection() {
         const res = await client.query('SELECT NOW()');
         console.log(`[DB Test] ✅ Connection successful. Database time is: ${res.rows[0].now}`);
         connectionTested = true;
-    } catch (err) {
+    } catch (err: any) {
         console.error('[DB Test] ❌ Connection failed. Please check your .env file and ensure PostgreSQL is running.');
+        if (err.code) {
+          console.error(`[DB Test] Hint: A specific error code was returned: ${err.code}.`);
+          if(err.code === 'ECONNREFUSED') {
+            console.error(`[DB Test] This code often means the PostgreSQL server is not running or is not accessible at ${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}.`);
+          }
+          if(err.code === '28P01') {
+             console.error(`[DB Test] This code (auth_spec_failed) can mean the user or password in your .env file is incorrect.`);
+          }
+          if(err.code === '3D000') {
+             console.error(`[DB Test] This code (invalid_catalog_name) means the database "${process.env.POSTGRES_DATABASE}" does not exist.`);
+          }
+        }
     } finally {
         if (client) {
             client.release();
