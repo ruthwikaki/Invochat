@@ -35,7 +35,7 @@ export default function ChatPage() {
                 <SidebarTrigger className="md:hidden" />
                 <h1 className="text-2xl font-semibold">Chat with InvoChat</h1>
             </div>
-            <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length === 0}>
+            <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length <= 1}>
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Clear Chat</span>
             </Button>
