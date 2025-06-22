@@ -44,8 +44,10 @@ const getSupplierRankingTool = ai.defineTool({
 
 const prompt = ai.definePrompt({
   name: 'supplierPerformancePrompt',
+  input: { schema: SupplierPerformanceInputSchema },
+  output: { schema: SupplierPerformanceOutputSchema },
   tools: [getSupplierRankingTool],
-  prompt: `A user is asking about supplier performance. Use the getSupplierRanking tool to retrieve the information and return it.`,
+  prompt: `You are an expert supply chain analyst. A user is asking about supplier performance. Their query is: {{{query}}}. Use the getSupplierRanking tool to retrieve the information and then format the result to match the output schema.`,
 });
 
 const supplierPerformanceFlow = ai.defineFlow(
@@ -54,13 +56,12 @@ const supplierPerformanceFlow = ai.defineFlow(
     inputSchema: SupplierPerformanceInputSchema,
     outputSchema: SupplierPerformanceOutputSchema,
   },
-  async ({ companyId }) => {
-    const response = await prompt({ companyId });
-    const toolResponse = response.toolRequest('getSupplierRanking', { companyId });
-    if (!toolResponse) {
-        throw new Error("Failed to get supplier data from tool.");
+  async (input) => {
+    const { output } = await prompt(input);
+    if (!output) {
+      throw new Error('Failed to get supplier performance data.');
     }
-    return { rankedVendors: toolResponse.output as any[] };
+    return output;
   }
 );
 

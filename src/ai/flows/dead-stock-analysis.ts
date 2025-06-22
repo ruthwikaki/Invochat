@@ -49,8 +49,10 @@ const getDeadStockTool = ai.defineTool({
 // Define the prompt.
 const deadStockPrompt = ai.definePrompt({
   name: 'deadStockPrompt',
+  input: { schema: AnalyzeDeadStockInputSchema },
+  output: { schema: AnalyzeDeadStockOutputSchema },
   tools: [getDeadStockTool],
-  prompt: `A user is asking about dead stock. Use the getDeadStockData tool to retrieve the information and return it. The schema will be automatically handled.`,
+  prompt: `You are an expert inventory analyst. A user is asking about dead stock. Their query is: {{{query}}}. Use the getDeadStockData tool to retrieve the information and then format the result to match the output schema.`,
 });
 
 // Define the Genkit flow.
@@ -60,14 +62,12 @@ const analyzeDeadStockFlow = ai.defineFlow(
     inputSchema: AnalyzeDeadStockInputSchema,
     outputSchema: AnalyzeDeadStockOutputSchema,
   },
-  async ({ companyId }) => {
-    const response = await deadStockPrompt({ companyId });
-    const toolResponse = response.toolRequest('getDeadStockData', { companyId });
-    if (!toolResponse) {
-        throw new Error("Failed to get dead stock data from tool.");
+  async (input) => {
+    const { output } = await deadStockPrompt(input);
+    if (!output) {
+        throw new Error('Could not generate dead stock analysis.');
     }
-
-    return { deadStockItems: toolResponse.output as any[] };
+    return output;
   }
 );
 
