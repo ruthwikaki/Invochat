@@ -104,7 +104,7 @@ export function AppSidebar() {
                     <SidebarMenuButton>
                         <Avatar className="h-7 w-7">
                             <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} data-ai-hint="user avatar" />
-                            <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                            <AvatarFallback>{(user?.email?.charAt(0) || '').toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <span className="truncate">{user?.displayName || user?.email}</span>
                     </SidebarMenuButton>
