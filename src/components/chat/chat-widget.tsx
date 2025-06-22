@@ -3,12 +3,12 @@
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '@/components/ui/sheet';
 import { MessageSquare, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChatInterface } from './chat-interface';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
 
-const initialMessages: Message[] = [
+const getInitialMessages = (): Message[] => [
   {
     id: 'init',
     role: 'assistant',
@@ -19,10 +19,16 @@ const initialMessages: Message[] = [
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    if (isOpen && messages.length === 0) {
+      setMessages(getInitialMessages());
+    }
+  }, [isOpen, messages.length]);
 
   const clearChat = () => {
-    setMessages(initialMessages);
+    setMessages(getInitialMessages());
   };
 
   return (
@@ -48,7 +54,7 @@ export function ChatWidget() {
           <SheetHeader className="p-4 border-b flex-row justify-between items-center">
             <SheetTitle>ARVO Assistant</SheetTitle>
             <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length <= 1}>
+                <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length === 0}>
                     <Trash2 className="h-4 w-4" />
                     <span className="sr-only">Clear Chat</span>
                 </Button>
@@ -60,7 +66,7 @@ export function ChatWidget() {
                 </SheetClose>
             </div>
           </SheetHeader>
-          <ChatInterface messages={messages} setMessages={setMessages} initialMessages={initialMessages} />
+          <ChatInterface messages={messages} setMessages={setMessages} />
         </SheetContent>
       </Sheet>
     </>

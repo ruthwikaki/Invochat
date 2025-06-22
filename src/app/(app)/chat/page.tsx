@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { Message } from '@/types';
 import { Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-const initialMessages: Message[] = [
+const getInitialMessages = (): Message[] => [
   {
     id: 'init',
     role: 'assistant',
@@ -17,10 +17,15 @@ const initialMessages: Message[] = [
 ];
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    // Initialize messages on the client to avoid hydration mismatch
+    setMessages(getInitialMessages());
+  }, []);
   
   const clearChat = () => {
-    setMessages(initialMessages);
+    setMessages(getInitialMessages());
   };
 
   return (
@@ -30,7 +35,7 @@ export default function ChatPage() {
                 <SidebarTrigger className="md:hidden" />
                 <h1 className="text-2xl font-semibold">Chat with ARVO</h1>
             </div>
-            <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length <= 1}>
+            <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length === 0}>
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Clear Chat</span>
             </Button>
