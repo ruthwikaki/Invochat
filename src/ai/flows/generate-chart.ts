@@ -12,6 +12,7 @@ import { z } from 'zod';
 // Define the input schema for the chart generation flow.
 const GenerateChartInputSchema = z.object({
   query: z.string().describe('The user query asking for a data visualization.'),
+  companyId: z.string().describe("The user's company ID."),
 });
 export type GenerateChartInput = z.infer<typeof GenerateChartInputSchema>;
 
@@ -34,11 +35,11 @@ const fetchDataTool = ai.defineTool(
   {
     name: 'getDataForChart',
     description: 'Fetches data from the database based on a user query. Use this to get data for visualizations. Examples: "slowest moving inventory", "warehouse distribution", "sales velocity by category", "inventory aging", "supplier performance", "inventory value by category"',
-    inputSchema: z.object({ query: z.string() }),
+    inputSchema: z.object({ query: z.string(), companyId: z.string() }),
     outputSchema: z.array(z.any()),
   },
-  async ({ query }) => {
-    return getDataForChart(query);
+  async ({ query, companyId }) => {
+    return getDataForChart(query, companyId);
   }
 );
 

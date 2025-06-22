@@ -12,6 +12,8 @@ import type { AssistantMessagePayload, Message } from '@/types';
 import { ArrowRight } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
+import { useAuth } from '@/context/auth-context';
+import { useToast } from '@/hooks/use-toast';
 
 const AiComponentMap = {
   DeadStockTable,
@@ -36,6 +38,9 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
@@ -67,6 +72,15 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const submitMessage = (messageText: string) => {
     if (!messageText.trim()) return;
 
+    if (!user) {
+        toast({
+            variant: 'destructive',
+            title: 'Not Authenticated',
+            description: 'Please log in to chat with the assistant.'
+        })
+        return;
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -76,7 +90,8 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setMessages((prev) => [...prev, userMessage]);
 
     startTransition(async () => {
-      const response = await handleUserMessage(messageText);
+      const idToken = await user.getIdToken();
+      const response = await handleUserMessage({ message: messageText, idToken });
       processResponse(response);
     });
   };

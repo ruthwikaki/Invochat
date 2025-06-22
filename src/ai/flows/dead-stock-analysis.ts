@@ -13,6 +13,7 @@ const AnalyzeDeadStockInputSchema = z.object({
   query: z
     .string()
     .describe('The user query related to dead stock analysis.'),
+  companyId: z.string().describe("The user's company ID."),
 });
 export type AnalyzeDeadStockInput = z.infer<typeof AnalyzeDeadStockInputSchema>;
 
@@ -33,10 +34,10 @@ export type AnalyzeDeadStockOutput = z.infer<typeof AnalyzeDeadStockOutputSchema
 const getDeadStockTool = ai.defineTool({
     name: 'getDeadStockData',
     description: 'Retrieves a list of all products that have not been sold in over 90 days.',
-    inputSchema: z.object({}),
+    inputSchema: z.object({ companyId: z.string() }),
     outputSchema: z.array(z.any()),
-}, async () => {
-    const items = await getDeadStockFromDB();
+}, async ({ companyId }) => {
+    const items = await getDeadStockFromDB(companyId);
     return items.map(item => ({
         item: item.name,
         quantity: item.quantity,
@@ -59,9 +60,9 @@ const analyzeDeadStockFlow = ai.defineFlow(
     inputSchema: AnalyzeDeadStockInputSchema,
     outputSchema: AnalyzeDeadStockOutputSchema,
   },
-  async () => {
-    const response = await deadStockPrompt({});
-    const toolResponse = response.toolRequest('getDeadStockData');
+  async ({ companyId }) => {
+    const response = await deadStockPrompt({ companyId });
+    const toolResponse = response.toolRequest('getDeadStockData', { companyId });
     if (!toolResponse) {
         throw new Error("Failed to get dead stock data from tool.");
     }

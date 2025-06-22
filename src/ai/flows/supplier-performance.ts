@@ -10,6 +10,7 @@ import {z} from 'genkit';
 
 const SupplierPerformanceInputSchema = z.object({
   query: z.string().describe('The user query about supplier performance.'),
+  companyId: z.string().describe("The user's company ID."),
 });
 export type SupplierPerformanceInput = z.infer<typeof SupplierPerformanceInputSchema>;
 
@@ -31,10 +32,10 @@ export type SupplierPerformanceOutput = z.infer<typeof SupplierPerformanceOutput
 const getSupplierRankingTool = ai.defineTool({
   name: 'getSupplierRanking',
   description: 'Retrieves a list of vendors ranked by their on-time delivery performance.',
-  inputSchema: z.object({}),
+  inputSchema: z.object({ companyId: z.string() }),
   outputSchema: z.array(z.any()),
-}, async () => {
-    const suppliers = await getSuppliersFromDB();
+}, async ({ companyId }) => {
+    const suppliers = await getSuppliersFromDB(companyId);
     return suppliers.map(s => ({
         vendorName: s.name,
         onTimeDeliveryRate: s.onTimeDeliveryRate
@@ -53,9 +54,9 @@ const supplierPerformanceFlow = ai.defineFlow(
     inputSchema: SupplierPerformanceInputSchema,
     outputSchema: SupplierPerformanceOutputSchema,
   },
-  async () => {
-    const response = await prompt({});
-    const toolResponse = response.toolRequest('getSupplierRanking');
+  async ({ companyId }) => {
+    const response = await prompt({ companyId });
+    const toolResponse = response.toolRequest('getSupplierRanking', { companyId });
     if (!toolResponse) {
         throw new Error("Failed to get supplier data from tool.");
     }

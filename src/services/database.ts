@@ -1,24 +1,31 @@
 /**
  * @fileoverview
- * This file simulates a database service. It provides functions to query
- * mock data, mimicking interactions with a real database. In a real application,
- * these functions would execute SQL queries against a database.
+ * This file simulates a multi-tenant database service. It provides functions to query
+ * mock data, mimicking interactions with a real database where data is partitioned
+ * by companyId.
  */
 
-import { mockProducts, mockSuppliers, mockTransactions, mockWarehouses } from '@/lib/mock-data';
-import type { Product } from '@/types';
+import { allMockData } from '@/lib/mock-data';
+import type { Product, Supplier, Transaction, Warehouse } from '@/types';
 import { subDays, parseISO, isBefore } from 'date-fns';
+
+// Helper to get a specific company's data. In a real app this would be a WHERE clause.
+const getCompanyData = (companyId: string) => {
+    // For this mock service, we'll use a default company ID if the requested one doesn't exist.
+    return allMockData[companyId] || allMockData['default-company-id'];
+}
 
 // Helper to calculate inventory value for a product
 const getProductValue = (product: Product) => product.quantity * product.cost;
 
 /**
  * Simulates executing a query to fetch data for chart generation.
- * This is a simplified mock of a database query engine.
  * @param query A natural language description of the data needed.
+ * @param companyId The ID of the company whose data is being queried.
  * @returns An array of data matching the query.
  */
-export async function getDataForChart(query: string): Promise<any[]> {
+export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
+    const { mockProducts, mockWarehouses, mockTransactions, mockSuppliers } = getCompanyData(companyId);
     const lowerCaseQuery = query.toLowerCase();
 
     if (lowerCaseQuery.includes('slowest moving') || lowerCaseQuery.includes('dead stock')) {
@@ -107,14 +114,16 @@ export async function getDataForChart(query: string): Promise<any[]> {
     }
 
     // Default: return inventory value by category if no match
-    return getDataForChart('inventory value by category');
+    return getDataForChart('inventory value by category', companyId);
 }
 
-export async function getDeadStockFromDB() {
+export async function getDeadStockFromDB(companyId: string) {
+    const { mockProducts } = getCompanyData(companyId);
     const ninetyDaysAgo = subDays(new Date(), 90);
     return mockProducts.filter(p => isBefore(parseISO(p.last_sold_date), ninetyDaysAgo));
 }
 
-export async function getSuppliersFromDB() {
+export async function getSuppliersFromDB(companyId: string) {
+    const { mockSuppliers } = getCompanyData(companyId);
     return mockSuppliers.sort((a,b) => b.onTimeDeliveryRate - a.onTimeDeliveryRate);
 }

@@ -1,14 +1,15 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   AlertCircle,
   BarChart,
   Home,
+  LogOut,
   MessageSquare,
-  Package,
   Moon,
+  Package,
   Sun,
   TrendingDown,
   Truck,
@@ -27,10 +28,18 @@ import {
 } from './ui/sidebar';
 import { useTheme } from 'next-themes';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
+import { useAuth } from '@/context/auth-context';
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { setTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
@@ -90,13 +99,23 @@ export function AppSidebar() {
             </DropdownMenu>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Avatar className="h-7 w-7">
-                <AvatarImage src="https://placehold.co/100x100.png" alt="User" data-ai-hint="user avatar" />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
-              <span>User Profile</span>
-            </SidebarMenuButton>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton>
+                        <Avatar className="h-7 w-7">
+                            <AvatarImage src={user?.photoURL || ''} alt={user?.displayName || 'User'} data-ai-hint="user avatar" />
+                            <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">{user?.displayName || user?.email}</span>
+                    </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="right" align="end">
+                    <DropdownMenuItem onClick={handleLogout}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
