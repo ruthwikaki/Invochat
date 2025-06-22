@@ -44,9 +44,9 @@ export async function testDbConnection() {
     } catch (err: any) {
         console.warn('---');
         console.warn('[DB] ⚠️  Could not connect to PostgreSQL database.');
-        console.warn(`[DB] This is expected if you haven't started your local database server.`);
-        console.warn(`[DB] The application will continue to run, but data-dependent features will be empty.`);
-        console.warn(`[DB] To enable database features, start PostgreSQL and restart the app.`);
+        console.warn(`[DB] The specific error from the database driver is:`);
+        console.warn(`[DB] > ${err.message}`);
+        console.warn(`[DB] Please check your POSTGRES_* credentials in the .env file and ensure the database exists and the server is running correctly.`);
         console.warn('---');
         dbIsConnected = false;
     } finally {
