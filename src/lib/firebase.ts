@@ -1,11 +1,9 @@
 
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
-  createUserWithEmailAndPassword,
   getAuth,
   type Auth,
 } from 'firebase/auth';
-import { createCompanyAndUserInDB } from '@/services/database';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -16,7 +14,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const CLIENT_APP_NAME = 'firebase-client-app-for-arvo';
+const CLIENT_APP_NAME = 'firebase-client-app-for-arvo-named';
 
 // Safely initialize the app, checking for required config values.
 let app: FirebaseApp | null = null;
@@ -40,37 +38,4 @@ if (firebaseConfig.projectId && firebaseConfig.apiKey) {
     console.warn("Firebase projectId or apiKey is missing from environment variables. Firebase client services will not be initialized.");
 }
 
-
-// Function to create a user and associate them with a company in PostgreSQL
-export const createUserWithCompany = async (
-  email: string,
-  password: string,
-  companyName: string
-) => {
-    if (!auth) {
-        throw new Error("Firebase Auth is not configured correctly. Please check your environment variables.");
-    }
-    
-    // 1. Create user in Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    );
-    const user = userCredential.user;
-
-    // 2. Create company and user records in your PostgreSQL database
-    const companyId = await createCompanyAndUserInDB(
-        user.uid,
-        email,
-        companyName
-    );
-
-    // The user is now created in both systems. They can now log in and
-    // their companyId will be retrieved from the DB on server actions.
-    return { user, companyId };
-};
-
 export { auth };
-
-    

@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { createUserWithCompany } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
+import { completeUserRegistration } from '@/app/actions';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -21,8 +23,41 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Signup Failed',
+            description: 'Authentication service is not available. Please try again later.'
+        });
+        setLoading(false);
+        return;
+    }
+
     try {
-      await createUserWithCompany(email, password, companyName);
+      // Step 1: Create the user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      if (!user.email) {
+          throw new Error("User created without an email address.");
+      }
+
+      // Step 2: Call server action to create company and user records in PostgreSQL
+      const registrationResult = await completeUserRegistration({
+          uid: user.uid,
+          email: user.email,
+          companyName,
+      });
+
+      if (!registrationResult.success) {
+          // This is a partial failure. The user exists in Firebase Auth but not in our DB.
+          // A production app would need a cleanup process (e.g., delete the Firebase user).
+          // For now, we'll just show the error.
+          throw new Error(registrationResult.error || 'Failed to create your company profile.');
+      }
+
+      // Step 3: Success!
       toast({
         title: 'Account Created!',
         description: "You're all set. Redirecting you to the dashboard.",
