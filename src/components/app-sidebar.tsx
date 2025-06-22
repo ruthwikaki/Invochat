@@ -12,6 +12,7 @@ import {
   Sun,
   TrendingDown,
   Truck,
+  Upload,
 } from 'lucide-react';
 import { InvoChatLogo } from './invochat-logo';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -35,6 +36,7 @@ export function AppSidebar() {
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/chat', label: 'Chat with InvoChat', icon: MessageSquare },
     { href: '/inventory', label: 'Inventory', icon: Package },
+    { href: '/import', label: 'Import Data', icon: Upload },
     { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
     { href: '/suppliers', label: 'Suppliers', icon: Truck },
     { href: '/analytics', label: 'Analytics', icon: BarChart },
