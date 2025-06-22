@@ -3,40 +3,41 @@ import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
+const ADMIN_APP_NAME = 'firebase-admin';
+
 function initializeAdminApp(): App | null {
-    if (getApps().length > 0) {
-        return getApp();
+    // Check if the admin app is already initialized to prevent re-initialization.
+    if (getApps().some(app => app.name === ADMIN_APP_NAME)) {
+        return getApp(ADMIN_APP_NAME);
     }
-    
+
     try {
         const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
-        if (serviceAccountStr) {
-            const serviceAccount = JSON.parse(serviceAccountStr);
-            return initializeApp({ credential: cert(serviceAccount) });
-        } else {
-            // This will use Application Default Credentials if available.
-            return initializeApp();
-        }
+        
+        // Use service account credentials if provided, otherwise fall back to
+        // Application Default Credentials for environments like Google Cloud Run.
+        const credential = serviceAccountStr
+            ? cert(JSON.parse(serviceAccountStr))
+            : undefined;
+
+        return initializeApp({ credential }, ADMIN_APP_NAME);
+
     } catch (error: any) {
-        let errorMessage = "Firebase Admin SDK initialization failed. ";
-        if (error.code === 'app/duplicate-app') {
-            return getApp(); // This is not a failure, just a re-init attempt.
-        } else if (error instanceof SyntaxError) {
-             errorMessage += 'Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is a valid, non-empty JSON string.';
-        } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-             errorMessage += 'The provided FIREBASE_SERVICE_ACCOUNT seems invalid.';
+        let errorMessage = `[Firebase Admin]: Initialization failed. `;
+        if (error instanceof SyntaxError) {
+             errorMessage += 'Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is valid JSON.';
+        } else if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+            errorMessage += 'FIREBASE_SERVICE_ACCOUNT is not set. For local development, provide the service account JSON. In a hosted environment, ensure Application Default Credentials are available.';
         } else {
-            errorMessage += 'Could not find necessary credentials. For server-side features, set the FIREBASE_SERVICE_ACCOUNT or GOOGLE_APPLICATION_CREDENTIALS environment variables.';
+            errorMessage += error.message;
         }
         console.error(errorMessage);
-        
-        // Return null to prevent the entire server from crashing.
         return null;
     }
 }
 
-const app = initializeAdminApp();
-const auth = app ? getAuth(app) : undefined;
-const db = app ? getFirestore(app) : undefined;
+const adminApp = initializeAdminApp();
+const auth = adminApp ? getAuth(adminApp) : undefined;
+const db = adminApp ? getFirestore(adminApp) : undefined;
 
 export { auth, db };
