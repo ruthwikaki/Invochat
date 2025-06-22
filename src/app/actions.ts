@@ -6,6 +6,7 @@ import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
 import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
 import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
+import { getCompanyIdForUser } from '@/services/database';
 import { auth } from '@/lib/firebase-server';
 import type { AssistantMessagePayload } from '@/types';
 import { z } from 'zod';
@@ -33,19 +34,22 @@ export async function handleUserMessage(
     };
   }
 
-  let companyId: string;
+  let companyId: string | null;
   try {
     const decodedToken = await auth.verifyIdToken(idToken);
-    if (!decodedToken.companyId || typeof decodedToken.companyId !== 'string') {
-        throw new Error("User token is missing the required 'companyId' custom claim.");
+    const uid = decodedToken.uid;
+    companyId = await getCompanyIdForUser(uid);
+
+    if (!companyId) {
+      throw new Error(`User with UID ${uid} does not have an associated company.`);
     }
-    companyId = decodedToken.companyId;
+
   } catch (error: any) {
-    console.error("Authentication error verifying ID token:", error.message);
+    console.error("Authentication or Database lookup error:", error.message);
     return {
         id: Date.now().toString(),
         role: 'assistant',
-        content: 'Authentication failed. Your session may have expired. Please log in again.'
+        content: 'Authentication failed. Your session may have expired or your user profile is incomplete. Please try logging in again.'
     }
   }
 
@@ -131,3 +135,5 @@ export async function handleUserMessage(
       "I'm sorry, I can't help with that. You can ask me about 'dead stock', to 'visualize warehouse distribution', or 'supplier performance'.",
   });
 }
+
+    

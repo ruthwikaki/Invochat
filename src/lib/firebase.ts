@@ -5,14 +5,7 @@ import {
   getAuth,
   type Auth,
 } from 'firebase/auth';
-import {
-  addDoc,
-  collection,
-  getFirestore,
-  serverTimestamp,
-  type Firestore,
-} from 'firebase/firestore';
-import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
+import { createCompanyAndUserInDB } from '@/services/database';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -28,8 +21,6 @@ const CLIENT_APP_NAME = 'firebase-client-app-for-arvo';
 // Safely initialize the app, checking for required config values.
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
-let db: Firestore | null = null;
-let functions: Functions | null = null;
 
 if (firebaseConfig.projectId && firebaseConfig.apiKey) {
     if (!getApps().some(app => app.name === CLIENT_APP_NAME)) {
@@ -44,50 +35,42 @@ if (firebaseConfig.projectId && firebaseConfig.apiKey) {
     
     if (app) {
         auth = getAuth(app);
-        db = getFirestore(app);
-        functions = getFunctions(app);
     }
 } else {
     console.warn("Firebase projectId or apiKey is missing from environment variables. Firebase client services will not be initialized.");
 }
 
 
-// Function to create a user and associate them with a company
+// Function to create a user and associate them with a company in PostgreSQL
 export const createUserWithCompany = async (
-  email,
-  password,
-  companyName
+  email: string,
+  password: string,
+  companyName: string
 ) => {
-    if (!auth || !db || !functions) {
-        throw new Error("Firebase is not configured correctly. Please check your environment variables.");
+    if (!auth) {
+        throw new Error("Firebase Auth is not configured correctly. Please check your environment variables.");
     }
-  // Create user in Firebase Auth
-  const userCredential = await createUserWithEmailAndPassword(
-    auth,
-    email,
-    password
-  );
-  const user = userCredential.user;
+    
+    // 1. Create user in Firebase Auth
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+    const user = userCredential.user;
 
-  // Create a company document in Firestore
-  const companyRef = await addDoc(collection(db, 'companies'), {
-    name: companyName,
-    ownerId: user.uid,
-    createdAt: serverTimestamp(),
-  });
+    // 2. Create company and user records in your PostgreSQL database
+    const companyId = await createCompanyAndUserInDB(
+        user.uid,
+        email,
+        companyName
+    );
 
-  // Call the Cloud Function to set custom claims.
-  // IMPORTANT: You must deploy the 'setUserCompany' Cloud Function to your Firebase project.
-  const setUserCompany = httpsCallable(functions, 'setUserCompany');
-  await setUserCompany({
-    userId: user.uid,
-    companyId: companyRef.id,
-  });
-
-  // It can take a moment for the custom claim to propagate. The user might need to
-  // refresh or re-login for the app to recognize the companyId immediately.
-
-  return { user, companyId: companyRef.id };
+    // The user is now created in both systems. They can now log in and
+    // their companyId will be retrieved from the DB on server actions.
+    return { user, companyId };
 };
 
-export { auth, db, functions };
+export { auth };
+
+    

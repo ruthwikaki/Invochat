@@ -22,6 +22,55 @@ const toCamelCase = (rows: any[]) => {
   });
 };
 
+/**
+ * Retrieves the company ID for a given Firebase user UID.
+ * @param uid The Firebase user ID.
+ * @returns A promise that resolves to the company ID string or null if not found.
+ */
+export async function getCompanyIdForUser(uid: string): Promise<string | null> {
+    const sqlQuery = 'SELECT company_id FROM users WHERE firebase_uid = $1;';
+    try {
+        const { rows } = await db.query(sqlQuery, [uid]);
+        return rows[0]?.company_id || null;
+    } catch (error) {
+        console.error('Database query failed in getCompanyIdForUser:', error);
+        throw new Error('Failed to retrieve user company information.');
+    }
+}
+
+/**
+ * Creates a new company and a user associated with it in the database.
+ * This function uses a transaction to ensure both operations succeed or fail together.
+ * @param uid The Firebase user ID.
+ * @param email The user's email.
+ * @param companyName The name of the new company.
+ * @returns A promise that resolves to the new company's ID.
+ */
+export async function createCompanyAndUserInDB(uid: string, email: string, companyName: string): Promise<string> {
+    const client = await db.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // 1. Create the company
+        const companyQuery = 'INSERT INTO companies (name, owner_uid) VALUES ($1, $2) RETURNING id;';
+        const companyResult = await client.query(companyQuery, [companyName, uid]);
+        const companyId = companyResult.rows[0].id;
+
+        // 2. Create the user and link to the company
+        const userQuery = 'INSERT INTO users (firebase_uid, email, company_id) VALUES ($1, $2, $3);';
+        await client.query(userQuery, [uid, email, companyId]);
+
+        await client.query('COMMIT');
+        return companyId;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Database transaction failed in createCompanyAndUserInDB:', error);
+        throw new Error('Failed to create company and user in database.');
+    } finally {
+        client.release();
+    }
+}
+
 
 /**
  * Executes a query to fetch data for chart generation from PostgreSQL.
@@ -148,3 +197,5 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
         throw new Error('Failed to fetch supplier data.');
     }
 }
+
+    
