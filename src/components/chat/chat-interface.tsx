@@ -134,7 +134,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
         <div className="mx-auto max-w-4xl space-y-6 p-4">
           {messages.map((m) => (
-            <ChatMessage key={m.id} message={m} />
+            <ChatMessage key={m.id} message={m} user={user} />
           ))}
           {isPending && (
             <ChatMessage
@@ -145,6 +145,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
                 timestamp: Date.now(),
               }}
               isLoading
+              user={user}
             />
           )}
         </div>

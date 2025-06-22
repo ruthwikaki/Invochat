@@ -5,14 +5,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 
-export function ReorderModal({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
+type ReorderModalProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item?: string | null;
+}
+
+export function ReorderModal({ open, onOpenChange, item = 'Selected Item' }: ReorderModalProps) {
   const { toast } = useToast()
 
   const handleReorder = () => {
     // Logic to handle reorder would go here
     toast({
       title: "Reorder Submitted",
-      description: "Your reorder request for XYZ Cleaner has been submitted.",
+      description: `Your reorder request for ${item} has been submitted.`,
     })
     onOpenChange(false)
   }
@@ -23,7 +29,7 @@ export function ReorderModal({ open, onOpenChange }: { open: boolean, onOpenChan
         <DialogHeader>
           <DialogTitle>Reorder Item</DialogTitle>
           <DialogDescription>
-            Submit a reorder request for XYZ Cleaner.
+            Submit a reorder request for {item}.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -31,7 +37,7 @@ export function ReorderModal({ open, onOpenChange }: { open: boolean, onOpenChan
             <Label htmlFor="item" className="text-right">
               Item
             </Label>
-            <Input id="item" value="XYZ Cleaner" className="col-span-3" disabled />
+            <Input id="item" value={item || ''} className="col-span-3" disabled />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="quantity" className="text-right">

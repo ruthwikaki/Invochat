@@ -97,3 +97,13 @@ export type InventoryTrend = {
     date: string;
     value: number;
 }
+
+export type DashboardMetrics = {
+    inventoryValue: number;
+    deadStockValue: number;
+    onTimeDeliveryRate: number;
+    predictiveAlert: {
+        item: string;
+        days: number;
+    } | null;
+}

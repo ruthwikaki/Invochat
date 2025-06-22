@@ -1,27 +1,56 @@
 'use client'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { useState, useEffect } from 'react';
 import { Skeleton } from "@/components/ui/skeleton";
-
-const turnoverData = [
-  { name: 'Jan', turnover: 4 }, { name: 'Feb', turnover: 3 }, { name: 'Mar', turnover: 5 },
-  { name: 'Apr', turnover: 4.5 }, { name: 'May', turnover: 4.8 }, { name: 'Jun', turnover: 5.2 },
-];
-
-const salesVelocityData = [
-    { name: 'XYZ Cleaner', velocity: 120 }, { name: 'Gloves', velocity: 250 },
-    { name: 'Goggles', velocity: 180 }, { name: 'Degreaser', velocity: 90 },
-];
+import { useAuth } from "@/context/auth-context";
+import { handleUserMessage } from "@/app/actions";
+import { useToast } from "@/hooks/use-toast";
+import type { ChartConfig } from "@/types";
+import { DynamicChart } from "@/components/ai-response/dynamic-chart";
+import { useState, useEffect } from 'react';
+import { BarChart as BarChartIcon } from "lucide-react";
 
 
 export default function AnalyticsPage() {
-    const [isClient, setIsClient] = useState(false);
+    const [charts, setCharts] = useState<ChartConfig[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { user } = useAuth();
+    const { toast } = useToast();
 
     useEffect(() => {
-        setIsClient(true);
-    }, []);
+        if (user) {
+            const generateDefaultCharts = async () => {
+                setLoading(true);
+                try {
+                    const token = await user.getIdToken();
+                    const chartQueries = [
+                        "Create a bar chart showing my inventory value by category",
+                        "Visualize my sales velocity by category as a pie chart"
+                    ];
+                    
+                    const chartPromises = chartQueries.map(query => handleUserMessage({ message: query, idToken: token }));
+                    const results = await Promise.all(chartPromises);
+
+                    const validCharts = results
+                        .filter(c => c.component === 'DynamicChart' && c.props)
+                        .map(c => c.props as ChartConfig);
+                    
+                    setCharts(validCharts);
+
+                } catch (error) {
+                    console.error("Failed to generate charts:", error);
+                    toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: 'Could not generate analytics charts.'
+                    })
+                } finally {
+                    setLoading(false);
+                }
+            };
+            generateDefaultCharts();
+        }
+    }, [user, toast]);
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -32,61 +61,39 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Inventory Turnover Ratio</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="h-[300px]">
-                            {isClient ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={turnoverData}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="name" />
-                                        <YAxis />
-                                        <Tooltip />
-                                        <Legend />
-                                        <Line type="monotone" dataKey="turnover" stroke="hsl(var(--primary))" activeDot={{ r: 8 }} />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <Skeleton className="h-full w-full" />
-                            )}
+            <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+                {loading ? (
+                    <>
+                        <Card><CardHeader><Skeleton className="h-5 w-1/2"/></CardHeader><CardContent><Skeleton className="h-[300px] w-full"/></CardContent></Card>
+                        <Card><CardHeader><Skeleton className="h-5 w-1/2"/></CardHeader><CardContent><Skeleton className="h-[300px] w-full"/></CardContent></Card>
+                    </>
+                ) : charts.length > 0 ? (
+                    charts.map((chartProps, i) => (
+                        <div key={i} className="min-w-0">
+                            <DynamicChart {...chartProps} />
                         </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Sales Velocity (Units/Month)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                         <div className="h-[300px]">
-                            {isClient ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={salesVelocityData}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="name" />
-                                        <YAxis />
-                                        <Tooltip />
-                                        <Legend />
-                                        <Bar dataKey="velocity" fill="hsl(var(--primary))" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <Skeleton className="h-full w-full" />
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                    ))
+                ) : (
+                    <Card className="lg:col-span-2">
+                        <CardHeader>
+                            <CardTitle>No Data</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-60 flex flex-col items-center justify-center text-muted-foreground">
+                                <BarChartIcon className="h-12 w-12 mb-4" />
+                                Could not generate charts. Please ensure you have inventory and sales data.
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
-            <Card>
+             <Card>
                 <CardHeader>
-                    <CardTitle>Coming Soon</CardTitle>
+                    <CardTitle>Explore Your Data</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="h-60 flex items-center justify-center text-muted-foreground">
-                        More advanced analytics and trend visualizations are on the way!
+                    <div className="h-40 flex items-center justify-center text-muted-foreground">
+                        Use the chat interface to ask for custom visualizations! For example: "Show me a pie chart of warehouse distribution"
                     </div>
                 </CardContent>
             </Card>

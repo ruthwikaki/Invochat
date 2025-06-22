@@ -2,8 +2,10 @@
 
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAuth } from '@/context/auth-context';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
+import type { User } from 'firebase/auth';
 
 function TypingIndicator() {
   return (
@@ -18,19 +20,21 @@ function TypingIndicator() {
 export function ChatMessage({
   message,
   isLoading = false,
+  user,
 }: {
   message: Message;
   isLoading?: boolean;
+  user: User | null;
 }) {
-  const isUser = message.role === 'user';
+  const isUserMessage = message.role === 'user';
   return (
     <div
       className={cn(
         'flex items-start gap-3',
-        isUser ? 'justify-end' : 'justify-start'
+        isUserMessage ? 'justify-end' : 'justify-start'
       )}
     >
-      {!isUser && (
+      {!isUserMessage && (
         <Avatar className="h-8 w-8 shrink-0">
           <InvoChatLogo className="h-8 w-8" />
         </Avatar>
@@ -38,7 +42,7 @@ export function ChatMessage({
       <div
         className={cn(
           'relative max-w-xl rounded-2xl px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300',
-          isUser
+          isUserMessage
             ? 'rounded-br-none bg-primary text-primary-foreground'
             : 'rounded-bl-none bg-card text-card-foreground'
         )}
@@ -47,10 +51,10 @@ export function ChatMessage({
           {isLoading ? <TypingIndicator /> : message.content}
         </div>
       </div>
-      {isUser && (
+      {isUserMessage && (
         <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src="https://placehold.co/100x100.png" alt="User" data-ai-hint="user avatar"/>
-          <AvatarFallback>U</AvatarFallback>
+          <AvatarImage src={user?.photoURL ?? undefined} alt={user?.displayName ?? 'User'} data-ai-hint="user avatar"/>
+          <AvatarFallback>{user?.email?.charAt(0).toUpperCase() ?? 'U'}</AvatarFallback>
         </Avatar>
       )}
     </div>

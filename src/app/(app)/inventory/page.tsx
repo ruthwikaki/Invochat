@@ -16,26 +16,59 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockInventory } from '@/lib/mock-data';
 import { Download, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { InventoryItem } from '@/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/context/auth-context';
+import { useToast } from '@/hooks/use-toast';
+import { getInventory } from '@/app/data-actions';
+
+function InventorySkeleton() {
+  return Array.from({ length: 8 }).map((_, i) => (
+    <TableRow key={i}>
+      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+    </TableRow>
+  ));
+}
 
 export default function InventoryPage() {
   const [search, setSearch] = useState('');
-  const [filteredInventory, setFilteredInventory] =
-    useState<InventoryItem[]>(mockInventory);
+  const [allInventory, setAllInventory] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearch(value);
-    setFilteredInventory(
-      mockInventory.filter((item) =>
-        item.name.toLowerCase().includes(value.toLowerCase())
-      )
+  useEffect(() => {
+    if (user) {
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          const token = await user.getIdToken();
+          const data = await getInventory(token);
+          setAllInventory(data);
+        } catch (error) {
+          console.error("Failed to fetch inventory", error);
+          toast({ variant: 'destructive', title: 'Error', description: 'Could not load inventory data.' });
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchData();
+    }
+  }, [user, toast]);
+
+  const filteredInventory = useMemo(() => {
+    if (!search) return allInventory;
+    return allInventory.filter((item) =>
+      item.name.toLowerCase().includes(search.toLowerCase())
     );
-  };
+  }, [allInventory, search]);
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -44,7 +77,7 @@ export default function InventoryPage() {
           <SidebarTrigger className="md:hidden" />
           <h1 className="text-2xl font-semibold">Inventory</h1>
         </div>
-        <Button>
+        <Button disabled>
           <Download className="mr-2 h-4 w-4" />
           Export to CSV
         </Button>
@@ -58,10 +91,10 @@ export default function InventoryPage() {
               placeholder="Search by name..."
               className="pl-10"
               value={search}
-              onChange={handleSearch}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Select>
+          <Select disabled>
             <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="All Warehouses" />
             </SelectTrigger>
@@ -70,7 +103,7 @@ export default function InventoryPage() {
               <SelectItem value="secondary">Secondary Warehouse</SelectItem>
             </SelectContent>
           </Select>
-          <Select>
+          <Select disabled>
             <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
@@ -92,7 +125,9 @@ export default function InventoryPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredInventory.length > 0 ? (
+              {loading ? (
+                <InventorySkeleton />
+              ) : filteredInventory.length > 0 ? (
                 filteredInventory.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-mono text-xs">

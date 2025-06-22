@@ -16,11 +16,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { mockAlerts } from '@/lib/mock-data';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/auth-context';
+import { useToast } from '@/hooks/use-toast';
+import { getAlertsData } from '@/app/data-actions';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved: (id: string) => void }) {
   const [formattedDate, setFormattedDate] = useState('');
@@ -72,7 +75,30 @@ function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved
 
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (user) {
+      const fetchData = async () => {
+        setLoading(true);
+        try {
+          const token = await user.getIdToken();
+          const data = await getAlertsData(token);
+          setAlerts(data);
+        } catch (error) {
+          console.error("Failed to fetch alerts:", error);
+          toast({ variant: 'destructive', title: 'Error', description: 'Could not load alerts data.' });
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchData();
+    }
+  }, [user, toast]);
+
 
   const toggleResolved = (id: string) => {
     setAlerts(
@@ -89,7 +115,7 @@ export default function AlertsPage() {
           <SidebarTrigger className="md:hidden" />
           <h1 className="text-2xl font-semibold">Alerts</h1>
         </div>
-        <Select>
+        <Select disabled>
           <SelectTrigger className="w-full md:w-[180px]">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
@@ -103,7 +129,17 @@ export default function AlertsPage() {
       </div>
 
       <div className="space-y-4">
-        {alerts.length > 0 ? (
+        {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+                <Card key={i}>
+                    <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
+                    <CardContent className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-8 w-32" />
+                    </CardContent>
+                </Card>
+            ))
+        ) : alerts.length > 0 ? (
           alerts.map((alert) => (
             <AlertCard key={alert.id} alert={alert} onToggleResolved={toggleResolved} />
           ))

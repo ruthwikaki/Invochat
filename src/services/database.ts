@@ -6,12 +6,13 @@
  */
 
 import { db } from '@/lib/db';
-import type { Product, Supplier } from '@/types';
-import { format } from 'date-fns';
+import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics } from '@/types';
+import { format, formatDistanceToNow } from 'date-fns';
 
 // Helper to convert database snake_case to JS camelCase
 // e.g., on_time_delivery_rate -> onTimeDeliveryRate
 const toCamelCase = (rows: any[]) => {
+  if (!rows) return [];
   return rows.map(row => {
     const newRow: { [key: string]: any } = {};
     for (const key in row) {
@@ -71,7 +72,6 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
     }
 }
 
-
 /**
  * Executes a query to fetch data for chart generation from PostgreSQL.
  * @param query A natural language description of the data needed.
@@ -83,11 +83,11 @@ export async function getDataForChart(query: string, companyId: string): Promise
     let sqlQuery: string;
     const params: (string|number)[] = [companyId];
 
-    if (lowerCaseQuery.includes('slowest moving') || lowerCaseQuery.includes('dead stock')) {
+    if (lowerCaseQuery.includes('slowest moving') || lowerCaseQuery.includes('dead stock value')) {
         sqlQuery = `
-            SELECT name, quantity * cost as value, last_sold_date 
+            SELECT name, quantity * cost as value
             FROM inventory 
-            WHERE company_id = $1
+            WHERE company_id = $1 AND last_sold_date < NOW() - INTERVAL '90 days'
             ORDER BY last_sold_date ASC 
             LIMIT 5;
         `;
@@ -104,7 +104,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
             SELECT i.category as name, SUM(s.quantity) as value 
             FROM sales s 
             JOIN inventory i ON s.product_id = i.id 
-            WHERE s.company_id = $1 AND s.date > NOW() - INTERVAL '30 days'
+            WHERE i.company_id = $1 AND s.date > NOW() - INTERVAL '30 days'
             GROUP BY i.category;
         `;
     } else if (lowerCaseQuery.includes('inventory aging')) {
@@ -146,8 +146,6 @@ export async function getDataForChart(query: string, companyId: string): Promise
 
     try {
         const { rows } = await db.query(sqlQuery, params);
-        // The data from the DB is already in the correct shape (name, value)
-        // Ensure numeric values are numbers, not strings from the DB
         return rows.map(row => ({...row, value: parseFloat(row.value)}));
     } catch (error) {
         console.error('Database query failed in getDataForChart:', error);
@@ -156,7 +154,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
 }
 
 /**
- * Retrieves dead stock items from the database.
+ * Retrieves dead stock items from the database for the AI flow.
  * @param companyId The company's ID.
  * @returns A promise that resolves to an array of dead stock products.
  */
@@ -196,5 +194,155 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
     } catch (error) {
         console.error('Database query failed in getSuppliersFromDB:', error);
         throw new Error('Failed to fetch supplier data.');
+    }
+}
+
+/**
+ * Retrieves all inventory items for a company.
+ * @param companyId The company's ID.
+ * @returns A promise that resolves to an array of inventory items.
+ */
+export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
+    const sqlQuery = `
+        SELECT sku as id, name, quantity, (quantity * cost) as value, last_sold_date
+        FROM inventory
+        WHERE company_id = $1
+        ORDER BY name;
+    `;
+    try {
+        const { rows } = await db.query(sqlQuery, [companyId]);
+        return rows.map(row => ({
+            ...row,
+            value: parseFloat(row.value),
+            lastSold: format(new Date(row.last_sold_date), 'yyyy-MM-dd')
+        }));
+    } catch (error) {
+        console.error('Database query failed in getInventoryItems:', error);
+        throw new Error('Failed to fetch inventory items.');
+    }
+}
+
+/**
+ * Retrieves data for the Dead Stock page.
+ * @param companyId The company's ID.
+ */
+export async function getDeadStockPageData(companyId: string) {
+    const sqlQuery = `
+        SELECT sku as id, name, quantity, (quantity * cost) as value, last_sold_date as lastSold
+        FROM inventory
+        WHERE company_id = $1 AND last_sold_date < NOW() - INTERVAL '90 days'
+        ORDER BY value DESC;
+    `;
+    try {
+        const { rows } = await db.query(sqlQuery, [companyId]);
+        const deadStockItems = rows.map(row => ({
+            ...row,
+            value: parseFloat(row.value),
+            lastSold: format(new Date(row.lastSold), 'yyyy-MM-dd')
+        }));
+        
+        const totalDeadStockValue = deadStockItems.reduce((acc, item) => acc + item.value, 0);
+
+        return { deadStockItems, totalDeadStockValue };
+    } catch (error) {
+        console.error('Database query failed in getDeadStockPageData:', error);
+        throw new Error('Failed to fetch dead stock page data.');
+    }
+}
+
+
+/**
+ * Fabricates alerts based on current inventory data.
+ * @param companyId The company's ID.
+ * @returns A promise resolving to an array of alerts.
+ */
+export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
+    try {
+        // Low stock alerts
+        const lowStockSql = `
+            SELECT name, quantity FROM inventory 
+            WHERE company_id = $1 AND quantity < 100 ORDER BY quantity ASC LIMIT 2;
+        `;
+        const lowStockRes = await db.query(lowStockSql, [companyId]);
+        const lowStockAlerts: Alert[] = lowStockRes.rows.map((item, i) => ({
+            id: `L-00${i+1}`,
+            type: 'Low Stock',
+            item: item.name,
+            message: `Quantity is critically low at ${item.quantity} units.`,
+            date: new Date().toISOString(),
+            resolved: false
+        }));
+
+        // Dead stock alerts
+        const deadStockSql = `
+            SELECT name, last_sold_date FROM inventory 
+            WHERE company_id = $1 AND last_sold_date < NOW() - INTERVAL '90 days' 
+            ORDER BY last_sold_date ASC LIMIT 2;
+        `;
+        const deadStockRes = await db.query(deadStockSql, [companyId]);
+        const deadStockAlerts: Alert[] = deadStockRes.rows.map((item, i) => ({
+            id: `D-00${i+1}`,
+            type: 'Dead Stock',
+            item: item.name,
+            message: `Item has not sold in over 90 days (last sold: ${format(new Date(item.last_sold_date), 'MMM d, yyyy')}).`,
+            date: new Date().toISOString(),
+            resolved: false
+        }));
+
+        return [...lowStockAlerts, ...deadStockAlerts];
+    } catch (error) {
+        console.error('Database query failed in getAlertsFromDB:', error);
+        throw new Error('Failed to generate alerts from database.');
+    }
+}
+
+/**
+ * Retrieves key metrics for the dashboard.
+ * @param companyId The company's ID.
+ * @returns A promise resolving to an object with dashboard metrics.
+ */
+export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
+    try {
+        const client = await db.connect();
+        try {
+            const queries = [
+                client.query('SELECT SUM(quantity * cost) as value FROM inventory WHERE company_id = $1', [companyId]),
+                client.query('SELECT SUM(quantity * cost) as value FROM inventory WHERE company_id = $1 AND last_sold_date < NOW() - INTERVAL \'90 days\'', [companyId]),
+                client.query('SELECT AVG(on_time_delivery_rate) as value FROM suppliers WHERE company_id = $1', [companyId]),
+                client.query('SELECT name, last_sold_date, quantity FROM inventory WHERE company_id = $1 AND quantity > 0 ORDER BY quantity ASC, last_sold_date ASC LIMIT 1', [companyId])
+            ];
+
+            const [
+                inventoryValueRes,
+                deadStockValueRes,
+                onTimeDeliveryRateRes,
+                predictiveAlertRes
+            ] = await Promise.all(queries);
+
+            const inventoryValue = parseFloat(inventoryValueRes.rows[0]?.value) || 0;
+            const deadStockValue = parseFloat(deadStockValueRes.rows[0]?.value) || 0;
+            const onTimeDeliveryRate = parseFloat(onTimeDeliveryRateRes.rows[0]?.value) || 0;
+            
+            let predictiveAlert = null;
+            if (predictiveAlertRes.rows[0]) {
+                const item = predictiveAlertRes.rows[0];
+                // simple prediction: assume we sell 1 unit/day
+                const days = Math.round(item.quantity); 
+                predictiveAlert = { item: item.name, days };
+            }
+
+            return {
+                inventoryValue,
+                deadStockValue,
+                onTimeDeliveryRate,
+                predictiveAlert,
+            };
+
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Database query failed in getDashboardMetrics:', error);
+        throw new Error('Failed to fetch dashboard metrics.');
     }
 }
