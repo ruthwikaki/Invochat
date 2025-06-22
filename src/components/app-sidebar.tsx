@@ -8,7 +8,8 @@ import {
   Home,
   MessageSquare,
   Package,
-  Settings,
+  Moon,
+  Sun,
   TrendingDown,
   Truck,
 } from 'lucide-react';
@@ -23,9 +24,12 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from './ui/sidebar';
+import { useTheme } from 'next-themes';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { setTheme } = useTheme();
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
@@ -62,10 +66,26 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Settings />
-              Settings
-            </SidebarMenuButton>
+             <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton>
+                  <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                  <span>Toggle Theme</span>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="right" align="end">
+                <DropdownMenuItem onClick={() => setTheme('light')}>
+                  Light
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('dark')}>
+                  Dark
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setTheme('system')}>
+                  System
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton>
