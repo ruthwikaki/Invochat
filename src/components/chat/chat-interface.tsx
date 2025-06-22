@@ -18,23 +18,19 @@ const AiComponentMap = {
   ReorderList,
 };
 
-const initialMessages: Message[] = [
-  {
-    id: 'init',
-    role: 'assistant',
-    content: 'Hello! How can I help you with your inventory today?',
-    timestamp: Date.now(),
-  },
-];
-
 const quickActions = [
   'Show dead stock',
   'Which vendor delivers on time?',
   'What should I reorder from Johnson Supply?',
 ];
 
-export function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+type ChatInterfaceProps = {
+    messages: Message[];
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    initialMessages: Message[];
+}
+
+export function ChatInterface({ messages, setMessages, initialMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -90,24 +86,36 @@ export function ChatInterface() {
   };
 
   const handleQuickAction = (action: string) => {
-    setInput(action);
     submitMessage(action);
-    setInput('');
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (input.trim() && !isPending) {
+            submitMessage(input);
+            setInput('');
+        }
+    }
+  };
+
 
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({
-        top: scrollAreaRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
+      const viewport = scrollAreaRef.current.querySelector('div');
+      if (viewport) {
+        viewport.scrollTo({
+            top: viewport.scrollHeight,
+            behavior: 'smooth',
+        });
+      }
     }
   }, [messages]);
 
   return (
-    <div className="flex h-full flex-grow flex-col justify-between p-4">
+    <div className="flex h-full flex-grow flex-col justify-between bg-background">
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="mx-auto max-w-4xl space-y-6 px-4">
+        <div className="mx-auto max-w-4xl space-y-6 p-4">
           {messages.map((m) => (
             <ChatMessage key={m.id} message={m} />
           ))}
@@ -124,14 +132,14 @@ export function ChatInterface() {
           )}
         </div>
       </ScrollArea>
-      <div className="mx-auto w-full max-w-4xl pt-4">
+      <div className="mx-auto w-full max-w-4xl p-4 border-t bg-background">
         <div className="mb-2 flex flex-wrap gap-2">
           {quickActions.map((action) => (
             <Button
               key={action}
               variant="outline"
               size="sm"
-              className="rounded-full"
+              className="rounded-full h-auto py-1 px-3 text-xs"
               onClick={() => handleQuickAction(action)}
               disabled={isPending}
             >
@@ -144,6 +152,7 @@ export function ChatInterface() {
             type="text"
             value={input}
             onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
             placeholder="Ask ARVO about your inventory..."
             className="h-12 flex-1 rounded-full pr-14 text-base"
             disabled={isPending}

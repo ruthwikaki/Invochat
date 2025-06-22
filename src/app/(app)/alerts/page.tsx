@@ -1,0 +1,110 @@
+'use client';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import { mockAlerts } from '@/lib/mock-data';
+import type { Alert } from '@/types';
+import { cn } from '@/lib/utils';
+import { AlertCircle, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
+
+export default function AlertsPage() {
+  const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
+
+  const toggleResolved = (id: string) => {
+    setAlerts(
+      alerts.map((alert) =>
+        alert.id === id ? { ...alert, resolved: !alert.resolved } : alert
+      )
+    );
+  };
+
+  const getVariant = (type: Alert['type']): "default" | "destructive" | "secondary" => {
+    switch (type) {
+        case 'Low Stock':
+            return 'destructive'
+        case 'Reorder':
+            return 'default'
+        case 'Dead Stock':
+            return 'secondary'
+    }
+  }
+
+  return (
+    <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
+       <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <SidebarTrigger className="md:hidden" />
+          <h1 className="text-2xl font-semibold">Alerts</h1>
+        </div>
+        <Select>
+          <SelectTrigger className="w-full md:w-[180px]">
+            <SelectValue placeholder="Filter by type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Alerts</SelectItem>
+            <SelectItem value="low-stock">Low Stock</SelectItem>
+            <SelectItem value="reorder">Reorder</SelectItem>
+            <SelectItem value="dead-stock">Dead Stock</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-4">
+        {alerts.length > 0 ? (
+          alerts.map((alert) => (
+            <Card
+              key={alert.id}
+              className={cn(alert.resolved && 'bg-muted/50')}
+            >
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5" /> {alert.item}
+                    </CardTitle>
+                    <CardDescription>
+                      Triggered on: {new Date(alert.date).toLocaleDateString()}
+                    </CardDescription>
+                  </div>
+                  <Badge variant={getVariant(alert.type)}>{alert.type}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="mb-4">{alert.message}</p>
+                <Button
+                  size="sm"
+                  variant={alert.resolved ? 'secondary' : 'outline'}
+                  onClick={() => toggleResolved(alert.id)}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  {alert.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
+                </Button>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <div className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg">
+            <CheckCircle className="h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-4 text-lg font-semibold">All Clear!</h3>
+            <p className="text-muted-foreground">You have no active alerts.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

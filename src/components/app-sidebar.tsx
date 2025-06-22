@@ -1,5 +1,7 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import {
   AlertCircle,
   BarChart,
@@ -8,7 +10,6 @@ import {
   Settings,
   TrendingDown,
   Truck,
-  User,
 } from 'lucide-react';
 import { ArvoLogo } from './arvo-logo';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
@@ -20,10 +21,20 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarTrigger,
 } from './ui/sidebar';
 
 export function AppSidebar() {
+  const pathname = usePathname();
+
+  const menuItems = [
+    { href: '/dashboard', label: 'Dashboard', icon: Home },
+    { href: '/inventory', label: 'Inventory', icon: Package },
+    { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
+    { href: '/suppliers', label: 'Suppliers', icon: Truck },
+    { href: '/analytics', label: 'Analytics', icon: BarChart },
+    { href: '/alerts', label: 'Alerts', icon: AlertCircle },
+  ];
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -34,54 +45,28 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton href="#" isActive>
-              <Home />
-              Dashboard
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton href="#">
-              <Package />
-              Inventory
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton href="#">
-              <TrendingDown />
-              Dead Stock
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton href="#">
-              <Truck />
-              Suppliers
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton href="#">
-              <BarChart />
-              Analytics
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton href="#">
-              <AlertCircle />
-              Alerts
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {menuItems.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
+                <Link href={item.href}>
+                  <item.icon />
+                  {item.label}
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton href="#">
+            <SidebarMenuButton>
               <Settings />
               Settings
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton href="#">
+            <SidebarMenuButton>
               <Avatar className="h-7 w-7">
                 <AvatarImage src="https://placehold.co/100x100.png" alt="User" data-ai-hint="user avatar" />
                 <AvatarFallback>U</AvatarFallback>
