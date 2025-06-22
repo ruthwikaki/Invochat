@@ -20,7 +20,56 @@ import { mockAlerts } from '@/lib/mock-data';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
 import { AlertCircle, CheckCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved: (id: string) => void }) {
+  const [formattedDate, setFormattedDate] = useState('');
+
+  useEffect(() => {
+    setFormattedDate(new Date(alert.date).toLocaleDateString());
+  }, [alert.date]);
+
+  const getVariant = (type: Alert['type']): 'default' | 'destructive' | 'secondary' => {
+    switch (type) {
+      case 'Low Stock':
+        return 'destructive';
+      case 'Reorder':
+        return 'default';
+      case 'Dead Stock':
+        return 'secondary';
+    }
+  };
+
+  return (
+    <Card className={cn(alert.resolved && 'bg-muted/50')}>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" /> {alert.item}
+            </CardTitle>
+            <CardDescription>
+              Triggered on: {formattedDate}
+            </CardDescription>
+          </div>
+          <Badge variant={getVariant(alert.type)}>{alert.type}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-4">{alert.message}</p>
+        <Button
+          size="sm"
+          variant={alert.resolved ? 'secondary' : 'outline'}
+          onClick={() => onToggleResolved(alert.id)}
+        >
+          <CheckCircle className="mr-2 h-4 w-4" />
+          {alert.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>(mockAlerts);
@@ -32,17 +81,6 @@ export default function AlertsPage() {
       )
     );
   };
-
-  const getVariant = (type: Alert['type']): "default" | "destructive" | "secondary" => {
-    switch (type) {
-        case 'Low Stock':
-            return 'destructive'
-        case 'Reorder':
-            return 'default'
-        case 'Dead Stock':
-            return 'secondary'
-    }
-  }
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -67,35 +105,7 @@ export default function AlertsPage() {
       <div className="space-y-4">
         {alerts.length > 0 ? (
           alerts.map((alert) => (
-            <Card
-              key={alert.id}
-              className={cn(alert.resolved && 'bg-muted/50')}
-            >
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5" /> {alert.item}
-                    </CardTitle>
-                    <CardDescription>
-                      Triggered on: {new Date(alert.date).toLocaleDateString()}
-                    </CardDescription>
-                  </div>
-                  <Badge variant={getVariant(alert.type)}>{alert.type}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="mb-4">{alert.message}</p>
-                <Button
-                  size="sm"
-                  variant={alert.resolved ? 'secondary' : 'outline'}
-                  onClick={() => toggleResolved(alert.id)}
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  {alert.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
-                </Button>
-              </CardContent>
-            </Card>
+            <AlertCard key={alert.id} alert={alert} onToggleResolved={toggleResolved} />
           ))
         ) : (
           <div className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg">
