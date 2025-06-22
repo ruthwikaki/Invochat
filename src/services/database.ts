@@ -1,129 +1,150 @@
 /**
  * @fileoverview
- * This file simulates a multi-tenant database service. It provides functions to query
- * mock data, mimicking interactions with a real database where data is partitioned
- * by companyId.
+ * This file provides functions to query the PostgreSQL database. It uses the
+ * connection pool from /src/lib/db.ts and ensures all queries are tenant-aware
+ * by using the companyId.
  */
 
-import { allMockData } from '@/lib/mock-data';
-import type { Product, Supplier, Transaction, Warehouse } from '@/types';
-import { subDays, parseISO, isBefore } from 'date-fns';
+import { db } from '@/lib/db';
+import { Product, Supplier } from '@/types';
+import { format } from 'date-fns';
 
-// Helper to get a specific company's data. In a real app this would be a WHERE clause.
-const getCompanyData = (companyId: string) => {
-    // For this mock service, we'll use a default company ID if the requested one doesn't exist.
-    return allMockData[companyId] || allMockData['default-company-id'];
-}
+// Helper to convert database snake_case to JS camelCase
+// e.g., on_time_delivery_rate -> onTimeDeliveryRate
+const toCamelCase = (rows: any[]) => {
+  return rows.map(row => {
+    const newRow: { [key: string]: any } = {};
+    for (const key in row) {
+      const camelKey = key.replace(/_([a-z])/g, g => g[1].toUpperCase());
+      newRow[camelKey] = row[key];
+    }
+    return newRow;
+  });
+};
 
-// Helper to calculate inventory value for a product
-const getProductValue = (product: Product) => product.quantity * product.cost;
 
 /**
- * Simulates executing a query to fetch data for chart generation.
+ * Executes a query to fetch data for chart generation from PostgreSQL.
  * @param query A natural language description of the data needed.
  * @param companyId The ID of the company whose data is being queried.
  * @returns An array of data matching the query.
  */
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
-    const { mockProducts, mockWarehouses, mockTransactions, mockSuppliers } = getCompanyData(companyId);
     const lowerCaseQuery = query.toLowerCase();
+    let sqlQuery: string;
+    const params: (string|number)[] = [companyId];
 
     if (lowerCaseQuery.includes('slowest moving') || lowerCaseQuery.includes('dead stock')) {
-        // Return top 5 slowest moving items by value
-        return mockProducts
-            .sort((a, b) => new Date(a.last_sold_date).getTime() - new Date(b.last_sold_date).getTime())
-            .slice(0, 5)
-            .map(p => ({ name: p.name, value: getProductValue(p), last_sold: p.last_sold_date }));
+        sqlQuery = `
+            SELECT name, quantity * cost as value, last_sold_date 
+            FROM inventory 
+            WHERE company_id = $1
+            ORDER BY last_sold_date ASC 
+            LIMIT 5;
+        `;
+    } else if (lowerCaseQuery.includes('warehouse distribution')) {
+        sqlQuery = `
+            SELECT w.name, SUM(i.quantity * i.cost) as value 
+            FROM inventory i 
+            JOIN warehouses w ON i.warehouse_id = w.id 
+            WHERE i.company_id = $1 
+            GROUP BY w.name;
+        `;
+    } else if (lowerCaseQuery.includes('sales velocity')) {
+        sqlQuery = `
+            SELECT i.category as name, SUM(s.quantity) as value 
+            FROM sales s 
+            JOIN inventory i ON s.product_id = i.id 
+            WHERE s.company_id = $1 AND s.date > NOW() - INTERVAL '30 days'
+            GROUP BY i.category;
+        `;
+    } else if (lowerCaseQuery.includes('inventory aging')) {
+        sqlQuery = `
+            SELECT
+                CASE
+                    WHEN last_sold_date >= NOW() - INTERVAL '30 days' THEN '0-30 Days'
+                    WHEN last_sold_date >= NOW() - INTERVAL '60 days' THEN '31-60 Days'
+                    WHEN last_sold_date >= NOW() - INTERVAL '90 days' THEN '61-90 Days'
+                    ELSE '90+ Days'
+                END as name,
+                SUM(quantity * cost) as value
+            FROM inventory
+            WHERE company_id = $1
+            GROUP BY name
+            ORDER BY 
+                CASE name
+                    WHEN '0-30 Days' THEN 1
+                    WHEN '31-60 Days' THEN 2
+                    WHEN '61-90 Days' THEN 3
+                    ELSE 4
+                END;
+        `;
+    } else if (lowerCaseQuery.includes('supplier performance')) {
+        sqlQuery = `
+            SELECT name, on_time_delivery_rate as value 
+            FROM suppliers 
+            WHERE company_id = $1 
+            ORDER BY value DESC;
+        `;
+    } else { // Default to 'inventory value by category'
+        sqlQuery = `
+            SELECT category as name, SUM(quantity * cost) as value 
+            FROM inventory 
+            WHERE company_id = $1 
+            GROUP BY category;
+        `;
     }
 
-    if (lowerCaseQuery.includes('warehouse distribution')) {
-        const distribution = mockProducts.reduce((acc, product) => {
-            const warehouse = mockWarehouses.find(w => w.id === product.warehouse_id);
-            if (warehouse) {
-                if (!acc[warehouse.name]) {
-                    acc[warehouse.name] = 0;
-                }
-                acc[warehouse.name] += getProductValue(product);
-            }
-            return acc;
-        }, {} as Record<string, number>);
-
-        return Object.entries(distribution).map(([name, value]) => ({ name, value }));
+    try {
+        const { rows } = await db.query(sqlQuery, params);
+        // The data from the DB is already in the correct shape (name, value)
+        return rows;
+    } catch (error) {
+        console.error('Database query failed in getDataForChart:', error);
+        throw new Error('Failed to fetch chart data from the database.');
     }
-
-    if (lowerCaseQuery.includes('sales velocity')) {
-        const salesByCategory = mockTransactions
-            .filter(t => t.type === 'sale')
-            .reduce((acc, transaction) => {
-                const product = mockProducts.find(p => p.id === transaction.product_id);
-                if (product) {
-                    const category = product.category;
-                    if (!acc[category]) {
-                        acc[category] = 0;
-                    }
-                    acc[category] += transaction.quantity;
-                }
-                return acc;
-            }, {} as Record<string, number>);
-        
-        return Object.entries(salesByCategory).map(([name, value]) => ({ name, value }));
-    }
-
-    if (lowerCaseQuery.includes('inventory aging')) {
-        const today = new Date();
-        const aging = {
-            '0-30 Days': 0,
-            '31-60 Days': 0,
-            '61-90 Days': 0,
-            '90+ Days': 0,
-        };
-
-        mockProducts.forEach(p => {
-            const lastSoldDate = parseISO(p.last_sold_date);
-            if (isBefore(lastSoldDate, subDays(today, 90))) {
-                aging['90+ Days'] += getProductValue(p);
-            } else if (isBefore(lastSoldDate, subDays(today, 60))) {
-                aging['61-90 Days'] += getProductValue(p);
-            } else if (isBefore(lastSoldDate, subDays(today, 30))) {
-                aging['31-60 Days'] += getProductValue(p);
-            } else {
-                aging['0-30 Days'] += getProductValue(p);
-            }
-        });
-
-        return Object.entries(aging).map(([name, value]) => ({ name, value }));
-    }
-    
-    if (lowerCaseQuery.includes('supplier performance')) {
-        return mockSuppliers.map(s => ({
-            name: s.name,
-            value: s.onTimeDeliveryRate
-        })).sort((a, b) => b.value - a.value);
-    }
-    
-    if (lowerCaseQuery.includes('inventory value by category')) {
-         const valueByCategory = mockProducts.reduce((acc, product) => {
-            if (!acc[product.category]) {
-                acc[product.category] = 0;
-            }
-            acc[product.category] += getProductValue(product);
-            return acc;
-        }, {} as Record<string, number>);
-
-        return Object.entries(valueByCategory).map(([name, value]) => ({ name, value }));
-    }
-
-    // Default: return inventory value by category if no match
-    return getDataForChart('inventory value by category', companyId);
 }
 
-export async function getDeadStockFromDB(companyId: string) {
-    const { mockProducts } = getCompanyData(companyId);
-    const ninetyDaysAgo = subDays(new Date(), 90);
-    return mockProducts.filter(p => isBefore(parseISO(p.last_sold_date), ninetyDaysAgo));
+/**
+ * Retrieves dead stock items from the database.
+ * @param companyId The company's ID.
+ * @returns A promise that resolves to an array of dead stock products.
+ */
+export async function getDeadStockFromDB(companyId: string): Promise<Product[]> {
+    const sqlQuery = `
+        SELECT id, sku, name, quantity, cost, last_sold_date, warehouse_id, supplier_id, category 
+        FROM inventory
+        WHERE company_id = $1 AND last_sold_date < NOW() - INTERVAL '90 days';
+    `;
+    try {
+        const { rows } = await db.query(sqlQuery, [companyId]);
+        return toCamelCase(rows.map(row => ({
+            ...row,
+            last_sold_date: format(new Date(row.last_sold_date), 'yyyy-MM-dd')
+        })));
+    } catch (error) {
+        console.error('Database query failed in getDeadStockFromDB:', error);
+        throw new Error('Failed to fetch dead stock data.');
+    }
 }
 
-export async function getSuppliersFromDB(companyId: string) {
-    const { mockSuppliers } = getCompanyData(companyId);
-    return mockSuppliers.sort((a,b) => b.onTimeDeliveryRate - a.onTimeDeliveryRate);
+/**
+ * Retrieves suppliers from the database, ranked by performance.
+ * @param companyId The company's ID.
+ * @returns A promise that resolves to an array of suppliers.
+ */
+export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
+    const sqlQuery = `
+        SELECT id, name, on_time_delivery_rate, avg_delivery_time, contact 
+        FROM suppliers
+        WHERE company_id = $1
+        ORDER BY on_time_delivery_rate DESC;
+    `;
+    try {
+        const { rows } = await db.query(sqlQuery, [companyId]);
+        return toCamelCase(rows) as Supplier[];
+    } catch (error) {
+        console.error('Database query failed in getSuppliersFromDB:', error);
+        throw new Error('Failed to fetch supplier data.');
+    }
 }
