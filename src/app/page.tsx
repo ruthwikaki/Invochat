@@ -2,31 +2,25 @@
 import { useAuth } from "@/context/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // Wait until the authentication state is determined.
     if (!loading) {
       if (user) {
+        // If the user is logged in, redirect them to the dashboard.
         router.replace('/dashboard');
       } else {
+        // If the user is not logged in, redirect them to the login page.
         router.replace('/login');
       }
     }
   }, [user, loading, router]);
   
-  return (
-    <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-            <Skeleton className="h-12 w-12 rounded-full" />
-            <div className="space-y-2">
-                <Skeleton className="h-4 w-[250px]" />
-                <Skeleton className="h-4 w-[200px]" />
-            </div>
-        </div>
-    </div>
-  );
+  // This page's only job is to redirect. It should not render any content.
+  // Returning null is the standard practice for this "bouncer" pattern.
+  return null;
 }
