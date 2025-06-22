@@ -20,6 +20,14 @@ type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
 export async function handleUserMessage(
   payload: UserMessagePayload
 ): Promise<AssistantMessagePayload> {
+  if (!auth) {
+    console.error("Firebase Admin SDK is not initialized. Cannot process message.");
+    return {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: "I'm sorry, but the server is not configured correctly for AI actions. Please contact support."
+    };
+  }
 
   const { message, idToken } = UserMessagePayloadSchema.parse(payload);
   
