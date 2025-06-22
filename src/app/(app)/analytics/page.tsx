@@ -2,6 +2,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { useState, useEffect } from 'react';
+import { Skeleton } from "@/components/ui/skeleton";
 
 const turnoverData = [
   { name: 'Jan', turnover: 4 }, { name: 'Feb', turnover: 3 }, { name: 'Mar', turnover: 5 },
@@ -15,6 +17,12 @@ const salesVelocityData = [
 
 
 export default function AnalyticsPage() {
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
+
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
             <div className="flex items-center justify-between">
@@ -31,16 +39,20 @@ export default function AnalyticsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={turnoverData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Line type="monotone" dataKey="turnover" stroke="hsl(var(--primary))" activeDot={{ r: 8 }} />
-                                </LineChart>
-                            </ResponsiveContainer>
+                            {isClient ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={turnoverData}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="name" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Legend />
+                                        <Line type="monotone" dataKey="turnover" stroke="hsl(var(--primary))" activeDot={{ r: 8 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <Skeleton className="h-full w-full" />
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -50,16 +62,20 @@ export default function AnalyticsPage() {
                     </CardHeader>
                     <CardContent>
                          <div className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={salesVelocityData}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Bar dataKey="velocity" fill="hsl(var(--primary))" />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {isClient ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={salesVelocityData}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="name" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Legend />
+                                        <Bar dataKey="velocity" fill="hsl(var(--primary))" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <Skeleton className="h-full w-full" />
+                            )}
                         </div>
                     </CardContent>
                 </Card>
