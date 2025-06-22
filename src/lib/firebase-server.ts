@@ -1,30 +1,36 @@
 
-import { initializeApp, getApps, getApp, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
-function initializeAdminApp() {
+function initializeAdminApp(): App | null {
     if (getApps().length > 0) {
         return getApp();
     }
     
-    let serviceAccount;
     try {
-        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-            serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
+        if (serviceAccountStr) {
+            const serviceAccount = JSON.parse(serviceAccountStr);
+            return initializeApp({ credential: cert(serviceAccount) });
+        } else {
+            // This will use Application Default Credentials if available.
+            return initializeApp();
         }
-    } catch (error) {
-        console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is a valid JSON string.', error);
-        serviceAccount = undefined;
-    }
-
-    try {
-        return initializeApp(
-            serviceAccount ? { credential: cert(serviceAccount) } : undefined
-        );
-    } catch (error) {
-        console.error("Firebase Admin SDK initialization failed:", error);
-        // This will prevent the app from crashing and auth/db will be undefined.
+    } catch (error: any) {
+        let errorMessage = "Firebase Admin SDK initialization failed. ";
+        if (error.code === 'app/duplicate-app') {
+            return getApp(); // This is not a failure, just a re-init attempt.
+        } else if (error instanceof SyntaxError) {
+             errorMessage += 'Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is a valid, non-empty JSON string.';
+        } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+             errorMessage += 'The provided FIREBASE_SERVICE_ACCOUNT seems invalid.';
+        } else {
+            errorMessage += 'Could not find necessary credentials. For server-side features, set the FIREBASE_SERVICE_ACCOUNT or GOOGLE_APPLICATION_CREDENTIALS environment variables.';
+        }
+        console.error(errorMessage);
+        
+        // Return null to prevent the entire server from crashing.
         return null;
     }
 }

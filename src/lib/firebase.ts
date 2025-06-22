@@ -1,15 +1,18 @@
-import { getApp, getApps, initializeApp } from 'firebase/app';
+
+import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   createUserWithEmailAndPassword,
   getAuth,
+  type Auth,
 } from 'firebase/auth';
 import {
   addDoc,
   collection,
   getFirestore,
   serverTimestamp,
+  type Firestore,
 } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -20,11 +23,32 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase for client-side
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-const functions = getFunctions(app);
+// Safely initialize the app, checking for required config values.
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let functions: Functions | null = null;
+
+if (firebaseConfig.projectId && firebaseConfig.apiKey) {
+    if (getApps().length === 0) {
+        try {
+            app = initializeApp(firebaseConfig);
+        } catch (e) {
+            console.error("Failed to initialize Firebase", e)
+        }
+    } else {
+        app = getApp();
+    }
+    
+    if (app) {
+        auth = getAuth(app);
+        db = getFirestore(app);
+        functions = getFunctions(app);
+    }
+} else {
+    console.warn("Firebase projectId or apiKey is missing from environment variables. Firebase client services will not be initialized.");
+}
+
 
 // Function to create a user and associate them with a company
 export const createUserWithCompany = async (
@@ -32,6 +56,9 @@ export const createUserWithCompany = async (
   password,
   companyName
 ) => {
+    if (!auth || !db || !functions) {
+        throw new Error("Firebase is not configured correctly. Please check your environment variables.");
+    }
   // Create user in Firebase Auth
   const userCredential = await createUserWithEmailAndPassword(
     auth,

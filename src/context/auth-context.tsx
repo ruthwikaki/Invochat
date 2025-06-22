@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -18,19 +19,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    if (auth) {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          setUser(user);
+          setLoading(false);
+        });
+        return () => unsubscribe();
+    } else {
+        // If auth is not initialized, stop loading and treat as logged out.
+        // This happens if Firebase env vars are not set.
+        setLoading(false);
+        setUser(null);
+        console.warn("Firebase Auth is not initialized. Make sure your NEXT_PUBLIC_FIREBASE_* environment variables are set in your .env file.");
+    }
   }, []);
 
   const login = (email: string, pass: string) => {
+    if (!auth) {
+        return Promise.reject(new Error("Firebase Auth is not initialized."));
+    }
     return signInWithEmailAndPassword(auth, email, pass);
   };
   
   const logout = () => {
-      return signOut(auth);
+    if (!auth) {
+        return Promise.reject(new Error("Firebase Auth is not initialized."));
+    }
+    return signOut(auth);
   }
 
   const value = {
