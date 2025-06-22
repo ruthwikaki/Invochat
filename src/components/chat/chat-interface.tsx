@@ -4,6 +4,7 @@ import { handleUserMessage } from '@/app/actions';
 import { DeadStockTable } from '@/components/ai-response/dead-stock-table';
 import { ReorderList } from '@/components/ai-response/reorder-list';
 import { SupplierPerformanceTable } from '@/components/ai-response/supplier-performance-table';
+import { DynamicChart } from '@/components/ai-response/dynamic-chart';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,11 +17,12 @@ const AiComponentMap = {
   DeadStockTable,
   SupplierPerformanceTable,
   ReorderList,
+  DynamicChart,
 };
 
 const quickActions = [
   'Show dead stock',
-  'Which vendor delivers on time?',
+  'Visualize warehouse distribution',
   'What should I reorder from Johnson Supply?',
 ];
 

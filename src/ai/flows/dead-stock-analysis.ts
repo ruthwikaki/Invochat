@@ -2,74 +2,76 @@
 
 /**
  * @fileOverview A flow for analyzing dead stock and identifying slow-moving inventory.
- *
- * - analyzeDeadStock - A function that initiates the dead stock analysis process.
- * - AnalyzeDeadStockInput - The input type for the analyzeDeadStock function.
- * - AnalyzeDeadStockOutput - The return type for the analyzeDeadStock function, listing items identified as dead stock.
  */
 
 import {ai} from '@/ai/genkit';
+import { getDeadStockFromDB } from '@/services/database';
 import {z} from 'genkit';
 
-// Define the input schema for the dead stock analysis.
+// Define the input schema.
 const AnalyzeDeadStockInputSchema = z.object({
   query: z
     .string()
-    .describe(
-      'The user query related to dead stock analysis, e.g., \'What is my dead stock?\''
-    ),
+    .describe('The user query related to dead stock analysis.'),
 });
 export type AnalyzeDeadStockInput = z.infer<typeof AnalyzeDeadStockInputSchema>;
 
-// Define the output schema for the dead stock analysis, including a list of dead stock items.
+// Define the output schema.
 const AnalyzeDeadStockOutputSchema = z.object({
   deadStockItems: z.array(
     z.object({
       item: z.string().describe('The name or identifier of the item.'),
       quantity: z.number().describe('The quantity of the item in stock.'),
-      lastSold: z
-        .string() // Consider using a date type if appropriate
-        .describe('The date the item was last sold.'),
-      reason: z
-        .string()
-        .describe(
-          'The reason why the item is considered dead stock, e.g., slow-moving, obsolete.'
-        ),
+      lastSold: z.string().describe('The date the item was last sold.'),
+      reason: z.string().describe('The reason why the item is considered dead stock.'),
     })
   ).describe('A list of items identified as dead stock.'),
 });
 export type AnalyzeDeadStockOutput = z.infer<typeof AnalyzeDeadStockOutputSchema>;
 
-// Exported function to initiate the dead stock analysis flow.
-export async function analyzeDeadStock(input: AnalyzeDeadStockInput): Promise<AnalyzeDeadStockOutput> {
-  return analyzeDeadStockFlow(input);
-}
-
-// Define the prompt for the dead stock analysis.
-const deadStockPrompt = ai.definePrompt({
-  name: 'deadStockPrompt',
-  input: {schema: AnalyzeDeadStockInputSchema},
-  output: {schema: AnalyzeDeadStockOutputSchema},
-  prompt: `You are an inventory management expert. Analyze the user's query to identify dead stock items.
-
-  Based on the query: {{{query}}}
-
-  Return a list of items considered dead stock, including their quantity, last sold date, and the reason they are classified as dead stock.
-  Consider items with no sales in the last 6 months as dead stock.
-  Items from before that time are not to be considered dead stock.
-  Ensure the output matches the AnalyzeDeadStockOutputSchema format.`, // Ensure schema compliance
+// Tool to fetch dead stock data from our "database".
+const getDeadStockTool = ai.defineTool({
+    name: 'getDeadStockData',
+    description: 'Retrieves a list of all products that have not been sold in over 90 days.',
+    inputSchema: z.object({}),
+    outputSchema: z.array(z.any()),
+}, async () => {
+    const items = await getDeadStockFromDB();
+    return items.map(item => ({
+        item: item.name,
+        quantity: item.quantity,
+        lastSold: item.last_sold_date,
+        reason: 'Not sold in 90+ days'
+    }));
 });
 
-// Define the Genkit flow for dead stock analysis.
+// Define the prompt.
+const deadStockPrompt = ai.definePrompt({
+  name: 'deadStockPrompt',
+  tools: [getDeadStockTool],
+  prompt: `A user is asking about dead stock. Use the getDeadStockData tool to retrieve the information and return it. The schema will be automatically handled.`,
+});
+
+// Define the Genkit flow.
 const analyzeDeadStockFlow = ai.defineFlow(
   {
     name: 'analyzeDeadStockFlow',
     inputSchema: AnalyzeDeadStockInputSchema,
     outputSchema: AnalyzeDeadStockOutputSchema,
   },
-  async input => {
-    const {output} = await deadStockPrompt(input);
-    return output!;
+  async () => {
+    const response = await deadStockPrompt({});
+    const toolResponse = response.toolRequest('getDeadStockData');
+    if (!toolResponse) {
+        throw new Error("Failed to get dead stock data from tool.");
+    }
+
+    return { deadStockItems: toolResponse.output as any[] };
   }
 );
 
+
+// Exported function to initiate the dead stock analysis flow.
+export async function analyzeDeadStock(input: AnalyzeDeadStockInput): Promise<AnalyzeDeadStockOutput> {
+  return analyzeDeadStockFlow(input);
+}
