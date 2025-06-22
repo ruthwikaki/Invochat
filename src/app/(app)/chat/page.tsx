@@ -1,0 +1,44 @@
+'use client';
+
+import { ChatInterface } from '@/components/chat/chat-interface';
+import { Button } from '@/components/ui/button';
+import { SidebarTrigger } from '@/components/ui/sidebar';
+import type { Message } from '@/types';
+import { Trash2 } from 'lucide-react';
+import { useState } from 'react';
+
+const initialMessages: Message[] = [
+  {
+    id: 'init',
+    role: 'assistant',
+    content: 'Hello! Ask me anything about your inventory.',
+    timestamp: Date.now(),
+  },
+];
+
+export default function ChatPage() {
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  
+  const clearChat = () => {
+    setMessages(initialMessages);
+  };
+
+  return (
+    <div className="flex flex-col h-full animate-fade-in">
+        <div className="flex items-center justify-between p-4 border-b shrink-0">
+            <div className="flex items-center gap-2">
+                <SidebarTrigger className="md:hidden" />
+                <h1 className="text-2xl font-semibold">Chat with ARVO</h1>
+            </div>
+            <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length <= 1}>
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Clear Chat</span>
+            </Button>
+        </div>
+        <ChatInterface
+            messages={messages}
+            setMessages={setMessages}
+        />
+    </div>
+  );
+}

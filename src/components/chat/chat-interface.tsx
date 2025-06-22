@@ -21,18 +21,18 @@ const AiComponentMap = {
 };
 
 const quickActions = [
-  'Show dead stock',
-  'Visualize warehouse distribution',
-  'What should I reorder from Johnson Supply?',
+  "What's not selling?",
+  'Show supplier performance',
+  'Create inventory chart',
+  'What needs reordering?',
 ];
 
 type ChatInterfaceProps = {
     messages: Message[];
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-    initialMessages: Message[];
 }
 
-export function ChatInterface({ messages, setMessages, initialMessages }: ChatInterfaceProps) {
+export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -155,7 +155,7 @@ export function ChatInterface({ messages, setMessages, initialMessages }: ChatIn
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask ARVO about your inventory..."
+            placeholder="Ask anything about your inventory..."
             className="h-12 flex-1 rounded-full pr-14 text-base"
             disabled={isPending}
           />

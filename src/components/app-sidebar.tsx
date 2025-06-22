@@ -6,6 +6,7 @@ import {
   AlertCircle,
   BarChart,
   Home,
+  MessageSquare,
   Package,
   Settings,
   TrendingDown,
@@ -28,6 +29,7 @@ export function AppSidebar() {
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
+    { href: '/chat', label: 'Chat with ARVO', icon: MessageSquare },
     { href: '/inventory', label: 'Inventory', icon: Package },
     { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
     { href: '/suppliers', label: 'Suppliers', icon: Truck },
