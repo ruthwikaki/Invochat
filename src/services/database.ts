@@ -6,7 +6,7 @@
  */
 
 import { db } from '@/lib/db';
-import { Product, Supplier } from '@/types';
+import type { Product, Supplier } from '@/types';
 import { format } from 'date-fns';
 
 // Helper to convert database snake_case to JS camelCase
@@ -147,7 +147,8 @@ export async function getDataForChart(query: string, companyId: string): Promise
     try {
         const { rows } = await db.query(sqlQuery, params);
         // The data from the DB is already in the correct shape (name, value)
-        return rows;
+        // Ensure numeric values are numbers, not strings from the DB
+        return rows.map(row => ({...row, value: parseFloat(row.value)}));
     } catch (error) {
         console.error('Database query failed in getDataForChart:', error);
         throw new Error('Failed to fetch chart data from the database.');
@@ -170,7 +171,7 @@ export async function getDeadStockFromDB(companyId: string): Promise<Product[]> 
         return toCamelCase(rows.map(row => ({
             ...row,
             last_sold_date: format(new Date(row.last_sold_date), 'yyyy-MM-dd')
-        })));
+        }))) as Product[];
     } catch (error) {
         console.error('Database query failed in getDeadStockFromDB:', error);
         throw new Error('Failed to fetch dead stock data.');
@@ -197,5 +198,3 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
         throw new Error('Failed to fetch supplier data.');
     }
 }
-
-    
