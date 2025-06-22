@@ -1,9 +1,11 @@
+
 import { Pool } from 'pg';
 
 let pool: Pool;
 
 // This file establishes a connection pool to your PostgreSQL database.
 // It uses the environment variables defined in your .env file.
+// It also includes a self-testing function to verify the connection on startup.
 
 try {
     if (!process.env.POSTGRES_DATABASE) {
@@ -21,9 +23,25 @@ try {
         connectionTimeoutMillis: 2000, // how long to wait for a connection to be established
     });
 
-    pool.on('connect', () => {
-        console.log('PostgreSQL client connected to the pool');
-    });
+    // Self-testing connection query
+    (async () => {
+        let client;
+        try {
+            console.log('[DB Test] Attempting to connect to PostgreSQL...');
+            client = await pool.connect();
+            const res = await client.query('SELECT NOW()');
+            console.log(`[DB Test] ✅ Connection successful. Database time is: ${res.rows[0].now}`);
+        } catch (err) {
+            console.error('[DB Test] ❌ Connection failed. Please check your .env file and ensure PostgreSQL is running.', err);
+            // Optional: exit if a DB connection is absolutely critical.
+            // process.exit(1);
+        } finally {
+            if (client) {
+                client.release();
+            }
+        }
+    })();
+
 
     pool.on('error', (err, client) => {
         console.error('Unexpected error on idle PostgreSQL client', err);
