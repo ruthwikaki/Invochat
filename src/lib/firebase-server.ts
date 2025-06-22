@@ -3,7 +3,7 @@ import { initializeApp, getApps, getApp, cert, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
-const ADMIN_APP_NAME = 'firebase-admin';
+const ADMIN_APP_NAME = 'firebase-admin-app-for-arvo';
 
 function initializeAdminApp(): App | null {
     // Check if the admin app is already initialized to prevent re-initialization.
@@ -14,20 +14,26 @@ function initializeAdminApp(): App | null {
     try {
         const serviceAccountStr = process.env.FIREBASE_SERVICE_ACCOUNT;
         
-        // Use service account credentials if provided, otherwise fall back to
-        // Application Default Credentials for environments like Google Cloud Run.
-        const credential = serviceAccountStr
-            ? cert(JSON.parse(serviceAccountStr))
-            : undefined;
+        if (!serviceAccountStr) {
+            console.warn(
+                `[Firebase Admin]: FIREBASE_SERVICE_ACCOUNT is not set. 
+                For local development, provide the service account JSON in your .env file. 
+                In a hosted environment, ensure Application Default Credentials are available. 
+                Server-side AI actions will be disabled.`
+            );
+            return null;
+        }
 
-        return initializeApp({ credential }, ADMIN_APP_NAME);
+        const serviceAccount = JSON.parse(serviceAccountStr);
+
+        return initializeApp({
+            credential: cert(serviceAccount)
+        }, ADMIN_APP_NAME);
 
     } catch (error: any) {
         let errorMessage = `[Firebase Admin]: Initialization failed. `;
         if (error instanceof SyntaxError) {
-             errorMessage += 'Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is valid JSON.';
-        } else if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-            errorMessage += 'FIREBASE_SERVICE_ACCOUNT is not set. For local development, provide the service account JSON. In a hosted environment, ensure Application Default Credentials are available.';
+             errorMessage += 'Failed to parse FIREBASE_SERVICE_ACCOUNT. Make sure it is valid, single-line JSON in your .env file.';
         } else {
             errorMessage += error.message;
         }

@@ -23,6 +23,8 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+const CLIENT_APP_NAME = 'firebase-client-app-for-arvo';
+
 // Safely initialize the app, checking for required config values.
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
@@ -30,14 +32,14 @@ let db: Firestore | null = null;
 let functions: Functions | null = null;
 
 if (firebaseConfig.projectId && firebaseConfig.apiKey) {
-    if (getApps().length === 0) {
+    if (!getApps().some(app => app.name === CLIENT_APP_NAME)) {
         try {
-            app = initializeApp(firebaseConfig);
+            app = initializeApp(firebaseConfig, CLIENT_APP_NAME);
         } catch (e) {
             console.error("Failed to initialize Firebase", e)
         }
     } else {
-        app = getApp();
+        app = getApp(CLIENT_APP_NAME);
     }
     
     if (app) {

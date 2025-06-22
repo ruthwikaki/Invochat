@@ -1,3 +1,4 @@
+
 'use server';
 
 import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
@@ -20,31 +21,30 @@ type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
 export async function handleUserMessage(
   payload: UserMessagePayload
 ): Promise<AssistantMessagePayload> {
+  const { message, idToken } = UserMessagePayloadSchema.parse(payload);
+  
   if (!auth) {
-    console.error("Firebase Admin SDK is not initialized. Cannot process message.");
+    console.error("Firebase Admin SDK is not initialized. Cannot process message. Ensure FIREBASE_SERVICE_ACCOUNT is set in your environment.");
     return {
       id: Date.now().toString(),
       role: 'assistant',
-      content: "I'm sorry, but the server is not configured correctly for AI actions. Please contact support."
+      content: "I'm sorry, but the server is not configured correctly for AI actions. Please contact support or check the server logs."
     };
   }
 
-  const { message, idToken } = UserMessagePayloadSchema.parse(payload);
-  
   let companyId: string;
-
   try {
     const decodedToken = await auth.verifyIdToken(idToken);
     if (!decodedToken.companyId || typeof decodedToken.companyId !== 'string') {
-        throw new Error('Company ID not found in token.');
+        throw new Error("User token is missing the required 'companyId' custom claim.");
     }
     companyId = decodedToken.companyId;
-  } catch (error) {
-    console.error("Authentication error:", error);
+  } catch (error: any) {
+    console.error("Authentication error verifying ID token:", error.message);
     return {
         id: Date.now().toString(),
         role: 'assistant',
-        content: 'Authentication failed. Please log in again.'
+        content: 'Authentication failed. Your session may have expired. Please log in again.'
     }
   }
 
@@ -111,13 +111,13 @@ export async function handleUserMessage(
         });
       }
     }
-  } catch (error) {
-    console.error('Error processing user message:', error);
+  } catch (error: any) {
+    console.error('Error processing AI action:', error);
     return actionResponseSchema.parse({
       id: Date.now().toString(),
       role: 'assistant',
       content:
-        'Sorry, I encountered an error while processing your request. Please try again.',
+        `Sorry, I encountered an error while processing your request: ${error.message}. Please try again.`,
     });
   }
 
