@@ -27,35 +27,33 @@ pool.on('error', (err, client) => {
 export const db = pool;
 
 let connectionTested = false;
+let dbIsConnected = false;
 
 // We now export the test as a function to be called explicitly from the root layout.
 export async function testDbConnection() {
     if (connectionTested || !process.env.POSTGRES_DATABASE) return;
+    connectionTested = true; // Mark as tested, so we don't retry on every hot-reload.
 
     let client;
     try {
-        console.log('[DB Test] Attempting to connect to PostgreSQL...');
+        console.log('[DB] Attempting to connect to PostgreSQL...');
         client = await db.connect();
         const res = await client.query('SELECT NOW()');
-        console.log(`[DB Test] ✅ Connection successful. Database time is: ${res.rows[0].now}`);
-        connectionTested = true;
+        console.log(`[DB] ✅ Connection successful. Database time is: ${res.rows[0].now}`);
+        dbIsConnected = true;
     } catch (err: any) {
-        console.error('[DB Test] ❌ Connection failed. Please check your .env file and ensure PostgreSQL is running.');
-        if (err.code) {
-          console.error(`[DB Test] Hint: A specific error code was returned: ${err.code}.`);
-          if(err.code === 'ECONNREFUSED') {
-            console.error(`[DB Test] This code often means the PostgreSQL server is not running or is not accessible at ${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}.`);
-          }
-          if(err.code === '28P01') {
-             console.error(`[DB Test] This code (auth_spec_failed) can mean the user or password in your .env file is incorrect.`);
-          }
-          if(err.code === '3D000') {
-             console.error(`[DB Test] This code (invalid_catalog_name) means the database "${process.env.POSTGRES_DATABASE}" does not exist.`);
-          }
-        }
+        console.warn('---');
+        console.warn('[DB] ⚠️  Could not connect to PostgreSQL database.');
+        console.warn(`[DB] This is expected if you haven't started your local database server.`);
+        console.warn(`[DB] The application will continue to run, but data-dependent features will be empty.`);
+        console.warn(`[DB] To enable database features, start PostgreSQL and restart the app.`);
+        console.warn('---');
+        dbIsConnected = false;
     } finally {
         if (client) {
             client.release();
         }
     }
 }
+
+export const isDbConnected = () => dbIsConnected;

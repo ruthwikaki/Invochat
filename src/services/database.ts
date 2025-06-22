@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview
  * This file provides functions to query the PostgreSQL database. It uses the
@@ -5,7 +6,7 @@
  * by using the companyId.
  */
 
-import { db } from '@/lib/db';
+import { db, isDbConnected } from '@/lib/db';
 import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics } from '@/types';
 import { format } from 'date-fns';
 
@@ -30,13 +31,14 @@ const toCamelCase = (rows: any[]) => {
  * @returns A promise that resolves to the company ID string or null if not found.
  */
 export async function getCompanyIdForUser(uid: string): Promise<string | null> {
+    if (!isDbConnected()) return null;
     const sqlQuery = 'SELECT company_id FROM users WHERE firebase_uid = $1;';
     try {
         const { rows } = await db.query(sqlQuery, [uid]);
         return rows[0]?.company_id || null;
     } catch (error) {
-        console.error('CRITICAL: Database query failed in getCompanyIdForUser:', error);
-        throw new Error('Failed to retrieve user company information. The database may be down.');
+        console.error('[DB Service] CRITICAL: Database query failed in getCompanyIdForUser:', error);
+        return null;
     }
 }
 
@@ -50,6 +52,7 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
  * @returns A promise that resolves to the new company's ID.
  */
 export async function createCompanyAndUserInDB(uid: string, email: string, companyName: string): Promise<string> {
+    if (!isDbConnected()) throw new Error('Database is not connected. Cannot create user.');
     const client = await db.connect();
     try {
         await client.query('BEGIN');
@@ -67,7 +70,7 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         return companyId;
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('CRITICAL: Database transaction failed in createCompanyAndUserInDB:', error);
+        console.error('[DB Service] CRITICAL: Database transaction failed in createCompanyAndUserInDB:', error);
         throw new Error('Failed to create company and user in database.');
     } finally {
         client.release();
@@ -82,6 +85,7 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
  * @returns An array of data matching the query.
  */
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
+    if (!isDbConnected()) return [];
     const lowerCaseQuery = query.toLowerCase();
     let sqlQuery: string;
     const params: (string|number)[] = [companyId];
@@ -163,6 +167,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
  * @returns A promise that resolves to an array of dead stock products.
  */
 export async function getDeadStockFromDB(companyId: string): Promise<Product[]> {
+    if (!isDbConnected()) return [];
     const sqlQuery = `
         SELECT id, sku, name, quantity, cost, last_sold_date, warehouse_id, supplier_id, category 
         FROM inventory
@@ -187,6 +192,7 @@ export async function getDeadStockFromDB(companyId: string): Promise<Product[]> 
  * @returns A promise that resolves to an array of suppliers.
  */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
+    if (!isDbConnected()) return [];
     const sqlQuery = `
         SELECT id, name, on_time_delivery_rate, avg_delivery_time, contact 
         FROM suppliers
@@ -209,6 +215,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
  * @returns A promise that resolves to an array of inventory items.
  */
 export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
+    if (!isDbConnected()) return [];
     const sqlQuery = `
         SELECT sku as id, name, quantity, (quantity * cost) as value, last_sold_date
         FROM inventory
@@ -234,6 +241,7 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
  * @param companyId The company's ID.
  */
 export async function getDeadStockPageData(companyId: string) {
+    if (!isDbConnected()) return { deadStockItems: [], totalDeadStockValue: 0 };
     const sqlQuery = `
         SELECT sku as id, name, quantity, (quantity * cost) as value, last_sold_date as lastSold
         FROM inventory
@@ -265,6 +273,7 @@ export async function getDeadStockPageData(companyId: string) {
  * @returns A promise resolving to an array of alerts.
  */
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
+    if (!isDbConnected()) return [];
     try {
         // Low stock alerts
         const lowStockSql = `
@@ -317,6 +326,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
         onTimeDeliveryRate: 0,
         predictiveAlert: null,
     };
+    
+    if (!isDbConnected()) return defaultMetrics;
     
     try {
         const client = await db.connect();
