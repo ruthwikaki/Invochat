@@ -1,6 +1,7 @@
 
 'use server';
 
+import '@/lib/db'; // This will initialize the DB connection and run the test
 import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
 import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
@@ -111,7 +112,8 @@ export async function handleUserMessage(
         });
       }
     }
-  } catch (error: any) {
+  } catch (error: any)
+{
     console.error('Error processing AI action:', error);
     return actionResponseSchema.parse({
       id: Date.now().toString(),
