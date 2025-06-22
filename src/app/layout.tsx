@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
-import '@/lib/db'; // Initialize DB connection on startup
+import { testDbConnection } from '@/lib/db'; // Import the test function
 
 const inter = Inter({
   subsets: ['latin'],
@@ -18,11 +18,13 @@ export const metadata: Metadata = {
   description: 'AI-powered inventory management',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await testDbConnection(); // Explicitly call the DB test on startup.
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn('font-body antialiased', inter.variable)}>
