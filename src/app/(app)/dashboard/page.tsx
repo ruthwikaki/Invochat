@@ -15,8 +15,9 @@ import { ReorderModal } from '@/components/reorder-modal';
 import { InventoryValueChart } from '@/components/charts/inventory-value-chart';
 import { InventoryTrendChart } from '@/components/charts/inventory-trend-chart';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 
-function MetricCard({ title, value, icon: Icon, className, label, loading }: { title: string; value: string; icon: React.ElementType; className?: string; label?: string; loading: boolean }) {
+function MetricCard({ title, value, icon: Icon, variant = 'default', label, loading }: { title: string; value: string; icon: React.ElementType; variant?: 'default' | 'destructive' | 'success'; label?: string; loading: boolean }) {
   if (loading) {
     return (
       <Card>
@@ -31,8 +32,15 @@ function MetricCard({ title, value, icon: Icon, className, label, loading }: { t
       </Card>
     )
   }
+  
+  const variantClasses = {
+      default: '',
+      destructive: 'border-destructive/50 text-destructive',
+      success: 'border-success/50 text-success'
+  }
+
   return (
-    <Card className={className}>
+    <Card className={cn(variantClasses[variant])}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <Icon className="h-5 w-5 text-muted-foreground" />
@@ -119,7 +127,7 @@ export default function DashboardPage() {
                     title="Dead Stock"
                     value="$12.4k"
                     icon={TrendingDown}
-                    className="border-destructive/50 text-destructive"
+                    variant="destructive"
                     label="-2.1% this month"
                     loading={loading}
                 />
@@ -127,7 +135,7 @@ export default function DashboardPage() {
                     title="On-Time Deliveries"
                     value="98.2%"
                     icon={Truck}
-                    className="border-emerald-500/50 text-emerald-500"
+                    variant="success"
                     label="+1.5% this month"
                     loading={loading}
                 />
