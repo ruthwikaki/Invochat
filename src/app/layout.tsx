@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'ARVO',
+  title: 'InvoChat - Conversational Inventory Intelligence',
   description: 'AI-powered inventory management',
 };
 

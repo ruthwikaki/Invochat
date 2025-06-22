@@ -12,7 +12,7 @@ import {
   TrendingDown,
   Truck,
 } from 'lucide-react';
-import { ArvoLogo } from './arvo-logo';
+import { InvoChatLogo } from './invochat-logo';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import {
   Sidebar,
@@ -29,7 +29,7 @@ export function AppSidebar() {
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/chat', label: 'Chat with ARVO', icon: MessageSquare },
+    { href: '/chat', label: 'Chat with InvoChat', icon: MessageSquare },
     { href: '/inventory', label: 'Inventory', icon: Package },
     { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
     { href: '/suppliers', label: 'Suppliers', icon: Truck },
@@ -41,8 +41,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <ArvoLogo />
-          <span className="text-lg font-semibold">ARVO</span>
+          <InvoChatLogo />
+          <span className="text-lg font-semibold">InvoChat</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
