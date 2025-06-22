@@ -40,19 +40,20 @@ export default function AppLayout({
   const router = useRouter();
 
   useEffect(() => {
+    // If loading is finished and there's no user, redirect to login.
     if (!loading && !user) {
       router.push('/login');
     }
   }, [user, loading, router]);
 
-  if (loading) {
+  // If we are still loading OR if there is no user (which means the redirect
+  // is about to happen), show the loading screen. This prevents a flash of
+  // a blank page before the redirect occurs.
+  if (loading || !user) {
     return <AppLoadingScreen />;
   }
 
-  if (!user) {
-    return null;
-  }
-
+  // Only render the full app layout if we are done loading and have a user.
   return (
     <SidebarProvider>
       <div className="flex h-dvh w-full bg-background">
