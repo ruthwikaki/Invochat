@@ -1,6 +1,5 @@
-
 // This is a diagnostic script to test the PostgreSQL connection directly.
-// To use it, run `node test-db.js` in your terminal.
+// To use it, run `node test-db.js` in your terminal from within the 'workspaces/nextn' directory.
 
 require('dotenv').config({ path: '.env.local' });
 const { Pool } = require('pg');
