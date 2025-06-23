@@ -42,7 +42,6 @@ function CompanySetupSkeleton() {
     );
 }
 
-
 export default function CompanySetupPage() {
     const { user, userProfile, loading, getIdToken, refreshUserProfile } = useAuth();
     const router = useRouter();
@@ -56,10 +55,10 @@ export default function CompanySetupPage() {
     useEffect(() => {
         if (!loading) {
             if (!user) {
-                // Not logged into Firebase, should not be here
+                // Not logged in, should not be here.
                 router.push('/login');
             } else if (user && userProfile) {
-                // Already has a profile, should be on dashboard
+                // Already has a profile, should be on dashboard.
                 router.push('/dashboard');
             }
         }
@@ -94,8 +93,9 @@ export default function CompanySetupPage() {
 
             if (result.success && result.profile) {
                 toast({ title: 'Setup Complete!', description: `Welcome to ${result.profile.company?.name}!`});
-                await refreshUserProfile(); // Refresh context to get new profile
-                // The layout effect will now handle the redirect to dashboard
+                await refreshUserProfile(); // Refresh context to get new profile and claims
+                // The AppLayout guard will now handle the redirect to dashboard
+                router.push('/dashboard');
             } else {
                 throw new Error(result.error || 'An unknown error occurred during setup.');
             }
@@ -116,7 +116,7 @@ export default function CompanySetupPage() {
         <Card>
             <CardHeader>
                 <CardTitle>One Last Step</CardTitle>
-                <CardDescription>Let's get your company set up. Create a new one, or join an existing team.</CardDescription>
+                <CardDescription>You're authenticated, but we need to set up your company. Create a new one, or join an existing team.</CardDescription>
             </CardHeader>
             <form onSubmit={handleSubmit}>
                 <CardContent className="space-y-6">

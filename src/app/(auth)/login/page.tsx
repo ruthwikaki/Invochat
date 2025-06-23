@@ -33,7 +33,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       // The login function in the auth context now handles provisioning the
-      // demo user and refreshing the profile.
+      // demo user and refreshing the profile with new claims.
       await login(email, password);
       
       toast({
@@ -42,7 +42,7 @@ export default function LoginPage() {
       });
 
       // After a successful login, the onAuthStateChanged listener and the
-      // AppLayout's gatekeeper logic will handle routing correctly.
+      // AppLayout's guard logic will handle routing correctly.
       // We can safely push to the dashboard.
       router.push('/dashboard');
       

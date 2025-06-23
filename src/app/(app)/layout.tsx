@@ -41,22 +41,25 @@ export default function AppLayout({
   const router = useRouter();
 
   useEffect(() => {
-    // This effect handles all redirection logic once the auth state is resolved.
+    // This effect acts as a route guard. It will run whenever the auth state changes.
     if (loading) {
-      return; // Do nothing while loading.
+      return; // Do nothing while the auth state is being resolved.
     }
 
     if (!user) {
+      // If loading is complete and there's no user, they should be on the login page.
       router.replace('/login');
     } else if (!userProfile) {
-      // If user is authenticated but has no profile, they need to complete setup.
+      // If there IS a user but they don't have a company profile in Supabase,
+      // they need to complete the setup.
       router.replace('/company-setup');
     }
+    // If a user and userProfile both exist, they are allowed to see the content.
   }, [user, userProfile, loading, router]);
 
-  // This is the gatekeeper. It shows a loading screen until the auth context
-  // has finished loading the user and their profile. This prevents rendering
-  // the app in a partial state and causing incorrect redirects.
+  // This is the gatekeeper. It shows a loading screen until the AuthContext
+  // has finished resolving the user's full state (including their company profile).
+  // This prevents rendering the app in a partial state and causing incorrect redirects.
   if (loading || !user || !userProfile) {
     return <AppLoadingScreen />;
   }

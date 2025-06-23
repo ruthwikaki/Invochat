@@ -139,7 +139,7 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const userId = decodedToken.uid;
     
-    // Using 'users' table and 'firebase_uid' as requested.
+    // Standardized lookup on `users` table and `firebase_uid` column
     const { data: profile, error } = await supabaseAdmin
       .from('users')
       .select(`
@@ -161,11 +161,11 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
     }
     
     return {
-      id: profile.firebase_uid, // Map firebase_uid to id for client-side consistency
+      id: profile.firebase_uid,
       email: profile.email,
       role: profile.role,
       companyId: profile.company_id,
-      company: profile.companies ? { // Changed from profile.company to profile.companies
+      company: profile.companies ? {
         id: profile.companies.id,
         name: profile.companies.name,
       } : undefined
@@ -185,12 +185,8 @@ export async function setupCompanyAndUserProfile({
   companyChoice: 'create' | 'join';
   companyNameOrCode: string;
 }): Promise<{ success: boolean; error?: string; profile?: UserProfile }> {
-  if (!adminAuth) {
-    return { success: false, error: 'Firebase Admin SDK not initialized' };
-  }
-
-  if (!supabaseAdmin) {
-    return { success: false, error: 'Supabase Admin client not initialized' };
+  if (!adminAuth || !supabaseAdmin) {
+    return { success: false, error: 'Server not configured.' };
   }
 
   try {
@@ -258,15 +254,11 @@ export async function setupCompanyAndUserProfile({
       return { success: false, error: 'Failed to create user profile. ' + profileError.message };
     }
 
-    try {
-      await adminAuth.setCustomUserClaims(userId, {
-        companyId: companyId,
-        role: profile.role
-      });
-    } catch (claimsError: any) {
-      console.error('FATAL: Failed to set custom claims:', claimsError);
-      return { success: false, error: 'Failed to set user claims. ' + claimsError.message };
-    }
+    // Set custom claims AFTER database operations are successful
+    await adminAuth.setCustomUserClaims(userId, {
+      companyId: companyId,
+      role: profile.role
+    });
 
     return {
       success: true,
@@ -301,7 +293,6 @@ export async function ensureDemoUserExists(idToken: string) {
       return { success: false, error: 'User email not found in token.' };
     }
     
-    // Check if user profile already exists
     const { data: existingProfile } = await supabaseAdmin
       .from('users')
       .select('firebase_uid')
@@ -312,10 +303,8 @@ export async function ensureDemoUserExists(idToken: string) {
       return { success: true, message: 'Demo user already provisioned.' };
     }
 
-    // If not, provision the user and company
     const demoCompanyId = '550e8400-e29b-41d4-a716-446655440001';
     
-    // 1. Ensure the Demo Company exists
     const { data: company } = await supabaseAdmin
       .from('companies')
       .select('id')
@@ -331,7 +320,6 @@ export async function ensureDemoUserExists(idToken: string) {
       });
     }
     
-    // 2. Create the user profile for the demo user
     await supabaseAdmin.from('users').insert({
       firebase_uid: userId,
       email: userEmail,
@@ -339,7 +327,7 @@ export async function ensureDemoUserExists(idToken: string) {
       role: 'admin',
     });
 
-    // 3. Set Firebase custom claims
+    // Set claims for the new demo user
     await adminAuth.setCustomUserClaims(userId, {
       companyId: demoCompanyId,
       role: 'admin',

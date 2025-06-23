@@ -18,6 +18,10 @@ if (supabaseUrl && supabaseServiceRoleKey) {
         auth: { persistSession: false },
     });
 } else {
+     // Throw an error in production, but allow to continue for local dev with mocks
+     if (process.env.NODE_ENV === 'production') {
+        throw new Error('[Supabase Admin] SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for server-side operations.');
+     }
      console.warn('[Supabase Admin] SUPABASE_SERVICE_ROLE_KEY is not set. Admin database features will not work, and the app will rely on mock data.');
 }
 

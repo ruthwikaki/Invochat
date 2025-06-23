@@ -35,13 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // This is the core function that keeps user state in sync.
   const updateUserState = useCallback(async (firebaseUser: FirebaseUser | null) => {
     setLoading(true);
     setUser(firebaseUser);
 
     if (firebaseUser) {
       try {
-        // Force a token refresh to get the latest custom claims (like companyId)
+        // Force a token refresh to get the latest custom claims.
+        // This is crucial after signup or login for a demo user.
         const idToken = await getFirebaseIdToken(firebaseUser, true); 
         const profile = await getUserProfile(idToken);
         setUserProfile(profile);
@@ -74,25 +76,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const firebaseUser = userCredential.user;
 
+    // The onAuthStateChanged listener will fire, but for the demo user,
+    // we need to ensure their profile exists BEFORE the state update.
     if (email === 'demo@example.com' && firebaseUser) {
         const idToken = await firebaseUser.getIdToken();
         await ensureDemoUserExists(idToken);
-        // Force a state refresh after provisioning to get the new profile & claims
-        await updateUserState(firebaseUser);
     }
-    // For other users, onAuthStateChanged handles the update automatically.
+    // After provisioning/login, force a state refresh to get the new profile & claims.
+    await updateUserState(firebaseUser);
   };
 
-  const signup = (email: string, password: string) => {
+  const signup = async (email: string, password: string): Promise<UserCredential> => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
-    return createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    // The onAuthStateChanged listener will handle the initial user state.
+    // The profile/company setup is handled by a separate server action called from the signup page.
+    // After that action, we must manually refresh the state.
+    return userCredential;
   };
   
   const logout = async () => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
     await signOut(auth);
-    setUser(null);
-    setUserProfile(null);
+    // State will be cleared by the onAuthStateChanged listener.
   };
 
   const resetPassword = (email: string) => {
@@ -105,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return getFirebaseIdToken(auth.currentUser, true);
   };
 
+  // Expose a manual refresh function for use after profile/company setup.
   const refreshUserProfile = useCallback(async () => {
     if (auth.currentUser) {
       await updateUserState(auth.currentUser);

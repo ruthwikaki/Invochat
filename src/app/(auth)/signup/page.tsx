@@ -27,10 +27,10 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { signup, user, userProfile, loading: authLoading, getIdToken } = useAuth();
+  const { signup, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
 
   useEffect(() => {
-    // This effect handles redirection if user is already logged in.
+    // Redirect if user is already logged in and has a profile
     if (!authLoading && user && userProfile) {
         router.push('/dashboard');
     }
@@ -51,23 +51,24 @@ export default function SignupPage() {
       // Step 1: Create Firebase user
       const userCredential = await signup(email, password);
       
-      // onAuthStateChanged will fire, but we need the token from the *new* user to set up the profile.
       if (!userCredential.user) {
         throw new Error("User creation failed, please try again.");
       }
       const idToken = await userCredential.user.getIdToken();
 
-      // Step 2: Set up company and user profile in Supabase
+      // Step 2: Set up company and user profile in Supabase. This sets custom claims.
       const result = await setupCompanyAndUserProfile({
         idToken,
         companyChoice,
         companyNameOrCode,
       });
 
-      if (result.success && result.profile) {
-        toast({ title: 'Account Created!', description: `Welcome to ${result.profile.company?.name}!`});
-        // The AuthContext's onAuthStateChanged listener will handle fetching the new profile
-        // and the layout will handle the redirect.
+      if (result.success) {
+        toast({ title: 'Account Created!', description: `Welcome!`});
+        // Step 3: Manually refresh the user state to get the new profile and claims
+        await refreshUserProfile();
+        // The AppLayout guard will now see the new profile and allow access to the dashboard.
+        router.push('/dashboard');
       } else {
         throw new Error(result.error || 'An unknown error occurred during setup.');
       }
