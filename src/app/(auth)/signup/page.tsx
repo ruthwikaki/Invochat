@@ -11,12 +11,14 @@ import { completeUserRegistration } from '@/app/actions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { CheckCircle } from 'lucide-react';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -53,13 +55,8 @@ export default function SignupPage() {
       // Step 3: Handle based on whether email confirmation is required.
       // If data.session is null, the user needs to confirm their email.
       if (!data.session) {
-        toast({
-          title: 'Check your email',
-          description: 'We sent a confirmation link to your email address. Please verify your email to log in.',
-          duration: 5000,
-        });
-        // We don't redirect, just stop loading.
-        setLoading(false);
+        setNeedsConfirmation(true);
+        setLoading(false); // Stop loading indicator
         return;
       }
       
@@ -76,10 +73,34 @@ export default function SignupPage() {
         title: 'Signup Failed',
         description: error.message || 'Could not create your account. Please try again.',
       });
-    } finally {
       setLoading(false);
     }
   };
+  
+  if (needsConfirmation) {
+      return (
+          <Card>
+              <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="h-6 w-6 text-green-500" />
+                      One Last Step!
+                  </CardTitle>
+                  <CardDescription>We've sent a verification link to your email.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                      Please check your inbox at <span className="font-semibold text-foreground">{email}</span> and click the link to activate your account. You can close this page.
+                  </p>
+              </CardContent>
+              <CardFooter>
+                  <Button variant="outline" className="w-full" asChild>
+                      <Link href="/login">Back to Login</Link>
+                  </Button>
+              </CardFooter>
+          </Card>
+      )
+  }
+
 
   return (
     <Card>
