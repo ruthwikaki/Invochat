@@ -131,11 +131,12 @@ export async function handleUserMessage(
 
 export async function completeUserRegistration(payload: {
   companyName: string;
+  idToken: string;
 }) {
-  const { companyName } = payload;
+  const { companyName, idToken } = payload;
   try {
     // This function calls a secure RPC in the database.
-    const companyId = await setupNewUserAndCompany(companyName);
+    const companyId = await setupNewUserAndCompany(companyName, idToken);
     return { success: true, companyId };
   } catch (error: any) {
     console.error('Failed to complete user registration in database:', error);

@@ -7,6 +7,7 @@
  * When the database is not connected, it returns mock data for demonstration.
  */
 
+import { createClient } from '@supabase/supabase-js';
 import { supabase, isDbConnected } from '@/lib/db';
 import { allMockData } from '@/lib/mock-data';
 import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics } from '@/types';
@@ -47,16 +48,28 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
  * Calls a database function (RPC) to create a company and user profile in a single transaction.
  * This is more robust and secure than multi-step client-side inserts.
  * @param companyName The name of the new company.
+ * @param idToken The JWT of the newly signed-up user.
  * @returns A promise that resolves to the new company's ID.
  */
-export async function setupNewUserAndCompany(companyName: string): Promise<string> {
+export async function setupNewUserAndCompany(companyName: string, idToken: string): Promise<string> {
     if (!isDbConnected()) {
         console.log(`[Mock DB] Skipping user/company creation for ${companyName}.`);
         return 'default-company-id';
     }
 
+    // Create a temporary Supabase client with the new user's auth token.
+    // This is crucial for the RPC to have the correct `auth.uid()` context.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    const supabaseAdmin = createClient(supabaseUrl!, supabaseAnonKey!, {
+        global: {
+            headers: { Authorization: `Bearer ${idToken}` }
+        }
+    });
+
     try {
-        const { data, error } = await supabase.rpc('handle_new_user', {
+        const { data, error } = await supabaseAdmin.rpc('handle_new_user', {
             company_name_param: companyName
         });
 

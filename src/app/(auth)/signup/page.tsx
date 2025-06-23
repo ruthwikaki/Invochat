@@ -35,14 +35,22 @@ export default function SignupPage() {
       }
       
       if (!data.user) {
-          // Should not happen if there is no error, but as a safeguard:
           throw new Error("User not created. Please try again.");
       }
 
-      // Step 2: Call a secure RPC to create the company and user records in our DB.
-      // The RPC uses the user's session from the signUp call above.
+      // Step 2: Handle based on whether email confirmation is required.
+      // If data.session is null, the user needs to confirm their email.
+      if (!data.session) {
+        setNeedsConfirmation(true);
+        setLoading(false); // Stop loading indicator
+        return;
+      }
+      
+      // Step 3: Call a secure RPC to create the company and user records in our DB.
+      // We pass the new user's access token to the server action.
       const registrationResult = await completeUserRegistration({
           companyName,
+          idToken: data.session.access_token,
       });
 
       if (!registrationResult.success) {
@@ -51,14 +59,6 @@ export default function SignupPage() {
           throw new Error(registrationResult.error || 'Failed to create your company profile.');
       }
 
-      // Step 3: Handle based on whether email confirmation is required.
-      // If data.session is null, the user needs to confirm their email.
-      if (!data.session) {
-        setNeedsConfirmation(true);
-        setLoading(false); // Stop loading indicator
-        return;
-      }
-      
       // If we have a session, confirmation is off or already done.
       toast({
         title: 'Account Created!',
