@@ -22,6 +22,8 @@ export const isFirebaseEnabled = !!(
 );
 
 if (isFirebaseEnabled) {
+  // Diagnostic log to help debug API key issues.
+  console.log(`[Firebase] Attempting to initialize with API Key ending in ...${firebaseConfig.apiKey?.slice(-4)}`);
   try {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
