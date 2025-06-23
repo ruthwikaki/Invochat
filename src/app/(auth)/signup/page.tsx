@@ -10,8 +10,10 @@ import { supabase } from '@/lib/db';
 import { completeUserRegistration } from '@/app/actions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle } from 'lucide-react';
+import { useAuth } from '@/context/auth-context';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -21,6 +23,15 @@ export default function SignupPage() {
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    // If auth is not loading and a user is present, redirect to dashboard.
+    // This handles the redirect after a successful signup and session creation.
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,11 +71,11 @@ export default function SignupPage() {
       }
 
       // If we have a session, confirmation is off or already done.
+      // The useEffect will now handle the redirect when the auth state updates.
       toast({
         title: 'Account Created!',
         description: "You're all set. Redirecting you to the dashboard.",
       });
-      router.push('/dashboard');
 
     } catch (error: any) {
       toast({
@@ -100,6 +111,35 @@ export default function SignupPage() {
       )
   }
 
+  // While checking auth status or if user exists (and we're about to redirect), show a loader.
+  if (authLoading || user) {
+    return (
+      <Card>
+        <CardHeader>
+            <Skeleton className="h-7 w-3/5" />
+            <Skeleton className="h-4 w-4/5" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+             <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+             <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        </CardContent>
+        <CardFooter className="flex flex-col gap-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-4 w-1/2" />
+        </CardFooter>
+    </Card>
+    );
+  }
 
   return (
     <Card>
