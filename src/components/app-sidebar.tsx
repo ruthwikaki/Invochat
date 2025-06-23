@@ -1,23 +1,22 @@
 
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   AlertCircle,
   BarChart,
   Home,
-  LogOut,
   MessageSquare,
   Moon,
   Package,
+  Settings,
   Sun,
   TrendingDown,
   Truck,
   Upload,
 } from 'lucide-react';
 import { InvoChatLogo } from './invochat-logo';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import {
   Sidebar,
   SidebarContent,
@@ -29,18 +28,10 @@ import {
 } from './ui/sidebar';
 import { useTheme } from 'next-themes';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
-import { useAuth } from '@/context/auth-context';
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { setTheme } = useTheme();
-  const { user, logout } = useAuth();
-  const router = useRouter();
-
-  const handleLogout = async () => {
-    await logout();
-    router.push('/login');
-  };
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
@@ -100,23 +91,10 @@ export function AppSidebar() {
             </DropdownMenu>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton>
-                        <Avatar className="h-7 w-7">
-                            <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} data-ai-hint="user avatar" />
-                            <AvatarFallback>{(user?.email?.charAt(0) || '').toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <span className="truncate">{user?.displayName || user?.email}</span>
-                    </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="right" align="end">
-                    <DropdownMenuItem onClick={handleLogout}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Log out</span>
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <SidebarMenuButton>
+              <Settings />
+              <span>Settings</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

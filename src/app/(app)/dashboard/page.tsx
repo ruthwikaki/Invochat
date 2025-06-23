@@ -7,7 +7,6 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getDashboardData } from '@/app/data-actions';
 import type { DashboardMetrics } from '@/types';
@@ -63,32 +62,27 @@ function MetricCard({ title, value, icon: Icon, variant = 'default', label, load
 export default function DashboardPage() {
     const [data, setData] = useState<DashboardMetrics | null>(null);
     const [loading, setLoading] = useState(true);
-    const { user, getIdToken } = useAuth();
     const { toast } = useToast();
 
     useEffect(() => {
-        if (user) {
-            const fetchData = async () => {
-                setLoading(true);
-                try {
-                    const token = await getIdToken();
-                    if (!token) throw new Error("Authentication failed");
-                    const result = await getDashboardData(token);
-                    setData(result);
-                } catch (error) {
-                    console.error("Failed to fetch dashboard metrics:", error);
-                    toast({
-                        variant: 'destructive',
-                        title: 'Error',
-                        description: 'Could not load dashboard data.'
-                    });
-                } finally {
-                    setLoading(false);
-                }
-            };
-            fetchData();
-        }
-    }, [user, getIdToken, toast]);
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const result = await getDashboardData();
+                setData(result);
+            } catch (error) {
+                console.error("Failed to fetch dashboard metrics:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Could not load dashboard data.'
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [toast]);
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

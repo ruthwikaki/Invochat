@@ -1,3 +1,4 @@
+
 'use client';
 
 import { handleUserMessage } from '@/app/actions';
@@ -12,7 +13,6 @@ import type { AssistantMessagePayload, Message } from '@/types';
 import { ArrowRight } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
-import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 
 const AiComponentMap = {
@@ -38,7 +38,6 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { user, getIdToken } = useAuth();
   const { toast } = useToast();
 
 
@@ -72,15 +71,6 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const submitMessage = (messageText: string) => {
     if (!messageText.trim()) return;
 
-    if (!user) {
-        toast({
-            variant: 'destructive',
-            title: 'Not Authenticated',
-            description: 'Please log in to chat with the assistant.'
-        })
-        return;
-    }
-
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -90,13 +80,12 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setMessages((prev) => [...prev, userMessage]);
 
     startTransition(async () => {
-      const token = await getIdToken();
-      if (!token) {
-          toast({ variant: 'destructive', title: 'Session Expired', description: 'Please log in again.' });
-          return;
+      try {
+        const response = await handleUserMessage({ message: messageText });
+        processResponse(response);
+      } catch (e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not get response from assistant.'})
       }
-      const response = await handleUserMessage({ message: messageText, idToken: token });
-      processResponse(response);
     });
   };
 
@@ -138,7 +127,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
         <div className="mx-auto max-w-4xl space-y-6 p-4">
           {messages.map((m) => (
-            <ChatMessage key={m.id} message={m} user={user} />
+            <ChatMessage key={m.id} message={m} />
           ))}
           {isPending && (
             <ChatMessage
@@ -149,7 +138,6 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
                 timestamp: Date.now(),
               }}
               isLoading
-              user={user}
             />
           )}
         </div>

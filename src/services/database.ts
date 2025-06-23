@@ -11,33 +11,6 @@ import type { InventoryItem, Vendor, Alert, DashboardMetrics } from '@/types';
 import { format, subDays, isBefore, parseISO } from 'date-fns';
 
 /**
- * Retrieves the company ID for a given Firebase user UID.
- */
-export async function getCompanyIdForUser(userId: string): Promise<string | null> {
-  if (!isSupabaseAdminEnabled) {
-    console.error('Supabase Admin not initialized, cannot get company ID.');
-    // In a real app, you might want to return a more specific error or default.
-    // For now, returning null is consistent with a "not found" state.
-    return null;
-  }
-
-  const { data, error } = await supabaseAdmin!
-    .from('users')
-    .select('company_id')
-    .eq('firebase_uid', userId)
-    .single();
-
-  if (error || !data) {
-    // It's useful to log the actual error for debugging, but not expose it to the client.
-    if(error) console.error(`[DB Service] Error fetching company ID for user ${userId}:`, error.message);
-    return null;
-  }
-
-  return data.company_id;
-}
-
-
-/**
  * Executes a query to fetch data for chart generation from Supabase.
  */
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {

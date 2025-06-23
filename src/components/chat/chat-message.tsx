@@ -1,10 +1,10 @@
+
 'use client';
 
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
-import type { User as FirebaseUser } from 'firebase/auth';
 
 function TypingIndicator() {
   return (
@@ -19,11 +19,9 @@ function TypingIndicator() {
 export function ChatMessage({
   message,
   isLoading = false,
-  user,
 }: {
   message: Message;
   isLoading?: boolean;
-  user: FirebaseUser | null;
 }) {
   const isUserMessage = message.role === 'user';
   return (
@@ -52,8 +50,7 @@ export function ChatMessage({
       </div>
       {isUserMessage && (
         <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={user?.photoURL ?? undefined} alt={user?.displayName ?? 'User'} data-ai-hint="user avatar"/>
-          <AvatarFallback>{user?.email?.charAt(0).toUpperCase() ?? 'U'}</AvatarFallback>
+          <AvatarFallback>U</AvatarFallback>
         </Avatar>
       )}
     </div>

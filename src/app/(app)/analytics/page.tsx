@@ -1,8 +1,8 @@
+
 'use client'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/context/auth-context";
 import { handleUserMessage } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import type { ChartConfig } from "@/types";
@@ -14,45 +14,39 @@ import { BarChart as BarChartIcon } from "lucide-react";
 export default function AnalyticsPage() {
     const [charts, setCharts] = useState<ChartConfig[]>([]);
     const [loading, setLoading] = useState(true);
-    const { user, getIdToken } = useAuth();
     const { toast } = useToast();
 
     useEffect(() => {
-        if (user) {
-            const generateDefaultCharts = async () => {
-                setLoading(true);
-                try {
-                    const token = await getIdToken();
-                    if (!token) throw new Error("Authentication failed");
+        const generateDefaultCharts = async () => {
+            setLoading(true);
+            try {
+                const chartQueries = [
+                    "Create a bar chart showing my inventory value by category",
+                    "Visualize my sales velocity by category as a pie chart"
+                ];
+                
+                const chartPromises = chartQueries.map(query => handleUserMessage({ message: query }));
+                const results = await Promise.all(chartPromises);
 
-                    const chartQueries = [
-                        "Create a bar chart showing my inventory value by category",
-                        "Visualize my sales velocity by category as a pie chart"
-                    ];
-                    
-                    const chartPromises = chartQueries.map(query => handleUserMessage({ message: query, idToken: token }));
-                    const results = await Promise.all(chartPromises);
+                const validCharts = results
+                    .filter(c => c.component === 'DynamicChart' && c.props)
+                    .map(c => c.props as ChartConfig);
+                
+                setCharts(validCharts);
 
-                    const validCharts = results
-                        .filter(c => c.component === 'DynamicChart' && c.props)
-                        .map(c => c.props as ChartConfig);
-                    
-                    setCharts(validCharts);
-
-                } catch (error) {
-                    console.error("Failed to generate charts:", error);
-                    toast({
-                        variant: 'destructive',
-                        title: 'Error',
-                        description: 'Could not generate analytics charts.'
-                    })
-                } finally {
-                    setLoading(false);
-                }
-            };
-            generateDefaultCharts();
-        }
-    }, [user, getIdToken, toast]);
+            } catch (error) {
+                console.error("Failed to generate charts:", error);
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Could not generate analytics charts.'
+                })
+            } finally {
+                setLoading(false);
+            }
+        };
+        generateDefaultCharts();
+    }, [toast]);
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

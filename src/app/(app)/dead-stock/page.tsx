@@ -1,3 +1,4 @@
+
 'use client';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,7 +10,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useAuth } from '@/context/auth-context';
 import { DollarSign, Package, TrendingDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getDeadStockData } from '@/app/data-actions';
@@ -21,28 +21,23 @@ import { format, parseISO } from 'date-fns';
 export default function DeadStockPage() {
   const [data, setData] = useState<{ deadStockItems: InventoryItem[], totalDeadStockValue: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user, getIdToken } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
-      const fetchData = async () => {
-        setLoading(true);
-        try {
-          const token = await getIdToken();
-          if (!token) throw new Error("Authentication failed");
-          const result = await getDeadStockData(token);
-          setData(result);
-        } catch (error) {
-          console.error("Failed to fetch dead stock data:", error);
-          toast({ variant: 'destructive', title: 'Error', description: 'Could not load dead stock data.' });
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchData();
-    }
-  }, [user, getIdToken, toast]);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const result = await getDeadStockData();
+        setData(result);
+      } catch (error) {
+        console.error("Failed to fetch dead stock data:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load dead stock data.' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [toast]);
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

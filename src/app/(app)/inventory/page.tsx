@@ -1,3 +1,4 @@
+
 'use client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,6 @@ import { useState, useEffect, useMemo } from 'react';
 import type { InventoryItem } from '@/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getInventoryData } from '@/app/data-actions';
 import { format, parseISO } from 'date-fns';
@@ -43,28 +43,23 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [allInventory, setAllInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, getIdToken } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
-      const fetchData = async () => {
-        setLoading(true);
-        try {
-          const token = await getIdToken();
-          if (!token) throw new Error("Authentication failed");
-          const data = await getInventoryData(token);
-          setAllInventory(data);
-        } catch (error) {
-          console.error("Failed to fetch inventory", error);
-          toast({ variant: 'destructive', title: 'Error', description: 'Could not load inventory data.' });
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchData();
-    }
-  }, [user, getIdToken, toast]);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const data = await getInventoryData();
+        setAllInventory(data);
+      } catch (error) {
+        console.error("Failed to fetch inventory", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load inventory data.' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [toast]);
 
   const filteredInventory = useMemo(() => {
     if (!search) return allInventory;

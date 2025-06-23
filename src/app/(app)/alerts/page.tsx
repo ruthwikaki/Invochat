@@ -1,3 +1,4 @@
+
 'use client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,6 @@ import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getAlertsData } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,28 +66,23 @@ function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, getIdToken } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
-      const fetchData = async () => {
-        setLoading(true);
-        try {
-          const token = await getIdToken();
-          if (!token) throw new Error("Authentication failed");
-          const data = await getAlertsData(token);
-          setAlerts(data);
-        } catch (error) {
-          console.error("Failed to fetch alerts:", error);
-          toast({ variant: 'destructive', title: 'Error', description: 'Could not load alerts data.' });
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchData();
-    }
-  }, [user, getIdToken, toast]);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const data = await getAlertsData();
+        setAlerts(data);
+      } catch (error) {
+        console.error("Failed to fetch alerts:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load alerts data.' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [toast]);
 
 
   const toggleResolved = (id: string) => {

@@ -5,7 +5,6 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
-import { AuthProvider } from '@/context/auth-context';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -25,17 +24,15 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={cn('font-body antialiased', inter.variable)} suppressHydrationWarning>
-        <AuthProvider>
-            <ThemeProvider
-                attribute="class"
-                defaultTheme="light"
-                enableSystem
-                disableTransitionOnChange
-            >
-                {children}
-                <Toaster />
-            </ThemeProvider>
-        </AuthProvider>
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem
+            disableTransitionOnChange
+        >
+            {children}
+            <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );
