@@ -139,10 +139,11 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const userId = decodedToken.uid;
     
+    // Using 'users' table and 'firebase_uid' as requested.
     const { data: profile, error } = await supabaseAdmin
-      .from('user_profiles')
+      .from('users')
       .select(`
-        id,
+        firebase_uid,
         email,
         role,
         company_id,
@@ -151,7 +152,7 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
           name
         )
       `)
-      .eq('id', userId)
+      .eq('firebase_uid', userId)
       .single();
 
     if (error || !profile) {
@@ -160,7 +161,7 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
     }
     
     return {
-      id: profile.id,
+      id: profile.firebase_uid, // Map firebase_uid to id for client-side consistency
       email: profile.email,
       role: profile.role,
       companyId: profile.company_id,
@@ -219,7 +220,7 @@ export async function setupCompanyAndUserProfile({
 
       if (companyError || !company) {
         console.error('Company creation error:', companyError);
-        return { success: false, error: 'Failed to create company' };
+        return { success: false, error: 'Failed to create company. Please ensure the `companies` table exists and has an `invite_code` column.' };
       }
 
       companyId = company.id;
@@ -232,7 +233,7 @@ export async function setupCompanyAndUserProfile({
         .single();
 
       if (companyError || !company) {
-        return { success: false, error: 'Invalid invite code' };
+        return { success: false, error: 'Invalid invite code.' };
       }
 
       companyId = company.id;
@@ -242,9 +243,9 @@ export async function setupCompanyAndUserProfile({
     const role = companyChoice === 'create' ? 'admin' : 'member';
 
     const { data: profile, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
+      .from('users')
       .insert({
-        id: userId,
+        firebase_uid: userId,
         email: userEmail,
         company_id: companyId,
         role: role
@@ -254,7 +255,7 @@ export async function setupCompanyAndUserProfile({
 
     if (profileError) {
       console.error('Profile creation error:', profileError);
-      return { success: false, error: 'Failed to create user profile' };
+      return { success: false, error: 'Failed to create user profile. Please ensure the `users` table is configured correctly.' };
     }
 
     try {
@@ -263,15 +264,15 @@ export async function setupCompanyAndUserProfile({
         role: profile.role
       });
     } catch (claimsError) {
-      // This is a critical error, we should probably roll back the user creation
-      // or at least log it very clearly.
       console.error('FATAL: Failed to set custom claims:', claimsError);
+      // This is a critical error, but we will proceed for now.
+      // In a production app, you might want to handle this more gracefully.
     }
 
     return {
       success: true,
       profile: {
-        id: profile.id,
+        id: profile.firebase_uid,
         email: profile.email,
         role: profile.role,
         companyId: profile.company_id,
@@ -283,6 +284,6 @@ export async function setupCompanyAndUserProfile({
     };
   } catch (error) {
     console.error('Setup error:', error);
-    return { success: false, error: 'Setup failed' };
+    return { success: false, error: 'An unexpected error occurred during setup.' };
   }
 }
