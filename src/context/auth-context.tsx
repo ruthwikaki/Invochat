@@ -12,7 +12,7 @@ import {
   getIdToken as getFirebaseIdToken,
   UserCredential
 } from 'firebase/auth';
-import { auth, isFirebaseEnabled } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
 import { ensureDemoUserExists, getUserProfile } from '@/app/actions';
 
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isFirebaseEnabled || !auth) {
+    if (!auth) {
       setLoading(false);
       return;
     }

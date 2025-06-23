@@ -16,6 +16,8 @@ import { format, subDays, isBefore, parseISO } from 'date-fns';
 export async function getCompanyIdForUser(userId: string): Promise<string | null> {
   if (!isSupabaseAdminEnabled) {
     console.error('Supabase Admin not initialized, cannot get company ID.');
+    // In a real app, you might want to return a more specific error or default.
+    // For now, returning null is consistent with a "not found" state.
     return null;
   }
 
@@ -26,6 +28,8 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     .single();
 
   if (error || !data) {
+    // It's useful to log the actual error for debugging, but not expose it to the client.
+    if(error) console.error(`[DB Service] Error fetching company ID for user ${userId}:`, error.message);
     return null;
   }
 
