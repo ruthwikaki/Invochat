@@ -70,11 +70,17 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         // Create the company first.
         const { data: companyData, error: companyError } = await supabase
             .from('companies')
-            .insert({ name: companyName, owner_uid: uid })
+            .insert({ name: companyName, user_id: uid })
             .select('id')
             .single();
 
-        if (companyError) throw companyError;
+        if (companyError) {
+          // Add a more descriptive error message
+          const message = companyError.message.includes("schema cache") 
+              ? `Database schema error: ${companyError.message}. Please ensure your 'companies' table has the correct columns.`
+              : companyError.message;
+          throw new Error(message);
+        }
         const companyId = companyData.id;
 
         // Then create the user profile linked to the company.
