@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ensureDemoUserExists } from '@/app/actions';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('demo@example.com');
@@ -35,8 +36,15 @@ export default function LoginPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await login(email, password);
-      // The useEffect hook will handle the redirect on successful login.
+      const userCredential = await login(email, password);
+
+      // If demo user, ensure profile and company exist to bypass company setup.
+      if (email === 'demo@example.com' && userCredential.user) {
+          const idToken = await userCredential.user.getIdToken();
+          await ensureDemoUserExists(idToken);
+      }
+      
+      // The useEffect hook will handle the redirect on successful login after state updates.
       toast({
         title: 'Login Successful',
         description: 'Redirecting to your dashboard...',

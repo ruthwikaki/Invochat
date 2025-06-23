@@ -156,7 +156,7 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
       .single();
 
     if (error || !profile) {
-      console.error('Profile fetch error:', error?.message);
+      console.warn('Profile fetch warning:', error?.message);
       return null;
     }
     
@@ -284,5 +284,71 @@ export async function setupCompanyAndUserProfile({
   } catch (error: any) {
     console.error('Setup error:', error);
     return { success: false, error: 'An unexpected error occurred: ' + error.message };
+  }
+}
+
+export async function ensureDemoUserExists(idToken: string) {
+  if (!adminAuth || !supabaseAdmin) {
+    return { success: false, error: 'Server not configured.' };
+  }
+
+  try {
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const userId = decodedToken.uid;
+    const userEmail = decodedToken.email;
+
+    if (!userEmail) {
+      return { success: false, error: 'User email not found in token.' };
+    }
+    
+    // Check if user profile already exists
+    const { data: existingProfile } = await supabaseAdmin
+      .from('users')
+      .select('firebase_uid')
+      .eq('firebase_uid', userId)
+      .single();
+    
+    if (existingProfile) {
+      return { success: true, message: 'Demo user already provisioned.' };
+    }
+
+    // If not, provision the user and company
+    const demoCompanyId = '550e8400-e29b-41d4-a716-446655440001';
+    
+    // 1. Ensure the Demo Company exists
+    const { data: company } = await supabaseAdmin
+      .from('companies')
+      .select('id')
+      .eq('id', demoCompanyId)
+      .single();
+
+    if (!company) {
+      await supabaseAdmin.from('companies').insert({
+        id: demoCompanyId,
+        name: 'Demo Company',
+        invite_code: 'DEMO123',
+        created_by: userId,
+      });
+    }
+    
+    // 2. Create the user profile for the demo user
+    await supabaseAdmin.from('users').insert({
+      firebase_uid: userId,
+      email: userEmail,
+      company_id: demoCompanyId,
+      role: 'admin',
+    });
+
+    // 3. Set Firebase custom claims
+    await adminAuth.setCustomUserClaims(userId, {
+      companyId: demoCompanyId,
+      role: 'admin',
+    });
+
+    return { success: true, message: 'Demo user created successfully.' };
+
+  } catch (error: any) {
+    console.error("Error provisioning demo user:", error.message);
+    return { success: false, error: "Failed to provision demo environment." };
   }
 }
