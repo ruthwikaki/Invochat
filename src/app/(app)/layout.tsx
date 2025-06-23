@@ -44,11 +44,11 @@ export default function AppLayout({
     if (!loading) {
       if (!user) {
         // No Firebase user, must log in.
-        router.push('/auth/login');
+        router.push('/login');
       } else if (user && !userProfile) {
         // Firebase user exists, but no Supabase profile.
         // Must complete company setup.
-        router.push('/auth/company-setup');
+        router.push('/company-setup');
       }
       // If user and userProfile exist, we stay and render children.
     }

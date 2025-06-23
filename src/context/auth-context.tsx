@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
@@ -12,6 +13,7 @@ import {
 import { auth, isFirebaseEnabled } from '@/lib/firebase';
 import { getUserProfile } from '@/services/database';
 import type { UserProfile } from '@/types';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const refreshUserProfile = useCallback(async () => {
     if (auth?.currentUser) {
@@ -80,9 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return createUserWithEmailAndPassword(auth, email, pass);
   };
 
-  const logout = () => {
-    if (!auth) return Promise.reject(new Error("Firebase is not configured."));
-    return signOut(auth);
+  const logout = async () => {
+    if (!auth) throw new Error("Firebase is not configured.");
+    await signOut(auth);
+    router.push('/login');
   }
 
   const resetPassword = (email: string) => {
