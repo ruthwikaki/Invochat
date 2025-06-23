@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -15,6 +16,7 @@ import {
   TrendingDown,
   Truck,
   Upload,
+  User,
 } from 'lucide-react';
 import { DatawiseLogo } from './datawise-logo';
 import {
@@ -45,7 +47,7 @@ export function AppSidebar() {
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/chat', label: 'Chat with InvoChat', icon: MessageSquare },
+    { href: '/chat', label: 'Chat with ARVO', icon: MessageSquare },
     { href: '/inventory', label: 'Inventory', icon: Package },
     { href: '/import', label: 'Import Data', icon: Upload },
     { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
@@ -59,7 +61,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2">
           <DatawiseLogo />
-          <span className="text-lg font-semibold">InvoChat</span>
+          <span className="text-lg font-semibold">ARVO</span>
         </div>
       </SidebarHeader>
       <SidebarContent>

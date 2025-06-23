@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ const getInitialMessages = (): Message[] => [
   {
     id: 'init',
     role: 'assistant',
-    content: "Hello! I'm InvoChat, your inventory assistant.",
+    content: "Hello! I'm ARVO, your inventory assistant.",
     timestamp: Date.now(),
   },
 ];
@@ -52,7 +53,7 @@ export function ChatWidget() {
           )}
         >
           <SheetHeader className="p-4 border-b flex-row justify-between items-center">
-            <SheetTitle>InvoChat Assistant</SheetTitle>
+            <SheetTitle>ARVO Assistant</SheetTitle>
             <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length === 0}>
                     <Trash2 className="h-4 w-4" />

@@ -1,15 +1,15 @@
 import { cn } from '@/lib/utils';
-import { Receipt } from 'lucide-react';
+import { Bot } from 'lucide-react';
 
 export function DatawiseLogo({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'flex h-8 w-8 items-center justify-center rounded-lg bg-[#3F51B5] text-primary-foreground',
+        'flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground',
         className
       )}
     >
-      <Receipt className="h-5 w-5" />
+      <Bot className="h-5 w-5" />
     </div>
   );
 }

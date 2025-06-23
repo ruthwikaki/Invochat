@@ -49,10 +49,10 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[#F0F2F5] p-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-slate-800">
         <DatawiseLogo className="h-10 w-10" />
-        <h1>InvoChat</h1>
+        <h1>ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
@@ -100,7 +100,7 @@ export default function SignupPage() {
                 disabled={loading}
               />
             </div>
-            <Button type="submit" disabled={loading} className="w-full bg-[#3F51B5] hover:bg-[#3F51B5]/90">
+            <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90">
               {loading ? 'Creating Account...' : 'Create Account'}
             </Button>
           </form>

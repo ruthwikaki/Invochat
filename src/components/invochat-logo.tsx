@@ -8,7 +8,7 @@ export function InvoChatLogo({ className }: { className?: string }) {
         className
       )}
     >
-      IC
+      A
     </div>
   );
 }

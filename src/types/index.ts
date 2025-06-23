@@ -1,6 +1,7 @@
-
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+
+export type User = SupabaseUser;
 
 export type Message = {
   id: string;

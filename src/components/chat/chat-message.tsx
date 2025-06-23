@@ -5,6 +5,7 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
+import { useAuth } from '@/context/auth-context';
 
 function TypingIndicator() {
   return (
@@ -23,7 +24,14 @@ export function ChatMessage({
   message: Message;
   isLoading?: boolean;
 }) {
+  const { user } = useAuth();
   const isUserMessage = message.role === 'user';
+  
+  const getInitials = (email: string | undefined) => {
+    if (!email) return 'U';
+    return email.charAt(0).toUpperCase();
+  };
+
   return (
     <div
       className={cn(
@@ -50,7 +58,7 @@ export function ChatMessage({
       </div>
       {isUserMessage && (
         <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback>U</AvatarFallback>
+          <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
         </Avatar>
       )}
     </div>
