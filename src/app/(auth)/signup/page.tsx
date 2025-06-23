@@ -50,23 +50,22 @@ export default function SignupPage() {
       }
 
       // Step 2: Handle based on whether email confirmation is required.
-      // If data.session is null, the user needs to confirm their email.
-      if (!data.session) {
+      // We check `confirmation_sent_at`. If it exists, a verification email was sent.
+      // This is more reliable than checking for a session object.
+      if (data.user.confirmation_sent_at) {
         setNeedsConfirmation(true);
         setLoading(false); // Stop loading indicator
         return;
       }
       
-      // Step 3: Call a secure RPC to create the company and user records in our DB.
-      // We pass the new user's access token to the server action.
+      // If no confirmation email was sent, proceed to create the profile.
+      // The `onAuthStateChange` listener in our AuthProvider will get the new session.
       const registrationResult = await completeUserRegistration({
           companyName,
-          idToken: data.session.access_token,
+          idToken: data.session!.access_token, // The session will exist if no confirmation is needed.
       });
 
       if (!registrationResult.success) {
-          // This is a partial failure. The user exists in Supabase Auth but not in our DB.
-          // A production app would need a cleanup process. For now, we'll just show the error.
           throw new Error(registrationResult.error || 'Failed to create your company profile.');
       }
 
