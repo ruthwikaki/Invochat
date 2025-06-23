@@ -65,8 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       
       if (firebaseUser) {
-        // Set a brief timeout to allow custom claims to propagate after login/signup
-        setTimeout(() => refreshUserProfile(), 1000);
+        await refreshUserProfile();
       } else {
         setUserProfile(null);
       }
@@ -79,9 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    await refreshUserProfile();
-    return result;
+    return signInWithEmailAndPassword(auth, email, password);
   };
 
   const signup = (email: string, password: string) => {
@@ -92,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
     await signOut(auth);
+    setUser(null);
     setUserProfile(null);
     router.push('/login');
   };

@@ -98,12 +98,12 @@ export async function handleUserMessage(
       lowerCaseMessage.includes('on time')
     ) {
       const response = await getSupplierPerformance({ query: message, companyId });
-      if (response && response.rankedVendors) {
+      if (response && response.vendors) {
         return actionResponseSchema.parse({
           id: Date.now().toString(),
           role: 'assistant',
           component: 'SupplierPerformanceTable',
-          props: { data: response.rankedVendors },
+          props: { data: response.vendors },
         });
       }
     }
