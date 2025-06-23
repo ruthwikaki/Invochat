@@ -25,7 +25,7 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
         const { data, error } = await supabase
             .from('users')
             .select('company_id')
-            .eq('id', uid)
+            .eq('firebase_uid', uid)
             .single();
 
         if (error) {
@@ -70,7 +70,7 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         // Create the company first.
         const { data: companyData, error: companyError } = await supabase
             .from('companies')
-            .insert({ name: companyName, user_id: uid })
+            .insert({ name: companyName })
             .select('id')
             .single();
 
@@ -86,7 +86,7 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         // Then create the user profile linked to the company.
         const { error: userError } = await supabase
             .from('users')
-            .insert({ id: uid, email: email, company_id: companyId });
+            .insert({ firebase_uid: uid, email: email, company_id: companyId });
 
         if (userError) throw userError;
 
