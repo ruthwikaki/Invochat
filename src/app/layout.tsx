@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
-import { testDbConnection } from '@/lib/db'; // Import the test function
 
 const inter = Inter({
   subsets: ['latin'],
@@ -23,9 +22,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // The DB connection test is now just a check for env vars for Supabase.
-  await testDbConnection(); 
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn('font-body antialiased', inter.variable)}>
