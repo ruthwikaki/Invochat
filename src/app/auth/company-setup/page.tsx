@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { InvoChatLogo } from '@/components/invochat-logo';
 
 // This is a redirect component to handle the legacy/incorrect path.
-export default function RedirectToCompanySetup() {
+export default function RedirectToLegacyCompanySetup() {
     const router = useRouter();
 
     useEffect(() => {
