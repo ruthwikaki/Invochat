@@ -43,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     try {
-      // The dynamic import here is to avoid circular dependencies in server components
       const { getUserProfile } = await import('@/app/actions');
       const idToken = await getFirebaseIdToken(currentUser);
       const profile = await getUserProfile(idToken);
@@ -55,6 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, []);
+  
+  const refreshUserProfile = useCallback(async () => {
+    if (!auth?.currentUser) return;
+    setLoading(true); // Signal that a refresh is in progress
+    await fetchUserProfile(auth.currentUser);
+  }, [fetchUserProfile]);
+
 
   useEffect(() => {
     if (!isFirebaseEnabled || !auth) {
@@ -106,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     getIdToken,
     resetPassword,
-    refreshUserProfile: () => fetchUserProfile(auth?.currentUser),
+    refreshUserProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

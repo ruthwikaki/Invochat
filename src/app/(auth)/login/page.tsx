@@ -17,12 +17,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState('demo@example.com');
   const [password, setPassword] = useState('password');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login, user, userProfile, loading: authLoading } = useAuth();
+  const { login, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Redirect if user is already logged in and has a profile
+    // This effect handles the case where a user is already logged in
+    // and visits the login page. It will redirect them to the dashboard.
     if (!authLoading && user && userProfile) {
         router.push('/dashboard');
     }
@@ -35,17 +36,20 @@ export default function LoginPage() {
       const userCredential = await login(email, password);
 
       // If demo user, ensure profile and company exist to bypass company setup.
+      // This action is idempotent (it won't do anything if they already exist).
       if (email === 'demo@example.com' && userCredential.user) {
           const idToken = await userCredential.user.getIdToken();
           await ensureDemoUserExists(idToken);
+          await refreshUserProfile(); // Manually trigger a profile refresh
       }
       
       toast({
         title: 'Login Successful',
         description: 'Redirecting to your dashboard...',
       });
-      // The onAuthStateChanged listener in AuthProvider will now handle fetching the
-      // profile and triggering the redirect in the layout component.
+
+      // The onAuthStateChanged listener in AuthProvider and the AppLayout's
+      // useEffect hook will now handle redirection automatically and robustly.
       
     } catch (error: any) {
       console.error('Login error details:', error);
@@ -72,11 +76,12 @@ export default function LoginPage() {
         title: 'Login Failed',
         description: description,
       });
-    } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Show a skeleton while the auth state is being checked, or if the user
+  // is already logged in and being redirected.
   if (authLoading || (user && userProfile)) {
     return (
         <Card>

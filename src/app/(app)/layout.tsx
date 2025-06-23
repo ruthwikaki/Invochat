@@ -41,25 +41,34 @@ export default function AppLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        // No Firebase user, must log in.
-        router.push('/login');
-      } else if (user && !userProfile) {
-        // Firebase user exists, but no Supabase profile.
-        // Must complete company setup.
-        router.push('/company-setup');
-      }
-      // If user and userProfile exist, we stay and render children.
+    // Don't do anything while the auth state is loading.
+    // This prevents premature redirects.
+    if (loading) {
+      return;
     }
+
+    // If loading is finished, and there's no user, redirect to login.
+    if (!user) {
+      router.push('/login');
+    } 
+    // If there is a user, but they don't have a company profile,
+    // they need to complete the setup.
+    else if (user && !userProfile) {
+      router.push('/company-setup');
+    }
+    // If a user and profile exist, the layout will render the children.
+    
   }, [user, userProfile, loading, router]);
 
-  // Show loading screen while checking auth state or if user is not fully set up.
+
+  // While the initial authentication check is running, or if a redirect is
+  // in progress, show the loading screen.
   if (loading || !user || !userProfile) {
     return <AppLoadingScreen />;
   }
 
-  // Only render the full app layout if we have a Firebase user AND a Supabase profile.
+  // Only when authentication is fully resolved (user and profile are present)
+  // do we render the main application layout.
   return (
     <SidebarProvider>
       <div className="flex h-dvh w-full bg-background">
