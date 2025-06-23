@@ -31,8 +31,20 @@ let dbIsConnected = false;
 
 // We now export the test as a function to be called explicitly from the root layout.
 export async function testDbConnection() {
-    if (connectionTested || !process.env.POSTGRES_DATABASE) return;
-    connectionTested = true; // Mark as tested, so we don't retry on every hot-reload.
+    // If the required DB variables aren't present, default to mock mode.
+    const useMockData = !process.env.POSTGRES_DATABASE || !process.env.POSTGRES_HOST || !process.env.POSTGRES_USER;
+
+    if (connectionTested) return;
+    connectionTested = true;
+
+    if (useMockData) {
+        console.warn('---');
+        console.warn('[DB] Running in Mock Data Mode. POSTGRES_* environment variables are not fully set.');
+        console.warn('[DB] The application will use sample data and will not connect to a database.');
+        console.warn('---');
+        dbIsConnected = false;
+        return;
+    }
 
     let client;
     try {
@@ -46,7 +58,7 @@ export async function testDbConnection() {
         console.warn('[DB] ⚠️  Could not connect to PostgreSQL database.');
         console.warn(`[DB] The specific error from the database driver is:`);
         console.warn(`[DB] > ${err.message}`);
-        console.warn(`[DB] Please check your POSTGRES_* credentials in the .env file and ensure the database exists and the server is running correctly.`);
+        console.warn('[DB] The application will continue to run in Mock Data Mode.');
         console.warn('---');
         dbIsConnected = false;
     } finally {

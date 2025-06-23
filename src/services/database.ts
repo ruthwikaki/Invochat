@@ -4,11 +4,13 @@
  * This file provides functions to query the PostgreSQL database. It uses the
  * connection pool from /src/lib/db.ts and ensures all queries are tenant-aware
  * by using the companyId.
+ * When the database is not connected, it returns mock data for demonstration.
  */
 
 import { db, isDbConnected } from '@/lib/db';
+import { allMockData } from '@/lib/mock-data';
 import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics } from '@/types';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 
 // Helper to convert database snake_case to JS camelCase
 // e.g., on_time_delivery_rate -> onTimeDeliveryRate
@@ -31,7 +33,7 @@ const toCamelCase = (rows: any[]) => {
  * @returns A promise that resolves to the company ID string or null if not found.
  */
 export async function getCompanyIdForUser(uid: string): Promise<string | null> {
-    if (!isDbConnected()) return null;
+    if (!isDbConnected()) return 'default-company-id';
     const sqlQuery = 'SELECT company_id FROM users WHERE firebase_uid = $1;';
     try {
         const { rows } = await db.query(sqlQuery, [uid]);
@@ -52,7 +54,10 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
  * @returns A promise that resolves to the new company's ID.
  */
 export async function createCompanyAndUserInDB(uid: string, email: string, companyName: string): Promise<string> {
-    if (!isDbConnected()) throw new Error('Database is not connected. Cannot create user.');
+    if (!isDbConnected()) {
+        console.log(`[Mock DB] Skipping user/company creation for ${email}.`);
+        return 'default-company-id';
+    }
     const client = await db.connect();
     try {
         await client.query('BEGIN');
@@ -79,13 +84,21 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
 
 /**
  * Executes a query to fetch data for chart generation from PostgreSQL.
- * Returns an empty array on database failure.
+ * Returns mock data or an empty array on database failure.
  * @param query A natural language description of the data needed.
  * @param companyId The ID of the company whose data is being queried.
  * @returns An array of data matching the query.
  */
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
-    if (!isDbConnected()) return [];
+    const companyMockData = allMockData[companyId];
+
+    if (!isDbConnected()) {
+         if (query.toLowerCase().includes('inventory value by category')) {
+            return companyMockData.mockInventoryValueByCategory.map(d => ({ name: d.category, value: d.value }));
+        }
+        return []; // Return empty for other chart queries in mock mode for now.
+    }
+
     const lowerCaseQuery = query.toLowerCase();
     let sqlQuery: string;
     const params: (string|number)[] = [companyId];
@@ -162,12 +175,15 @@ export async function getDataForChart(query: string, companyId: string): Promise
 
 /**
  * Retrieves dead stock items from the database for the AI flow.
- * Returns an empty array on database failure.
+ * Returns mock data or an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise that resolves to an array of dead stock products.
  */
 export async function getDeadStockFromDB(companyId: string): Promise<Product[]> {
-    if (!isDbConnected()) return [];
+    if (!isDbConnected()) {
+        const mockProducts = allMockData[companyId]?.mockProducts || [];
+        return mockProducts.filter(p => new Date(p.last_sold_date) < subDays(new Date(), 90));
+    }
     const sqlQuery = `
         SELECT id, sku, name, quantity, cost, last_sold_date, warehouse_id, supplier_id, category 
         FROM inventory
@@ -187,12 +203,12 @@ export async function getDeadStockFromDB(companyId: string): Promise<Product[]> 
 
 /**
  * Retrieves suppliers from the database, ranked by performance.
- * Returns an empty array on database failure.
+ * Returns mock data or an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise that resolves to an array of suppliers.
  */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
-    if (!isDbConnected()) return [];
+    if (!isDbConnected()) return allMockData[companyId]?.mockSuppliers || [];
     const sqlQuery = `
         SELECT id, name, on_time_delivery_rate, avg_delivery_time, contact 
         FROM suppliers
@@ -210,12 +226,12 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
 /**
  * Retrieves all inventory items for a company.
- * Returns an empty array on database failure.
+ * Returns mock data or an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise that resolves to an array of inventory items.
  */
 export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
-    if (!isDbConnected()) return [];
+    if (!isDbConnected()) return allMockData[companyId]?.mockInventoryItems || [];
     const sqlQuery = `
         SELECT sku as id, name, quantity, (quantity * cost) as value, last_sold_date
         FROM inventory
@@ -237,11 +253,17 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
 
 /**
  * Retrieves data for the Dead Stock page.
- * Returns default values on database failure.
+ * Returns mock data or default values on database failure.
  * @param companyId The company's ID.
  */
 export async function getDeadStockPageData(companyId: string) {
-    if (!isDbConnected()) return { deadStockItems: [], totalDeadStockValue: 0 };
+    if (!isDbConnected()) {
+        const mockItems = allMockData[companyId]?.mockInventoryItems || [];
+        const deadStockItems = mockItems.filter(item => new Date(item.lastSold) < subDays(new Date(), 90));
+        const totalDeadStockValue = deadStockItems.reduce((acc, item) => acc + item.value, 0);
+        return { deadStockItems, totalDeadStockValue };
+    }
+
     const sqlQuery = `
         SELECT sku as id, name, quantity, (quantity * cost) as value, last_sold_date as lastSold
         FROM inventory
@@ -267,13 +289,13 @@ export async function getDeadStockPageData(companyId: string) {
 
 
 /**
- * Fabricates alerts based on current inventory data.
- * Returns an empty array on database failure.
+ * Retrieves alerts.
+ * Returns mock data or an empty array on database failure.
  * @param companyId The company's ID.
  * @returns A promise resolving to an array of alerts.
  */
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
-    if (!isDbConnected()) return [];
+    if (!isDbConnected()) return allMockData[companyId]?.mockAlerts || [];
     try {
         // Low stock alerts
         const lowStockSql = `
@@ -315,7 +337,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 
 /**
  * Retrieves key metrics for the dashboard.
- * Returns default values on database failure.
+ * Returns mock data or default values on database failure.
  * @param companyId The company's ID.
  * @returns A promise resolving to an object with dashboard metrics.
  */
@@ -327,7 +349,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
         predictiveAlert: null,
     };
     
-    if (!isDbConnected()) return defaultMetrics;
+    if (!isDbConnected()) return allMockData[companyId]?.mockDashboardMetrics || defaultMetrics;
     
     try {
         const client = await db.connect();
