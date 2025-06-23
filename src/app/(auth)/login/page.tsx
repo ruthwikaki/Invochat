@@ -24,7 +24,7 @@ export default function LoginPage() {
     // This effect handles the case where a user is already logged in
     // and visits the login page. It will redirect them to the dashboard.
     if (!authLoading && user && userProfile) {
-        router.push('/dashboard');
+        router.replace('/dashboard');
     }
   }, [user, userProfile, authLoading, router]);
 
@@ -32,8 +32,6 @@ export default function LoginPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      // The login function in the context now handles the entire flow,
-      // including demo user provisioning and profile refreshing.
       await login(email, password);
       
       toast({
@@ -41,9 +39,7 @@ export default function LoginPage() {
         description: 'Redirecting to your dashboard...',
       });
 
-      // The onAuthStateChanged listener in AuthProvider and the AppLayout's
-      // useEffect hook will now handle redirection automatically and robustly,
-      // because the userProfile state will be correct when `login` completes.
+      router.push('/dashboard');
       
     } catch (error: any) {
       console.error('Login error details:', error);
