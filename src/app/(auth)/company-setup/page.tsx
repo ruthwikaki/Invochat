@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { setupCompanyAndUserProfile } from '@/app/actions';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { InvoChatLogo } from '@/components/invochat-logo';
 
 type CompanyChoice = 'create' | 'join';
 

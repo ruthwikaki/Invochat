@@ -27,7 +27,7 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { signup, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
+  const { signup, user, userProfile, loading: authLoading, refreshUserProfile, getIdToken } = useAuth();
 
   useEffect(() => {
     // This effect handles redirection if user is already logged in.
@@ -49,10 +49,10 @@ export default function SignupPage() {
 
     try {
       // Step 1: Create Firebase user
-      const userCredential = await signup(email, password);
+      await signup(email, password);
       
       // Step 2: Get user's ID token for server-side verification
-      const idToken = await userCredential.user.getIdToken();
+      const idToken = await getIdToken();
       if (!idToken) {
         throw new Error("Authentication session failed. Please try again.");
       }
