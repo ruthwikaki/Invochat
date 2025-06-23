@@ -1,7 +1,7 @@
 // This is a diagnostic script to test the PostgreSQL connection directly.
 // To use it, run `node test-db.js` in your terminal from within the 'workspaces/nextn' directory.
 
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const { Pool } = require('pg');
 
 const pool = new Pool({
@@ -14,7 +14,19 @@ const pool = new Pool({
 });
 
 async function testConnection() {
-    console.log(`[Test Script] Attempting to connect to database "${process.env.POSTGRES_DATABASE}" on ${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT}...`);
+    const dbName = process.env.POSTGRES_DATABASE || '(not set)';
+    const dbHost = process.env.POSTGRES_HOST || '(not set)';
+    const dbPort = process.env.POSTGRES_PORT || '(not set)';
+    const dbUser = process.env.POSTGRES_USER || '(not set)';
+
+    if (dbName === '(not set)' || dbHost === '(not set)') {
+        console.error('\n❌ Failure! Environment variables not loaded.');
+        console.error('   Please ensure your .env file exists in the project root and contains the POSTGRES_* variables.');
+        return;
+    }
+
+
+    console.log(`[Test Script] Attempting to connect to database "${dbName}" on ${dbHost}:${dbPort}...`);
     let client;
     try {
         client = await pool.connect();
@@ -26,8 +38,8 @@ async function testConnection() {
         console.error('\n❌ Failure! Could not connect to PostgreSQL.');
         console.error('   The specific error is:', err.message);
         console.error('\nPlease check the following:');
-        console.error('  1. Are the credentials in your .env.local file correct (user, password, host, port, database name)?');
-        console.error('  2. Is your PostgreSQL server configured to accept connections from user "' + process.env.POSTGRES_USER + '" on database "' + process.env.POSTGRES_DATABASE + '"?');
+        console.error(`  1. Are the credentials in your .env file correct (user: "${dbUser}", password, host: "${dbHost}", port: "${dbPort}", database: "${dbName}")?`);
+        console.error(`  2. Is your PostgreSQL server configured to accept connections from user "${dbUser}" on database "${dbName}"?`);
         console.error('  3. Is there a firewall blocking the connection?\n');
     } finally {
         if (client) {
