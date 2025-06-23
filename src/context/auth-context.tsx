@@ -16,7 +16,6 @@ import { auth, isFirebaseEnabled } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
 import { ensureDemoUserExists, getUserProfile } from '@/app/actions';
 
-
 interface AuthContextType {
   user: FirebaseUser | null;
   userProfile: UserProfile | null;
@@ -37,13 +36,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const updateUserState = useCallback(async (firebaseUser: FirebaseUser | null) => {
-    // This function is the single source of truth for the user's state.
     setLoading(true);
     setUser(firebaseUser);
 
     if (firebaseUser) {
       try {
-        const idToken = await getFirebaseIdToken(firebaseUser, true);
+        // Force a token refresh to get the latest custom claims (like companyId)
+        const idToken = await getFirebaseIdToken(firebaseUser, true); 
         const profile = await getUserProfile(idToken);
         setUserProfile(profile);
       } catch (error) {
@@ -53,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setUserProfile(null);
     }
-    // Only set loading to false after all async operations are complete.
     setLoading(false);
   }, []);
 
@@ -63,8 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // The onAuthStateChanged listener automatically handles user state changes
-    // across the app, including initial load, login, and logout.
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       updateUserState(firebaseUser);
     });
@@ -78,18 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const firebaseUser = userCredential.user;
 
-    // For the demo user, ensure their Supabase profile and company exist *before*
-    // we signal that the login is complete. This is critical to avoid race conditions.
     if (email === 'demo@example.com' && firebaseUser) {
         const idToken = await firebaseUser.getIdToken();
         await ensureDemoUserExists(idToken);
-        // After provisioning, we MUST force a refresh of the user state to load
-        // the newly created profile.
+        // Force a state refresh after provisioning to get the new profile & claims
         await updateUserState(firebaseUser);
     }
-    // For other users, onAuthStateChanged will handle the update automatically.
-    // We manually trigger it for the demo user because we need to wait for
-    // the database writes to complete.
+    // For other users, onAuthStateChanged handles the update automatically.
   };
 
   const signup = (email: string, password: string) => {
@@ -100,6 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
     await signOut(auth);
+    setUser(null);
+    setUserProfile(null);
   };
 
   const resetPassword = (email: string) => {
@@ -109,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getIdToken = async () => {
     if (!auth?.currentUser) return null;
-    return auth.currentUser.getIdToken(true);
+    return getFirebaseIdToken(auth.currentUser, true);
   };
 
   const refreshUserProfile = useCallback(async () => {
@@ -130,7 +123,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refreshUserProfile,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+        {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

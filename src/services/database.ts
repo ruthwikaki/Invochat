@@ -15,14 +15,14 @@ import { format, subDays, isBefore, parseISO } from 'date-fns';
  */
 export async function getCompanyIdForUser(userId: string): Promise<string | null> {
   if (!isSupabaseAdminEnabled) {
-    console.error('Supabase Admin not initialized');
+    console.error('Supabase Admin not initialized, cannot get company ID.');
     return null;
   }
 
   const { data, error } = await supabaseAdmin!
-    .from('user_profiles')
+    .from('users')
     .select('company_id')
-    .eq('id', userId)
+    .eq('firebase_uid', userId)
     .single();
 
   if (error || !data) {
