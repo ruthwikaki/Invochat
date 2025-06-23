@@ -9,18 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { DatawiseLogo } from '@/components/datawise-logo';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import Link from 'next/link';
-
-const signupSchema = z.object({
-  companyName: z.string().min(2, { message: 'Company name is required' }),
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-});
-
-type SignupFormData = z.infer<typeof signupSchema>;
 
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
@@ -28,23 +17,24 @@ export default function SignupPage() {
   const { signUpWithEmail } = useAuth();
   const router = useRouter();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<SignupFormData>({
-    resolver: zodResolver(signupSchema),
-  });
 
-  const handleSignUp = async (data: SignupFormData) => {
+  const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setLoading(true);
     setError(null);
+    
+    const formData = new FormData(event.currentTarget);
+    
     try {
-      await signUpWithEmail(data.email, data.password, data.companyName);
-      router.push('/dashboard');
+      const result = await signUpWithEmail(formData);
+      if (result.success) {
+        router.push('/dashboard');
+      } else {
+        setError(result.error || 'An unexpected error occurred.');
+      }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'An unexpected error occurred. Please try again.');
+      setError(err.message || 'An unexpected client-side error occurred.');
     } finally {
       setLoading(false);
     }
@@ -62,7 +52,7 @@ export default function SignupPage() {
           <CardDescription>Get started with your smart inventory assistant.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(handleSignUp)} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-4">
             {error && (
               <p className="rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
                 {error}
@@ -72,33 +62,35 @@ export default function SignupPage() {
               <Label htmlFor="companyName">Company Name</Label>
               <Input
                 id="companyName"
+                name="companyName"
                 type="text"
                 placeholder="Your Company Inc."
-                {...register('companyName')}
+                required
+                minLength={2}
                 disabled={loading}
               />
-              {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
             </div>
              <div className="space-y-1">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="m@example.com"
-                {...register('email')}
+                required
                 disabled={loading}
               />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
-                {...register('password')}
+                required
+                minLength={6}
                 disabled={loading}
               />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
             </div>
             <Button type="submit" disabled={loading} className="w-full bg-[#3F51B5] hover:bg-[#3F51B5]/90">
               {loading ? 'Creating Account...' : 'Create Account'}

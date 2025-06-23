@@ -4,13 +4,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { signInWithEmail as signInService, signOut as signOutService, signUpWithEmail as signUpService } from '@/services/auth.service';
+import { signInWithEmail as signInService, signOut as signOutService } from '@/services/auth.service';
+import { signUpWithEmailAndPassword } from '@/app/auth-actions';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<void>;
+  signUpWithEmail: (formData: FormData) => Promise<{ success: boolean, error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -21,7 +22,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+      if (firebaseUser) {
+        // Refresh token to get latest custom claims
+        await firebaseUser.getIdToken(true);
+      }
       setUser(firebaseUser);
       setLoading(false);
     });
@@ -34,13 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // onAuthStateChanged will handle the user state update
   };
   
-  const signUpWithEmail = async (email: string, password: string, companyName: string) => {
-    await signUpService(email, password, companyName);
-    // Force refresh to get custom claims
-    if (auth.currentUser) {
-        await auth.currentUser.getIdToken(true);
+  const signUpWithEmail = async (formData: FormData) => {
+    const result = await signUpWithEmailAndPassword(formData);
+    if(result.success) {
+        // After successful server-side creation, sign the user in on the client
+        const email = formData.get('email') as string;
+        const password = formData.get('password') as string;
+        await signInWithEmail(email, password);
     }
-    // onAuthStateChanged will handle the user state update, which will trigger redirect
+    return result;
   };
 
   const signOut = async () => {

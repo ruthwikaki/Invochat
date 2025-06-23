@@ -6,7 +6,7 @@
  * This file provides functions to query your Supabase database.
  */
 
-import { supabaseAdmin, isSupabaseAdminEnabled } from '@/lib/supabase';
+import { supabaseAdmin, isSupabaseAdminEnabled } from '@/lib/supabase/admin';
 import type { InventoryItem, Vendor, Alert, DashboardMetrics } from '@/types';
 import { format, subDays, isBefore, parseISO } from 'date-fns';
 
@@ -23,7 +23,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
 
     try {
         if (lowerCaseQuery.includes('inventory value by category') || lowerCaseQuery.includes('sales velocity')) {
-             const { data, error } = await supabaseAdmin!
+             const { data, error } = await supabaseAdmin
                 .from('inventory')
                 .select('category, quantity, cost')
                 .eq('company_id', companyId);
@@ -59,7 +59,7 @@ export async function getDeadStockFromDB(companyId: string): Promise<InventoryIt
 export async function getVendorsFromDB(companyId: string): Promise<Vendor[]> {
     if (!isSupabaseAdminEnabled) return [];
 
-    const { data, error } = await supabaseAdmin!
+    const { data, error } = await supabaseAdmin
         .from('vendors')
         .select('*')
         .eq('company_id', companyId);
@@ -75,7 +75,7 @@ export async function getVendorsFromDB(companyId: string): Promise<Vendor[]> {
 export async function getInventoryFromDB(companyId: string): Promise<InventoryItem[]> {
   if (!isSupabaseAdminEnabled) return [];
 
-  const { data, error } = await supabaseAdmin!
+  const { data, error } = await supabaseAdmin
     .from('inventory')
     .select('*')
     .eq('company_id', companyId);
