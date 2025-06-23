@@ -1,8 +1,9 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, isFirebaseEnabled } from '@/lib/firebase';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -19,6 +20,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isFirebaseEnabled || !auth) {
+      setLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
@@ -28,10 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = (email: string, pass: string) => {
+    if (!auth) return Promise.reject(new Error("Firebase is not configured."));
     return signInWithEmailAndPassword(auth, email, pass);
   };
   
   const logout = () => {
+    if (!auth) return Promise.reject(new Error("Firebase is not configured."));
     return signOut(auth);
   }
 
