@@ -1,3 +1,4 @@
+
 'use client';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -42,7 +43,7 @@ export default function AppLayout({
   useEffect(() => {
     // If loading is finished and there's no user, redirect to login.
     if (!loading && !user) {
-      router.push('/login');
+      router.push('/auth/login');
     }
   }, [user, loading, router]);
 

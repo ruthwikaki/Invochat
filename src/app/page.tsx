@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/context/auth-context';
@@ -27,7 +28,7 @@ export default function Home() {
       if (user) {
         router.replace('/dashboard');
       } else {
-        router.replace('/login');
+        router.replace('/auth/login');
       }
     }
   }, [user, loading, router]);

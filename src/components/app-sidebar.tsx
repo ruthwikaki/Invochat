@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -38,7 +39,7 @@ export function AppSidebar() {
 
   const handleLogout = async () => {
     await logout();
-    router.push('/login');
+    router.push('/auth/login');
   };
 
   const menuItems = [
