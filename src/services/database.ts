@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview
  * This file provides functions to query your Supabase database. It uses the
@@ -18,12 +19,13 @@ const USE_MOCK_DATA = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPA
  * @returns A promise that resolves to the UserProfile or null if not found.
  */
 export async function getUserProfile(firebaseUid: string): Promise<UserProfile | null> {
-    // This function should always hit the real database, as it's critical for auth.
-    // We'll return a mock profile only if no DB is configured at all.
-    if (USE_MOCK_DATA && firebaseUid === 'demo-firebase-uid-123') {
+    if (USE_MOCK_DATA) {
+        // If in mock mode, any authenticated Firebase user should get a mock profile.
+        // This prevents the redirect loop to /company-setup.
+        console.log('[DB Service] In mock mode, returning mock user profile.');
         return {
-            id: 'mock-user-id',
-            firebase_uid: 'demo-firebase-uid-123',
+            id: 'mock-user-id-123',
+            firebase_uid: firebaseUid,
             email: 'demo@example.com',
             company_id: 'default-company-id',
             role: 'admin',
@@ -34,8 +36,11 @@ export async function getUserProfile(firebaseUid: string): Promise<UserProfile |
             }
         };
     }
-     if (USE_MOCK_DATA || !supabaseAdmin) return null;
 
+    if (!supabaseAdmin) {
+        console.error('[DB Service] Supabase admin client is not available, but application is not in mock mode.');
+        return null;
+    }
 
     try {
         const { data, error } = await supabaseAdmin
