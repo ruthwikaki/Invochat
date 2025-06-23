@@ -1,15 +1,11 @@
 
 'use client';
 
-import { AlertCircle, Package, TrendingDown, Truck, PackageSearch } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertCircle, Package, TrendingDown, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ReorderModal } from '@/components/reorder-modal';
-import { InventoryValueChart } from '@/components/charts/inventory-value-chart';
-import { InventoryTrendChart } from '@/components/charts/inventory-trend-chart';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
@@ -67,7 +63,6 @@ function MetricCard({ title, value, icon: Icon, variant = 'default', label, load
 export default function DashboardPage() {
     const [data, setData] = useState<DashboardMetrics | null>(null);
     const [loading, setLoading] = useState(true);
-    const [isReorderModalOpen, setReorderModalOpen] = useState(false);
     const { user, getIdToken } = useAuth();
     const { toast } = useToast();
 
@@ -106,13 +101,20 @@ export default function DashboardPage() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
-                    title="Inventory Value"
-                    value={data ? formatCurrency(data.inventoryValue) : '...'}
+                    title="Total Inventory Value"
+                    value={data ? formatCurrency(data.totalValue) : '...'}
+                    icon={DollarSign}
+                    variant="success"
+                    loading={loading}
+                />
+                 <MetricCard
+                    title="Products"
+                    value={data ? String(data.totalProducts) : '...'}
                     icon={Package}
                     loading={loading}
                 />
                 <MetricCard
-                    title="Dead Stock"
+                    title="Dead Stock Value"
                     value={data ? formatCurrency(data.deadStockValue) : '...'}
                     icon={TrendingDown}
                     variant="destructive"
@@ -125,47 +127,7 @@ export default function DashboardPage() {
                     variant="warning"
                     loading={loading}
                 />
-                <MetricCard
-                    title="On-Time Deliveries"
-                    value={data ? `${data.onTimeDeliveryRate.toFixed(1)}%` : 'N/A'}
-                    icon={Truck}
-                    variant="success"
-                    label="Not implemented"
-                    loading={loading}
-                />
-                
-                {loading ? (
-                    <Card className="col-span-1 lg:col-span-2">
-                        <CardHeader>
-                            <Skeleton className="h-6 w-1/3" />
-                        </CardHeader>
-                        <CardContent>
-                            <Skeleton className="h-48 w-full" />
-                        </CardContent>
-                    </Card>
-                ) : (
-                    <div className="col-span-1 lg:col-span-2">
-                        <InventoryTrendChart />
-                    </div>
-                )}
-                
-                {loading ? (
-                    <Card className="md:col-span-2 lg:col-span-4">
-                        <CardHeader>
-                             <Skeleton className="h-6 w-1/4" />
-                        </CardHeader>
-                        <CardContent>
-                            <Skeleton className="h-[300px] w-full" />
-                        </CardContent>
-                    </Card>
-                ) : (
-                    <div className="col-span-1 md:col-span-2 lg:col-span-4">
-                        <InventoryValueChart />
-                    </div>
-                )}
             </div>
-            <ReorderModal item={data?.predictiveAlert?.item} open={isReorderModalOpen} onOpenChange={setReorderModalOpen} />
         </div>
     );
 }
-

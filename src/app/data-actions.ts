@@ -5,9 +5,9 @@ import { auth as adminAuth } from '@/lib/firebase-server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { 
     getDashboardMetrics, 
-    getInventoryItems, 
+    getInventoryFromDB, 
     getDeadStockPageData,
-    getSuppliersFromDB,
+    getVendorsFromDB,
     getAlertsFromDB
 } from '@/services/database';
 import { z } from 'zod';
@@ -23,7 +23,7 @@ async function authenticateAndGetCompanyId(idToken: string): Promise<string> {
         const decodedToken = await adminAuth.verifyIdToken(idToken);
         const firebaseUid = decodedToken.uid;
       
-        const { data, error } = await supabaseAdmin
+        const { data, error } = await supabaseAdmin!
             .from('user_profiles')
             .select('company_id')
             .eq('id', firebaseUid)
@@ -51,10 +51,10 @@ export async function getDashboardData(idToken: string) {
     return getDashboardMetrics(companyId);
 }
 
-export async function getInventory(idToken: string) {
+export async function getInventoryData(idToken: string) {
     const token = IdTokenSchema.parse(idToken);
     const companyId = await authenticateAndGetCompanyId(token);
-    return getInventoryItems(companyId);
+    return getInventoryFromDB(companyId);
 }
 
 export async function getDeadStockData(idToken: string) {
@@ -66,7 +66,7 @@ export async function getDeadStockData(idToken: string) {
 export async function getSuppliersData(idToken: string) {
     const token = IdTokenSchema.parse(idToken);
     const companyId = await authenticateAndGetCompanyId(token);
-    return getSuppliersFromDB(companyId);
+    return getVendorsFromDB(companyId);
 }
 
 export async function getAlertsData(idToken: string) {

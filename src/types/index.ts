@@ -36,79 +36,46 @@ export type AssistantMessagePayload = {
 };
 
 // Data models based on database schema
-export type Warehouse = {
-    id: number;
-    name: string;
-    location: string;
-};
-
-export type Supplier = {
-    id: number;
-    name: string;
-    onTimeDeliveryRate: number;
-    avgDeliveryTime: number;
-    contact: string;
+export type Vendor = {
+    id: string; // UUID
+    company_id: string; // UUID
+    vendor_name: string;
+    address: string;
+    contact_info: string;
+    terms: string;
 }
 
-export type Product = {
+export type InventoryItem = {
     id: string; // UUID
     company_id: string; // UUID
     sku: string;
     name: string;
+    description: string;
     category: string;
     quantity: number;
     cost: number;
     price: number;
+    reorder_point: number;
+    reorder_qty: number;
+    supplier_name: string;
     warehouse_id?: string; // UUID
     last_sold_date?: string; // ISO String
 }
 
-export type Transaction = {
-    id: number;
-    product_id: number;
-    type: 'sale' | 'purchase';
-    quantity: number;
-    date: string; // YYYY-MM-DD
-    amount: number;
-}
-
 export type Alert = {
     id: string;
-    type: 'Low Stock' | 'Reorder' | 'Dead Stock';
+    type: 'Low Stock';
     item: string;
     message: string;
     date: string;
     resolved: boolean;
-    name?: string;
-}
-
-export type InventoryItem = {
-    id: string; // SKU
-    name: string;
-    quantity: number;
-    value: number;
-    lastSold: string;
-}
-
-export type InventoryValueByCategory = {
-    category: string;
-    value: number;
-}
-
-export type InventoryTrend = {
-    date: string;
-    value: number;
 }
 
 export type DashboardMetrics = {
-    inventoryValue: number;
-    deadStockValue: number;
+    totalProducts: number;
+    totalValue: number;
     lowStockItems: number;
-    onTimeDeliveryRate: number; // This is now a placeholder
-    predictiveAlert: {
-        item: string;
-        days: number;
-    } | null;
+    deadStockValue: number;
 }
 
 // User profile from Supabase, including company info

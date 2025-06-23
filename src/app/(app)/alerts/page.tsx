@@ -32,17 +32,6 @@ function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved
     setFormattedDate(new Date(alert.date).toLocaleDateString());
   }, [alert.date]);
 
-  const getVariant = (type: Alert['type']): 'default' | 'destructive' | 'secondary' => {
-    switch (type) {
-      case 'Low Stock':
-        return 'destructive';
-      case 'Reorder':
-        return 'default';
-      case 'Dead Stock':
-        return 'secondary';
-    }
-  };
-
   return (
     <Card className={cn(alert.resolved && 'bg-muted/50')}>
       <CardHeader>
@@ -55,7 +44,7 @@ function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved
               Triggered on: {formattedDate}
             </CardDescription>
           </div>
-          <Badge variant={getVariant(alert.type)}>{alert.type}</Badge>
+          <Badge variant={'destructive'}>{alert.type}</Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -123,8 +112,6 @@ export default function AlertsPage() {
           <SelectContent>
             <SelectItem value="all">All Alerts</SelectItem>
             <SelectItem value="low-stock">Low Stock</SelectItem>
-            <SelectItem value="reorder">Reorder</SelectItem>
-            <SelectItem value="dead-stock">Dead Stock</SelectItem>
           </SelectContent>
         </Select>
       </div>

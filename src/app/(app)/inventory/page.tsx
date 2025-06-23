@@ -23,13 +23,15 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
-import { getInventory } from '@/app/data-actions';
+import { getInventoryData } from '@/app/data-actions';
+import { format, parseISO } from 'date-fns';
 
 function InventorySkeleton() {
   return Array.from({ length: 8 }).map((_, i) => (
     <TableRow key={i}>
       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
@@ -51,7 +53,7 @@ export default function InventoryPage() {
         try {
           const token = await getIdToken();
           if (!token) throw new Error("Authentication failed");
-          const data = await getInventory(token);
+          const data = await getInventoryData(token);
           setAllInventory(data);
         } catch (error) {
           console.error("Failed to fetch inventory", error);
@@ -97,20 +99,12 @@ export default function InventoryPage() {
           </div>
           <Select disabled>
             <SelectTrigger className="w-full md:w-[180px]">
-              <SelectValue placeholder="All Warehouses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="main">Main Warehouse</SelectItem>
-              <SelectItem value="secondary">Secondary Warehouse</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select disabled>
-            <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="cleaning">Cleaning</SelectItem>
-              <SelectItem value="safety">Safety</SelectItem>
+              <SelectItem value="electronics">Electronics</SelectItem>
+              <SelectItem value="furniture">Furniture</SelectItem>
+               <SelectItem value="office-supplies">Office Supplies</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -120,8 +114,9 @@ export default function InventoryPage() {
               <TableRow>
                 <TableHead>SKU</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Category</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
-                <TableHead className="text-right">Value</TableHead>
+                <TableHead className="text-right">Unit Cost</TableHead>
                 <TableHead>Last Sold</TableHead>
               </TableRow>
             </TableHeader>
@@ -132,21 +127,22 @@ export default function InventoryPage() {
                 filteredInventory.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-mono text-xs">
-                      {item.id}
+                      {item.sku}
                     </TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell>{item.category}</TableCell>
                     <TableCell className="text-right">
                       {item.quantity}
                     </TableCell>
                     <TableCell className="text-right">
-                      ${item.value.toLocaleString()}
+                      ${Number(item.cost).toLocaleString()}
                     </TableCell>
-                    <TableCell>{item.lastSold}</TableCell>
+                    <TableCell>{item.last_sold_date ? format(parseISO(item.last_sold_date), 'yyyy-MM-dd') : 'N/A'}</TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     No items found.
                   </TableCell>
                 </TableRow>

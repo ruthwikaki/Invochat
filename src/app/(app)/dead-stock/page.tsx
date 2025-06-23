@@ -16,6 +16,7 @@ import { getDeadStockData } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import type { InventoryItem } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { format, parseISO } from 'date-fns';
 
 export default function DeadStockPage() {
   const [data, setData] = useState<{ deadStockItems: InventoryItem[], totalDeadStockValue: number } | null>(null);
@@ -90,7 +91,7 @@ export default function DeadStockPage() {
                   <Package className="h-5 w-5" />
                   {item.name}
                 </CardTitle>
-                <CardDescription>SKU: {item.id}</CardDescription>
+                <CardDescription>SKU: {item.sku}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex justify-between">
@@ -99,11 +100,11 @@ export default function DeadStockPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Value:</span>
-                  <span className="font-medium">${item.value.toLocaleString()}</span>
+                  <span className="font-medium">${(item.quantity * item.cost).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Last Sold:</span>
-                  <span className="font-medium">{item.lastSold}</span>
+                  <span className="font-medium">{item.last_sold_date ? format(parseISO(item.last_sold_date), 'yyyy-MM-dd') : 'N/A'}</span>
                 </div>
               </CardContent>
               <CardFooter className="gap-2">

@@ -1,7 +1,15 @@
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import type { SmartReorderingOutput } from '@/ai/flows/smart-reordering';
 
 type ReorderListProps = {
-  items: string[];
+  items: SmartReorderingOutput['reorderList'];
 };
 
 export function ReorderList({ items }: ReorderListProps) {
@@ -10,14 +18,27 @@ export function ReorderList({ items }: ReorderListProps) {
   }
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <ul className="list-disc space-y-1 pl-5">
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Item</TableHead>
+            <TableHead>Supplier</TableHead>
+            <TableHead className="text-right">Current/Reorder</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {items.map((item, index) => (
-            <li key={index}>{item}</li>
+            <TableRow key={index}>
+              <TableCell className="font-medium">{item.name}</TableCell>
+              <TableCell>{item.supplier_name}</TableCell>
+              <TableCell className="text-right">
+                {item.quantity} / {item.reorder_point}
+              </TableCell>
+            </TableRow>
           ))}
-        </ul>
-      </CardContent>
-    </Card>
+        </TableBody>
+      </Table>
+    </div>
   );
 }

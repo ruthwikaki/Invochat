@@ -8,19 +8,18 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Mail, Truck } from 'lucide-react';
+import { Mail, Briefcase } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getSuppliersData } from '@/app/data-actions';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
-import type { Supplier } from '@/types';
+import type { Vendor } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const { user, getIdToken } = useAuth();
   const { toast } = useToast();
@@ -33,9 +32,9 @@ export default function SuppliersPage() {
           const token = await getIdToken();
           if (!token) throw new Error("Authentication failed");
           const data = await getSuppliersData(token);
-          setSuppliers(data);
+          setVendors(data);
         } catch (error) {
-          console.error("Failed to fetch suppliers:", error);
+          console.error("Failed to fetch vendors:", error);
           toast({ variant: 'destructive', title: 'Error', description: 'Could not load supplier data.' });
         } finally {
           setLoading(false);
@@ -67,39 +66,31 @@ export default function SuppliersPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Skeleton className="h-6 w-full" />
                 <Skeleton className="h-4 w-2/3" />
                 <Skeleton className="h-4 w-3/4" />
               </CardContent>
             </Card>
           ))
         ) : (
-          suppliers.map((supplier) => (
-            <Card key={supplier.id}>
+          vendors.map((vendor) => (
+            <Card key={vendor.id}>
               <CardHeader className="flex flex-row items-center gap-4">
                 <Avatar className="h-12 w-12">
-                  <AvatarFallback>{supplier.name.charAt(0)}</AvatarFallback>
+                  <AvatarFallback>{vendor.vendor_name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <CardTitle>{supplier.name}</CardTitle>
-                  <CardDescription>ID: {supplier.id}</CardDescription>
+                  <CardTitle>{vendor.vendor_name}</CardTitle>
+                  <CardDescription>{vendor.address}</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-muted-foreground">On-Time Delivery</span>
-                    <span className="font-medium">{supplier.onTimeDeliveryRate}%</span>
-                  </div>
-                  <Progress value={supplier.onTimeDeliveryRate} className="h-2" />
-                </div>
-                <div className="flex items-center text-sm">
-                  <Truck className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span>Avg. delivery: {supplier.avgDeliveryTime} days</span>
-                </div>
                 <div className="flex items-center text-sm">
                   <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span>{supplier.contact}</span>
+                  <span>{vendor.contact_info}</span>
+                </div>
+                <div className="flex items-center text-sm">
+                  <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <span>Terms: {vendor.terms}</span>
                 </div>
               </CardContent>
             </Card>

@@ -1,5 +1,4 @@
 import type { SupplierPerformanceOutput } from '@/ai/flows/supplier-performance';
-import { Progress } from '@/components/ui/progress';
 import {
   Table,
   TableBody,
@@ -10,7 +9,7 @@ import {
 } from '@/components/ui/table';
 
 type SupplierPerformanceTableProps = {
-  data: SupplierPerformanceOutput['rankedVendors'];
+  data: SupplierPerformanceOutput['vendors'];
 };
 
 export function SupplierPerformanceTable({
@@ -26,22 +25,16 @@ export function SupplierPerformanceTable({
         <TableHeader>
           <TableRow>
             <TableHead>Vendor</TableHead>
-            <TableHead>On-Time Delivery</TableHead>
+            <TableHead>Contact</TableHead>
+            <TableHead>Terms</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.map((vendor) => (
             <TableRow key={vendor.vendorName}>
               <TableCell className="font-medium">{vendor.vendorName}</TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Progress
-                    value={vendor.onTimeDeliveryRate}
-                    className="w-2/3"
-                  />
-                  <span>{vendor.onTimeDeliveryRate}%</span>
-                </div>
-              </TableCell>
+              <TableCell>{vendor.contactInfo}</TableCell>
+              <TableCell>{vendor.terms}</TableCell>
             </TableRow>
           ))}
         </TableBody>
