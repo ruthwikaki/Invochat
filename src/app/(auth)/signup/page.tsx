@@ -27,7 +27,7 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { signup, user, userProfile, loading: authLoading, refreshUserProfile, getIdToken } = useAuth();
+  const { signup, user, userProfile, loading: authLoading, getIdToken } = useAuth();
 
   useEffect(() => {
     // This effect handles redirection if user is already logged in.
@@ -49,15 +49,15 @@ export default function SignupPage() {
 
     try {
       // Step 1: Create Firebase user
-      await signup(email, password);
+      const userCredential = await signup(email, password);
       
-      // Step 2: Get user's ID token for server-side verification
-      const idToken = await getIdToken();
-      if (!idToken) {
-        throw new Error("Authentication session failed. Please try again.");
+      // onAuthStateChanged will fire, but we need the token from the *new* user to set up the profile.
+      if (!userCredential.user) {
+        throw new Error("User creation failed, please try again.");
       }
+      const idToken = await userCredential.user.getIdToken();
 
-      // Step 3: Set up company and user profile in Supabase
+      // Step 2: Set up company and user profile in Supabase
       const result = await setupCompanyAndUserProfile({
         idToken,
         companyChoice,
@@ -66,8 +66,8 @@ export default function SignupPage() {
 
       if (result.success && result.profile) {
         toast({ title: 'Account Created!', description: `Welcome to ${result.profile.company?.name}!`});
-        await refreshUserProfile();
-        // The layout's useEffect will now handle the redirect to /dashboard
+        // The AuthContext's onAuthStateChanged listener will handle fetching the new profile
+        // and the layout will handle the redirect.
       } else {
         throw new Error(result.error || 'An unknown error occurred during setup.');
       }

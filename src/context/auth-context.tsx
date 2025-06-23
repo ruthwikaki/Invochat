@@ -35,10 +35,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const refreshUserProfile = useCallback(async () => {
-    const currentUser = auth?.currentUser;
+  const fetchUserProfile = useCallback(async (currentUser: FirebaseUser | null) => {
     if (!currentUser) {
       setUserProfile(null);
+      setLoading(false);
       return;
     }
     
@@ -51,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
       setUserProfile(null);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -63,18 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
       setUser(firebaseUser);
-      
-      if (firebaseUser) {
-        await refreshUserProfile();
-      } else {
-        setUserProfile(null);
-      }
-      
-      setLoading(false);
+      await fetchUserProfile(firebaseUser);
     });
 
     return () => unsubscribe();
-  }, [refreshUserProfile]);
+  }, [fetchUserProfile]);
 
   const login = async (email: string, password: string) => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
@@ -89,9 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
     await signOut(auth);
-    setUser(null);
-    setUserProfile(null);
-    router.push('/login');
+    // onAuthStateChanged will handle setting user and profile to null
   };
 
   const resetPassword = (email: string) => {
@@ -113,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     getIdToken,
     resetPassword,
-    refreshUserProfile,
+    refreshUserProfile: () => fetchUserProfile(auth?.currentUser),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

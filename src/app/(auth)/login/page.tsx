@@ -17,18 +17,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState('demo@example.com');
   const [password, setPassword] = useState('password');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
+  const { login, user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!authLoading && user) {
-        if (userProfile) {
-            router.push('/dashboard');
-        } else {
-            // This case handles users who have a Firebase account but no Supabase profile
-            router.push('/company-setup');
-        }
+    // Redirect if user is already logged in and has a profile
+    if (!authLoading && user && userProfile) {
+        router.push('/dashboard');
     }
   }, [user, userProfile, authLoading, router]);
 
@@ -44,15 +40,13 @@ export default function LoginPage() {
           await ensureDemoUserExists(idToken);
       }
       
-      // Explicitly refresh the user profile in the client's state after login/provisioning.
-      // This is crucial to prevent the redirect race condition.
-      await refreshUserProfile();
-      
       toast({
         title: 'Login Successful',
         description: 'Redirecting to your dashboard...',
       });
-      // The useEffect will now handle the redirect correctly because userProfile is populated.
+      // The onAuthStateChanged listener in AuthProvider will now handle fetching the
+      // profile and triggering the redirect in the layout component.
+      
     } catch (error: any) {
       console.error('Login error details:', error);
       let description = 'An unknown error occurred. Please try again.';
