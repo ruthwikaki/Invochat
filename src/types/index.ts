@@ -1,14 +1,6 @@
 
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
-import type { User as FirebaseUser } from 'firebase/auth';
-
-
-export type AppUser = {
-    firebaseUser: FirebaseUser;
-    supabaseUser: SupabaseUser;
-    companyId?: string;
-}
 
 export type Message = {
   id: string;

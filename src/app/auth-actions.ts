@@ -1,7 +1,6 @@
 
 'use server';
 
-import { adminAuth } from '@/lib/firebase/admin';
 import { supabaseAdmin, isSupabaseAdminEnabled, supabaseAdminError } from '@/lib/supabase/admin';
 
 const SignUpSchema = {
@@ -35,11 +34,9 @@ export async function signUpWithEmailAndPassword(formData: FormData) {
   }
 
   try {
-    // If the user wants to join the demo company, assign them to it.
-    // Otherwise, create a new company for them.
+    // 1. Determine company ID
     if (companyName === DEMO_COMPANY_NAME) {
         companyId = DEMO_COMPANY_ID;
-        // Ensure the demo company record exists.
         const { data: demoCompany, error: findError } = await supabaseAdmin
             .from('companies')
             .select('id')
@@ -73,40 +70,54 @@ export async function signUpWithEmailAndPassword(formData: FormData) {
     }
 
 
-    // 2. Create the user in Firebase Auth.
-    const userRecord = await adminAuth.createUser({
+    // 2. Create the user in Supabase Auth, setting company_id in metadata
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      displayName: email,
+      email_confirm: true, // Auto-confirm user for simplicity
+      app_metadata: {
+        company_id: companyId,
+      }
     });
+
+    if (authError) {
+      // Clean up the created company if it wasn't the demo one
+      if (companyName !== DEMO_COMPANY_NAME && companyId) {
+          await supabaseAdmin.from('companies').delete().eq('id', companyId);
+      }
+      throw new Error(`Could not create user: ${authError.message}`);
+    }
+
+    if (!user) {
+        throw new Error('User creation did not return a user object.');
+    }
     
-    // 3. Create the user profile in Supabase, linking it to the Firebase UID and new company.
+    // 3. Create the user profile in Supabase public.users table.
+    // Based on RLS policies, the `id` column links to `auth.uid()`.
     const { error: userProfileError } = await supabaseAdmin
       .from('users')
-      .insert({ firebase_uid: userRecord.uid, company_id: companyId, email: userRecord.email });
+      .insert({ id: user.id, company_id: companyId, email: user.email });
 
     if (userProfileError) {
-        // This is a critical failure. The user exists in Firebase but not in our DB.
-        await adminAuth.deleteUser(userRecord.uid);
+        // This is a critical failure. The user exists in Supabase Auth but not in our public DB.
+        await supabaseAdmin.auth.admin.deleteUser(user.id);
         // Clean up the created company if it wasn't the demo one
-        if (companyName !== DEMO_COMPANY_NAME) {
+        if (companyName !== DEMO_COMPANY_NAME && companyId) {
             await supabaseAdmin.from('companies').delete().eq('id', companyId);
         }
         throw new Error(`Could not create user profile in database: ${userProfileError.message}`);
     }
-  
-    // 4. Set custom claims on the Firebase user for easy access in server actions.
-    await adminAuth.setCustomUserClaims(userRecord.uid, { company_id: companyId });
 
     return { success: true, error: null };
 
   } catch (error: any) {
     console.error('Sign-up server action error:', error);
     let errorMessage = 'An unexpected error occurred during sign-up.';
-    if (error.code === 'auth/email-already-exists') {
-      errorMessage = 'This email address is already in use by another account.';
-    } else if (error.message) {
-      errorMessage = error.message;
+    if (error.message) {
+        errorMessage = error.message;
+    }
+    if (error.message?.includes('User already exists')) {
+        errorMessage = 'This email address is already in use by another account.';
     }
     
     return { success: false, error: errorMessage };
