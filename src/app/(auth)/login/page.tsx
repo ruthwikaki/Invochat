@@ -20,7 +20,7 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Redirect if user is already logged in
+    // If auth is not loading and a user is present, redirect to dashboard.
     if (!authLoading && user) {
       router.push('/dashboard');
     }
@@ -34,13 +34,28 @@ export default function LoginPage() {
       if (error) {
         throw error;
       }
-      // On success, the onAuthStateChange listener in AuthProvider will update
-      // the `user` state, which will trigger the useEffect above to redirect.
+      // On success, the onAuthStateChange listener in AuthProvider will redirect.
+      toast({
+        title: 'Login Successful',
+        description: 'Redirecting to your dashboard...',
+      });
+      // The useEffect will handle the redirect.
     } catch (error: any) {
+      console.error('Login error details:', error); // Detailed logging
+      
+      let description = 'An unknown error occurred. Please try again.';
+      if (error.message === 'Invalid login credentials') {
+        description = 'The email or password you entered is incorrect. Please double-check your credentials. If you just signed up, you may need to confirm your email address first.';
+      } else if (error.message === 'Email not confirmed') {
+        description = 'Please check your inbox and click the confirmation link before logging in.';
+      } else {
+        description = error.message;
+      }
+
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: error.message || 'An unknown error occurred.',
+        description: description,
       });
     } finally {
       setLoading(false);
