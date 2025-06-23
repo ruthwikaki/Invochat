@@ -1,16 +1,14 @@
 
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { supabase, supabaseError } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 /**
  * Signs the user in with email and password, then syncs the session with Supabase.
  * This is called from the CLIENT.
  */
 export async function signInWithEmail(email: string, password: string) {
-  if (!supabase) {
-    throw new Error(supabaseError || 'Supabase client is not configured.');
-  }
+  const supabase = createClient();
   
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
@@ -41,17 +39,14 @@ export async function signInWithEmail(email: string, password: string) {
  * Signs the user out from both Firebase and Supabase.
  */
 export async function signOut() {
+  const supabase = createClient();
   try {
     await auth.signOut();
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
+    await supabase.auth.signOut();
   } catch (error) {
     console.error('Error signing out:', error);
     // If main signout fails, still try to sign out from Supabase as a fallback
-    if (supabase) {
-      await supabase.auth.signOut().catch(e => console.error("Supabase sign out failed too", e));
-    }
+    await supabase.auth.signOut().catch(e => console.error("Supabase sign out failed too", e));
     throw error;
   }
 }
