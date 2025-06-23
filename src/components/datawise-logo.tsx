@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { BarChart3 } from 'lucide-react';
+import { Receipt } from 'lucide-react';
 
 export function DatawiseLogo({ className }: { className?: string }) {
   return (
@@ -9,7 +9,7 @@ export function DatawiseLogo({ className }: { className?: string }) {
         className
       )}
     >
-      <BarChart3 className="h-5 w-5" />
+      <Receipt className="h-5 w-5" />
     </div>
   );
 }

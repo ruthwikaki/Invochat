@@ -43,12 +43,12 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#F0F2F5] p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-slate-800">
         <DatawiseLogo className="h-10 w-10" />
-        <h1 >DataWise AI</h1>
+        <h1>InvoChat</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Sign in to access your inventory intelligence dashboard.</CardDescription>
+          <CardDescription>Sign in to access your conversational inventory assistant.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {error && (

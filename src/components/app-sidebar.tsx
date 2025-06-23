@@ -59,7 +59,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2">
           <DatawiseLogo />
-          <span className="text-lg font-semibold">DataWise AI</span>
+          <span className="text-lg font-semibold">InvoChat</span>
         </div>
       </SidebarHeader>
       <SidebarContent>

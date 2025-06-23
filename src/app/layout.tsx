@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'DataWise AI - Conversational Inventory Intelligence',
+  title: 'InvoChat - Conversational Inventory Intelligence',
   description: 'AI-powered inventory management',
 };
 
