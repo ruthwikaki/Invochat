@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('demo@example.com');
   const [password, setPassword] = useState('password');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login, user, userProfile, loading: authLoading } = useAuth();
+  const { login, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -32,13 +32,19 @@ export default function LoginPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      // Step 1: Log in the user. This triggers onAuthStateChanged in the background.
       await login(email, password);
+
+      // Step 2: Explicitly wait for the user profile to be fetched or provisioned.
+      // This is the critical step to prevent the race condition.
+      await refreshUserProfile();
       
       toast({
         title: 'Login Successful',
         description: 'Redirecting to your dashboard...',
       });
 
+      // Step 3: Now that the auth context is guaranteed to be up-to-date, navigate.
       router.push('/dashboard');
       
     } catch (error: any) {

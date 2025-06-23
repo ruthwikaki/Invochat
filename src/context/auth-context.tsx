@@ -9,7 +9,8 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   sendPasswordResetEmail,
-  getIdToken as getFirebaseIdToken
+  getIdToken as getFirebaseIdToken,
+  UserCredential
 } from 'firebase/auth';
 import { auth, isFirebaseEnabled } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
@@ -20,11 +21,11 @@ interface AuthContextType {
   user: FirebaseUser | null;
   userProfile: UserProfile | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<any>;
-  signup: (email: string, password: string) => Promise<any>;
-  logout: () => Promise<any>;
+  login: (email: string, password: string) => Promise<UserCredential>;
+  signup: (email: string, password: string) => Promise<UserCredential>;
+  logout: () => Promise<void>;
   getIdToken: () => Promise<string | null>;
-  resetPassword: (email: string) => Promise<any>;
+  resetPassword: (email: string) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
 }
 
@@ -72,11 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
+    // For the demo user, ensure their Supabase profile and company exist.
+    // The onAuthStateChanged listener will then pick up the correct profile.
     if (email === 'demo@example.com' && userCredential.user) {
         const idToken = await userCredential.user.getIdToken();
         await ensureDemoUserExists(idToken);
-        // onAuthStateChanged will fire and handle the profile update.
-        await updateUserState(userCredential.user);
     }
     
     return userCredential;
@@ -103,6 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshUserProfile = useCallback(async () => {
+    // This function is now the key to solving the race condition.
+    // It manually triggers a profile refresh and waits for it to complete.
     if (auth.currentUser) {
       await updateUserState(auth.currentUser);
     }
