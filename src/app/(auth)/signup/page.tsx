@@ -14,32 +14,33 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 
-const loginSchema = z.object({
+const signupSchema = z.object({
+  companyName: z.string().min(2, { message: 'Company name is required' }),
   email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(1, { message: 'Password is required' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type SignupFormData = z.infer<typeof signupSchema>;
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signInWithEmail } = useAuth();
+  const { signUpWithEmail } = useAuth();
   const router = useRouter();
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
   });
 
-  const handleSignIn = async (data: LoginFormData) => {
+  const handleSignUp = async (data: SignupFormData) => {
     setLoading(true);
     setError(null);
     try {
-      await signInWithEmail(data.email, data.password);
+      await signUpWithEmail(data.email, data.password, data.companyName);
       router.push('/dashboard');
     } catch (err: any) {
       console.error(err);
@@ -57,17 +58,28 @@ export default function LoginPage() {
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome Back</CardTitle>
-          <CardDescription>Sign in to access your inventory assistant.</CardDescription>
+          <CardTitle className="text-2xl">Create an Account</CardTitle>
+          <CardDescription>Get started with your smart inventory assistant.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(handleSignIn)} className="space-y-4">
+          <form onSubmit={handleSubmit(handleSignUp)} className="space-y-4">
             {error && (
               <p className="rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
                 {error}
               </p>
             )}
             <div className="space-y-1">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                type="text"
+                placeholder="Your Company Inc."
+                {...register('companyName')}
+                disabled={loading}
+              />
+              {errors.companyName && <p className="text-sm text-destructive">{errors.companyName.message}</p>}
+            </div>
+             <div className="space-y-1">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
@@ -89,13 +101,13 @@ export default function LoginPage() {
               {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
             </div>
             <Button type="submit" disabled={loading} className="w-full bg-[#3F51B5] hover:bg-[#3F51B5]/90">
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Creating Account...' : 'Create Account'}
             </Button>
           </form>
            <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="underline text-primary">
-              Sign up
+            Already have an account?{' '}
+            <Link href="/login" className="underline text-primary">
+              Sign in
             </Link>
           </div>
         </CardContent>

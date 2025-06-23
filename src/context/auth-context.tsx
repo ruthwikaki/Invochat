@@ -1,15 +1,16 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { signInWithGoogle as signInService, signOut as signOutService } from '@/services/auth.service';
-import { useRouter } from 'next/navigation';
+import { signInWithEmail as signInService, signOut as signOutService, signUpWithEmail as signUpService } from '@/services/auth.service';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -28,21 +29,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
-    await signInService();
+  const signInWithEmail = async (email: string, password: string) => {
+    await signInService(email, password);
     // onAuthStateChanged will handle the user state update
+  };
+  
+  const signUpWithEmail = async (email: string, password: string, companyName: string) => {
+    await signUpService(email, password, companyName);
+    // Force refresh to get custom claims
+    if (auth.currentUser) {
+        await auth.currentUser.getIdToken(true);
+    }
+    // onAuthStateChanged will handle the user state update, which will trigger redirect
   };
 
   const signOut = async () => {
     await signOutService();
     setUser(null);
-    // Redirect handled by ProtectedRoute component
   };
 
   const value = {
     user,
     loading,
-    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
     signOut,
   };
 
