@@ -42,39 +42,41 @@ export default function SignupPage() {
       const { data, error } = await supabase.auth.signUp({ email, password });
 
       if (error) {
-          throw error;
+        throw error;
       }
       
-      if (!data.user) {
-          throw new Error("User not created. Please try again.");
-      }
-
-      // Step 2: Handle based on whether email confirmation is required.
-      // We check `confirmation_sent_at`. If it exists, a verification email was sent.
-      // This is more reliable than checking for a session object.
-      if (data.user.confirmation_sent_at) {
-        setNeedsConfirmation(true);
-        setLoading(false); // Stop loading indicator
-        return;
-      }
-      
-      // If no confirmation email was sent, proceed to create the profile.
-      // The `onAuthStateChange` listener in our AuthProvider will get the new session.
-      const registrationResult = await completeUserRegistration({
+      // Step 2: Check for a session. A session is ONLY returned when email confirmation is disabled.
+      if (data.session) {
+        // SUCCESS CASE: User is logged in immediately.
+        // The onAuthStateChange listener will eventually pick this up, but we can
+        // proceed to create their profile right away.
+        const registrationResult = await completeUserRegistration({
           companyName,
-          idToken: data.session!.access_token, // The session will exist if no confirmation is needed.
-      });
+          idToken: data.session.access_token,
+        });
 
-      if (!registrationResult.success) {
-          throw new Error(registrationResult.error || 'Failed to create your company profile.');
+        if (!registrationResult.success) {
+          // If profile creation fails, we should inform the user.
+          // The user exists in auth but not in our DB. They may need to contact support.
+          throw new Error(registrationResult.error || 'Your account was created, but we failed to set up your company profile. Please contact support.');
+        }
+
+        // Now we simply wait for the auth provider to update and the useEffect to redirect.
+        // The toast gives the user feedback that something is happening.
+        toast({
+          title: 'Account Created!',
+          description: "You're all set. Redirecting you to the dashboard.",
+        });
+
+      } else if (data.user) {
+        // PENDING CONFIRMATION CASE: No session, but a user object was returned.
+        // This means email confirmation is required in your Supabase project settings.
+        setNeedsConfirmation(true);
+
+      } else {
+        // UNEXPECTED CASE: No session, no user, no error.
+        throw new Error('An unexpected error occurred during signup. Please try again.');
       }
-
-      // If we have a session, confirmation is off or already done.
-      // The useEffect will now handle the redirect when the auth state updates.
-      toast({
-        title: 'Account Created!',
-        description: "You're all set. Redirecting you to the dashboard.",
-      });
 
     } catch (error: any) {
       toast({
@@ -82,7 +84,11 @@ export default function SignupPage() {
         title: 'Signup Failed',
         description: error.message || 'Could not create your account. Please try again.',
       });
-      setLoading(false);
+    } finally {
+      // We only stop the main loading indicator if we aren't waiting for a redirect or showing the confirmation page.
+      if (needsConfirmation) {
+        setLoading(false);
+      }
     }
   };
   
