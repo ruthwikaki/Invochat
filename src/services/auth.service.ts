@@ -1,14 +1,14 @@
 
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { createClient } from '@/lib/supabase/client';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 /**
  * Signs the user in with email and password, then syncs the session with Supabase.
  * This is called from the CLIENT.
  */
 export async function signInWithEmail(email: string, password: string) {
-  const supabase = createClient();
+  const supabase = createBrowserSupabaseClient();
   
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
@@ -23,7 +23,7 @@ export async function signInWithEmail(email: string, password: string) {
     if (supabaseSignInError) {
       throw new Error(`Supabase sign-in failed: ${supabaseSignInError.message}`);
     }
-  } catch (error: any) {
+  } catch (error: any)
     console.error('Error during email sign-in:', error);
     // Attempt to sign out of Supabase just in case, but don't let it block the error flow
     await supabase.auth.signOut().catch(() => {});
@@ -39,7 +39,7 @@ export async function signInWithEmail(email: string, password: string) {
  * Signs the user out from both Firebase and Supabase.
  */
 export async function signOut() {
-  const supabase = createClient();
+  const supabase = createBrowserSupabaseClient();
   try {
     await auth.signOut();
     await supabase.auth.signOut();
