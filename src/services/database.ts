@@ -44,57 +44,35 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
 }
 
 /**
- * Creates a new company and a user associated with it in the database.
- * This function is now idempotent: it checks if a user profile already exists
- * before attempting to create one.
- * @param uid The Supabase user ID.
- * @param email The user's email.
+ * Calls a database function (RPC) to create a company and user profile in a single transaction.
+ * This is more robust and secure than multi-step client-side inserts.
  * @param companyName The name of the new company.
  * @returns A promise that resolves to the new company's ID.
  */
-export async function createCompanyAndUserInDB(uid: string, email: string, companyName: string): Promise<string> {
+export async function setupNewUserAndCompany(companyName: string): Promise<string> {
     if (!isDbConnected()) {
-        console.log(`[Mock DB] Skipping user/company creation for ${email}.`);
+        console.log(`[Mock DB] Skipping user/company creation for ${companyName}.`);
         return 'default-company-id';
     }
 
-    // 1. Check if user profile already exists to make this operation idempotent.
-    const existingCompanyId = await getCompanyIdForUser(uid);
-    if (existingCompanyId) {
-        console.log(`[DB Service] Profile for user ${uid} already exists in company ${existingCompanyId}. Skipping creation.`);
-        return existingCompanyId;
-    }
-
-    // 2. Profile does not exist, so create it.
     try {
-        // Create the company first.
-        const { data: companyData, error: companyError } = await supabase
-            .from('companies')
-            .insert({ name: companyName })
-            .select('id')
-            .single();
+        const { data, error } = await supabase.rpc('handle_new_user', {
+            company_name_param: companyName
+        });
 
-        if (companyError) {
-          // Add a more descriptive error message
-          const message = companyError.message.includes("schema cache") 
-              ? `Database schema error: ${companyError.message}. Please ensure your 'companies' table has the correct columns.`
-              : companyError.message;
-          throw new Error(message);
+        if (error) {
+            console.error('[DB Service] RPC call to handle_new_user failed:', error);
+            throw new Error(`Database error during user setup: ${error.message}`);
         }
-        const companyId = companyData.id;
 
-        // Then create the user profile linked to the company.
-        const { error: userError } = await supabase
-            .from('users')
-            .insert({ firebase_uid: uid, email: email, company_id: companyId });
+        if (!data) {
+            throw new Error('RPC call to handle_new_user did not return a company ID.');
+        }
 
-        if (userError) throw userError;
-
-        return companyId;
+        return data;
     } catch (error: any) {
-        console.error('[DB Service] CRITICAL: Supabase transaction failed in createCompanyAndUserInDB:', error);
-        // Re-throw the original error to be caught by the server action
-        throw error;
+        console.error('[DB Service] CRITICAL: Exception during RPC call in setupNewUserAndCompany:', error);
+        throw error; // Re-throw to be caught by the server action
     }
 }
 
@@ -127,7 +105,8 @@ export async function getDataForChart(query: string, companyId: string): Promise
             if (error) throw error;
 
             const aggregated = data.reduce((acc, item) => {
-                acc[item.category] = (acc[item.category] || 0) + (item.quantity * item.cost);
+                const category = item.category || 'Uncategorized';
+                acc[category] = (acc[category] || 0) + (item.quantity * item.cost);
                 return acc;
             }, {} as Record<string, number>);
 
@@ -180,16 +159,23 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
     if (!isDbConnected()) return allMockData[companyId]?.mockSuppliers || [];
     
     const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
+        .from('vendors') // NOTE: Using 'vendors' table as per user schema
+        .select('id, vendor_name, contact_info')
         .eq('company_id', companyId)
-        .order('on_time_delivery_rate', { ascending: false });
 
     if (error) {
         console.error('[DB Service] Query failed in getSuppliersFromDB. Returning empty array.', error);
         return [];
     }
-    return data as Supplier[];
+
+    // The user's 'vendors' table doesn't have performance data, so we map what we have.
+    return data.map(v => ({
+        id: v.id,
+        name: v.vendor_name,
+        contact: v.contact_info,
+        onTimeDeliveryRate: 95, // Mock data
+        avgDeliveryTime: 5, // Mock data
+    }));
 }
 
 /**
@@ -216,7 +202,7 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
         name: item.name,
         quantity: item.quantity,
         value: item.quantity * item.cost,
-        lastSold: format(new Date(item.last_sold_date), 'yyyy-MM-dd'),
+        lastSold: item.last_sold_date ? format(new Date(item.last_sold_date), 'yyyy-MM-dd') : 'N/A',
     }));
 }
 
@@ -249,7 +235,7 @@ export async function getDeadStockPageData(companyId: string) {
         name: item.name,
         quantity: item.quantity,
         value: item.quantity * item.cost,
-        lastSold: format(new Date(item.last_sold_date), 'yyyy-MM-dd'),
+        lastSold: item.last_sold_date ? format(new Date(item.last_sold_date), 'yyyy-MM-dd') : 'N/A',
     }));
 
     const totalDeadStockValue = deadStockItems.reduce((acc, item) => acc + item.value, 0);
@@ -266,9 +252,7 @@ export async function getDeadStockPageData(companyId: string) {
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     if (!isDbConnected()) return allMockData[companyId]?.mockAlerts || [];
     
-    // This is a complex query to replicate, so we will return mock data for now.
-    // A production implementation would use database views or functions (RPCs).
-    console.warn("[DB Service] getAlertsFromDB is returning mock data as the query is too complex for a simple client-side replication.");
+    console.warn("[DB Service] getAlertsFromDB is returning mock data as this requires a complex query.");
     return allMockData[companyId]?.mockAlerts || [];
 }
 
@@ -280,8 +264,6 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
      if (!isDbConnected()) return allMockData[companyId]?.mockDashboardMetrics;
 
-    // This is a complex query to replicate, so we will return mock data for now.
-    // A production implementation would use database views or functions (RPCs).
-    console.warn("[DB Service] getDashboardMetrics is returning mock data as the query is too complex for a simple client-side replication.");
+    console.warn("[DB Service] getDashboardMetrics is returning mock data as this requires a complex query.");
     return allMockData[companyId]?.mockDashboardMetrics;
 }

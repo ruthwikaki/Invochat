@@ -39,10 +39,9 @@ export default function SignupPage() {
           throw new Error("User not created. Please try again.");
       }
 
-      // Step 2: Create company and user records in our DB regardless of confirmation status.
+      // Step 2: Call a secure RPC to create the company and user records in our DB.
+      // The RPC uses the user's session from the signUp call above.
       const registrationResult = await completeUserRegistration({
-          uid: data.user.id,
-          email: data.user.email!,
           companyName,
       });
 

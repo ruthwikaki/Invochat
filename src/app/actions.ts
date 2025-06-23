@@ -6,7 +6,7 @@ import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
 import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
 import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
-import { getCompanyIdForUser, createCompanyAndUserInDB } from '@/services/database';
+import { getCompanyIdForUser, setupNewUserAndCompany } from '@/services/database';
 import type { AssistantMessagePayload } from '@/types';
 import { z } from 'zod';
 
@@ -130,13 +130,12 @@ export async function handleUserMessage(
 }
 
 export async function completeUserRegistration(payload: {
-  uid: string;
-  email: string;
   companyName: string;
 }) {
-  const { uid, email, companyName } = payload;
+  const { companyName } = payload;
   try {
-    const companyId = await createCompanyAndUserInDB(uid, email, companyName);
+    // This function calls a secure RPC in the database.
+    const companyId = await setupNewUserAndCompany(companyName);
     return { success: true, companyId };
   } catch (error: any) {
     console.error('Failed to complete user registration in database:', error);
