@@ -1,3 +1,4 @@
+
 'use server';
 
 import { auth as adminAuth } from '@/lib/firebase-server';
@@ -23,9 +24,9 @@ async function authenticateAndGetCompanyId(idToken: string): Promise<string> {
         const firebaseUid = decodedToken.uid;
       
         const { data, error } = await supabaseAdmin
-            .from('users')
+            .from('user_profiles')
             .select('company_id')
-            .eq('firebase_uid', firebaseUid)
+            .eq('id', firebaseUid)
             .single();
         
         if (error) {

@@ -75,7 +75,7 @@ export default function SignupPage() {
     } catch (error: any) {
       console.error("Signup Error:", error);
       let description = "Could not create your account. Please try again.";
-      if(error.code) {
+      if(error.code) { // Handle Firebase Auth errors
           switch(error.code) {
               case 'auth/email-already-in-use':
                   description = 'This email is already in use. Please try logging in instead.';
@@ -89,6 +89,8 @@ export default function SignupPage() {
               default:
                   description = error.message;
           }
+      } else if (error.message) { // Handle custom errors from server actions
+        description = error.message;
       }
       toast({
         variant: 'destructive',
