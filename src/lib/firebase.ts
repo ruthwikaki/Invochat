@@ -13,17 +13,9 @@ const firebaseConfig = {
   appId: "1:1032179450962:web:c9bbcf7bfeda1a538acb8b"
 };
 
+const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth: Auth = getAuth(app);
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-
-try {
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-} catch (e) {
-  console.error("FATAL: Firebase initialization failed. Please check your Firebase project configuration.", e);
-}
-
-export const isFirebaseEnabled = !!auth;
+export const isFirebaseEnabled = true;
 
 export { app, auth };
