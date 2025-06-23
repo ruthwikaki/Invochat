@@ -11,40 +11,66 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { setupCompanyAndUserProfile } from '@/app/actions';
+import { Separator } from '@/components/ui/separator';
+
+type CompanyChoice = 'create' | 'join';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [companyChoice, setCompanyChoice] = useState<CompanyChoice>('create');
+  const [companyName, setCompanyName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { signup, user, userProfile, loading: authLoading } = useAuth();
+  const { signup, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
 
   useEffect(() => {
-    // This effect handles redirection after a successful signup and auth state change.
-    if (!authLoading && user) {
-        if (userProfile) {
-            router.push('/dashboard');
-        } else {
-            // The user has a Firebase account but needs to set up their company profile.
-            router.push('/company-setup');
-        }
+    // This effect handles redirection if user is already logged in.
+    if (!authLoading && user && userProfile) {
+        router.push('/dashboard');
     }
   }, [user, userProfile, authLoading, router]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    
+    const companyNameOrCode = companyChoice === 'create' ? companyName : inviteCode;
+    if (!companyNameOrCode) {
+        toast({ variant: 'destructive', title: 'Missing Information', description: 'Please provide a company name or invite code.' });
+        setIsSubmitting(false);
+        return;
+    }
 
     try {
-      await signup(email, password);
-      // On success, Firebase creates the user. The onAuthStateChanged listener in
-      // AuthProvider will detect the new user, and the useEffect hook above
-      // will handle redirecting to the company-setup page.
-      toast({
-        title: 'Account Created!',
-        description: "Next, let's set up your company profile.",
+      // Step 1: Create Firebase user
+      const userCredential = await signup(email, password);
+      
+      // Step 2: Get user's ID token for server-side verification
+      const idToken = await userCredential.user.getIdToken();
+      if (!idToken) {
+        throw new Error("Authentication session failed. Please try again.");
+      }
+
+      // Step 3: Set up company and user profile in Supabase
+      const result = await setupCompanyAndUserProfile({
+        idToken,
+        companyChoice,
+        companyNameOrCode,
       });
+
+      if (result.success && result.profile) {
+        toast({ title: 'Account Created!', description: `Welcome to ${result.profile.company?.name}!`});
+        await refreshUserProfile();
+        // The layout's useEffect will now handle the redirect to /dashboard
+      } else {
+        throw new Error(result.error || 'An unknown error occurred during setup.');
+      }
 
     } catch (error: any) {
       console.error("Signup Error:", error);
@@ -61,7 +87,7 @@ export default function SignupPage() {
                   description = 'The email address is not valid.';
                   break;
               default:
-                  description = `An unexpected error occurred: ${error.message}`;
+                  description = error.message;
           }
       }
       toast({
@@ -74,7 +100,7 @@ export default function SignupPage() {
     }
   };
   
-  if (authLoading || user) {
+  if (authLoading || (user && userProfile)) {
     return (
       <Card>
         <CardHeader>
@@ -115,10 +141,58 @@ export default function SignupPage() {
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" placeholder="•••••••• (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
+
+          <Separator className="my-4" />
+
+          <div>
+            <RadioGroup
+                defaultValue="create"
+                className="grid grid-cols-2 gap-4"
+                onValueChange={(value: CompanyChoice) => setCompanyChoice(value)}
+            >
+                <div>
+                    <RadioGroupItem value="create" id="create" className="peer sr-only" />
+                    <Label htmlFor="create" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                        Create Company
+                    </Label>
+                </div>
+                 <div>
+                    <RadioGroupItem value="join" id="join" className="peer sr-only" />
+                    <Label htmlFor="join" className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary">
+                        Join Company
+                    </Label>
+                </div>
+            </RadioGroup>
+          </div>
+
+          {companyChoice === 'create' ? (
+              <div className="space-y-2">
+                  <Label htmlFor="companyName">Company Name</Label>
+                  <Input 
+                      id="companyName" 
+                      placeholder="Your Company, Inc."
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      required
+                  />
+              </div>
+          ) : (
+              <div className="space-y-2">
+                  <Label htmlFor="inviteCode">Invite Code</Label>
+                  <Input
+                      id="inviteCode"
+                      placeholder="Enter 6-digit code"
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                      required
+                  />
+              </div>
+          )}
+
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating Account...' : 'Sign Up'}
+            {isSubmitting ? 'Creating Account...' : 'Sign Up & Continue'}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{' '}
