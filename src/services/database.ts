@@ -28,7 +28,14 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
             .eq('id', uid)
             .single();
 
-        if (error) throw error;
+        if (error) {
+            // 'PGRST116' is the code for 'exact one row not found', which is expected if the user has no profile yet.
+            // We don't want to throw an error in that case.
+            if (error.code === 'PGRST116') {
+                return null;
+            }
+            throw error;
+        }
         return data?.company_id || null;
     } catch (error) {
         console.error('[DB Service] CRITICAL: Supabase query failed in getCompanyIdForUser:', error);
@@ -38,8 +45,8 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
 
 /**
  * Creates a new company and a user associated with it in the database.
- * This function uses a transaction to ensure both operations succeed or fail together.
- * This is a critical function and will throw on failure.
+ * This function is now idempotent: it checks if a user profile already exists
+ * before attempting to create one.
  * @param uid The Supabase user ID.
  * @param email The user's email.
  * @param companyName The name of the new company.
@@ -50,12 +57,17 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         console.log(`[Mock DB] Skipping user/company creation for ${email}.`);
         return 'default-company-id';
     }
-    
+
+    // 1. Check if user profile already exists to make this operation idempotent.
+    const existingCompanyId = await getCompanyIdForUser(uid);
+    if (existingCompanyId) {
+        console.log(`[DB Service] Profile for user ${uid} already exists in company ${existingCompanyId}. Skipping creation.`);
+        return existingCompanyId;
+    }
+
+    // 2. Profile does not exist, so create it.
     try {
-        // Since we don't have a service_role key, we can't do this in a single transaction easily.
-        // We'll perform sequential inserts. Assumes RLS is set up to allow this.
-        
-        // 1. Create the company
+        // Create the company first.
         const { data: companyData, error: companyError } = await supabase
             .from('companies')
             .insert({ name: companyName, owner_uid: uid })
@@ -65,8 +77,7 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         if (companyError) throw companyError;
         const companyId = companyData.id;
 
-        // 2. Create the user and link to the company
-        // Note: The user record in public.users is different from auth.users
+        // Then create the user profile linked to the company.
         const { error: userError } = await supabase
             .from('users')
             .insert({ id: uid, email: email, company_id: companyId });
@@ -74,8 +85,9 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         if (userError) throw userError;
 
         return companyId;
-    } catch (error) {
+    } catch (error: any) {
         console.error('[DB Service] CRITICAL: Supabase transaction failed in createCompanyAndUserInDB:', error);
+        // This is the error message shown on the signup page.
         throw new Error('Failed to create company and user in database.');
     }
 }
