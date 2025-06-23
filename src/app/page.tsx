@@ -1,26 +1,33 @@
-'use client';
-import { useAuth } from "@/context/auth-context";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    // Wait until the authentication state is determined.
-    if (!loading) {
-      if (user) {
-        // If the user is logged in, redirect them to the dashboard.
-        router.replace('/dashboard');
-      } else {
-        // If the user is not logged in, redirect them to the login page.
-        router.replace('/login');
-      }
-    }
-  }, [user, loading, router]);
-  
-  // This page's only job is to redirect. It should not render any content.
-  // Returning null is the standard practice for this "bouncer" pattern.
-  return null;
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-muted/40">
+      <Card className="w-full max-w-md text-center p-4">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold">Welcome to InvoChat</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-muted-foreground">
+            This is a temporary landing page for debugging purposes.
+          </p>
+          <div className="flex justify-center gap-4">
+            <Button asChild>
+              <Link href="/login">
+                Go to Login
+              </Link>
+            </Button>
+            <Button variant="secondary" asChild>
+              <Link href="/dashboard">
+                Go to Dashboard
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
