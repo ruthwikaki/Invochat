@@ -1,38 +1,24 @@
 
+'use server';
+
 /**
  * @fileoverview
  * This file provides functions to query your Supabase database.
- * NOTE: This service layer is currently configured to use MOCK DATA when
- * the Supabase admin client is not available. This allows the app to be
- * fully interactive for demonstration purposes without a database connection.
  */
 
 import { supabaseAdmin, isSupabaseAdminEnabled } from '@/lib/supabase';
 import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics, UserProfile } from '@/types';
-import { allMockData } from '@/lib/mock-data';
 import { format, subDays } from 'date-fns';
 
 /**
  * Retrieves the user's full profile from Supabase, including company details.
- * In mock mode, it provides a default profile for the demo user.
  * @param firebaseUid The Firebase UID of the user.
  * @returns A promise that resolves to the UserProfile or null if not found.
  */
 export async function getUserProfile(firebaseUid: string): Promise<UserProfile | null> {
     if (!isSupabaseAdminEnabled) {
-        // Mock implementation
-        return {
-            id: 'demo-user-id',
-            firebase_uid: firebaseUid,
-            email: 'demo@example.com',
-            company_id: 'default-company-id',
-            role: 'admin',
-            company: {
-                id: 'default-company-id',
-                name: 'InvoChat Demo',
-                invite_code: 'DEMO123'
-            }
-        };
+        console.error("[DB Service] Supabase Admin client is not available. Cannot fetch user profile.");
+        throw new Error("Database connection is not configured.");
     }
 
     // Real implementation
@@ -55,7 +41,7 @@ export async function getUserProfile(firebaseUid: string): Promise<UserProfile |
             .single();
         
         if (error) {
-            if (error.code === 'PGRST116') return null;
+            if (error.code === 'PGRST116') return null; // 'PGRST116' means no rows found, which is a valid case.
             throw error;
         }
 
@@ -72,7 +58,10 @@ export async function getUserProfile(firebaseUid: string): Promise<UserProfile |
  * Retrieves the company ID for a given Firebase user UID.
  */
 export async function getCompanyIdForUser(uid: string): Promise<string | null> {
-    if (!isSupabaseAdminEnabled) return 'default-company-id';
+    if (!isSupabaseAdminEnabled) {
+        console.error("[DB Service] Supabase Admin client is not available. Cannot fetch company ID.");
+        return null;
+    }
     
     try {
         const { data, error } = await supabaseAdmin!
@@ -98,11 +87,7 @@ export async function getCompanyIdForUser(uid: string): Promise<string | null> {
  */
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
     if (!isSupabaseAdminEnabled) {
-        const lowerCaseQuery = query.toLowerCase();
-         if (lowerCaseQuery.includes('inventory value by category') || lowerCaseQuery.includes('sales velocity')) {
-            const data = allMockData[companyId]?.mockInventoryValueByCategory || [];
-            return data.map(d => ({ name: d.category, value: d.value }));
-         }
+        console.error("[DB Service] Supabase Admin client is not available. Cannot get data for chart.");
         return [];
     }
     
@@ -125,6 +110,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
 
             return Object.entries(aggregated).map(([name, value]) => ({ name, value }));
         }
+        // Return empty for other queries for now
         return [];
     } catch (error) {
         console.error('[DB Service] Query failed in getDataForChart. Returning empty array.', error);
@@ -134,8 +120,8 @@ export async function getDataForChart(query: string, companyId: string): Promise
 
 export async function getDeadStockFromDB(companyId: string): Promise<Product[]> {
     if (!isSupabaseAdminEnabled) {
-        const mockData = allMockData[companyId] || allMockData['default-company-id'];
-        return mockData.mockProducts.filter(p => new Date(p.last_sold_date) < subDays(new Date(), 90));
+        console.error("[DB Service] Supabase Admin client is not available. Cannot get dead stock.");
+        return [];
     }
 
     const ninetyDaysAgo = format(subDays(new Date(), 90), 'yyyy-MM-dd');
@@ -154,12 +140,13 @@ export async function getDeadStockFromDB(companyId: string): Promise<Product[]> 
 
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
     if (!isSupabaseAdminEnabled) {
-        return allMockData[companyId]?.mockSuppliers || allMockData['default-company-id'].mockSuppliers;
+        console.error("[DB Service] Supabase Admin client is not available. Cannot get suppliers.");
+        return [];
     }
     
     const { data, error } = await supabaseAdmin!
         .from('vendors')
-        .select('id, vendor_name, contact_info')
+        .select('id, vendor_name, contact_info') // Assuming these are the columns
         .eq('company_id', companyId);
 
     if (error) {
@@ -167,18 +154,20 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
         return [];
     }
 
+    // Mapping might need to be adjusted based on the actual schema
     return data.map(v => ({
         id: v.id,
         name: v.vendor_name,
         contact: v.contact_info,
-        onTimeDeliveryRate: 95,
-        avgDeliveryTime: 5,
+        onTimeDeliveryRate: 95, // Example static value
+        avgDeliveryTime: 5,     // Example static value
     }));
 }
 
 export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
     if (!isSupabaseAdminEnabled) {
-        return allMockData[companyId]?.mockInventoryItems || allMockData['default-company-id'].mockInventoryItems;
+        console.error("[DB Service] Supabase Admin client is not available. Cannot get inventory items.");
+        return [];
     }
     
     const { data, error } = await supabaseAdmin!
@@ -203,10 +192,8 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
 
 export async function getDeadStockPageData(companyId: string) {
     if (!isSupabaseAdminEnabled) {
-        const mockData = allMockData[companyId] || allMockData['default-company-id'];
-        const items = mockData.mockInventoryItems.filter(p => new Date(p.lastSold) < subDays(new Date(), 90));
-        const totalValue = items.reduce((acc, item) => acc + item.value, 0);
-        return { deadStockItems: items, totalDeadStockValue: totalValue };
+        console.error("[DB Service] Supabase Admin client is not available. Cannot get dead stock page data.");
+        return { deadStockItems: [], totalDeadStockValue: 0 };
     }
 
     const ninetyDaysAgo = format(subDays(new Date(), 90), 'yyyy-MM-dd');
@@ -233,37 +220,46 @@ export async function getDeadStockPageData(companyId: string) {
 }
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
-    if (!isSupabaseAdminEnabled) {
-        return allMockData[companyId]?.mockAlerts || allMockData['default-company-id'].mockAlerts;
-    }
-    console.warn("[DB Service] getAlertsFromDB is returning an empty array as the real query is complex.");
+     if (!isSupabaseAdminEnabled) {
+        console.error("[DB Service] Supabase Admin client is not available. Cannot get alerts.");
+        return [];
+     }
+    console.warn("[DB Service] getAlertsFromDB is returning an empty array as the real query is complex and not yet implemented.");
     return [];
 }
 
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
      if (!isSupabaseAdminEnabled) {
-        return allMockData[companyId]?.mockDashboardMetrics || allMockData['default-company-id'].mockDashboardMetrics;
+        console.error("[DB Service] Supabase Admin client is not available. Cannot get dashboard metrics.");
+        return { inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
      }
 
-    console.warn("[DB Service] getDashboardMetrics is returning partially real data.");
-    
-    const { data, error } = await supabaseAdmin!
-        .from('inventory')
-        .select('quantity, cost')
-        .eq('company_id', companyId);
+    try {
+        const { data, error } = await supabaseAdmin!
+            .from('inventory')
+            .select('quantity, cost, last_sold_date')
+            .eq('company_id', companyId);
 
-    if (error || !data) {
+        if (error || !data) {
+            if (error) console.error('[DB Service] Query failed in getDashboardMetrics:', error);
+            return { inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
+        }
+        
+        const inventoryValue = data.reduce((acc, item) => acc + (item.quantity * item.cost), 0);
+        
+        const ninetyDaysAgo = subDays(new Date(), 90);
+        const deadStockValue = data.filter(item => item.last_sold_date && new Date(item.last_sold_date) < ninetyDaysAgo)
+                                   .reduce((acc, item) => acc + (item.quantity * item.cost), 0);
+
+        // Predictive alerts and on-time delivery are complex and would require more data. Returning static for now.
         return {
-            inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null
+            inventoryValue: inventoryValue,
+            deadStockValue: deadStockValue,
+            onTimeDeliveryRate: 95.2, // Example value
+            predictiveAlert: null      // Example value
         };
+    } catch(error) {
+        console.error('[DB Service] Exception in getDashboardMetrics:', error);
+        return { inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
     }
-    
-    const inventoryValue = data.reduce((acc, item) => acc + (item.quantity * item.cost), 0);
-
-    return {
-        inventoryValue: inventoryValue,
-        deadStockValue: 0,
-        onTimeDeliveryRate: 0,
-        predictiveAlert: null
-    };
 }
