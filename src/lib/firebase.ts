@@ -5,7 +5,7 @@ import { getAuth, type Auth } from 'firebase/auth';
 // Hardcoded configuration to resolve API key issues.
 // This ensures the correct credentials are used, bypassing environment variable problems.
 const firebaseConfig = {
-  apiKey: "AIzaSyDS_DRwrguUfKnMc1aEdZnLRWJ00AUfYUE",
+  apiKey: "AIzaSyA_3cdszW3OTngO7_ziolyku6YZNv4Xe2s",
   authDomain: "arvo-r5x6y.firebaseapp.com",
   projectId: "arvo-r5x6y",
   storageBucket: "arvo-r5x6y.appspot.com",
