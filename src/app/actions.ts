@@ -1,13 +1,12 @@
 
 'use server';
 
-import '@/lib/db'; // This will initialize the DB connection and run the test
+import { supabase } from '@/lib/db';
 import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
 import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
 import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
 import { getCompanyIdForUser, createCompanyAndUserInDB } from '@/services/database';
-import { auth } from '@/lib/firebase-server';
 import type { AssistantMessagePayload } from '@/types';
 import { z } from 'zod';
 
@@ -15,7 +14,7 @@ const actionResponseSchema = z.custom<AssistantMessagePayload>();
 
 const UserMessagePayloadSchema = z.object({
   message: z.string(),
-  idToken: z.string(),
+  idToken: z.string(), // This will be the Supabase Access Token
 });
 
 type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
@@ -25,23 +24,17 @@ export async function handleUserMessage(
 ): Promise<AssistantMessagePayload> {
   const { message, idToken } = UserMessagePayloadSchema.parse(payload);
   
-  if (!auth) {
-    console.error("Firebase Admin SDK is not initialized. Cannot process message. Ensure FIREBASE_SERVICE_ACCOUNT is set in your environment.");
-    return {
-      id: Date.now().toString(),
-      role: 'assistant',
-      content: "I'm sorry, but the server is not configured correctly for AI actions. Please contact support or check the server logs."
-    };
-  }
-
   let companyId: string | null;
   try {
-    const decodedToken = await auth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    companyId = await getCompanyIdForUser(uid);
+    const { data: { user } } = await supabase.auth.getUser(idToken);
+    if (!user) {
+        throw new Error('User not found for the provided token.');
+    }
+
+    companyId = await getCompanyIdForUser(user.id);
 
     if (!companyId) {
-      throw new Error(`User with UID ${uid} does not have an associated company.`);
+      throw new Error(`User with UID ${user.id} does not have an associated company.`);
     }
 
   } catch (error: any) {

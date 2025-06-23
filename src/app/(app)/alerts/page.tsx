@@ -77,15 +77,15 @@ function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
+    if (user && session) {
       const fetchData = async () => {
         setLoading(true);
         try {
-          const token = await user.getIdToken();
+          const token = session.access_token;
           const data = await getAlertsData(token);
           setAlerts(data);
         } catch (error) {
@@ -97,7 +97,7 @@ export default function AlertsPage() {
       };
       fetchData();
     }
-  }, [user, toast]);
+  }, [user, session, toast]);
 
 
   const toggleResolved = (id: string) => {

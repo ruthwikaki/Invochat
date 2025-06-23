@@ -2,10 +2,9 @@
 
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/context/auth-context';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
-import type { User } from 'firebase/auth';
+import type { User } from '@supabase/supabase-js';
 
 function TypingIndicator() {
   return (
@@ -53,7 +52,7 @@ export function ChatMessage({
       </div>
       {isUserMessage && (
         <Avatar className="h-8 w-8 shrink-0">
-          <AvatarImage src={user?.photoURL ?? undefined} alt={user?.displayName ?? 'User'} data-ai-hint="user avatar"/>
+          <AvatarImage src={user?.user_metadata?.avatar_url ?? undefined} alt={user?.user_metadata?.name ?? 'User'} data-ai-hint="user avatar"/>
           <AvatarFallback>{user?.email?.charAt(0).toUpperCase() ?? 'U'}</AvatarFallback>
         </Avatar>
       )}

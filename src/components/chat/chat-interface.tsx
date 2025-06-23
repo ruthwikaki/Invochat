@@ -38,7 +38,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
 
 
@@ -72,7 +72,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const submitMessage = (messageText: string) => {
     if (!messageText.trim()) return;
 
-    if (!user) {
+    if (!user || !session) {
         toast({
             variant: 'destructive',
             title: 'Not Authenticated',
@@ -90,8 +90,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setMessages((prev) => [...prev, userMessage]);
 
     startTransition(async () => {
-      const idToken = await user.getIdToken();
-      const response = await handleUserMessage({ message: messageText, idToken });
+      const response = await handleUserMessage({ message: messageText, idToken: session.access_token });
       processResponse(response);
     });
   };

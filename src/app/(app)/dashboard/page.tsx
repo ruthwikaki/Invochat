@@ -66,15 +66,15 @@ export default function DashboardPage() {
     const [data, setData] = useState<DashboardMetrics | null>(null);
     const [loading, setLoading] = useState(true);
     const [isReorderModalOpen, setReorderModalOpen] = useState(false);
-    const { user } = useAuth();
+    const { user, session } = useAuth();
     const { toast } = useToast();
 
     useEffect(() => {
-        if (user) {
+        if (user && session) {
             const fetchData = async () => {
                 setLoading(true);
                 try {
-                    const token = await user.getIdToken();
+                    const token = session.access_token;
                     const result = await getDashboardData(token);
                     setData(result);
                 } catch (error) {
@@ -90,7 +90,7 @@ export default function DashboardPage() {
             };
             fetchData();
         }
-    }, [user, toast]);
+    }, [user, session, toast]);
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

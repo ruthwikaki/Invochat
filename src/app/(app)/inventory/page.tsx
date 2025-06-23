@@ -41,15 +41,15 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [allInventory, setAllInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
+    if (user && session) {
       const fetchData = async () => {
         setLoading(true);
         try {
-          const token = await user.getIdToken();
+          const token = session.access_token;
           const data = await getInventory(token);
           setAllInventory(data);
         } catch (error) {
@@ -61,7 +61,7 @@ export default function InventoryPage() {
       };
       fetchData();
     }
-  }, [user, toast]);
+  }, [user, session, toast]);
 
   const filteredInventory = useMemo(() => {
     if (!search) return allInventory;

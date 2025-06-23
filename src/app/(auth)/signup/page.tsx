@@ -5,9 +5,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { supabase } from '@/lib/db';
 import { completeUserRegistration } from '@/app/actions';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -24,36 +23,34 @@ export default function SignupPage() {
     e.preventDefault();
     setLoading(true);
 
-    if (!auth) {
+    try {
+      // Step 1: Create the user in Supabase Authentication
+      const { data, error } = await supabase.auth.signUp({ email, password });
+
+      if (error) {
+          throw error;
+      }
+
+      if (!data.user) {
+        // This can happen if email confirmation is required.
         toast({
-            variant: 'destructive',
-            title: 'Signup Failed',
-            description: 'Authentication service is not available. Please try again later.'
+          title: 'Check your email',
+          description: 'We sent a confirmation link to your email address.',
         });
         setLoading(false);
         return;
-    }
-
-    try {
-      // Step 1: Create the user in Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      if (!user.email) {
-          throw new Error("User created without an email address.");
       }
 
-      // Step 2: Call server action to create company and user records in PostgreSQL
+      // Step 2: Call server action to create company and user records in our DB
       const registrationResult = await completeUserRegistration({
-          uid: user.uid,
-          email: user.email,
+          uid: data.user.id,
+          email: data.user.email!,
           companyName,
       });
 
       if (!registrationResult.success) {
-          // This is a partial failure. The user exists in Firebase Auth but not in our DB.
-          // A production app would need a cleanup process (e.g., delete the Firebase user).
-          // For now, we'll just show the error.
+          // This is a partial failure. The user exists in Supabase Auth but not in our DB.
+          // A production app would need a cleanup process. For now, we'll just show the error.
           throw new Error(registrationResult.error || 'Failed to create your company profile.');
       }
 

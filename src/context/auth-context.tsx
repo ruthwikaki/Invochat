@@ -2,50 +2,54 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User as FirebaseUser, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import type { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/lib/db';
 
 interface AuthContextType {
-  user: FirebaseUser | null;
+  user: User | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<any>;
   logout: () => Promise<any>;
+  session: Session | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (auth) {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          setUser(user);
-          setLoading(false);
-        });
-        return () => unsubscribe();
-    } else {
-        // If auth is not initialized, stop loading and treat as logged out.
-        // This happens if Firebase env vars are not set.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
         setLoading(false);
-        setUser(null);
-        console.warn("Firebase Auth is not initialized. Make sure your NEXT_PUBLIC_FIREBASE_* environment variables are set in your .env file.");
+      }
+    );
+
+    // Also fetch session on initial load
+    const getInitialSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
     }
+    getInitialSession();
+
+
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const login = (email: string, pass: string) => {
-    if (!auth) {
-        return Promise.reject(new Error("Firebase Auth is not initialized."));
-    }
-    return signInWithEmailAndPassword(auth, email, pass);
+    return supabase.auth.signInWithPassword({ email, password: pass });
   };
   
   const logout = () => {
-    if (!auth) {
-        return Promise.reject(new Error("Firebase Auth is not initialized."));
-    }
-    return signOut(auth);
+    return supabase.auth.signOut();
   }
 
   const value = {
@@ -53,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     login,
     logout,
+    session,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

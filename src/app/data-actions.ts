@@ -8,21 +8,22 @@ import {
     getSuppliersFromDB,
     getAlertsFromDB
 } from '@/services/database';
-import { auth } from '@/lib/firebase-server';
+import { supabase } from '@/lib/db';
 import { z } from 'zod';
 
-const IdTokenSchema = z.string();
+const IdTokenSchema = z.string(); // Supabase Access Token
 
 /**
  * A helper function to verify the user's token and retrieve their company ID.
  * Throws an error if authentication fails or the company ID is not found.
  */
 async function authenticateAndGetCompanyId(idToken: string): Promise<string> {
-    if (!auth) {
-        throw new Error("Server-side authentication is not configured.");
+    const { data: { user }, error } = await supabase.auth.getUser(idToken);
+    if (error || !user) {
+        throw new Error("Authentication failed. Invalid token.");
     }
-    const decodedToken = await auth.verifyIdToken(idToken);
-    const companyId = await getCompanyIdForUser(decodedToken.uid);
+    
+    const companyId = await getCompanyIdForUser(user.id);
     if (!companyId) {
         throw new Error("User's company profile not found.");
     }

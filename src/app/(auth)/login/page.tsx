@@ -22,7 +22,8 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const { error } = await login(email, password);
+      if (error) throw error;
       router.push('/dashboard');
     } catch (error: any) {
       toast({

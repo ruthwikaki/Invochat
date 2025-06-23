@@ -23,7 +23,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  await testDbConnection(); // Explicitly call the DB test on startup.
+  // The DB connection test is now just a check for env vars for Supabase.
+  await testDbConnection(); 
 
   return (
     <html lang="en" suppressHydrationWarning>
