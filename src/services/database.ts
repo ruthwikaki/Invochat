@@ -87,8 +87,8 @@ export async function createCompanyAndUserInDB(uid: string, email: string, compa
         return companyId;
     } catch (error: any) {
         console.error('[DB Service] CRITICAL: Supabase transaction failed in createCompanyAndUserInDB:', error);
-        // This is the error message shown on the signup page.
-        throw new Error('Failed to create company and user in database.');
+        // Re-throw the original error to be caught by the server action
+        throw error;
     }
 }
 
