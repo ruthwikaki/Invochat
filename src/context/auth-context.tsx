@@ -13,7 +13,6 @@ import {
 } from 'firebase/auth';
 import { auth, isFirebaseEnabled } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
-import { useRouter } from 'next/navigation';
 import { ensureDemoUserExists, getUserProfile } from '@/app/actions';
 
 
@@ -35,31 +34,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
-  const fetchUserProfile = useCallback(async (currentUser: FirebaseUser | null) => {
-    if (!currentUser) {
-      setUserProfile(null);
-      return;
-    }
-    
-    try {
-      const idToken = await getFirebaseIdToken(currentUser);
-      const profile = await getUserProfile(idToken);
-      setUserProfile(profile);
-    } catch (error) {
-      console.error('Failed to fetch user profile:', error);
-      setUserProfile(null);
-    }
-  }, []);
-  
-  const refreshUserProfile = useCallback(async () => {
-    if (!auth?.currentUser) return;
+  const updateUserState = useCallback(async (firebaseUser: FirebaseUser | null) => {
     setLoading(true);
-    await fetchUserProfile(auth.currentUser);
-    setLoading(false);
-  }, [fetchUserProfile]);
+    setUser(firebaseUser);
 
+    if (firebaseUser) {
+      try {
+        const idToken = await getFirebaseIdToken(firebaseUser, true);
+        const profile = await getUserProfile(idToken);
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+        setUserProfile(null);
+      }
+    } else {
+      setUserProfile(null);
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     if (!isFirebaseEnabled || !auth) {
@@ -67,29 +60,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
-      setUser(firebaseUser);
-      await fetchUserProfile(firebaseUser);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      updateUserState(firebaseUser);
     });
 
     return () => unsubscribe();
-  }, [fetchUserProfile]);
+  }, [updateUserState]);
 
   const login = async (email: string, password: string) => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
 
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     
-    // After sign-in, `onAuthStateChanged` will fire. We must handle the demo user
-    // provisioning here to prevent a race condition with the layout trying to redirect.
     if (email === 'demo@example.com' && userCredential.user) {
-        setLoading(true);
         const idToken = await userCredential.user.getIdToken();
         await ensureDemoUserExists(idToken);
-        // Now that the profile is guaranteed to exist, force a refresh of the context's state.
-        await refreshUserProfile();
+        // onAuthStateChanged will fire and handle the profile update.
+        await updateUserState(userCredential.user);
     }
     
     return userCredential;
@@ -103,7 +90,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
     await signOut(auth);
-    // onAuthStateChanged will handle setting user and profile to null
   };
 
   const resetPassword = (email: string) => {
@@ -115,6 +101,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth?.currentUser) return null;
     return auth.currentUser.getIdToken(true);
   };
+
+  const refreshUserProfile = useCallback(async () => {
+    if (auth.currentUser) {
+      await updateUserState(auth.currentUser);
+    }
+  }, [updateUserState]);
 
   const value = {
     user,
