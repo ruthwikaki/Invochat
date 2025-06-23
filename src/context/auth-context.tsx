@@ -14,6 +14,8 @@ import {
 import { auth, isFirebaseEnabled } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
 import { useRouter } from 'next/navigation';
+import { ensureDemoUserExists, getUserProfile } from '@/app/actions';
+
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -38,27 +40,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserProfile = useCallback(async (currentUser: FirebaseUser | null) => {
     if (!currentUser) {
       setUserProfile(null);
-      setLoading(false);
       return;
     }
     
     try {
-      const { getUserProfile } = await import('@/app/actions');
       const idToken = await getFirebaseIdToken(currentUser);
       const profile = await getUserProfile(idToken);
       setUserProfile(profile);
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
       setUserProfile(null);
-    } finally {
-      setLoading(false);
     }
   }, []);
   
   const refreshUserProfile = useCallback(async () => {
     if (!auth?.currentUser) return;
-    setLoading(true); // Signal that a refresh is in progress
+    setLoading(true);
     await fetchUserProfile(auth.currentUser);
+    setLoading(false);
   }, [fetchUserProfile]);
 
 
@@ -72,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setUser(firebaseUser);
       await fetchUserProfile(firebaseUser);
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -79,7 +79,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     if (!auth) throw new Error("Firebase Auth is not initialized.");
-    return signInWithEmailAndPassword(auth, email, password);
+
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    
+    // After sign-in, `onAuthStateChanged` will fire. We must handle the demo user
+    // provisioning here to prevent a race condition with the layout trying to redirect.
+    if (email === 'demo@example.com' && userCredential.user) {
+        setLoading(true);
+        const idToken = await userCredential.user.getIdToken();
+        await ensureDemoUserExists(idToken);
+        // Now that the profile is guaranteed to exist, force a refresh of the context's state.
+        await refreshUserProfile();
+    }
+    
+    return userCredential;
   };
 
   const signup = (email: string, password: string) => {

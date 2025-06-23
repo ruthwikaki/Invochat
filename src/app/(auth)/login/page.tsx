@@ -11,13 +11,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ensureDemoUserExists } from '@/app/actions';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('demo@example.com');
   const [password, setPassword] = useState('password');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
+  const { login, user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -33,15 +32,9 @@ export default function LoginPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const userCredential = await login(email, password);
-
-      // If demo user, ensure profile and company exist to bypass company setup.
-      // This action is idempotent (it won't do anything if they already exist).
-      if (email === 'demo@example.com' && userCredential.user) {
-          const idToken = await userCredential.user.getIdToken();
-          await ensureDemoUserExists(idToken);
-          await refreshUserProfile(); // Manually trigger a profile refresh
-      }
+      // The login function in the context now handles the entire flow,
+      // including demo user provisioning and profile refreshing.
+      await login(email, password);
       
       toast({
         title: 'Login Successful',
@@ -49,7 +42,8 @@ export default function LoginPage() {
       });
 
       // The onAuthStateChanged listener in AuthProvider and the AppLayout's
-      // useEffect hook will now handle redirection automatically and robustly.
+      // useEffect hook will now handle redirection automatically and robustly,
+      // because the userProfile state will be correct when `login` completes.
       
     } catch (error: any) {
       console.error('Login error details:', error);
@@ -76,7 +70,8 @@ export default function LoginPage() {
         title: 'Login Failed',
         description: description,
       });
-      setIsSubmitting(false);
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
