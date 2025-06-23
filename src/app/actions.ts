@@ -155,6 +155,10 @@ export async function setupCompanyAndUserProfile(payload: SetupCompanyPayload): 
         return { success: false, error: 'User email is not available.' };
     }
 
+    if (!supabaseAdmin) {
+        return { success: false, error: 'Database connection is not configured.' };
+    }
+
     let companyId;
     let userRole: 'admin' | 'member' = 'member';
 

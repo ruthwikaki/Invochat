@@ -34,7 +34,7 @@ export async function getUserProfile(firebaseUid: string): Promise<UserProfile |
             }
         };
     }
-     if (USE_MOCK_DATA) return null;
+     if (USE_MOCK_DATA || !supabaseAdmin) return null;
 
 
     try {
@@ -77,6 +77,7 @@ export async function getUserProfile(firebaseUid: string): Promise<UserProfile |
  */
 export async function getCompanyIdForUser(uid: string): Promise<string | null> {
     if (USE_MOCK_DATA) return 'default-company-id';
+    if (!supabaseAdmin) return null;
     
     try {
         const { data, error } = await supabaseAdmin
@@ -113,6 +114,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
        }
        return [];
    }
+    if (!supabaseAdmin) return [];
     
     const lowerCaseQuery = query.toLowerCase();
 
@@ -145,6 +147,8 @@ export async function getDeadStockFromDB(companyId: string): Promise<any[]> {
         const mockProducts = allMockData[companyId]?.mockProducts || [];
         return mockProducts.filter(p => new Date(p.last_sold_date) < subDays(new Date(), 90));
     }
+    if (!supabaseAdmin) return [];
+
     const ninetyDaysAgo = format(subDays(new Date(), 90), 'yyyy-MM-dd');
     const { data, error } = await supabaseAdmin
         .from('inventory')
@@ -161,6 +165,7 @@ export async function getDeadStockFromDB(companyId: string): Promise<any[]> {
 
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
     if (USE_MOCK_DATA) return allMockData[companyId]?.mockSuppliers || [];
+    if (!supabaseAdmin) return [];
     
     const { data, error } = await supabaseAdmin
         .from('vendors')
@@ -183,6 +188,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
 export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
     if (USE_MOCK_DATA) return allMockData[companyId]?.mockInventoryItems || [];
+    if (!supabaseAdmin) return [];
     
     const { data, error } = await supabaseAdmin
         .from('inventory')
@@ -211,6 +217,8 @@ export async function getDeadStockPageData(companyId: string) {
         const totalDeadStockValue = deadStockItems.reduce((acc, item) => acc + item.value, 0);
         return { deadStockItems, totalDeadStockValue };
     }
+    if (!supabaseAdmin) return { deadStockItems: [], totalDeadStockValue: 0 };
+
     const ninetyDaysAgo = format(subDays(new Date(), 90), 'yyyy-MM-dd');
     const { data, error } = await supabaseAdmin
         .from('inventory')
@@ -236,12 +244,14 @@ export async function getDeadStockPageData(companyId: string) {
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     if (USE_MOCK_DATA) return allMockData[companyId]?.mockAlerts || [];
+    if (!supabaseAdmin) return [];
     console.warn("[DB Service] getAlertsFromDB is returning mock data as this requires a complex query.");
     return allMockData[companyId]?.mockAlerts || [];
 }
 
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
      if (USE_MOCK_DATA) return allMockData[companyId]?.mockDashboardMetrics;
+     if (!supabaseAdmin) return allMockData['default-company-id'].mockDashboardMetrics;
     console.warn("[DB Service] getDashboardMetrics is returning mock data as this requires a complex query.");
     return allMockData[companyId]?.mockDashboardMetrics;
 }

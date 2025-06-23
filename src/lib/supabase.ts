@@ -1,23 +1,24 @@
-
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('[Supabase] Client-side environment variables are not set. Database features may be unavailable.');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-if (!supabaseServiceRoleKey) {
-     console.warn('[Supabase] Service role key is not set. Admin database operations will fail.');
+const isSupabaseClientEnabled = !!(supabaseUrl && supabaseAnonKey);
+export const isSupabaseAdminEnabled = !!(supabaseUrl && supabaseServiceRoleKey);
+
+let supabase: SupabaseClient | null = null;
+if (isSupabaseClientEnabled) {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
+} else {
+    console.warn('[Supabase] Client-side environment variables are not set. Client-side database features will be unavailable.');
 }
 
-// For server-side with service role, bypassing RLS
-export const supabaseAdmin = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey
-);
+let supabaseAdmin: SupabaseClient | null = null;
+if (isSupabaseAdminEnabled) {
+    supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+} else {
+     console.warn('[Supabase] Admin environment variables are not set. Admin Supabase client is not available. App will use mock data.');
+}
+
+export { supabase, supabaseAdmin };
