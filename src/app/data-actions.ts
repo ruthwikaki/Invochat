@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
@@ -9,8 +10,15 @@ import {
     getAlertsFromDB
 } from '@/services/database';
 
+const SUPABASE_CONFIGURED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
+    if (!SUPABASE_CONFIGURED) {
+        // In a real app, you might want to return mock data or a specific error object.
+        // For now, we throw an error to make it clear that the DB is not set up.
+        throw new Error("Database is not configured. Please set Supabase environment variables.");
+    }
+
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 

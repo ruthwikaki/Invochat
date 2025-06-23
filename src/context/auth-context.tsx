@@ -5,13 +5,11 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import type { User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { signInWithEmail as signInService, signOut as signOutService } from '@/services/auth.service';
-import { signUpWithEmailAndPassword } from '@/app/auth-actions';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (formData: FormData) => Promise<{ success: boolean, error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -39,17 +37,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // onAuthStateChanged will handle the user state update
   };
   
-  const signUpWithEmail = async (formData: FormData) => {
-    const result = await signUpWithEmailAndPassword(formData);
-    if(result.success) {
-        // After successful server-side creation, sign the user in on the client
-        const email = formData.get('email') as string;
-        const password = formData.get('password') as string;
-        await signInWithEmail(email, password);
-    }
-    return result;
-  };
-
   const signOut = async () => {
     await signOutService();
     setUser(null);
@@ -59,7 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     signInWithEmail,
-    signUpWithEmail,
     signOut,
   };
 

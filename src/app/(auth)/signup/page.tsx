@@ -10,13 +10,13 @@ import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { DatawiseLogo } from '@/components/datawise-logo';
 import Link from 'next/link';
+import { signUpWithEmailAndPassword } from '@/app/auth-actions';
 
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signUpWithEmail } = useAuth();
+  const { signInWithEmail } = useAuth();
   const router = useRouter();
-
 
   const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -26,14 +26,22 @@ export default function SignupPage() {
     const formData = new FormData(event.currentTarget);
     
     try {
-      const result = await signUpWithEmail(formData);
+      // 1. Call the server action directly
+      const result = await signUpWithEmailAndPassword(formData);
+      
       if (result.success) {
+        // 2. If server-side creation is successful, sign in on the client
+        const email = formData.get('email') as string;
+        const password = formData.get('password') as string;
+        await signInWithEmail(email, password);
+        // The onAuthStateChanged listener in AuthProvider will eventually redirect,
+        // but we can push to the dashboard for a faster user experience.
         router.push('/dashboard');
       } else {
         setError(result.error || 'An unexpected error occurred.');
       }
     } catch (err: any) {
-      console.error(err);
+      console.error('Client-side sign-up error:', err);
       setError(err.message || 'An unexpected client-side error occurred.');
     } finally {
       setLoading(false);

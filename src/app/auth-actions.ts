@@ -2,7 +2,7 @@
 'use server';
 
 import { adminAuth } from '@/lib/firebase/admin';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { supabaseAdmin, isSupabaseAdminEnabled, supabaseAdminError } from '@/lib/supabase/admin';
 
 const SignUpSchema = {
   email: (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
@@ -12,6 +12,9 @@ const SignUpSchema = {
 
 
 export async function signUpWithEmailAndPassword(formData: FormData) {
+  if (!isSupabaseAdminEnabled || !supabaseAdmin) {
+      return { success: false, error: supabaseAdminError || 'Database admin client is not configured.' };
+  }
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const companyName = formData.get('companyName') as string;
