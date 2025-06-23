@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -6,21 +5,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/db';
 import { completeUserRegistration } from '@/app/actions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { CheckCircle } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
+import { auth } from '@/lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
@@ -38,85 +36,53 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Step 1: Create the user in Supabase Authentication
-      const { data, error } = await supabase.auth.signUp({ email, password });
-
-      if (error) {
-        throw error;
-      }
+      // Step 1: Create the user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Step 2: Check for a session. A session is ONLY returned when email confirmation is disabled.
-      if (data.session) {
-        // SUCCESS CASE: User is logged in immediately.
-        // The onAuthStateChange listener will eventually pick this up, but we can
-        // proceed to create their profile right away.
+      if (userCredential.user) {
+        // Step 2: Get the ID token from the newly created user
+        const idToken = await userCredential.user.getIdToken();
+
+        // Step 3: Call server action to create company profile in Supabase
         const registrationResult = await completeUserRegistration({
           companyName,
-          idToken: data.session.access_token,
+          email,
+          idToken,
         });
 
         if (!registrationResult.success) {
-          // If profile creation fails, we should inform the user.
-          // The user exists in auth but not in our DB. They may need to contact support.
           throw new Error(registrationResult.error || 'Your account was created, but we failed to set up your company profile. Please contact support.');
         }
 
-        // Now we simply wait for the auth provider to update and the useEffect to redirect.
-        // The toast gives the user feedback that something is happening.
         toast({
           title: 'Account Created!',
           description: "You're all set. Redirecting you to the dashboard.",
         });
-
-      } else if (data.user) {
-        // PENDING CONFIRMATION CASE: No session, but a user object was returned.
-        // This means email confirmation is required in your Supabase project settings.
-        setNeedsConfirmation(true);
-
+        // The useEffect hook will handle the redirect once the auth state updates.
       } else {
-        // UNEXPECTED CASE: No session, no user, no error.
         throw new Error('An unexpected error occurred during signup. Please try again.');
       }
 
     } catch (error: any) {
+      console.error("Signup Error:", error);
+      let description = "Could not create your account. Please try again.";
+      if(error.code) {
+          if (error.code === 'auth/email-already-in-use') {
+              description = 'This email address is already in use. Please try logging in.';
+          } else {
+              description = error.message;
+          }
+      }
       toast({
         variant: 'destructive',
         title: 'Signup Failed',
-        description: error.message || 'Could not create your account. Please try again.',
+        description: description,
       });
     } finally {
-      // We only stop the main loading indicator if we aren't waiting for a redirect or showing the confirmation page.
-      if (needsConfirmation) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
   
-  if (needsConfirmation) {
-      return (
-          <Card>
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                      <CheckCircle className="h-6 w-6 text-green-500" />
-                      One Last Step!
-                  </CardTitle>
-                  <CardDescription>We've sent a verification link to your email.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                      Please check your inbox at <span className="font-semibold text-foreground">{email}</span> and click the link to activate your account. You can close this page.
-                  </p>
-              </CardContent>
-              <CardFooter>
-                  <Button variant="outline" className="w-full" asChild>
-                      <Link href="/login">Back to Login</Link>
-                  </Button>
-              </CardFooter>
-          </Card>
-      )
-  }
-
-  // While checking auth status or if user exists (and we're about to redirect), show a loader.
   if (authLoading || user) {
     return (
       <Card>

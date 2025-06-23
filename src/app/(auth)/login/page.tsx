@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,6 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // If auth is not loading and a user is present, redirect to dashboard.
     if (!authLoading && user) {
       router.push('/dashboard');
     }
@@ -31,40 +29,40 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await login(email, password);
-      if (error) {
-        throw error;
-      }
-      // On success, the onAuthStateChange listener in AuthProvider will redirect.
+      await login(email, password);
+      // On success, the onAuthStateChanged listener in AuthProvider will redirect.
       toast({
         title: 'Login Successful',
         description: 'Redirecting to your dashboard...',
       });
-      // The useEffect will handle the redirect.
+      // The useEffect hook will handle the redirect.
     } catch (error: any) {
-      console.error('Login error details:', error); // Detailed logging
-
-      // Supabase returns 'Invalid login credentials' for both wrong passwords AND unconfirmed emails.
-      // We provide guidance for both scenarios.
+      console.error('Login error details:', error);
       let description = 'An unknown error occurred. Please try again.';
-      if (error.message === 'Invalid login credentials') {
-        description = "This can mean the password is wrong, or you haven't confirmed your email address yet. Please double-check your password and look for a confirmation link in your inbox.";
-      } else {
-        description = error.message;
+      if (error.code) {
+        switch (error.code) {
+            case 'auth/user-not-found':
+            case 'auth/wrong-password':
+            case 'auth/invalid-credential':
+                description = "Invalid email or password. Please try again.";
+                break;
+            case 'auth/invalid-email':
+                description = "The email address you entered is not valid.";
+                break;
+            default:
+                description = error.message;
+        }
       }
-
       toast({
         variant: 'destructive',
         title: 'Login Failed',
         description: description,
-        duration: 9000, // Give user more time to read the message
       });
     } finally {
       setLoading(false);
     }
   };
 
-  // While checking auth status or if user exists (and we're about to redirect), show a loader.
   if (authLoading || user) {
     return (
         <Card>

@@ -1,12 +1,12 @@
-
 'use server';
 
-import { supabase } from '@/lib/db';
+import { supabaseAdmin } from '@/lib/supabase';
+import { auth as adminAuth } from '@/lib/firebase-server';
 import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
 import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
 import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
-import { getCompanyIdForUser, setupNewUserAndCompany } from '@/services/database';
+import { getCompanyIdForUser } from '@/services/database';
 import type { AssistantMessagePayload } from '@/types';
 import { z } from 'zod';
 
@@ -14,7 +14,7 @@ const actionResponseSchema = z.custom<AssistantMessagePayload>();
 
 const UserMessagePayloadSchema = z.object({
   message: z.string(),
-  idToken: z.string(), // This will be the Supabase Access Token
+  idToken: z.string(),
 });
 
 type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
@@ -24,18 +24,16 @@ export async function handleUserMessage(
 ): Promise<AssistantMessagePayload> {
   const { message, idToken } = UserMessagePayloadSchema.parse(payload);
   
-  let companyId: string | null;
+  let companyId: string;
   try {
-    const { data: { user } } = await supabase.auth.getUser(idToken);
-    if (!user) {
-        throw new Error('User not found for the provided token.');
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const firebaseUid = decodedToken.uid;
+    
+    const fetchedCompanyId = await getCompanyIdForUser(firebaseUid);
+    if (!fetchedCompanyId) {
+      throw new Error(`User profile not found in Supabase for UID: ${firebaseUid}`);
     }
-
-    companyId = await getCompanyIdForUser(user.id);
-
-    if (!companyId) {
-      throw new Error(`User with UID ${user.id} does not have an associated company.`);
-    }
+    companyId = fetchedCompanyId;
 
   } catch (error: any) {
     console.error("Authentication or Database lookup error:", error.message);
@@ -50,7 +48,6 @@ export async function handleUserMessage(
   const lowerCaseMessage = message.toLowerCase();
 
   try {
-    // Chart generation query
     if (/(chart|graph|plot|visual|draw|show me a visual)/i.test(lowerCaseMessage)) {
       const response = await generateChart({ query: message, companyId });
       if (response) {
@@ -109,8 +106,7 @@ export async function handleUserMessage(
         });
       }
     }
-  } catch (error: any)
-{
+  } catch (error: any) {
     console.error('Error processing AI action:', error);
     return actionResponseSchema.parse({
       id: Date.now().toString(),
@@ -131,13 +127,36 @@ export async function handleUserMessage(
 
 export async function completeUserRegistration(payload: {
   companyName: string;
+  email: string;
   idToken: string;
 }) {
-  const { companyName, idToken } = payload;
+  const { companyName, email, idToken } = payload;
   try {
-    // This function calls a secure RPC in the database.
-    const companyId = await setupNewUserAndCompany(companyName, idToken);
-    return { success: true, companyId };
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const firebaseUid = decodedToken.uid;
+
+    // 1. Create the company
+    const { data: companyData, error: companyError } = await supabaseAdmin
+      .from('companies')
+      .insert({ name: companyName })
+      .select('id')
+      .single();
+
+    if (companyError) throw companyError;
+    if (!companyData) throw new Error('Failed to create company, no ID returned.');
+
+    // 2. Create the user profile, linking it to the company
+    const { error: userError } = await supabaseAdmin
+      .from('users')
+      .insert({
+        firebase_uid: firebaseUid,
+        company_id: companyData.id,
+        email: email,
+      });
+
+    if (userError) throw userError;
+    
+    return { success: true, companyId: companyData.id };
   } catch (error: any) {
     console.error('Failed to complete user registration in database:', error);
     return {

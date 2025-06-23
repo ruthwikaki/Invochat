@@ -20,15 +20,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function DeadStockPage() {
   const [data, setData] = useState<{ deadStockItems: InventoryItem[], totalDeadStockValue: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user, session } = useAuth();
+  const { user, getIdToken } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user && session) {
+    if (user) {
       const fetchData = async () => {
         setLoading(true);
         try {
-          const token = session.access_token;
+          const token = await getIdToken();
+          if (!token) throw new Error("Authentication failed");
           const result = await getDeadStockData(token);
           setData(result);
         } catch (error) {
@@ -40,7 +41,7 @@ export default function DeadStockPage() {
       };
       fetchData();
     }
-  }, [user, session, toast]);
+  }, [user, getIdToken, toast]);
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

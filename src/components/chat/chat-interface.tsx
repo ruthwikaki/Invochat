@@ -38,7 +38,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const { user, session } = useAuth();
+  const { user, getIdToken } = useAuth();
   const { toast } = useToast();
 
 
@@ -72,7 +72,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const submitMessage = (messageText: string) => {
     if (!messageText.trim()) return;
 
-    if (!user || !session) {
+    if (!user) {
         toast({
             variant: 'destructive',
             title: 'Not Authenticated',
@@ -90,7 +90,12 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setMessages((prev) => [...prev, userMessage]);
 
     startTransition(async () => {
-      const response = await handleUserMessage({ message: messageText, idToken: session.access_token });
+      const token = await getIdToken();
+      if (!token) {
+          toast({ variant: 'destructive', title: 'Session Expired', description: 'Please log in again.' });
+          return;
+      }
+      const response = await handleUserMessage({ message: messageText, idToken: token });
       processResponse(response);
     });
   };

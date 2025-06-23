@@ -14,15 +14,17 @@ import { BarChart as BarChartIcon } from "lucide-react";
 export default function AnalyticsPage() {
     const [charts, setCharts] = useState<ChartConfig[]>([]);
     const [loading, setLoading] = useState(true);
-    const { user, session } = useAuth();
+    const { user, getIdToken } = useAuth();
     const { toast } = useToast();
 
     useEffect(() => {
-        if (user && session) {
+        if (user) {
             const generateDefaultCharts = async () => {
                 setLoading(true);
                 try {
-                    const token = session.access_token;
+                    const token = await getIdToken();
+                    if (!token) throw new Error("Authentication failed");
+
                     const chartQueries = [
                         "Create a bar chart showing my inventory value by category",
                         "Visualize my sales velocity by category as a pie chart"
@@ -50,7 +52,7 @@ export default function AnalyticsPage() {
             };
             generateDefaultCharts();
         }
-    }, [user, session, toast]);
+    }, [user, getIdToken, toast]);
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

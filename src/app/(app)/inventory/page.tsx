@@ -41,15 +41,16 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [allInventory, setAllInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user, session } = useAuth();
+  const { user, getIdToken } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user && session) {
+    if (user) {
       const fetchData = async () => {
         setLoading(true);
         try {
-          const token = session.access_token;
+          const token = await getIdToken();
+          if (!token) throw new Error("Authentication failed");
           const data = await getInventory(token);
           setAllInventory(data);
         } catch (error) {
@@ -61,7 +62,7 @@ export default function InventoryPage() {
       };
       fetchData();
     }
-  }, [user, session, toast]);
+  }, [user, getIdToken, toast]);
 
   const filteredInventory = useMemo(() => {
     if (!search) return allInventory;

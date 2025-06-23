@@ -103,10 +103,10 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                     <SidebarMenuButton>
                         <Avatar className="h-7 w-7">
-                            <AvatarImage src={user?.user_metadata.avatar_url} alt={user?.user_metadata.name || 'User'} data-ai-hint="user avatar" />
+                            <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} data-ai-hint="user avatar" />
                             <AvatarFallback>{(user?.email?.charAt(0) || '').toUpperCase()}</AvatarFallback>
                         </Avatar>
-                        <span className="truncate">{user?.user_metadata.name || user?.email}</span>
+                        <span className="truncate">{user?.displayName || user?.email}</span>
                     </SidebarMenuButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="right" align="end">

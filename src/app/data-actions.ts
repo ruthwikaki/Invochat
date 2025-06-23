@@ -1,33 +1,47 @@
 'use server';
 
+import { auth as adminAuth } from '@/lib/firebase-server';
+import { supabaseAdmin } from '@/lib/supabase';
 import { 
-    getCompanyIdForUser, 
     getDashboardMetrics, 
     getInventoryItems, 
     getDeadStockPageData,
     getSuppliersFromDB,
     getAlertsFromDB
 } from '@/services/database';
-import { supabase } from '@/lib/db';
 import { z } from 'zod';
 
-const IdTokenSchema = z.string(); // Supabase Access Token
+const IdTokenSchema = z.string();
 
 /**
- * A helper function to verify the user's token and retrieve their company ID.
+ * A helper function to verify the user's Firebase token and retrieve their Supabase company ID.
  * Throws an error if authentication fails or the company ID is not found.
  */
 async function authenticateAndGetCompanyId(idToken: string): Promise<string> {
-    const { data: { user }, error } = await supabase.auth.getUser(idToken);
-    if (error || !user) {
-        throw new Error("Authentication failed. Invalid token.");
+    try {
+        const decodedToken = await adminAuth.verifyIdToken(idToken);
+        const firebaseUid = decodedToken.uid;
+      
+        const { data, error } = await supabaseAdmin
+            .from('users')
+            .select('company_id')
+            .eq('firebase_uid', firebaseUid)
+            .single();
+        
+        if (error) {
+            console.error('Supabase user lookup error:', error);
+            throw new Error(`Could not find a profile for user ${firebaseUid}.`);
+        }
+
+        if (!data || !data.company_id) {
+            throw new Error("User's company profile not found in Supabase.");
+        }
+      
+        return data.company_id;
+    } catch (error: any) {
+        console.error("Authentication or database error:", error.message);
+        throw new Error("Authentication failed or user profile not found.");
     }
-    
-    const companyId = await getCompanyIdForUser(user.id);
-    if (!companyId) {
-        throw new Error("User's company profile not found.");
-    }
-    return companyId;
 }
 
 export async function getDashboardData(idToken: string) {
