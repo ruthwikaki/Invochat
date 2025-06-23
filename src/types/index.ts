@@ -1,5 +1,13 @@
-
 import type { ReactNode } from 'react';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { User as FirebaseUser } from 'firebase/auth';
+
+
+export type AppUser = {
+    firebaseUser: FirebaseUser;
+    supabaseUser: SupabaseUser;
+    companyId?: string;
+}
 
 export type Message = {
   id: string;
@@ -77,15 +85,3 @@ export type DashboardMetrics = {
     lowStockItems: number;
     deadStockValue: number;
 }
-
-// User profile from Supabase, including company info
-export type UserProfile = {
-  id: string; // Firebase UID
-  email: string;
-  role: 'admin' | 'member' | string;
-  companyId: string;
-  company?: {
-    id: string;
-    name: string;
-  };
-};

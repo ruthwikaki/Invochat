@@ -1,4 +1,3 @@
-
 'use server';
 
 import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
@@ -6,6 +5,7 @@ import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
 import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
 import type { AssistantMessagePayload } from '@/types';
+import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
 const actionResponseSchema = z.custom<AssistantMessagePayload>();
@@ -16,15 +16,41 @@ const UserMessagePayloadSchema = z.object({
 
 type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
 
-const DEMO_COMPANY_ID = '550e8400-e29b-41d4-a716-446655440001';
+
+async function getCompanyIdForCurrentUser(): Promise<string | null> {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user?.app_metadata?.company_id) {
+        return user.app_metadata.company_id;
+    }
+
+    // Fallback if not in claims for some reason
+    const { data: profile } = await supabase
+        .from('users')
+        .select('company_id')
+        .eq('id', user?.id)
+        .single();
+        
+    return profile?.company_id || null;
+}
+
 
 export async function handleUserMessage(
   payload: UserMessagePayload
 ): Promise<AssistantMessagePayload> {
   const { message } = UserMessagePayloadSchema.parse(payload);
   
-  // NOTE: Authentication is removed. Using a hardcoded company ID for demo purposes.
-  const companyId = DEMO_COMPANY_ID;
+  const companyId = await getCompanyIdForCurrentUser();
+  if (!companyId) {
+     return actionResponseSchema.parse({
+        id: Date.now().toString(),
+        role: 'assistant',
+        content:
+            "I couldn't verify your company information. Please try logging out and in again.",
+    });
+  }
+
   const lowerCaseMessage = message.toLowerCase();
 
   try {

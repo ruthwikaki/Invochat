@@ -1,31 +1,32 @@
-
 'use client';
 
-import Link from 'next/link';
-import { InvoChatLogo } from '@/components/invochat-logo';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default function Home() {
+export default function HomePage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        router.push('/dashboard');
+      } else {
+        router.push('/login');
+      }
+    }
+  }, [user, loading, router]);
+  
+  // Show a loading state while auth is being checked
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-      <div className="mb-8 flex items-center gap-2 text-2xl font-semibold">
-        <InvoChatLogo className="h-8 w-8" />
-        <h1>InvoChat</h1>
-      </div>
-      <Card className="w-full max-w-sm text-center">
-        <CardHeader>
-            <CardTitle>Welcome to InvoChat</CardTitle>
-            <CardDescription>The authentication system has been reset. You can now build a new one from scratch.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <Button asChild className="w-full">
-                <Link href="/dashboard">
-                    Go to Dashboard
-                </Link>
-            </Button>
-        </CardContent>
-      </Card>
+    <div className="flex h-screen w-full items-center justify-center">
+       <div className="w-full max-w-md space-y-4">
+            <Skeleton className="h-10 w-3/4" />
+            <Skeleton className="h-8 w-1/2" />
+            <Skeleton className="h-12 w-full" />
+        </div>
     </div>
   );
 }

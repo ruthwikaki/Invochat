@@ -1,12 +1,12 @@
-
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   AlertCircle,
   BarChart,
   Home,
+  LogOut,
   MessageSquare,
   Moon,
   Package,
@@ -16,7 +16,7 @@ import {
   Truck,
   Upload,
 } from 'lucide-react';
-import { InvoChatLogo } from './invochat-logo';
+import { DatawiseLogo } from './datawise-logo';
 import {
   Sidebar,
   SidebarContent,
@@ -28,10 +28,20 @@ import {
 } from './ui/sidebar';
 import { useTheme } from 'next-themes';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
+import { useAuth } from '@/context/auth-context';
+import { Avatar, AvatarFallback } from './ui/avatar';
+import { Skeleton } from './ui/skeleton';
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { setTheme } = useTheme();
+  const { user, signOut, loading } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
@@ -48,8 +58,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <InvoChatLogo />
-          <span className="text-lg font-semibold">InvoChat</span>
+          <DatawiseLogo />
+          <span className="text-lg font-semibold">DataWise AI</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -66,7 +76,25 @@ export function AppSidebar() {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="mt-auto flex flex-col gap-2">
+         <div className="flex items-center gap-2 p-2 border-t">
+          {loading ? (
+            <>
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <Skeleton className="h-4 w-24" />
+            </>
+          ) : user ? (
+            <>
+              <Avatar className="h-8 w-8">
+                <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <span className="text-sm truncate">{user.email}</span>
+              <SidebarMenuButton variant="ghost" size="icon" className="h-8 w-8 ml-auto" onClick={handleSignOut}>
+                <LogOut />
+              </SidebarMenuButton>
+            </>
+          ) : null}
+        </div>
         <SidebarMenu>
           <SidebarMenuItem>
              <DropdownMenu>

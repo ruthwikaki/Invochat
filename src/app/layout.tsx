@@ -1,10 +1,10 @@
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
+import { AuthProvider } from '@/context/auth-context';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -12,7 +12,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'InvoChat - Conversational Inventory Intelligence',
+  title: 'DataWise AI - Conversational Inventory Intelligence',
   description: 'AI-powered inventory management',
 };
 
@@ -22,16 +22,18 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={cn('font-body antialiased', inter.variable)} suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
+      <body className={cn('font-body antialiased', inter.variable)}>
         <ThemeProvider
             attribute="class"
             defaultTheme="light"
             enableSystem
             disableTransitionOnChange
         >
+          <AuthProvider>
             {children}
             <Toaster />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
