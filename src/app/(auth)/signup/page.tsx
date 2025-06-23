@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -30,18 +31,13 @@ export default function SignupPage() {
       if (error) {
           throw error;
       }
-
+      
       if (!data.user) {
-        // This can happen if email confirmation is required.
-        toast({
-          title: 'Check your email',
-          description: 'We sent a confirmation link to your email address.',
-        });
-        setLoading(false);
-        return;
+          // Should not happen if there is no error, but as a safeguard:
+          throw new Error("User not created. Please try again.");
       }
 
-      // Step 2: Call server action to create company and user records in our DB
+      // Step 2: Create company and user records in our DB regardless of confirmation status.
       const registrationResult = await completeUserRegistration({
           uid: data.user.id,
           email: data.user.email!,
@@ -54,12 +50,26 @@ export default function SignupPage() {
           throw new Error(registrationResult.error || 'Failed to create your company profile.');
       }
 
-      // Step 3: Success!
+      // Step 3: Handle based on whether email confirmation is required.
+      // If data.session is null, the user needs to confirm their email.
+      if (!data.session) {
+        toast({
+          title: 'Check your email',
+          description: 'We sent a confirmation link to your email address. Please verify your email to log in.',
+          duration: 5000,
+        });
+        // We don't redirect, just stop loading.
+        setLoading(false);
+        return;
+      }
+      
+      // If we have a session, confirmation is off or already done.
       toast({
         title: 'Account Created!',
         description: "You're all set. Redirecting you to the dashboard.",
       });
       router.push('/dashboard');
+
     } catch (error: any) {
       toast({
         variant: 'destructive',
