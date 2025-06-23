@@ -1,7 +1,20 @@
 // This is a diagnostic script to test the PostgreSQL connection directly.
 // To use it, run `node test-db.js` in your terminal from within the 'workspaces/nextn' directory.
 
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+const path = require('path');
+const fs = require('fs');
+
+const envPath = path.join(__dirname, '../../.env');
+
+// 1. Check if the .env file exists
+if (!fs.existsSync(envPath)) {
+    console.error(`\n❌ Failure! The .env file was not found at the expected path: ${envPath}`);
+    console.error('   Please ensure the .env file exists in the project root directory.');
+    return;
+}
+
+// 2. Load environment variables
+require('dotenv').config({ path: envPath });
 const { Pool } = require('pg');
 
 const pool = new Pool({
@@ -14,19 +27,29 @@ const pool = new Pool({
 });
 
 async function testConnection() {
-    const dbName = process.env.POSTGRES_DATABASE || '(not set)';
-    const dbHost = process.env.POSTGRES_HOST || '(not set)';
-    const dbPort = process.env.POSTGRES_PORT || '(not set)';
-    const dbUser = process.env.POSTGRES_USER || '(not set)';
+    const dbName = process.env.POSTGRES_DATABASE;
+    const dbHost = process.env.POSTGRES_HOST;
+    const dbPort = process.env.POSTGRES_PORT;
+    const dbUser = process.env.POSTGRES_USER;
+    const dbPassword = process.env.POSTGRES_PASSWORD ? '******' : '(not set)';
 
-    if (dbName === '(not set)' || dbHost === '(not set)') {
-        console.error('\n❌ Failure! Environment variables not loaded.');
-        console.error('   Please ensure your .env file exists in the project root and contains the POSTGRES_* variables.');
+    console.log(`\n[Test Script] Loaded config from: ${envPath}`);
+    console.log('[Test Script] ---------------');
+    console.log(`[Test Script] Host:     ${dbHost}`);
+    console.log(`[Test Script] Port:     ${dbPort}`);
+    console.log(`[Test Script] Database: ${dbName}`);
+    console.log(`[Test Script] User:     ${dbUser}`);
+    console.log(`[Test Script] Password: ${dbPassword}`);
+    console.log('[Test Script] ---------------');
+
+
+    if (!dbName || !dbHost || !dbPort || !dbUser || !process.env.POSTGRES_PASSWORD) {
+        console.error('\n❌ Failure! One or more POSTGRES_* variables are missing or empty in your .env file.');
+        console.error('   Please fill in POSTGRES_HOST, PORT, USER, PASSWORD, and DATABASE.');
         return;
     }
 
-
-    console.log(`[Test Script] Attempting to connect to database "${dbName}" on ${dbHost}:${dbPort}...`);
+    console.log(`\n[Test Script] Attempting to connect...`);
     let client;
     try {
         client = await pool.connect();
@@ -38,8 +61,8 @@ async function testConnection() {
         console.error('\n❌ Failure! Could not connect to PostgreSQL.');
         console.error('   The specific error is:', err.message);
         console.error('\nPlease check the following:');
-        console.error(`  1. Are the credentials in your .env file correct (user: "${dbUser}", password, host: "${dbHost}", port: "${dbPort}", database: "${dbName}")?`);
-        console.error(`  2. Is your PostgreSQL server configured to accept connections from user "${dbUser}" on database "${dbName}"?`);
+        console.error(`  1. Are the credentials in your .env file correct?`);
+        console.error(`  2. Is your PostgreSQL server running and configured to accept connections for user "${dbUser}" on database "${dbName}"?`);
         console.error('  3. Is there a firewall blocking the connection?\n');
     } finally {
         if (client) {
