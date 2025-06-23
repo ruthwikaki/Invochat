@@ -19,10 +19,8 @@ export async function signInWithEmail(email: string, password: string) {
     
     const idToken = await user.getIdToken();
 
-    const { error: supabaseSignInError } = await supabase.auth.signInWithIdToken({
-      provider: 'email',
-      token: idToken,
-    });
+    // This is the correct method for signing into Supabase with a Firebase ID token.
+    const { error: supabaseSignInError } = await supabase.auth.signInWithJwt(idToken);
 
     if (supabaseSignInError) {
       throw new Error(`Supabase sign-in failed: ${supabaseSignInError.message}`);
