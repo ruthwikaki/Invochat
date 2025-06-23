@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -42,12 +43,12 @@ export default function LoginPage() {
       // The useEffect will handle the redirect.
     } catch (error: any) {
       console.error('Login error details:', error); // Detailed logging
-      
+
+      // Supabase returns 'Invalid login credentials' for both wrong passwords AND unconfirmed emails.
+      // We provide guidance for both scenarios.
       let description = 'An unknown error occurred. Please try again.';
       if (error.message === 'Invalid login credentials') {
-        description = 'The email or password you entered is incorrect. Please double-check your credentials. If you just signed up, you may need to confirm your email address first.';
-      } else if (error.message === 'Email not confirmed') {
-        description = 'Please check your inbox and click the confirmation link before logging in.';
+        description = "This can mean the password is wrong, or you haven't confirmed your email address yet. Please double-check your password and look for a confirmation link in your inbox.";
       } else {
         description = error.message;
       }
@@ -56,6 +57,7 @@ export default function LoginPage() {
         variant: 'destructive',
         title: 'Login Failed',
         description: description,
+        duration: 9000, // Give user more time to read the message
       });
     } finally {
       setLoading(false);
