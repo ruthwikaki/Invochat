@@ -7,10 +7,67 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { allMockData } from '@/lib/mock-data';
-import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics } from '@/types';
+import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics, UserProfile } from '@/types';
 import { format, subDays } from 'date-fns';
 
 const USE_MOCK_DATA = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+/**
+ * Retrieves the user's full profile from Supabase, including company details.
+ * @param firebaseUid The Firebase UID of the user.
+ * @returns A promise that resolves to the UserProfile or null if not found.
+ */
+export async function getUserProfile(firebaseUid: string): Promise<UserProfile | null> {
+    // This function should always hit the real database, as it's critical for auth.
+    // We'll return a mock profile only if no DB is configured at all.
+    if (USE_MOCK_DATA && firebaseUid === 'demo-firebase-uid-123') {
+        return {
+            id: 'mock-user-id',
+            firebase_uid: 'demo-firebase-uid-123',
+            email: 'demo@example.com',
+            company_id: 'default-company-id',
+            role: 'admin',
+            company: {
+                id: 'default-company-id',
+                name: 'Demo Distribution Co',
+                invite_code: 'DEMO123'
+            }
+        };
+    }
+     if (USE_MOCK_DATA) return null;
+
+
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('users')
+            .select(`
+                id,
+                firebase_uid,
+                email,
+                company_id,
+                role,
+                company:companies (
+                    id,
+                    name,
+                    invite_code
+                )
+            `)
+            .eq('firebase_uid', firebaseUid)
+            .single();
+        
+        if (error) {
+            if (error.code === 'PGRST116') return null; // Not found, which is a valid state for a new user
+            throw error;
+        }
+
+        return data as UserProfile;
+
+    } catch (error) {
+        console.error('[DB Service] Error fetching user profile:', error);
+        throw error; // Re-throw to be handled by the caller
+    }
+}
+
 
 /**
  * Retrieves the company ID for a given Firebase user UID.
@@ -83,7 +140,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
     }
 }
 
-export async function getDeadStockFromDB(companyId: string): Promise<Product[]> {
+export async function getDeadStockFromDB(companyId: string): Promise<any[]> {
     if (USE_MOCK_DATA) {
         const mockProducts = allMockData[companyId]?.mockProducts || [];
         return mockProducts.filter(p => new Date(p.last_sold_date) < subDays(new Date(), 90));
@@ -99,7 +156,7 @@ export async function getDeadStockFromDB(companyId: string): Promise<Product[]> 
         console.error('[DB Service] Query failed in getDeadStockFromDB:', error);
         return [];
     }
-    return data as Product[];
+    return data;
 }
 
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {

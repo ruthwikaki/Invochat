@@ -5,72 +5,62 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { completeUserRegistration } from '@/app/actions';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
-import { auth } from '@/lib/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth();
+  const { signup, user, userProfile, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    // If auth is not loading and a user is present, redirect to dashboard.
-    // This handles the redirect after a successful signup and session creation.
+    // This effect handles redirection after a successful signup and auth state change.
     if (!authLoading && user) {
-      router.push('/dashboard');
+        if (userProfile) {
+            router.push('/dashboard');
+        } else {
+            // The user has a Firebase account but needs to set up their company profile.
+            router.push('/auth/company-setup');
+        }
     }
-  }, [user, authLoading, router]);
+  }, [user, userProfile, authLoading, router]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true);
 
     try {
-      // Step 1: Create the user in Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
-      if (userCredential.user) {
-        // Step 2: Get the ID token from the newly created user
-        const idToken = await userCredential.user.getIdToken();
-
-        // Step 3: Call server action to create company profile in Supabase
-        const registrationResult = await completeUserRegistration({
-          companyName,
-          email,
-          idToken,
-        });
-
-        if (!registrationResult.success) {
-          throw new Error(registrationResult.error || 'Your account was created, but we failed to set up your company profile. Please contact support.');
-        }
-
-        toast({
-          title: 'Account Created!',
-          description: "You're all set. Redirecting you to the dashboard.",
-        });
-        // The useEffect hook will handle the redirect once the auth state updates.
-      } else {
-        throw new Error('An unexpected error occurred during signup. Please try again.');
-      }
+      await signup(email, password);
+      // On success, Firebase creates the user. The onAuthStateChanged listener in
+      // AuthProvider will detect the new user, and the useEffect hook above
+      // will handle redirecting to the company-setup page.
+      toast({
+        title: 'Account Created!',
+        description: "Next, let's set up your company profile.",
+      });
 
     } catch (error: any) {
       console.error("Signup Error:", error);
       let description = "Could not create your account. Please try again.";
       if(error.code) {
-          if (error.code === 'auth/email-already-in-use') {
-              description = 'This email address is already in use. Please try logging in.';
-          } else {
-              description = error.message;
+          switch(error.code) {
+              case 'auth/email-already-in-use':
+                  description = 'This email is already in use. Please try logging in instead.';
+                  break;
+              case 'auth/weak-password':
+                  description = 'Your password is too weak. Please use at least 6 characters.';
+                  break;
+              case 'auth/invalid-email':
+                  description = 'The email address is not valid.';
+                  break;
+              default:
+                  description = `An unexpected error occurred: ${error.message}`;
           }
       }
       toast({
@@ -79,7 +69,7 @@ export default function SignupPage() {
         description: description,
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
   
@@ -91,10 +81,6 @@ export default function SignupPage() {
             <Skeleton className="h-4 w-4/5" />
         </CardHeader>
         <CardContent className="space-y-4">
-            <div className="space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-10 w-full" />
-            </div>
              <div className="space-y-2">
                 <Skeleton className="h-4 w-16" />
                 <Skeleton className="h-10 w-full" />
@@ -121,21 +107,17 @@ export default function SignupPage() {
       <form onSubmit={handleSignup}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="companyName">Company Name</Label>
-            <Input id="companyName" type="text" placeholder="Your Company, Inc." value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <Input id="password" type="password" placeholder="•••••••• (min. 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating Account...' : 'Sign Up'}
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating Account...' : 'Sign Up'}
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{' '}

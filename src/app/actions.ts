@@ -7,7 +7,7 @@ import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
 import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
 import { getCompanyIdForUser } from '@/services/database';
-import type { AssistantMessagePayload } from '@/types';
+import type { AssistantMessagePayload, UserProfile } from '@/types';
 import { z } from 'zod';
 
 const actionResponseSchema = z.custom<AssistantMessagePayload>();
@@ -125,43 +125,97 @@ export async function handleUserMessage(
   });
 }
 
-export async function completeUserRegistration(payload: {
-  companyName: string;
-  email: string;
-  idToken: string;
-}) {
-  const { companyName, email, idToken } = payload;
-  try {
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const firebaseUid = decodedToken.uid;
 
-    // 1. Create the company
-    const { data: companyData, error: companyError } = await supabaseAdmin
-      .from('companies')
-      .insert({ name: companyName })
-      .select('id')
-      .single();
+const setupCompanyPayloadSchema = z.object({
+  idToken: z.string(),
+  companyChoice: z.enum(['create', 'join']),
+  companyNameOrCode: z.string().min(1),
+});
 
-    if (companyError) throw companyError;
-    if (!companyData) throw new Error('Failed to create company, no ID returned.');
+type SetupCompanyPayload = z.infer<typeof setupCompanyPayloadSchema>;
 
-    // 2. Create the user profile, linking it to the company
-    const { error: userError } = await supabaseAdmin
-      .from('users')
-      .insert({
-        firebase_uid: firebaseUid,
-        company_id: companyData.id,
-        email: email,
-      });
+function generateInviteCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
-    if (userError) throw userError;
-    
-    return { success: true, companyId: companyData.id };
-  } catch (error: any) {
-    console.error('Failed to complete user registration in database:', error);
-    return {
-      success: false,
-      error: error.message || 'Failed to create company profile.',
-    };
-  }
+
+export async function setupCompanyAndUserProfile(payload: SetupCompanyPayload): Promise<{ success: boolean, error?: string, profile?: UserProfile }> {
+    const { idToken, companyChoice, companyNameOrCode } = setupCompanyPayloadSchema.parse(payload);
+
+    let decodedToken;
+    try {
+        decodedToken = await adminAuth.verifyIdToken(idToken);
+    } catch (error) {
+        console.error("Invalid ID token:", error);
+        return { success: false, error: 'Authentication failed. Please sign in again.' };
+    }
+
+    const { uid: firebase_uid, email } = decodedToken;
+    if (!email) {
+        return { success: false, error: 'User email is not available.' };
+    }
+
+    let companyId;
+    let userRole: 'admin' | 'member' = 'member';
+
+    try {
+        if (companyChoice === 'create') {
+            const companyName = companyNameOrCode;
+            const inviteCode = generateInviteCode();
+            
+            const { data: companyData, error: companyError } = await supabaseAdmin
+                .from('companies')
+                .insert({ name: companyName, invite_code: inviteCode, created_by: firebase_uid })
+                .select('id')
+                .single();
+
+            if (companyError) throw new Error(`Failed to create company: ${companyError.message}`);
+            
+            companyId = companyData.id;
+            userRole = 'admin';
+
+        } else { // 'join'
+            const inviteCode = companyNameOrCode;
+            const { data: companyData, error: companyError } = await supabaseAdmin
+                .from('companies')
+                .select('id')
+                .eq('invite_code', inviteCode)
+                .single();
+            
+            if (companyError || !companyData) {
+                return { success: false, error: 'Invalid invite code. Please check and try again.' };
+            }
+
+            companyId = companyData.id;
+            userRole = 'member';
+        }
+
+        // Now create the user profile
+        const { data: userProfile, error: userError } = await supabaseAdmin
+            .from('users')
+            .insert({
+                firebase_uid,
+                email,
+                company_id: companyId,
+                role: userRole,
+            })
+            .select(`
+                *,
+                company:companies(*)
+            `)
+            .single();
+        
+        if (userError) {
+             if (userError.code === '23505') { // unique_violation
+                return { success: false, error: 'This user profile already exists.' };
+            }
+            throw new Error(`Failed to create user profile: ${userError.message}`);
+        }
+
+        return { success: true, profile: userProfile as UserProfile };
+
+    } catch (error: any) {
+        console.error('Error in setupCompanyAndUserProfile:', error);
+        return { success: false, error: error.message || 'An unexpected error occurred.' };
+    }
 }

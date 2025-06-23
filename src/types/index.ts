@@ -50,14 +50,14 @@ export type Supplier = {
 }
 
 export type Product = {
-    id: number;
+    id: string; // UUID
+    company_id: string;
     sku: string;
     name: string;
     quantity: number;
     cost: number;
     last_sold_date: string; // YYYY-MM-DD
-    warehouse_id: number;
-    supplier_id: number;
+    warehouse_name: string;
     category: string;
 }
 
@@ -107,3 +107,17 @@ export type DashboardMetrics = {
         days: number;
     } | null;
 }
+
+// User profile from Supabase, including company info
+export type UserProfile = {
+  id: string; // Supabase user ID
+  firebase_uid: string;
+  email: string;
+  company_id: string;
+  role: 'admin' | 'member';
+  company: {
+    id: string;
+    name: string;
+    invite_code: string;
+  } | null;
+};

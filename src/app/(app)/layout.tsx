@@ -1,4 +1,3 @@
-
 'use client';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -37,24 +36,29 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    // If loading is finished and there's no user, redirect to login.
-    if (!loading && !user) {
-      router.push('/auth/login');
+    if (!loading) {
+      if (!user) {
+        // No Firebase user, must log in.
+        router.push('/auth/login');
+      } else if (user && !userProfile) {
+        // Firebase user exists, but no Supabase profile.
+        // Must complete company setup.
+        router.push('/auth/company-setup');
+      }
+      // If user and userProfile exist, we stay and render children.
     }
-  }, [user, loading, router]);
+  }, [user, userProfile, loading, router]);
 
-  // If we are still loading OR if there is no user (which means the redirect
-  // is about to happen), show the loading screen. This prevents a flash of
-  // a blank page before the redirect occurs.
-  if (loading || !user) {
+  // Show loading screen while checking auth state or if user is not fully set up.
+  if (loading || !user || !userProfile) {
     return <AppLoadingScreen />;
   }
 
-  // Only render the full app layout if we are done loading and have a user.
+  // Only render the full app layout if we have a Firebase user AND a Supabase profile.
   return (
     <SidebarProvider>
       <div className="flex h-dvh w-full bg-background">

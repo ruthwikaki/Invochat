@@ -12,30 +12,34 @@ import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login, user, loading: authLoading } = useAuth();
+  const [email, setEmail] = useState('demo@example.com');
+  const [password, setPassword] = useState('password');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push('/dashboard');
+        if (userProfile) {
+            router.push('/dashboard');
+        } else {
+            // This case handles users who have a Firebase account but no Supabase profile
+            router.push('/auth/company-setup');
+        }
     }
-  }, [user, authLoading, router]);
+  }, [user, userProfile, authLoading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsSubmitting(true);
     try {
       await login(email, password);
-      // On success, the onAuthStateChanged listener in AuthProvider will redirect.
+      // The useEffect hook will handle the redirect on successful login.
       toast({
         title: 'Login Successful',
         description: 'Redirecting to your dashboard...',
       });
-      // The useEffect hook will handle the redirect.
     } catch (error: any) {
       console.error('Login error details:', error);
       let description = 'An unknown error occurred. Please try again.';
@@ -49,8 +53,11 @@ export default function LoginPage() {
             case 'auth/invalid-email':
                 description = "The email address you entered is not valid.";
                 break;
+            case 'auth/too-many-requests':
+                description = "Access to this account has been temporarily disabled due to many failed login attempts. You can immediately restore it by resetting your password or you can try again later.";
+                break;
             default:
-                description = error.message;
+                description = `An unexpected error occurred: ${error.message}`;
         }
       }
       toast({
@@ -59,7 +66,7 @@ export default function LoginPage() {
         description: description,
       });
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -80,9 +87,9 @@ export default function LoginPage() {
                     <Skeleton className="h-10 w-full" />
                 </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-4">
+            <CardFooter className="flex-col gap-4">
                 <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-full" />
             </CardFooter>
         </Card>
     );
@@ -106,15 +113,17 @@ export default function LoginPage() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Logging in...' : 'Log In'}
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? 'Logging in...' : 'Log In'}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
+          <div className="text-center text-sm text-muted-foreground w-full flex justify-between">
             <Link href="/auth/signup" className="font-medium text-primary hover:underline">
               Sign up
             </Link>
-          </p>
+             <Link href="/auth/reset-password" className="font-medium text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
         </CardFooter>
       </form>
     </Card>
