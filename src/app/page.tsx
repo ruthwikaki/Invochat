@@ -1,33 +1,37 @@
+'use client';
 
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/context/auth-context';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { InvoChatLogo } from '@/components/invochat-logo';
+
+function RootLoadingScreen() {
+  return (
+    <div className="flex h-dvh w-full flex-col items-center justify-center bg-muted/40 gap-4">
+        <InvoChatLogo className="h-12 w-12" />
+        <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.3s]" />
+            <div className="h-2 w-2 animate-pulse rounded-full bg-current [animation-delay:-0.15s]" />
+            <div className="h-2 w-2 animate-pulse rounded-full bg-current" />
+        </div>
+    </div>
+  )
+}
 
 export default function Home() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-muted/40">
-      <Card className="w-full max-w-md text-center p-4">
-        <CardHeader>
-          <CardTitle className="text-3xl font-bold">Welcome to InvoChat</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-muted-foreground">
-            This is a temporary landing page for debugging purposes.
-          </p>
-          <div className="flex justify-center gap-4">
-            <Button asChild>
-              <Link href="/login">
-                Go to Login
-              </Link>
-            </Button>
-            <Button variant="secondary" asChild>
-              <Link href="/dashboard">
-                Go to Dashboard
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading) {
+      if (user) {
+        router.replace('/dashboard');
+      } else {
+        router.replace('/login');
+      }
+    }
+  }, [user, loading, router]);
+
+  // While the redirect is happening, show a loading screen.
+  return <RootLoadingScreen />;
 }
