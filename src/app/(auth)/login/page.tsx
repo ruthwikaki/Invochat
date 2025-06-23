@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('demo@example.com');
   const [password, setPassword] = useState('password');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login, user, userProfile, loading: authLoading } = useAuth();
+  const { login, user, userProfile, loading: authLoading, refreshUserProfile } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -44,11 +44,15 @@ export default function LoginPage() {
           await ensureDemoUserExists(idToken);
       }
       
-      // The useEffect hook will handle the redirect on successful login after state updates.
+      // Explicitly refresh the user profile in the client's state after login/provisioning.
+      // This is crucial to prevent the redirect race condition.
+      await refreshUserProfile();
+      
       toast({
         title: 'Login Successful',
         description: 'Redirecting to your dashboard...',
       });
+      // The useEffect will now handle the redirect correctly because userProfile is populated.
     } catch (error: any) {
       console.error('Login error details:', error);
       let description = 'An unknown error occurred. Please try again.';
@@ -79,7 +83,7 @@ export default function LoginPage() {
     }
   };
 
-  if (authLoading || user) {
+  if (authLoading || (user && userProfile)) {
     return (
         <Card>
             <CardHeader>
