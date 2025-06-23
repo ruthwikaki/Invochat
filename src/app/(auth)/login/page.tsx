@@ -8,23 +8,34 @@ import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Redirect if user is already logged in
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       const { error } = await login(email, password);
-      if (error) throw error;
-      router.push('/dashboard');
+      if (error) {
+        throw error;
+      }
+      // On success, the onAuthStateChange listener in AuthProvider will update
+      // the `user` state, which will trigger the useEffect above to redirect.
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -35,6 +46,32 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // While checking auth status or if user exists (and we're about to redirect), show a loader.
+  if (authLoading || user) {
+    return (
+        <Card>
+            <CardHeader>
+                <Skeleton className="h-7 w-3/5" />
+                <Skeleton className="h-4 w-4/5" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+                 <div className="space-y-2">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-4 w-1/2" />
+            </CardFooter>
+        </Card>
+    );
+  }
 
   return (
     <Card>
