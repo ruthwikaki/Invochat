@@ -23,7 +23,7 @@ export async function signInWithEmail(email: string, password: string) {
     if (supabaseSignInError) {
       throw new Error(`Supabase sign-in failed: ${supabaseSignInError.message}`);
     }
-  } catch (error: any)
+  } catch (error: any) {
     console.error('Error during email sign-in:', error);
     // Attempt to sign out of Supabase just in case, but don't let it block the error flow
     await supabase.auth.signOut().catch(() => {});
