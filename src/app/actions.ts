@@ -147,7 +147,7 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
         email,
         role,
         company_id,
-        company:companies (
+        companies (
           id,
           name
         )
@@ -165,9 +165,9 @@ export async function getUserProfile(idToken: string): Promise<UserProfile | nul
       email: profile.email,
       role: profile.role,
       companyId: profile.company_id,
-      company: profile.company ? {
-        id: profile.company.id,
-        name: profile.company.name,
+      company: profile.companies ? { // Changed from profile.company to profile.companies
+        id: profile.companies.id,
+        name: profile.companies.name,
       } : undefined
     };
   } catch (error) {
@@ -199,7 +199,7 @@ export async function setupCompanyAndUserProfile({
     const userEmail = decodedToken.email;
 
     if (!userEmail) {
-      return { success: false, error: 'User email not found' };
+      return { success: false, error: 'User email not found in token.' };
     }
 
     let companyId: string;
@@ -220,7 +220,7 @@ export async function setupCompanyAndUserProfile({
 
       if (companyError || !company) {
         console.error('Company creation error:', companyError);
-        return { success: false, error: 'Failed to create company. Please ensure the `companies` table exists and has an `invite_code` column.' };
+        return { success: false, error: 'Failed to create company. ' + companyError.message };
       }
 
       companyId = company.id;
@@ -255,7 +255,7 @@ export async function setupCompanyAndUserProfile({
 
     if (profileError) {
       console.error('Profile creation error:', profileError);
-      return { success: false, error: 'Failed to create user profile. Please ensure the `users` table is configured correctly.' };
+      return { success: false, error: 'Failed to create user profile. ' + profileError.message };
     }
 
     try {
@@ -263,10 +263,9 @@ export async function setupCompanyAndUserProfile({
         companyId: companyId,
         role: profile.role
       });
-    } catch (claimsError) {
+    } catch (claimsError: any) {
       console.error('FATAL: Failed to set custom claims:', claimsError);
-      // This is a critical error, but we will proceed for now.
-      // In a production app, you might want to handle this more gracefully.
+      return { success: false, error: 'Failed to set user claims. ' + claimsError.message };
     }
 
     return {
@@ -282,8 +281,8 @@ export async function setupCompanyAndUserProfile({
         }
       }
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Setup error:', error);
-    return { success: false, error: 'An unexpected error occurred during setup.' };
+    return { success: false, error: 'An unexpected error occurred: ' + error.message };
   }
 }

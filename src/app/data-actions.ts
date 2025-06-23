@@ -24,9 +24,9 @@ async function authenticateAndGetCompanyId(idToken: string): Promise<string> {
         const firebaseUid = decodedToken.uid;
       
         const { data, error } = await supabaseAdmin!
-            .from('user_profiles')
+            .from('users') // Corrected from 'user_profiles'
             .select('company_id')
-            .eq('id', firebaseUid)
+            .eq('firebase_uid', firebaseUid) // Corrected from 'id'
             .single();
         
         if (error) {
