@@ -95,7 +95,7 @@ export default function DeadStockPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Value:</span>
-                  <span className="font-medium">${(item.quantity * item.cost).toLocaleString()}</span>
+                  <span className="font-medium">${(item.quantity * Number(item.cost)).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Last Sold:</span>

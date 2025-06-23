@@ -18,6 +18,10 @@ export async function signUpWithEmailAndPassword(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const companyName = formData.get('companyName') as string;
+  let companyId: string | null = null;
+  const DEMO_COMPANY_ID = '550e8400-e29b-41d4-a716-446655440001';
+  const DEMO_COMPANY_NAME = 'Demo Company';
+
 
   // Basic server-side validation
   if (!SignUpSchema.email(email)) {
@@ -31,19 +35,43 @@ export async function signUpWithEmailAndPassword(formData: FormData) {
   }
 
   try {
-    // Using the admin client which bypasses RLS.
-    // 1. Create the company first to get a company_id.
-    const { data: companyData, error: companyError } = await supabaseAdmin
-      .from('companies')
-      .insert({ name: companyName })
-      .select('id')
-      .single();
+    // If the user wants to join the demo company, assign them to it.
+    // Otherwise, create a new company for them.
+    if (companyName === DEMO_COMPANY_NAME) {
+        companyId = DEMO_COMPANY_ID;
+        // Ensure the demo company record exists.
+        const { data: demoCompany, error: findError } = await supabaseAdmin
+            .from('companies')
+            .select('id')
+            .eq('id', DEMO_COMPANY_ID)
+            .single();
+        
+        if (findError && findError.code !== 'PGRST116') { // PGRST116 = 'single row not found'
+             throw new Error(`Could not verify demo company: ${findError.message}`);
+        }
 
-    if (companyError) {
-      // This could happen if a company name must be unique, for example.
-      return { success: false, error: `Could not create company: ${companyError.message}`};
+        if (!demoCompany) {
+            const { error: createDemoError } = await supabaseAdmin
+                .from('companies')
+                .insert({ id: DEMO_COMPANY_ID, name: DEMO_COMPANY_NAME });
+            if (createDemoError) {
+                throw new Error(`Could not create demo company: ${createDemoError.message}`);
+            }
+        }
+
+    } else {
+        const { data: companyData, error: companyError } = await supabaseAdmin
+        .from('companies')
+        .insert({ name: companyName })
+        .select('id')
+        .single();
+
+        if (companyError) {
+          throw new Error(`Could not create company: ${companyError.message}`);
+        }
+        companyId = companyData.id;
     }
-    const companyId = companyData.id;
+
 
     // 2. Create the user in Firebase Auth.
     const userRecord = await adminAuth.createUser({
@@ -53,17 +81,17 @@ export async function signUpWithEmailAndPassword(formData: FormData) {
     });
     
     // 3. Create the user profile in Supabase, linking it to the Firebase UID and new company.
-    // Your schema confirmed the column is 'firebase_uid'.
     const { error: userProfileError } = await supabaseAdmin
       .from('users')
       .insert({ firebase_uid: userRecord.uid, company_id: companyId, email: userRecord.email });
 
     if (userProfileError) {
         // This is a critical failure. The user exists in Firebase but not in our DB.
-        // A robust system would delete the Firebase user here to allow a retry.
-        console.error("CRITICAL: Firebase user created but Supabase profile creation failed.", userRecord.uid, userProfileError);
-        // Clean up the created company
-        await supabaseAdmin.from('companies').delete().eq('id', companyId);
+        await adminAuth.deleteUser(userRecord.uid);
+        // Clean up the created company if it wasn't the demo one
+        if (companyName !== DEMO_COMPANY_NAME) {
+            await supabaseAdmin.from('companies').delete().eq('id', companyId);
+        }
         throw new Error(`Could not create user profile in database: ${userProfileError.message}`);
     }
   
@@ -80,14 +108,7 @@ export async function signUpWithEmailAndPassword(formData: FormData) {
     } else if (error.message) {
       errorMessage = error.message;
     }
-    // Attempt to find and clean up a potentially created company if user creation failed.
-    // This is a simple cleanup and might need to be more robust in a production system.
-    if (companyName) {
-        const {data: company} = await supabaseAdmin.from('companies').select('id').eq('name', companyName).single();
-        if(company) {
-            await supabaseAdmin.from('companies').delete().eq('id', company.id);
-        }
-    }
+    
     return { success: false, error: errorMessage };
   }
 }
