@@ -1,6 +1,7 @@
+
 'use client';
 
-import { AlertCircle, Package, TrendingDown, Truck } from 'lucide-react';
+import { AlertCircle, Package, TrendingDown, Truck, PackageSearch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -26,7 +27,7 @@ function formatCurrency(value: number) {
 }
 
 
-function MetricCard({ title, value, icon: Icon, variant = 'default', label, loading }: { title: string; value: string; icon: React.ElementType; variant?: 'default' | 'destructive' | 'success'; label?: string; loading: boolean }) {
+function MetricCard({ title, value, icon: Icon, variant = 'default', label, loading }: { title: string; value: string; icon: React.ElementType; variant?: 'default' | 'destructive' | 'success' | 'warning'; label?: string; loading: boolean }) {
   if (loading) {
     return (
       <Card>
@@ -45,7 +46,8 @@ function MetricCard({ title, value, icon: Icon, variant = 'default', label, load
   const variantClasses = {
       default: '',
       destructive: 'border-destructive/50 text-destructive',
-      success: 'border-success/50 text-success'
+      success: 'border-success/50 text-success',
+      warning: 'border-warning/50 text-warning',
   }
 
   return (
@@ -103,38 +105,6 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Card className="col-span-1 lg:col-span-2 border-warning/50">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-warning">
-                            <AlertCircle className="h-5 w-5" />
-                            Predictive Alerts
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? (
-                            <div className="space-y-2">
-                                <Skeleton className="h-4 w-3/4" />
-                                <Skeleton className="h-9 w-24" />
-                            </div>
-                        ) : data?.predictiveAlert ? (
-                            <>
-                                <p className="text-sm">
-                                    You will run out of{' '}
-                                    <span className="font-semibold text-foreground">
-                                        {data.predictiveAlert.item}
-                                    </span>{' '}
-                                    in about{' '}
-                                    <span className="font-semibold text-warning">{data.predictiveAlert.days} days</span>.
-                                </p>
-                                <Button size="sm" className="mt-2" onClick={() => setReorderModalOpen(true)}>
-                                    Reorder Now
-                                </Button>
-                            </>
-                        ) : (
-                           <p className="text-sm text-muted-foreground">No immediate stock-out risks detected.</p>
-                        )}
-                    </CardContent>
-                </Card>
                 <MetricCard
                     title="Inventory Value"
                     value={data ? formatCurrency(data.inventoryValue) : '...'}
@@ -148,16 +118,24 @@ export default function DashboardPage() {
                     variant="destructive"
                     loading={loading}
                 />
+                 <MetricCard
+                    title="Low Stock Items"
+                    value={data ? String(data.lowStockItems) : '...'}
+                    icon={AlertCircle}
+                    variant="warning"
+                    loading={loading}
+                />
                 <MetricCard
                     title="On-Time Deliveries"
-                    value={data ? `${data.onTimeDeliveryRate.toFixed(1)}%` : '...'}
+                    value={data ? `${data.onTimeDeliveryRate.toFixed(1)}%` : 'N/A'}
                     icon={Truck}
                     variant="success"
+                    label="Not implemented"
                     loading={loading}
                 />
                 
                 {loading ? (
-                    <Card className="col-span-1 lg:col-span-3">
+                    <Card className="col-span-1 lg:col-span-2">
                         <CardHeader>
                             <Skeleton className="h-6 w-1/3" />
                         </CardHeader>
@@ -166,11 +144,13 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
                 ) : (
-                    <InventoryTrendChart />
+                    <div className="col-span-1 lg:col-span-2">
+                        <InventoryTrendChart />
+                    </div>
                 )}
                 
                 {loading ? (
-                    <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+                    <Card className="md:col-span-2 lg:col-span-4">
                         <CardHeader>
                              <Skeleton className="h-6 w-1/4" />
                         </CardHeader>
@@ -188,3 +168,4 @@ export default function DashboardPage() {
         </div>
     );
 }
+

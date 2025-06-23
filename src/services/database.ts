@@ -8,77 +8,28 @@
 
 import { supabaseAdmin, isSupabaseAdminEnabled } from '@/lib/supabase';
 import type { Product, Supplier, InventoryItem, Alert, DashboardMetrics, UserProfile } from '@/types';
-import { format, subDays } from 'date-fns';
-
-/**
- * Retrieves the user's full profile from Supabase, including company details.
- * @param firebaseUid The Firebase UID of the user.
- * @returns A promise that resolves to the UserProfile or null if not found.
- */
-export async function getUserProfile(firebaseUid: string): Promise<UserProfile | null> {
-    if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot fetch user profile.");
-        throw new Error("Database connection is not configured.");
-    }
-
-    // Real implementation
-    try {
-        const { data, error } = await supabaseAdmin!
-            .from('users')
-            .select(`
-                id,
-                firebase_uid,
-                email,
-                company_id,
-                role,
-                company:companies (
-                    id,
-                    name,
-                    invite_code
-                )
-            `)
-            .eq('firebase_uid', firebaseUid)
-            .single();
-        
-        if (error) {
-            if (error.code === 'PGRST116') return null; // 'PGRST116' means no rows found, which is a valid case.
-            throw error;
-        }
-
-        return data as UserProfile;
-
-    } catch (error) {
-        console.error('[DB Service] Error fetching user profile:', error);
-        throw error;
-    }
-}
-
+import { format, subDays, isBefore, parseISO } from 'date-fns';
 
 /**
  * Retrieves the company ID for a given Firebase user UID.
  */
-export async function getCompanyIdForUser(uid: string): Promise<string | null> {
-    if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot fetch company ID.");
-        return null;
-    }
-    
-    try {
-        const { data, error } = await supabaseAdmin!
-            .from('users')
-            .select('company_id')
-            .eq('firebase_uid', uid)
-            .single();
+export async function getCompanyIdForUser(userId: string): Promise<string | null> {
+  if (!isSupabaseAdminEnabled) {
+    console.error('Supabase Admin not initialized');
+    return null;
+  }
 
-        if (error) {
-            if (error.code === 'PGRST116') return null;
-            throw error;
-        }
-        return data?.company_id || null;
-    } catch (error) {
-        console.error('[DB Service] Supabase query failed in getCompanyIdForUser:', error);
-        return null;
-    }
+  const { data, error } = await supabaseAdmin!
+    .from('user_profiles')
+    .select('company_id')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data.company_id;
 }
 
 
@@ -96,7 +47,7 @@ export async function getDataForChart(query: string, companyId: string): Promise
     try {
         if (lowerCaseQuery.includes('inventory value by category') || lowerCaseQuery.includes('sales velocity')) {
              const { data, error } = await supabaseAdmin!
-                .from('inventory')
+                .from('products')
                 .select('category, quantity, cost')
                 .eq('company_id', companyId);
 
@@ -110,7 +61,6 @@ export async function getDataForChart(query: string, companyId: string): Promise
 
             return Object.entries(aggregated).map(([name, value]) => ({ name, value }));
         }
-        // Return empty for other queries for now
         return [];
     } catch (error) {
         console.error('[DB Service] Query failed in getDataForChart. Returning empty array.', error);
@@ -119,147 +69,99 @@ export async function getDataForChart(query: string, companyId: string): Promise
 }
 
 export async function getDeadStockFromDB(companyId: string): Promise<Product[]> {
-    if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot get dead stock.");
-        return [];
-    }
+    if (!isSupabaseAdminEnabled) return [];
 
-    const ninetyDaysAgo = format(subDays(new Date(), 90), 'yyyy-MM-dd');
-    const { data, error } = await supabaseAdmin!
-        .from('inventory')
-        .select('*')
-        .eq('company_id', companyId)
-        .lt('last_sold_date', ninetyDaysAgo);
+    const products = await getInventoryItems(companyId);
+    const ninetyDaysAgo = subDays(new Date(), 90);
     
-    if (error) {
-        console.error('[DB Service] Query failed in getDeadStockFromDB:', error);
-        return [];
-    }
-    return data as Product[];
+    return products.filter(p => 
+        p.last_sold_date && isBefore(parseISO(p.last_sold_date), ninetyDaysAgo)
+    );
 }
 
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
-    if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot get suppliers.");
-        return [];
-    }
-    
-    const { data, error } = await supabaseAdmin!
-        .from('vendors')
-        .select('id, vendor_name, contact_info') // Assuming these are the columns
-        .eq('company_id', companyId);
-
-    if (error) {
-        console.error('[DB Service] Query failed in getSuppliersFromDB:', error);
-        return [];
-    }
-
-    // Mapping might need to be adjusted based on the actual schema
-    return data.map(v => ({
-        id: v.id,
-        name: v.vendor_name,
-        contact: v.contact_info,
-        onTimeDeliveryRate: 95, // Example static value
-        avgDeliveryTime: 5,     // Example static value
-    }));
+    // NOTE: The new schema doesn't have a vendors/suppliers table.
+    // This function is kept for compatibility with the UI but returns an empty array.
+    console.warn("[DB Service] getSuppliersFromDB is not implemented for the current schema.");
+    return [];
 }
 
-export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
-    if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot get inventory items.");
-        return [];
-    }
-    
-    const { data, error } = await supabaseAdmin!
-        .from('inventory')
-        .select('sku, name, quantity, cost, last_sold_date')
-        .eq('company_id', companyId)
-        .order('name');
-    
-    if (error) {
-        console.error('[DB Service] Query failed in getInventoryItems:', error);
-        return [];
-    }
+export async function getInventoryItems(companyId: string): Promise<Product[]> {
+  if (!isSupabaseAdminEnabled) return [];
 
-    return data.map(item => ({
-        id: item.sku,
-        name: item.name,
-        quantity: item.quantity,
-        value: item.quantity * item.cost,
-        lastSold: item.last_sold_date ? format(new Date(item.last_sold_date), 'yyyy-MM-dd') : 'N/A',
-    }));
+  const { data, error } = await supabaseAdmin!
+    .from('products')
+    .select('*')
+    .eq('company_id', companyId);
+    
+  if (error) {
+      console.error('[DB Service] Error fetching inventory items:', error.message);
+      return [];
+  }
+
+  return data || [];
 }
 
 export async function getDeadStockPageData(companyId: string) {
-    if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot get dead stock page data.");
-        return { deadStockItems: [], totalDeadStockValue: 0 };
-    }
+    if (!isSupabaseAdminEnabled) return { deadStockItems: [], totalDeadStockValue: 0 };
+    
+    const products = await getInventoryItems(companyId);
+    const ninetyDaysAgo = subDays(new Date(), 90);
 
-    const ninetyDaysAgo = format(subDays(new Date(), 90), 'yyyy-MM-dd');
-    const { data, error } = await supabaseAdmin!
-        .from('inventory')
-        .select('sku, name, quantity, cost, last_sold_date')
-        .eq('company_id', companyId)
-        .lt('last_sold_date', ninetyDaysAgo);
-
-    if (error) {
-        console.error('[DB Service] Query failed in getDeadStockPageData:', error);
-        return { deadStockItems: [], totalDeadStockValue: 0 };
-    }
-
-    const deadStockItems = data.map(item => ({
-        id: item.sku,
-        name: item.name,
-        quantity: item.quantity,
-        value: item.quantity * item.cost,
-        lastSold: item.last_sold_date ? format(new Date(item.last_sold_date), 'yyyy-MM-dd') : 'N/A',
+    const deadStockProducts = products.filter(p => 
+        p.last_sold_date && isBefore(parseISO(p.last_sold_date), ninetyDaysAgo)
+    );
+    
+    const deadStockItems: InventoryItem[] = deadStockProducts.map(p => ({
+        id: p.sku,
+        name: p.name,
+        quantity: p.quantity,
+        value: p.quantity * p.cost,
+        lastSold: p.last_sold_date ? format(parseISO(p.last_sold_date), 'yyyy-MM-dd') : 'N/A'
     }));
-    const totalDeadStockValue = deadStockItems.reduce((acc, item) => acc + item.value, 0);
+
+    const totalDeadStockValue = deadStockItems.reduce((sum, item) => sum + item.value, 0);
+
     return { deadStockItems, totalDeadStockValue };
 }
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
-     if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot get alerts.");
-        return [];
-     }
-    console.warn("[DB Service] getAlertsFromDB is returning an empty array as the real query is complex and not yet implemented.");
-    return [];
+  if (!isSupabaseAdminEnabled) return [];
+
+  const products = await getInventoryItems(companyId);
+  const alerts: Alert[] = [];
+
+  const lowStock = products.filter(p => p.quantity < 10);
+  lowStock.forEach(p => {
+    alerts.push({
+      id: `low-${p.id}`,
+      type: 'Low Stock',
+      item: p.name,
+      message: `Low stock alert: ${p.name} (${p.quantity} units remaining)`,
+      date: new Date().toISOString(),
+      resolved: false
+    });
+  });
+
+  return alerts;
 }
 
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
-     if (!isSupabaseAdminEnabled) {
-        console.error("[DB Service] Supabase Admin client is not available. Cannot get dashboard metrics.");
-        return { inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
-     }
+  if (!isSupabaseAdminEnabled) {
+    return { inventoryValue: 0, deadStockValue: 0, lowStockItems: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
+  }
 
-    try {
-        const { data, error } = await supabaseAdmin!
-            .from('inventory')
-            .select('quantity, cost, last_sold_date')
-            .eq('company_id', companyId);
+  const products = await getInventoryItems(companyId);
 
-        if (error || !data) {
-            if (error) console.error('[DB Service] Query failed in getDashboardMetrics:', error);
-            return { inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
-        }
-        
-        const inventoryValue = data.reduce((acc, item) => acc + (item.quantity * item.cost), 0);
-        
-        const ninetyDaysAgo = subDays(new Date(), 90);
-        const deadStockValue = data.filter(item => item.last_sold_date && new Date(item.last_sold_date) < ninetyDaysAgo)
-                                   .reduce((acc, item) => acc + (item.quantity * item.cost), 0);
+  const inventoryValue = products.reduce((sum, p) => sum + (p.quantity * p.cost), 0);
+  const lowStockItems = products.filter(p => p.quantity < 10).length;
+  
+  const ninetyDaysAgo = subDays(new Date(), 90);
+  const deadStockValue = products
+    .filter(p => p.last_sold_date && isBefore(parseISO(p.last_sold_date), ninetyDaysAgo))
+    .reduce((sum, p) => sum + (p.quantity * p.cost), 0);
 
-        // Predictive alerts and on-time delivery are complex and would require more data. Returning static for now.
-        return {
-            inventoryValue: inventoryValue,
-            deadStockValue: deadStockValue,
-            onTimeDeliveryRate: 95.2, // Example value
-            predictiveAlert: null      // Example value
-        };
-    } catch(error) {
-        console.error('[DB Service] Exception in getDashboardMetrics:', error);
-        return { inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
-    }
+  // onTimeDeliveryRate and predictiveAlert require more complex data not in the current schema
+  return { inventoryValue, deadStockValue, lowStockItems, onTimeDeliveryRate: 0, predictiveAlert: null };
 }
+

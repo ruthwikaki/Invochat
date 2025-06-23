@@ -1,20 +1,20 @@
+
 import admin from 'firebase-admin';
 
-// This is a workaround for Vercel/Next.js to parse the private key correctly
-const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
 if (!admin.apps.length) {
-  if (!process.env.FIREBASE_ADMIN_PROJECT_ID || !process.env.FIREBASE_ADMIN_CLIENT_EMAIL || !privateKey) {
-    console.warn('[Firebase Admin] Missing environment variables for Firebase Admin SDK. Server-side auth will not work.');
+  const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (serviceAccountString) {
+    try {
+      const serviceAccount = JSON.parse(serviceAccountString);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      console.log('[Firebase Admin] SDK initialized successfully from service account variable.');
+    } catch (e) {
+      console.error('[Firebase Admin] Failed to parse FIREBASE_SERVICE_ACCOUNT JSON.', e);
+    }
   } else {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-        privateKey: privateKey,
-      }),
-    });
-    console.log('[Firebase Admin] SDK initialized successfully.');
+    console.warn('[Firebase Admin] FIREBASE_SERVICE_ACCOUNT environment variable is not set. Server-side auth will not work.');
   }
 }
 

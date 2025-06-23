@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 
 export type Message = {
@@ -51,14 +52,15 @@ export type Supplier = {
 
 export type Product = {
     id: string; // UUID
-    company_id: string;
+    company_id: string; // UUID
     sku: string;
     name: string;
+    category: string;
     quantity: number;
     cost: number;
-    last_sold_date: string; // YYYY-MM-DD
-    warehouse_name: string;
-    category: string;
+    price: number;
+    warehouse_id?: string; // UUID
+    last_sold_date?: string; // ISO String
 }
 
 export type Transaction = {
@@ -81,7 +83,7 @@ export type Alert = {
 }
 
 export type InventoryItem = {
-    id: string;
+    id: string; // SKU
     name: string;
     quantity: number;
     value: number;
@@ -101,7 +103,8 @@ export type InventoryTrend = {
 export type DashboardMetrics = {
     inventoryValue: number;
     deadStockValue: number;
-    onTimeDeliveryRate: number;
+    lowStockItems: number;
+    onTimeDeliveryRate: number; // This is now a placeholder
     predictiveAlert: {
         item: string;
         days: number;
@@ -110,14 +113,12 @@ export type DashboardMetrics = {
 
 // User profile from Supabase, including company info
 export type UserProfile = {
-  id: string; // Supabase user ID
-  firebase_uid: string;
+  id: string; // Firebase UID
   email: string;
-  company_id: string;
-  role: 'admin' | 'member';
-  company: {
+  role: 'admin' | 'member' | string;
+  companyId: string;
+  company?: {
     id: string;
     name: string;
-    invite_code: string;
-  } | null;
+  };
 };

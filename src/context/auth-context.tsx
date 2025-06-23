@@ -3,15 +3,15 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { 
-    onAuthStateChanged, 
-    User as FirebaseUser, 
-    signInWithEmailAndPassword, 
-    signOut,
-    createUserWithEmailAndPassword,
-    sendPasswordResetEmail
+  onAuthStateChanged, 
+  User as FirebaseUser, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  getIdToken as getFirebaseIdToken
 } from 'firebase/auth';
 import { auth, isFirebaseEnabled } from '@/lib/firebase';
-import { getUserProfile } from '@/services/database';
 import type { UserProfile } from '@/types';
 import { useRouter } from 'next/navigation';
 
@@ -19,11 +19,11 @@ interface AuthContextType {
   user: FirebaseUser | null;
   userProfile: UserProfile | null;
   loading: boolean;
-  login: (email: string, pass: string) => Promise<any>;
-  signup: (email: string, pass: string) => Promise<any>;
+  login: (email: string, password: string) => Promise<any>;
+  signup: (email: string, password: string) => Promise<any>;
   logout: () => Promise<any>;
   getIdToken: () => Promise<string | null>;
-  resetPassword: (email: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<any>;
   refreshUserProfile: () => Promise<void>;
 }
 
@@ -36,14 +36,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const refreshUserProfile = useCallback(async () => {
-    if (auth?.currentUser) {
-        try {
-            const profile = await getUserProfile(auth.currentUser.uid);
-            setUserProfile(profile);
-        } catch (error) {
-            console.error("Failed to refresh user profile", error);
-            setUserProfile(null);
-        }
+    const currentUser = auth?.currentUser;
+    if (!currentUser) {
+      setUserProfile(null);
+      return;
+    }
+    
+    try {
+      // The dynamic import here is to avoid circular dependencies in server components
+      const { getUserProfile } = await import('@/app/actions');
+      const idToken = await getFirebaseIdToken(currentUser);
+      const profile = await getUserProfile(idToken);
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+      setUserProfile(null);
     }
   }, []);
 
@@ -52,59 +59,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setLoading(true);
-      if (user) {
-        setUser(user);
-        try {
-            const profile = await getUserProfile(user.uid);
-            setUserProfile(profile);
-        } catch (error) {
-            console.error("Failed to fetch user profile on auth change", error);
-            setUserProfile(null);
-        }
+      setUser(firebaseUser);
+      
+      if (firebaseUser) {
+        // Set a brief timeout to allow custom claims to propagate after login/signup
+        setTimeout(() => refreshUserProfile(), 1000);
       } else {
-        setUser(null);
         setUserProfile(null);
       }
+      
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [refreshUserProfile]);
 
-  const login = (email: string, pass: string) => {
-    if (!auth) return Promise.reject(new Error("Firebase is not configured."));
-    return signInWithEmailAndPassword(auth, email, pass);
+  const login = async (email: string, password: string) => {
+    if (!auth) throw new Error("Firebase Auth is not initialized.");
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    await refreshUserProfile();
+    return result;
+  };
+
+  const signup = (email: string, password: string) => {
+    if (!auth) throw new Error("Firebase Auth is not initialized.");
+    return createUserWithEmailAndPassword(auth, email, password);
   };
   
-  const signup = (email: string, pass: string) => {
-    if (!auth) return Promise.reject(new Error("Firebase is not configured."));
-    return createUserWithEmailAndPassword(auth, email, pass);
+  const logout = async () => {
+    if (!auth) throw new Error("Firebase Auth is not initialized.");
+    await signOut(auth);
+    setUserProfile(null);
+    router.push('/login');
   };
 
-  const logout = async () => {
-    if (!auth) throw new Error("Firebase is not configured.");
-    await signOut(auth);
-    router.push('/login');
-  }
-
   const resetPassword = (email: string) => {
-    if (!auth) return Promise.reject(new Error("Firebase is not configured."));
+    if (!auth) throw new Error("Firebase Auth is not initialized.");
     return sendPasswordResetEmail(auth, email);
-  }
+  };
 
   const getIdToken = async () => {
     if (!auth?.currentUser) return null;
-    try {
-      // Force refresh of the token to ensure it's not expired.
-      return await auth.currentUser.getIdToken(true); 
-    } catch (error) {
-      console.error("Error getting ID token:", error);
-      // It's possible the user's session became invalid, so log them out.
-      await logout();
-      return null;
-    }
+    return auth.currentUser.getIdToken(true);
   };
 
   const value = {
@@ -116,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     getIdToken,
     resetPassword,
-    refreshUserProfile
+    refreshUserProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
