@@ -41,39 +41,27 @@ export default function AppLayout({
   const router = useRouter();
 
   useEffect(() => {
-    // This effect now ONLY handles redirection logic.
-    // It waits until loading is completely finished.
+    // This effect handles all redirection logic once the auth state is resolved.
     if (loading) {
-      return;
+      return; // Do nothing while loading.
     }
 
-    // If loading is done and there's no user, go to login.
     if (!user) {
       router.replace('/login');
-      return;
-    }
-
-    // If loading is done, user exists, but there is no company profile,
-    // they MUST complete setup.
-    if (user && !userProfile) {
+    } else if (!userProfile) {
+      // If user is authenticated but has no profile, they need to complete setup.
       router.replace('/company-setup');
-      return;
     }
-
   }, [user, userProfile, loading, router]);
 
-
-  // This is the gatekeeper.
-  // We show a loading screen as long as auth is loading.
-  // If auth is done, but the user/profile isn't there yet,
-  // we continue showing the loading screen while the useEffect above
-  // handles the redirection. This prevents rendering the children
-  // prematurely.
+  // This is the gatekeeper. It shows a loading screen until the auth context
+  // has finished loading the user and their profile. This prevents rendering
+  // the app in a partial state and causing incorrect redirects.
   if (loading || !user || !userProfile) {
     return <AppLoadingScreen />;
   }
 
-  // Only when EVERYTHING is ready do we render the app.
+  // Only when auth is fully resolved and profile exists, render the main app.
   return (
     <SidebarProvider>
       <div className="flex h-dvh w-full bg-background">
