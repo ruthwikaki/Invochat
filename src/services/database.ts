@@ -35,7 +35,17 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   if (inventoryError) {
     console.error('Error fetching inventory for dashboard:', inventoryError);
-    throw new Error(`Failed to fetch dashboard metrics: ${inventoryError.message}`);
+    throw new Error(`Failed to load dashboard data: ${inventoryError.message}`);
+  }
+
+  // If no inventory exists, return zeros but don't throw error
+  if (!inventory || inventory.length === 0) {
+    return {
+      inventoryValue: 0,
+      deadStockValue: 0,
+      onTimeDeliveryRate: 0,
+      predictiveAlert: null
+    };
   }
 
   const ninetyDaysAgo = subDays(new Date(), 90);
@@ -52,7 +62,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   if (poError) {
     console.error('Error fetching purchase orders for dashboard:', poError);
-    throw new Error(`Failed to fetch dashboard metrics: ${poError.message}`);
+    // Don't throw here, just continue with 0 delivery rate
   }
 
   let onTimeDeliveryRate = 0;
@@ -69,7 +79,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const lowStockItem = inventory.find(item => item.quantity <= item.reorder_point);
   const predictiveAlert = lowStockItem ? {
       item: lowStockItem.name,
-      days: 7 // Placeholder, as sales velocity data is not available
+      days: 7 // Placeholder
   } : null;
 
   return {

@@ -140,18 +140,50 @@ export default function ImportPage() {
     setMappings(prev => ({ ...prev, [invochatField]: fileHeader }));
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     setIsImporting(true);
-    // Simulate import process
-    setTimeout(() => {
-        setIsImporting(false);
-        toast({ title: "Import Successful", description: `${validatedData.valid.length} products have been imported.`});
-        // Reset state for another import
-        setCurrentStep(1);
-        setFile(null);
-        setParsedData([]);
-        setHeaders([]);
-    }, 2000);
+    
+    try {
+      // Prepare data for API
+      const itemsToImport = validatedData.valid.map(row => ({
+        sku: row[mappings.sku],
+        name: row[mappings.name],
+        quantity: row[mappings.quantity],
+        cost: row[mappings.cost],
+      }));
+      
+      const response = await fetch('/api/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: itemsToImport }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Import failed');
+      }
+      
+      toast({ 
+        title: "Import Successful", 
+        description: `${result.count} products have been imported.`
+      });
+      
+      // Reset state for another import
+      setCurrentStep(1);
+      setFile(null);
+      setParsedData([]);
+      setHeaders([]);
+      
+    } catch (error: any) {
+      toast({ 
+        variant: 'destructive',
+        title: "Import Failed", 
+        description: error.message 
+      });
+    } finally {
+      setIsImporting(false);
+    }
   };
   
   const validatedData = React.useMemo(() => {
