@@ -16,6 +16,7 @@ import {
   Truck,
   Upload,
   User,
+  Beaker,
 } from 'lucide-react';
 import { InvoChatLogo } from './invochat-logo';
 import {
@@ -99,6 +100,14 @@ export function AppSidebar() {
           ) : null}
         </div>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/test-supabase'}>
+              <Link href="/test-supabase">
+                <Beaker />
+                <span>Connection Test</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
              <DropdownMenu>
               <DropdownMenuTrigger asChild>

@@ -10,6 +10,7 @@ import {
     getVendorsFromDB,
     getAlertsFromDB
 } from '@/services/database';
+import type { User } from '@/types';
 
 const SUPABASE_CONFIGURED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
@@ -56,4 +57,54 @@ export async function getSuppliersData() {
 export async function getAlertsData() {
     const companyId = await getCompanyIdForCurrentUser();
     return getAlertsFromDB(companyId);
+}
+
+
+export async function testSupabaseConnection(): Promise<{
+    success: boolean;
+    error: { message: string; details?: any; } | null;
+    user: User | null;
+    isConfigured: boolean;
+}> {
+    const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+    if (!isConfigured) {
+        return {
+            success: false,
+            error: { message: 'Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY) are not set.' },
+            user: null,
+            isConfigured,
+        };
+    }
+    
+    try {
+        const cookieStore = cookies();
+        const supabase = createClient(cookieStore);
+        const { data: { user }, error } = await supabase.auth.getUser();
+
+        if (error) {
+            return {
+                success: false,
+                error: { message: 'Failed to get user. This could be due to an invalid JWT or network issue.', details: error },
+                user: null,
+                isConfigured
+            };
+        }
+
+        return {
+            success: true,
+            error: null,
+            user,
+            isConfigured
+        };
+
+    } catch (e: any) {
+        // This catches errors from createClient, e.g., if URL is invalid
+        return {
+            success: false,
+            error: { message: 'A server-side error occurred while trying to connect to Supabase.', details: e.message },
+            user: null,
+            isConfigured
+        };
+    }
 }
