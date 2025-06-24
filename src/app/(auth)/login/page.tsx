@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -34,10 +33,9 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Instead of pushing, we refresh. The middleware will now see the
-      // authenticated user and handle the redirect to the dashboard,
-      // which is the robust, recommended pattern.
-      router.refresh();
+      // Redirect to the dashboard on successful sign-in.
+      // The auth context and middleware will handle the session.
+      router.push('/dashboard');
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
       if (err.message.includes('Invalid login credentials')) {
