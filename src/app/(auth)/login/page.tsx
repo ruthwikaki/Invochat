@@ -28,8 +28,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const { authLoading, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
+  const { authLoading, signInWithEmail } = useAuth();
   
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,16 +39,19 @@ export default function LoginPage() {
     try {
       await signInWithEmail(email, password);
       // Navigation is now handled by the onAuthStateChange listener
-      // in the AuthProvider, which will trigger a page refresh.
+      // in the AuthProvider, which will trigger a page refresh and
+      // subsequent redirect by the middleware.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
-      // Only reset loading state on error, as success will trigger a refresh.
+    } finally {
+      // Only reset loading state on error, as success will trigger a refresh
+      // which unmounts this component. If it fails, we need to re-enable the button.
       setLoading(false);
     }
   };
 
-  // While checking auth state or if user is found, show loader to prevent flicker.
+  // While the auth state is loading, show a skeleton to prevent flicker.
   // The middleware will handle redirecting logged-in users away from this page.
   if (authLoading) {
     return <AuthPageLoader />;

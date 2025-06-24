@@ -50,7 +50,7 @@ export default function SignupPage() {
       if (isSuccess) {
         // If signup created a session, the onAuthStateChange listener will
         // trigger a page refresh, and the middleware will redirect to /dashboard.
-        // We don't need to do anything here.
+        // We don't need to do anything here as the component will unmount.
       } else {
         // Otherwise, show the "check email" message.
         setIsSubmitted(true);

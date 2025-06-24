@@ -13,7 +13,6 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{isSuccess: boolean}>;
   signOut: () => Promise<void>;
-  // This is a temporary property to expose the user object from the auth context for debugging
   authLoading: boolean;
 }
 
@@ -33,10 +32,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Set the initial user state
+    const setInitialUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+        setAuthLoading(false);
+    }
+    setInitialUser();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user ?? null);
-        setAuthLoading(false);
         
         // On sign-in or sign-out, refresh the page.
         // This will cause Next.js to re-run the middleware with the new
@@ -65,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     if (error) throw error;
+    // Navigation is handled by onAuthStateChange listener
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string): Promise<{isSuccess: boolean}> => {
@@ -101,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // If signup is successful and returns a user session (meaning email confirmation is off),
-    // signal success to the caller. The onAuthStateChange listener will handle the refresh.
+    // the onAuthStateChange listener will handle the refresh.
     if (data.session) {
         return { isSuccess: true };
     }
@@ -115,11 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    // Navigation is handled by onAuthStateChange listener
   };
 
   const value = {
     user,
-    loading: authLoading, // Keep 'loading' for backward compatibility if used elsewhere
+    loading: authLoading,
     authLoading,
     isConfigured,
     signInWithEmail,
