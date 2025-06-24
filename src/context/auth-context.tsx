@@ -3,7 +3,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
-import { createBrowserClient } from '@supabase/ssr';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -31,33 +32,15 @@ function SupabaseConfigurationError() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
+  const router = useRouter();
 
-  useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (supabaseUrl && supabaseAnonKey) {
-        setSupabase(createBrowserClient(supabaseUrl, supabaseAnonKey));
-    } else {
-        console.error("Supabase environment variables are missing!");
-        setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     if (!supabase) {
-      if (!loading) setLoading(true);
-      return;
+        setLoading(false);
+        return;
     }
-
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-
-    getInitialSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
@@ -72,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const signInWithEmail = async (email: string, password: string) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
+    if (!supabase) throw new Error("Supabase client is not initialized.");
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -80,16 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       throw error;
     }
+    // Let the calling component handle the navigation/refresh
   };
   
   const signOut = async () => {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-        console.error('Error signing out:', error);
-        throw error;
-    }
-    setUser(null);
+    if (!supabase) throw new Error("Supabase client is not initialized.");
+    await supabase.auth.signOut();
+    // After signing out, we must redirect to login, as the current page might be protected.
+    router.push('/login'); 
   };
 
   const value = {
@@ -98,8 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithEmail,
     signOut,
   };
-
-  if (!loading && !supabase) {
+  
+  if (!supabase && !loading) {
       return <SupabaseConfigurationError />;
   }
 

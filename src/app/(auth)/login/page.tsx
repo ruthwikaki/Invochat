@@ -34,7 +34,11 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      router.push('/dashboard');
+      // This is the correct way to handle the redirect.
+      // It tells Next.js to re-run the server-side logic for the current page.
+      // By now, the cookie is set, so the middleware will see the user is
+      // authenticated and will correctly redirect to the dashboard.
+      router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
       if (err.message.includes('Invalid login credentials')) {
