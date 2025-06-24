@@ -2,6 +2,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
@@ -111,4 +112,43 @@ export async function testSupabaseConnection(): Promise<{
             isConfigured
         };
     }
+}
+
+export async function testDatabaseQuery(): Promise<{
+  success: boolean;
+  count: number | null;
+  error: string | null;
+}> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return { success: false, count: null, error: 'Supabase service role credentials are not configured.' };
+  }
+
+  try {
+    const companyId = await getCompanyIdForCurrentUser();
+    
+    const serviceSupabase = createServiceRoleClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false }
+    });
+
+    const { error, count } = await serviceSupabase
+      .from('inventory')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId);
+
+    if (error) {
+      throw error;
+    }
+
+    return { success: true, count: count, error: null };
+
+  } catch (e: any) {
+    let errorMessage = e.message;
+    if (e.message.includes('User is not associated with a company.')) {
+        errorMessage = "Could not find a company ID for the logged-in user. The test query cannot be performed."
+    }
+    return { success: false, count: null, error: errorMessage };
+  }
 }
