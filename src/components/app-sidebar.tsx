@@ -43,7 +43,7 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/login');
+    // The onAuthStateChange listener in AuthProvider will handle the redirect to /login
   };
 
   const menuItems = [

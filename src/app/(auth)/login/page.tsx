@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,28 +10,23 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
-
-function AuthPageLoader() {
-    return (
-        <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
-            <div className="w-full max-w-sm space-y-4">
-                <Skeleton className="h-10 w-3/4 mx-auto" />
-                <Skeleton className="h-40 w-full" />
-                <Skeleton className="h-10 w-full" />
-            </div>
-        </div>
-    );
-}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { authLoading, signInWithEmail } = useAuth();
+  const { user, authLoading, signInWithEmail } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    // If user is already logged in, redirect them to the dashboard.
+    // This is a client-side check that complements the middleware.
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
   
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,16 +35,20 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
+      // On successful sign-in, the onAuthStateChange listener will fire,
+      // and a re-render will occur. We can then push to the dashboard.
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
+    } finally {
       setLoading(false);
     }
   };
 
-  if (authLoading) {
-    return <AuthPageLoader />;
+  // Don't render the page if the auth state is still loading or if the user is already logged in
+  if (authLoading || user) {
+    return null; 
   }
 
   return (

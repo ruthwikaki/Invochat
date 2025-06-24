@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,20 +17,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter } from 'next/navigation';
-
-function AuthPageLoader() {
-    return (
-        <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
-            <div className="w-full max-w-sm space-y-4">
-                <Skeleton className="h-10 w-3/4 mx-auto" />
-                <Skeleton className="h-40 w-full" />
-                <Skeleton className="h-10 w-full" />
-            </div>
-        </div>
-    );
-}
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -39,8 +26,15 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { authLoading, signUpWithEmail } = useAuth();
+  const { user, authLoading, signUpWithEmail } = useAuth();
   const router = useRouter();
+  
+  useEffect(() => {
+    // If user is already logged in, redirect them to the dashboard.
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,16 +50,16 @@ export default function SignupPage() {
       } else {
         // If there's no session, it means email confirmation is required.
         setIsSubmitted(true);
-        setLoading(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.');
-      setLoading(false);
+    } finally {
+        setLoading(false);
     }
   };
 
-  if (authLoading) {
-    return <AuthPageLoader />;
+  if (authLoading || user) {
+    return null;
   }
 
   if (isSubmitted) {

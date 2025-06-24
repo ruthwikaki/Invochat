@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient, Session } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -30,6 +32,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+        // On sign out, the session is null, and we should ensure the user is on the login page.
+        if (event === 'SIGNED_OUT') {
+            router.push('/login');
+        }
+      }
+    );
+
+    // Set initial user state
     const setInitialUser = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
@@ -37,17 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setInitialUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        setAuthLoading(false);
-      }
-    );
-
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const throwUnconfiguredError = () => {
     throw new Error('Supabase is not configured. Please check your environment variables.');
@@ -90,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     if (error) {
+      // Clean up created company if signup fails
       await supabase.from('companies').delete().eq('id', company.id);
       throw error;
     }
