@@ -2,7 +2,6 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import type { SupabaseClient, AuthError, Session, SignInWithPasswordCredentials } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
@@ -23,7 +22,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -34,14 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      (_event, session) => {
         setUser(session?.user as User ?? null);
         setLoading(false);
-
-        // On sign-out, redirect to the login page.
-        if (event === 'SIGNED_OUT') {
-          router.push('/login');
-        }
       }
     );
 
@@ -55,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const throwUnconfiguredError = () => {
     const error = new Error('Supabase is not configured. Please check your environment variables.') as AuthError;
