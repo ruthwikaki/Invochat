@@ -35,15 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        // This listener is the single source of truth for the user state.
         setUser(session?.user as User ?? null);
         setLoading(false);
-
-        // On successful sign-in, redirect to the dashboard.
-        // This is the most reliable way, as it fires *after* Supabase confirms authentication.
-        if (event === 'SIGNED_IN') {
-          router.push('/dashboard');
-        }
 
         // On sign-out, redirect to the login page.
         if (event === 'SIGNED_OUT') {
@@ -57,8 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!session) {
             setLoading(false);
         }
-        // The onAuthStateChange listener will handle setting the user and loading state
-        // if a session exists, so we don't need to do it here to avoid race conditions.
     });
 
     return () => {
@@ -74,7 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (credentials: SignInWithPasswordCredentials) => {
     if (!supabase) return throwUnconfiguredError();
-    // We just call the function. The onAuthStateChange listener will handle the result.
     const result = await supabase.auth.signInWithPassword(credentials);
     return result as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
   };
@@ -96,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     if (!supabase) return;
-    // The onAuthStateChange listener will handle the redirect.
     await supabase.auth.signOut();
   };
 

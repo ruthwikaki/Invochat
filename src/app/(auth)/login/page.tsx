@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signInWithEmail } = useAuth();
+  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -25,14 +27,14 @@ export default function LoginPage() {
 
     const { error: signInError } = await signInWithEmail({ email, password });
     
-    // The redirect is now handled by the onAuthStateChange listener
-    // in the AuthProvider. We only need to handle the error case here.
     if (signInError) {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
+    } else {
+      // On success, directly navigate to the dashboard.
+      // The middleware will allow this as the session is now valid.
+      router.push('/dashboard');
     }
-    // On success, the AuthProvider will handle the redirect.
-    // The loading state will persist until the new page loads.
   };
 
   return (

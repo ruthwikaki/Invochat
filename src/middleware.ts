@@ -43,7 +43,8 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const isAuthRoute = ['/login', '/signup'].includes(pathname)
+  const authRoutes = ['/login', '/signup']
+  const isAuthRoute = authRoutes.includes(pathname)
 
   // If the user is logged in and tries to access an auth route, redirect to dashboard.
   if (user && isAuthRoute) {
