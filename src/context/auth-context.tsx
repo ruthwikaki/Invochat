@@ -64,6 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
+    // This relies on the database trigger you will add.
+    // It passes the company_name in the metadata.
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,

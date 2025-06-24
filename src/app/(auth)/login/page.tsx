@@ -32,7 +32,7 @@ export default function LoginPage() {
       setLoading(false);
     } else {
       // On success, directly navigate to the dashboard.
-      // The middleware will allow this as the session is now valid.
+      // This is more reliable than router.refresh().
       router.push('/dashboard');
     }
   };

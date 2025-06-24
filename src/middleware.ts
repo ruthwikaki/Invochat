@@ -42,41 +42,29 @@ export async function middleware(request: NextRequest) {
   // This is essential to refresh the session cookie if it's expired.
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-  const authRoutes = ['/login', '/signup']
-  const isAuthRoute = authRoutes.includes(pathname)
-
-  // If the user is logged in and tries to access an auth route, redirect to dashboard.
+  const { pathname } = request.nextUrl;
+  const isAuthRoute = pathname === '/login' || pathname === '/signup';
+  
+  // If user is logged in and trying to access an auth page, redirect to dashboard
   if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  const protectedRoutes = [
-    '/dashboard',
-    '/chat',
-    '/inventory',
-    '/import',
-    '/dead-stock',
-    '/suppliers',
-    '/analytics',
-    '/alerts',
-    '/test-supabase'
-  ];
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  // If user is not logged in and trying to access a protected route, redirect to login
+  if (!user && !isAuthRoute) {
+    // Allow access to the root path, it will be redirected below
+    if (pathname !== '/') {
+       return NextResponse.redirect(new URL('/login', request.url));
+    }
+  }
 
-  // If the user is not logged in and tries to access a protected route, redirect to login.
-  if (!user && isProtectedRoute) {
+  // Always redirect from the root path
+  if (pathname === '/') {
+    if (user) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
-  
-  // Special handling for the root path.
-  if (pathname === '/') {
-      if (user) {
-          return NextResponse.redirect(new URL('/dashboard', request.url));
-      }
-      return NextResponse.redirect(new URL('/login', request.url));
-  }
-
 
   return response
 }
