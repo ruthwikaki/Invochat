@@ -33,32 +33,31 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refreshing the session ensures the user is still valid and updates the cookie.
-  // This is required for Server Components and Server Actions.
   const { data: { user } } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
-  const authRoutes = ['/login', '/signup']
-  const isAuthRoute = authRoutes.includes(pathname)
 
-  // If the user is logged in and tries to access an auth route, redirect to the dashboard.
-  if (user && isAuthRoute) {
+  // Define routes that are accessible to everyone, even without authentication
+  const publicRoutes = ['/login', '/signup']
+  const isPublicRoute = publicRoutes.includes(pathname)
+  
+  // If the user is not logged in and is trying to access a protected route,
+  // redirect them to the login page.
+  if (!user && !isPublicRoute) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // If the user is logged in and tries to access a public route (like /login)
+  // or the root path, redirect them to the dashboard.
+  if (user && (isPublicRoute || pathname === '/')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
-
-  // If the user is not logged in and tries to access a protected route, redirect to login.
-  if (!user && !isAuthRoute) {
-    // Let the root path be handled by its own logic, but protect others.
-    if (pathname !== '/') {
-        return NextResponse.redirect(new URL('/login', request.url))
-    }
-  }
   
-  // Explicitly handle the root path to avoid redirect loops.
-  if (pathname === '/') {
-      return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url))
+  // If an unauthenticated user tries to access the root path, redirect to login.
+  if (!user && pathname === '/') {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
+  // Allow the request to proceed if none of the above conditions are met.
   return response
 }
 

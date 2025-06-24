@@ -2,9 +2,9 @@
 import { redirect } from 'next/navigation';
 
 export default function HomePage() {
-  // All redirection logic is handled in `src/middleware.ts`.
-  // If a user somehow lands here, the middleware will catch them
-  // and redirect to either /login or /dashboard.
-  // We can add a fallback redirect here just in case.
-  redirect('/login');
+  // All redirection logic is now handled in `src/middleware.ts`.
+  // This page should ideally not be reached, but as a fallback,
+  // we redirect to the dashboard. The middleware will handle
+  // unauthenticated users and redirect them to /login before this page renders.
+  redirect('/dashboard');
 }
