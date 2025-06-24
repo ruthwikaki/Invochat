@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,6 +17,20 @@ import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function AuthPageLoader() {
+    return (
+        <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+            <div className="w-full max-w-sm space-y-4">
+                <Skeleton className="h-10 w-3/4 mx-auto" />
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        </div>
+    );
+}
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -25,7 +39,15 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { signUpWithEmail } = useAuth();
+  const { user, loading: authLoading, signUpWithEmail } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect if user is already logged in
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +56,8 @@ export default function SignupPage() {
 
     try {
       await signUpWithEmail(email, password, companyName);
-      // The new auth context doesn't navigate on signup,
-      // so we show the success/email verification message.
+      // The new auth context may not navigate on signup if email verification is needed.
+      // We show a success screen instead.
       setIsSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
@@ -43,6 +65,10 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+  if (authLoading || (!isSubmitted && user)) {
+    return <AuthPageLoader />;
+  }
 
   if (isSubmitted) {
     return (
@@ -143,4 +169,3 @@ export default function SignupPage() {
     </div>
   );
 }
-

@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,35 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function AuthPageLoader() {
+    return (
+        <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+            <div className="w-full max-w-sm space-y-4">
+                <Skeleton className="h-10 w-3/4 mx-auto" />
+                <Skeleton className="h-40 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        </div>
+    );
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const { signInWithEmail } = useAuth();
+  const { user, loading: authLoading, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect if user is already logged in
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -25,13 +47,18 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Navigation is now handled within the auth context.
+      // Navigation is handled within the auth context.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred.');
       setLoading(false);
     }
   };
+
+  // Show loader while checking auth state or if user exists (and redirect is happening)
+  if (authLoading || user) {
+    return <AuthPageLoader />;
+  }
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
