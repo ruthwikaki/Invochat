@@ -13,23 +13,50 @@ import {
 } from '@/services/database';
 import type { User } from '@/types';
 
-const SUPABASE_CONFIGURED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-
 async function getCompanyIdForCurrentUser(): Promise<string> {
+    const SUPABASE_CONFIGURED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
     if (!SUPABASE_CONFIGURED) {
         throw new Error("Database is not configured. Please set Supabase environment variables.");
     }
+    
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
 
-    const companyId = user?.app_metadata?.company_id;
+    if (!user) {
+        throw new Error("User not found. Please log in again.");
+    }
+
+    // First, check the JWT claims (app_metadata) for the company ID.
+    let companyId = user.app_metadata?.company_id;
+
+    // If the company ID is not in the JWT, fall back to a direct database query.
+    // This makes the system more resilient to potential signup flow inconsistencies.
+    if (!companyId) {
+        console.warn(`Company ID not found in JWT for user ${user.id}. Falling back to database query.`);
+        
+        const { data: profile, error } = await supabase
+            .from('users')
+            .select('company_id')
+            .eq('id', user.id)
+            .single();
+
+        if (error) {
+            console.error(`Error fetching profile for user ${user.id}:`, error);
+            throw new Error("A database error occurred while trying to retrieve your company information.");
+        }
+        
+        companyId = profile?.company_id;
+    }
 
     if (!companyId) {
-        throw new Error("User is not associated with a company.");
+        throw new Error("Your user account is not associated with a company. Please contact support or try signing up again.");
     }
+    
     return companyId;
 }
+
 
 export async function getDashboardData() {
     const companyId = await getCompanyIdForCurrentUser();

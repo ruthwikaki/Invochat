@@ -17,8 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Download, Search, Package } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { Download, Search, Package, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { InventoryItem } from '@/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,23 +44,28 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [allInventory, setAllInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const data = await getInventoryData();
-        setAllInventory(data);
-      } catch (error) {
-        console.error("Failed to fetch inventory", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not load inventory data.' });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getInventoryData();
+      setAllInventory(data);
+    } catch (err: any) {
+      console.error("Failed to fetch inventory", err);
+      const errorMessage = err.message || 'Could not load inventory data.';
+      setError(errorMessage);
+      toast({ variant: 'destructive', title: 'Error', description: errorMessage });
+    } finally {
+      setLoading(false);
+    }
   }, [toast]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const filteredInventory = useMemo(() => {
     if (!search) return allInventory;
@@ -68,6 +73,7 @@ export default function InventoryPage() {
       item.name.toLowerCase().includes(search.toLowerCase())
     );
   }, [allInventory, search]);
+
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -91,6 +97,7 @@ export default function InventoryPage() {
               className="pl-10"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              disabled={loading || !!error}
             />
           </div>
           <Select disabled>
@@ -119,6 +126,17 @@ export default function InventoryPage() {
             <TableBody>
               {loading ? (
                 <InventorySkeleton />
+              ) : error ? (
+                <TableRow>
+                    <TableCell colSpan={6}>
+                        <div className="flex flex-col items-center justify-center gap-4 py-12 text-center text-destructive">
+                            <AlertTriangle className="h-16 w-16" />
+                            <h3 className="text-xl font-semibold">An Error Occurred</h3>
+                            <p className="max-w-md">{error}</p>
+                            <Button onClick={() => fetchData()} variant="destructive">Try Again</Button>
+                        </div>
+                    </TableCell>
+                </TableRow>
               ) : filteredInventory.length > 0 ? (
                 filteredInventory.map((item) => (
                   <TableRow key={item.id}>
