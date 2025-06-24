@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -37,10 +36,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (event, session) => {
         setUser(session?.user as User ?? null);
         setLoading(false);
-        // On any auth event, refresh the page.
-        // This re-runs the middleware with the latest auth state.
-        // The middleware is the single source of truth for redirects.
-        router.refresh();
       }
     );
 
@@ -63,8 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (credentials: SignInWithPasswordCredentials) => {
     if (!supabase) return throwUnconfiguredError();
-    // The onAuthStateChange listener will handle the redirect.
-    return supabase.auth.signInWithPassword(credentials) as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
+    
+    const result = await supabase.auth.signInWithPassword(credentials);
+    
+    // If successful, manually update the user state immediately
+    if (result.data.session && result.data.user) {
+      setUser(result.data.user as User);
+    }
+    
+    return result as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
@@ -86,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    // The onAuthStateChange listener will handle the redirect.
+    router.push('/login');
   };
 
   const value = {

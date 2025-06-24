@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -31,10 +30,8 @@ export default function LoginPage() {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
     } else {
-      // On success, we no longer push the route.
-      // We refresh the page to allow the middleware to handle the redirect.
-      // This is the key to fixing the race condition.
-      router.refresh();
+      // Instead of refresh, use push to navigate directly
+      router.push('/dashboard');
     }
   };
 
