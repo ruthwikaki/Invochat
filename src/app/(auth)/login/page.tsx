@@ -23,8 +23,8 @@ export default function LoginPage() {
     setError(null);
     
     const formData = new FormData(event.currentTarget);
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
+    const email = (formData.get('email') as string).trim();
+    const password = (formData.get('password') as string).trim();
 
     if (!email || !password) {
         setError('Email and password are required.');
@@ -45,7 +45,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
-      <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-slate-800">
+      <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
         <DatawiseLogo className="h-10 w-10" />
         <h1>ARVO</h1>
       </div>

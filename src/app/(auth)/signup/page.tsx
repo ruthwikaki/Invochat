@@ -50,7 +50,7 @@ export default function SignupPage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
-      <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-slate-800">
+      <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
         <DatawiseLogo className="h-10 w-10" />
         <h1>ARVO</h1>
       </div>
