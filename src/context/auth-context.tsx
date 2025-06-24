@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (error) throw error;
     
-    // router.refresh() is called by the onAuthStateChange listener
+    // Navigation is handled by the onAuthStateChange listener calling router.refresh()
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
       
-      // router.refresh() will be called by onAuthStateChange listener
+      // Navigation is handled by the onAuthStateChange listener
       
     } catch (error) {
       console.error('Signup error:', error);
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     
-    // router.refresh() is called by the onAuthStateChange listener
+    // Navigation is handled by the onAuthStateChange listener
   };
 
   const value = {

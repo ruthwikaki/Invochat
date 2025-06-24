@@ -3,7 +3,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
+  let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -18,18 +18,22 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          response.cookies.set({
-            name,
-            value,
-            ...options,
+          request.cookies.set({ ...options, name, value })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
           })
+          response.cookies.set({ ...options, name, value })
         },
         remove(name: string, options: CookieOptions) {
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
+          request.cookies.set({ ...options, name, value: '' })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
           })
+          response.cookies.set({ ...options, name, value: '' })
         },
       },
     }
