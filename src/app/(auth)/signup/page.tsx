@@ -34,6 +34,8 @@ export default function SignupPage() {
 
     try {
       await signUpWithEmail(email, password, companyName);
+      // The new auth context doesn't navigate on signup,
+      // so we show the success/email verification message.
       setIsSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
@@ -141,3 +143,4 @@ export default function SignupPage() {
     </div>
   );
 }
+

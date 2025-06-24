@@ -25,9 +25,7 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Use a full page navigation to ensure the middleware can
-      // correctly process the new session and redirect.
-      window.location.assign('/dashboard');
+      // Navigation is now handled within the auth context.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred.');

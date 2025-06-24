@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -56,33 +58,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const throwUnconfiguredError = () => {
-      throw new Error('Supabase is not configured. Please check your environment variables.');
+    throw new Error('Supabase is not configured. Please check your environment variables.');
   }
 
   const signInWithEmail = async (email: string, password: string) => {
     if (!supabase) return throwUnconfiguredError();
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
     if (error) throw error;
     if (!data.session) throw new Error('Authentication successful, but no session was returned. Please try again.');
+    
+    // Navigate to dashboard after successful login
+    router.push('/dashboard');
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
+    
+    // The user record creation and company creation logic is now expected to be handled
+    // by a database trigger or RPC function, as was the case in a previous version.
+    // The client-side multi-step process is brittle and exposes too much logic.
+    // We revert to calling the `handle_new_user` RPC function for robustness.
     const { data, error } = await supabase.auth.signUp({ email, password });
+
     if (error) throw error;
+
     if (data.user) {
+      // This RPC function should create the company and user records transactionally.
       const { error: rpcError } = await supabase.rpc('handle_new_user', { company_name_param: companyName });
-      if (rpcError) console.error('Error creating company:', rpcError);
+      if (rpcError) {
+        // Log the error, but don't block the user from seeing the success message.
+        // The user has been created in auth, but their company link failed.
+        // This is a situation that may need manual intervention or a more robust cleanup process.
+        console.error('Error in handle_new_user RPC:', rpcError);
+      }
     }
   };
 
   const signOut = async () => {
     if (!supabase) return throwUnconfiguredError();
+    
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    
+    // Navigate to login after signout
+    router.push('/login');
   };
 
   const value = {
