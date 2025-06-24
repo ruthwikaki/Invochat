@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -27,7 +26,6 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { signUpWithEmail } = useAuth();
-  const router = useRouter();
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +38,8 @@ export default function SignupPage() {
       if (signUpError) {
         setError(signUpError.message);
       } else if (data.session) {
-        // User is logged in immediately (e.g., email auth disabled by admin)
-        router.push('/dashboard');
+        // User is logged in immediately. The onAuthStateChange listener
+        // in AuthProvider will handle the redirect.
       } else if (data.user) {
         // User exists, but no session -> email verification needed
         setIsSubmitted(true);

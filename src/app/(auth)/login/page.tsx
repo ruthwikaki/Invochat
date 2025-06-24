@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,7 +17,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signInWithEmail } = useAuth();
-  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,10 +27,9 @@ export default function LoginPage() {
       const { error: signInError } = await signInWithEmail(email, password);
       if (signInError) {
         setError(signInError.message || 'An unexpected error occurred.');
-      } else {
-        // On successful sign-in, explicitly navigate to the dashboard.
-        router.push('/dashboard');
       }
+      // The onAuthStateChange listener in AuthProvider will handle the redirect
+      // by calling router.refresh(), which then triggers the middleware.
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
     } finally {
