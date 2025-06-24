@@ -45,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
-    // First, sign up the user
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -55,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
 
-    // If signup successful and user created, call handle_new_user
     if (data.user) {
       const { error: rpcError } = await supabase.rpc('handle_new_user', {
         company_name_param: companyName
