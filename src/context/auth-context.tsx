@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -7,6 +8,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isConfigured: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, companyName: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -15,11 +17,18 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [supabase] = useState<SupabaseClient>(() => createBrowserSupabaseClient());
+  
+  const isConfigured = !!supabase;
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
     const initAuth = async () => {
       try {
@@ -37,8 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        // Just update the user state. Routing is handled by middleware
-        // and router.refresh() calls in the components.
         setUser(session?.user ?? null);
       }
     );
@@ -48,59 +55,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase]);
 
+  const throwUnconfiguredError = () => {
+      throw new Error('Supabase is not configured. Please check your environment variables.');
+  }
+
   const signInWithEmail = async (email: string, password: string) => {
+    if (!supabase) return throwUnconfiguredError();
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    
-    if (error) {
-      throw error;
-    }
-
-    if (!data.session) {
-      throw new Error('Authentication successful, but no session was returned. Please try again.');
-    }
+    if (error) throw error;
+    if (!data.session) throw new Error('Authentication successful, but no session was returned. Please try again.');
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
-    // First, sign up the user
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    
-    if (error) {
-      throw error;
-    }
-
-    // If signup successful and user created, call handle_new_user
+    if (!supabase) return throwUnconfiguredError();
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
     if (data.user) {
-      try {
-        const { error: rpcError } = await supabase.rpc('handle_new_user', {
-          company_name_param: companyName
-        });
-        
-        if (rpcError) {
-          console.error('Error creating company:', rpcError);
-          // Don't throw here - user is created, just company setup failed
-        }
-      } catch (err) {
-        console.error('Error calling handle_new_user:', err);
-      }
+      const { error: rpcError } = await supabase.rpc('handle_new_user', { company_name_param: companyName });
+      if (rpcError) console.error('Error creating company:', rpcError);
     }
   };
 
   const signOut = async () => {
+    if (!supabase) return throwUnconfiguredError();
     const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
   };
 
   const value = {
     user,
     loading,
+    isConfigured,
     signInWithEmail,
     signUpWithEmail,
     signOut,
