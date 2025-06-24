@@ -22,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -31,17 +32,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user as User ?? null);
+      setLoading(false);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user as User ?? null);
-        setLoading(false);
+        
+        // Handle sign in event
+        if (event === 'SIGNED_IN' && session) {
+          router.push('/dashboard');
+        }
+        
+        // Handle sign out event
+        if (event === 'SIGNED_OUT') {
+          router.push('/login');
+        }
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const throwUnconfiguredError = () => {
     const error = new Error('Supabase is not configured. Please check your environment variables.') as AuthError;

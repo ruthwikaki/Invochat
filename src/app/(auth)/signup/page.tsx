@@ -38,8 +38,8 @@ export default function SignupPage() {
       if (signUpError) {
         setError(signUpError.message);
       } else if (data.session) {
-        // User is logged in immediately. The onAuthStateChange listener
-        // in AuthProvider will handle the redirect.
+        // User is logged in immediately, redirect to dashboard
+        window.location.href = '/dashboard';
       } else if (data.user) {
         // User exists, but no session -> email verification needed
         setIsSubmitted(true);
