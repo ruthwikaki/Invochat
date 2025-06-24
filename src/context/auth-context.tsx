@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (supabaseUrl && supabaseAnonKey) {
-        setSupabase(createBrowserSupabaseClient());
+        setSupabase(createBrowserSupabaseClient(supabaseUrl, supabaseAnonKey));
     } else {
         console.error("Supabase environment variables are missing!");
         setLoading(false);
