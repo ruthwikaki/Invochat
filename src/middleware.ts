@@ -3,8 +3,6 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // This is the crucial part: we are cloning the request headers and creating a response object
-  // that we can safely modify and return.
   const response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -16,7 +14,6 @@ export async function middleware(request: NextRequest) {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Supabase credentials not found. Middleware is skipping authentication.');
-    // Still return the created response
     return response;
   }
 
@@ -25,15 +22,12 @@ export async function middleware(request: NextRequest) {
     supabaseAnonKey,
     {
       cookies: {
-        // The `get` function is straightforward.
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        // The `set` function updates the cookies on the `response` object.
         set(name: string, value: string, options: CookieOptions) {
           response.cookies.set({ name, value, ...options })
         },
-        // The `remove` function deletes the cookie from the `response` object.
         remove(name: string, options: CookieOptions) {
           response.cookies.set({ name, value: '', ...options })
         },
@@ -41,7 +35,6 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // This will refresh the session if it's expired and update the cookie in the response.
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
@@ -64,7 +57,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url));
   }
 
-  // Return the response object, which now has the updated session cookie if it was refreshed.
   return response
 }
 
@@ -75,8 +67,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
+     * - api (API routes)
      */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api).*)',
   ],
 }
