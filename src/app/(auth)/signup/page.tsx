@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -56,10 +55,12 @@ export default function SignupPage() {
 
     try {
       const { isSuccess } = await signUpWithEmail(email, password, companyName);
-      // If signup didn't result in an immediate session (e.g. email confirmation needed),
-      // show the success message. Otherwise, navigation is handled in the auth context.
-      if (!isSuccess) {
-          setIsSubmitted(true);
+      if (isSuccess) {
+        // If signup resulted in an immediate session, navigate to the dashboard.
+        router.push('/dashboard');
+      } else {
+        // Otherwise, show the "check email" message.
+        setIsSubmitted(true);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.');

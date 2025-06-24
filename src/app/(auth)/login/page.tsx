@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -34,7 +33,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // If the user is already logged in, redirect them away from the login page.
+    // If the user is already logged in when they visit the page, redirect them.
     if (!authLoading && user) {
       router.push('/dashboard');
     }
@@ -47,10 +46,13 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Navigation is now handled within the signInWithEmail function.
+      // On success, explicitly navigate to the dashboard.
+      router.push('/dashboard');
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
+    } finally {
+      // Ensure the loading state is always reset.
       setLoading(false);
     }
   };

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -47,15 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUser(session?.user ?? null);
-        // Do not navigate here, as it can cause race conditions.
-        // Let the calling function handle navigation.
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const throwUnconfiguredError = () => {
     throw new Error('Supabase is not configured. Please check your environment variables.');
@@ -70,9 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     if (error) throw error;
-    
-    // On success, navigate to dashboard
-    router.push('/dashboard');
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string): Promise<{isSuccess: boolean}> => {
@@ -108,9 +102,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
 
-    // If signup is successful and returns a user session (meaning email confirmation is off), navigate.
+    // If signup is successful and returns a user session (meaning email confirmation is off),
+    // signal success to the caller so it can navigate.
     if (data.session) {
-        router.push('/dashboard');
         return { isSuccess: true };
     }
 
