@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/auth-context';
-import { useRouter } from 'next/navigation';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -17,7 +16,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { signInWithEmail } = useAuth();
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -27,9 +25,7 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // The auth context now handles redirects on state change.
-      // We can refresh to ensure middleware picks up the new state for server components.
-      router.refresh();
+      // The auth context now handles redirects on auth state change.
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
       if (err.message.includes('Invalid login credentials')) {
@@ -37,7 +33,8 @@ export default function LoginPage() {
       } else {
         setError('An unexpected error occurred. Please try again.');
       }
-      setLoading(false);
+    } finally {
+        setLoading(false);
     }
   };
 
