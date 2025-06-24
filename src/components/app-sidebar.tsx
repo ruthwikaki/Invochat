@@ -1,4 +1,3 @@
-
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -18,7 +17,7 @@ import {
   Upload,
   User,
 } from 'lucide-react';
-import { DatawiseLogo } from './datawise-logo';
+import { InvoChatLogo } from './invochat-logo';
 import {
   Sidebar,
   SidebarContent,
@@ -42,7 +41,7 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/login');
+    // The auth context will handle redirecting to /login
   };
 
   const menuItems = [
@@ -60,7 +59,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <DatawiseLogo />
+          <InvoChatLogo />
           <span className="text-lg font-semibold">ARVO</span>
         </div>
       </SidebarHeader>

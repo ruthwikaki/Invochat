@@ -14,9 +14,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signUpWithEmailAndPassword } from '@/app/auth-actions';
-import { useToast } from '@/hooks/use-toast';
-import { DatawiseLogo } from '@/components/datawise-logo';
+import { useAuth } from '@/context/auth-context';
+import { InvoChatLogo } from '@/components/invochat-logo';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -24,30 +23,17 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const { signUpWithEmail } = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const formData = new FormData();
-    formData.append('email', email);
-    formData.append('password', password);
-    formData.append('companyName', companyName);
-
     try {
-      const result = await signUpWithEmailAndPassword(formData);
-      if (result.success) {
-        toast({
-          title: "Account Created",
-          description: "Your account was created successfully. Please sign in to continue.",
-        });
-        router.push('/login');
-      } else {
-        setError(result.error || 'Sign up failed');
-      }
+      await signUpWithEmail(email, password, companyName);
+      // Auth context will handle the redirect on successful sign up/in.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
     } finally {
@@ -58,14 +44,14 @@ export default function SignupPage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <DatawiseLogo className="h-10 w-10" />
+        <InvoChatLogo className="h-10 w-10" />
         <h1>ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">Create Account</CardTitle>
           <CardDescription>
-            Enter your information to create an account
+            Enter your information to create your ARVO account
           </CardDescription>
         </CardHeader>
         <CardContent>

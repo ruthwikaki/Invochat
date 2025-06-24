@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
-import { DatawiseLogo } from '@/components/datawise-logo';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -26,7 +26,8 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // The middleware will handle the redirect after state change.
+      // The auth context now handles redirects on state change.
+      // We can refresh to ensure middleware picks up the new state for server components.
       router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
@@ -42,7 +43,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <DatawiseLogo className="h-10 w-10" />
+        <InvoChatLogo className="h-10 w-10" />
         <h1>ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
