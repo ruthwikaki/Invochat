@@ -33,23 +33,23 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Instead of pushing, we refresh the page.
-      // The middleware will see the authenticated user
-      // on an auth route and redirect them to the dashboard.
-      // This is more robust than a client-side redirect and avoids race conditions.
+      // This is the correct way to handle redirects after login with middleware.
+      // It avoids race conditions by re-triggering the middleware, which will
+      // then see the authenticated user and perform the redirect.
       router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
+      // Provide a more user-friendly error message
       if (err.message.includes('Invalid login credentials')) {
         setError('Incorrect email or password. Please try again.');
       } else {
-        setError(err.message || 'An unexpected error occurred. Please try again.');
+        setError('An unexpected error occurred. Please try again.');
       }
-    } finally {
-      // This was the cause of the button getting stuck.
-      // We ensure loading is always set to false after the sign-in attempt.
+      // This is crucial to re-enable the form if login fails.
       setLoading(false);
-    }
+    } 
+    // We intentionally do NOT set loading to false in the success case,
+    // because the page will be navigating away.
   };
 
   return (

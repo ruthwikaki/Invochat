@@ -1,19 +1,21 @@
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
+  // This is the crucial part: we are cloning the request headers and creating a response object
+  // that we can safely modify and return.
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
-  })
+  });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('Supabase credentials not found. Middleware is skipping authentication.');
+    // Still return the created response
     return response;
   }
 
@@ -22,83 +24,46 @@ export async function middleware(request: NextRequest) {
     supabaseAnonKey,
     {
       cookies: {
+        // The `get` function is straightforward.
         get(name: string) {
           return request.cookies.get(name)?.value
         },
+        // The `set` function updates the cookies on the `response` object.
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is set, update the request and response cookies.
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
+          response.cookies.set({ name, value, ...options })
         },
+        // The `remove` function deletes the cookie from the `response` object.
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the request and response cookies.
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+          response.cookies.set({ name, value: '', ...options })
         },
       },
     }
-  )
+  );
 
-  // This will refresh the session if it's expired.
-  // It's important that this is called *before* the redirect logic.
-  const { data: { user } } = await supabase.auth.getUser()
+  // This will refresh the session if it's expired and update the cookie in the response.
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl
+  const { pathname } = request.nextUrl;
 
-  // Define routes that require authentication
   const protectedRoutes = ['/dashboard', '/chat', '/inventory', '/import', '/dead-stock', '/suppliers', '/analytics', '/alerts'];
   const isProtectedRoute = protectedRoutes.some(p => pathname.startsWith(p));
 
-  // Define auth routes
   const authRoutes = ['/login', '/signup'];
   const isAuthRoute = authRoutes.some(p => pathname.startsWith(p));
 
   if (!user && isProtectedRoute) {
-    // If no user, and it's a protected route, redirect to login
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   if (user && isAuthRoute) {
-    // If user is logged in and tries to access login/signup, redirect to dashboard
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
   if (pathname === '/') {
-    // Redirect root to either dashboard or login
-    if (user) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url));
   }
 
-  // If we've gotten this far, the user is allowed to access the route.
-  // We return the response object, which may have had its cookies updated by `getUser`.
+  // Return the response object, which now has the updated session cookie if it was refreshed.
   return response
 }
 
