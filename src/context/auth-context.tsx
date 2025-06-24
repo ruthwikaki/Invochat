@@ -4,6 +4,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -43,15 +45,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         setUser(session?.user ?? null);
+        // On sign-in or sign-out, refresh the page.
+        // This will cause Next.js to re-run the middleware with the new
+        // session cookie, which correctly handles redirects.
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+           router.refresh();
+        }
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const throwUnconfiguredError = () => {
     throw new Error('Supabase is not configured. Please check your environment variables.');
@@ -102,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // If signup is successful and returns a user session (meaning email confirmation is off),
-    // signal success to the caller so it can navigate.
+    // signal success to the caller. The onAuthStateChange listener will handle the refresh.
     if (data.session) {
         return { isSuccess: true };
     }

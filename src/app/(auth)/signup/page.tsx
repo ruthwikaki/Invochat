@@ -17,7 +17,6 @@ import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function AuthPageLoader() {
@@ -39,8 +38,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { loading: authLoading, signUpWithEmail } = useAuth();
-  const router = useRouter();
+  const { authLoading, signUpWithEmail } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +48,8 @@ export default function SignupPage() {
     try {
       const { isSuccess } = await signUpWithEmail(email, password, companyName);
       if (isSuccess) {
-        // If signup resulted in an immediate session, navigate to the dashboard.
-        router.push('/dashboard');
+        // If signup created a session, the onAuthStateChange listener will
+        // trigger a page refresh, and the middleware will redirect to /dashboard.
       } else {
         // Otherwise, show the "check email" message.
         setIsSubmitted(true);

@@ -10,7 +10,6 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function AuthPageLoader() {
@@ -29,9 +28,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const { user, loading: authLoading, signInWithEmail } = useAuth();
+  const { authLoading, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,14 +38,13 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // On success, explicitly navigate to the dashboard.
-      // The middleware will protect the route.
-      router.push('/dashboard');
+      // Navigation is now handled by the onAuthStateChange listener
+      // in the AuthProvider, which will trigger a page refresh.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
     } finally {
-      // Ensure the loading state is always reset.
+      // Always reset loading state, especially on error.
       setLoading(false);
     }
   };
