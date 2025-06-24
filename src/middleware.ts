@@ -1,3 +1,4 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -38,15 +39,13 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session to ensure we have the latest auth state
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  // This is essential to refresh the session cookie if it's expired.
+  const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  const authRoutes = ['/login', '/signup']
-  const isAuthRoute = authRoutes.includes(pathname)
+  const isAuthRoute = ['/login', '/signup'].includes(pathname)
 
-  // Redirect authenticated users from auth routes to the dashboard
+  // If the user is logged in and tries to access an auth route, redirect to dashboard.
   if (user && isAuthRoute) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
@@ -64,12 +63,12 @@ export async function middleware(request: NextRequest) {
   ];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
-  // Redirect unauthenticated users from protected routes to the login page
+  // If the user is not logged in and tries to access a protected route, redirect to login.
   if (!user && isProtectedRoute) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
   
-  // Handle the root path ('/') explicitly
+  // Special handling for the root path.
   if (pathname === '/') {
       if (user) {
           return NextResponse.redirect(new URL('/dashboard', request.url));
