@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -48,13 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUser(session?.user ?? null);
+        // On sign-in or sign-out, refresh the page to apply middleware redirects
+        router.refresh();
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const throwUnconfiguredError = () => {
     throw new Error('Supabase is not configured. Please check your environment variables.');
@@ -63,16 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithEmail = async (email: string, password: string) => {
     if (!supabase) return throwUnconfiguredError();
     
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
     if (error) throw error;
-    if (!data.session) throw new Error('Authentication successful, but no session was returned. Please try again.');
     
-    // Navigate to dashboard after successful login
-    router.push('/dashboard');
+    // router.refresh() is called by the onAuthStateChange listener
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
@@ -92,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
   
       // Create auth user with company_id in metadata
-      const { data, error } = await supabase.auth.signUp({ 
+      const { error } = await supabase.auth.signUp({ 
         email, 
         password,
         options: {
@@ -109,8 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
       
-      // The existing trigger will handle creating users and profiles
-      router.push('/dashboard');
+      // router.refresh() will be called by onAuthStateChange listener
       
     } catch (error) {
       console.error('Signup error:', error);
@@ -124,8 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     
-    // Navigate to login after signout
-    router.push('/login');
+    // router.refresh() is called by the onAuthStateChange listener
   };
 
   const value = {
