@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,17 +29,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const { user, loading: authLoading, signInWithEmail } = useAuth();
+  const { loading: authLoading, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
-
-  useEffect(() => {
-    // Redirect if user is already logged in
-    if (!authLoading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, authLoading, router]);
-
+  
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
@@ -47,7 +39,7 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Navigation is handled within the auth context.
+      // Navigation is handled within the auth context or by the middleware.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred.');
@@ -55,8 +47,7 @@ export default function LoginPage() {
     }
   };
 
-  // Show loader while checking auth state or if user exists (and redirect is happening)
-  if (authLoading || user) {
+  if (authLoading) {
     return <AuthPageLoader />;
   }
 
