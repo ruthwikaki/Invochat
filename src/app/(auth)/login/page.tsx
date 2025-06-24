@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -34,9 +33,11 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // On successful sign-in, redirect to the dashboard.
-      // The middleware will handle the session check.
-      router.push('/dashboard');
+      // Instead of pushing, we refresh the page.
+      // The middleware will see the authenticated user
+      // on an auth route and redirect them to the dashboard.
+      // This is more robust than a client-side redirect and avoids race conditions.
+      router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
       if (err.message.includes('Invalid login credentials')) {
@@ -44,6 +45,9 @@ export default function LoginPage() {
       } else {
         setError(err.message || 'An unexpected error occurred. Please try again.');
       }
+    } finally {
+      // This was the cause of the button getting stuck.
+      // We ensure loading is always set to false after the sign-in attempt.
       setLoading(false);
     }
   };
