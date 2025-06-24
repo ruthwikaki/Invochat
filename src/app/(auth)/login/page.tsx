@@ -9,17 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { DatawiseLogo } from '@/components/datawise-logo';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import Link from 'next/link';
-
-const loginSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(1, { message: 'Password is required' }),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -27,22 +17,26 @@ export default function LoginPage() {
   const { signInWithEmail } = useAuth();
   const router = useRouter();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-  });
-
-  const handleSignIn = async (data: LoginFormData) => {
+  const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setLoading(true);
     setError(null);
+    
+    const formData = new FormData(event.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    if (!email || !password) {
+        setError('Email and password are required.');
+        setLoading(false);
+        return;
+    }
+
     try {
-      await signInWithEmail(data.email, data.password);
+      await signInWithEmail(email, password);
       router.push('/dashboard');
     } catch (err: any) {
-      console.error(err);
+      console.error('Client-side sign-in error:', err);
       setError(err.message || 'An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -61,7 +55,7 @@ export default function LoginPage() {
           <CardDescription>Sign in to access your inventory assistant.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(handleSignIn)} className="space-y-4">
+          <form onSubmit={handleSignIn} className="space-y-4">
             {error && (
               <p className="rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
                 {error}
@@ -71,22 +65,22 @@ export default function LoginPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="m@example.com"
-                {...register('email')}
+                required
                 disabled={loading}
               />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-1">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
-                {...register('password')}
+                required
                 disabled={loading}
               />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
             </div>
             <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90">
               {loading ? 'Signing in...' : 'Sign In'}
