@@ -1,21 +1,9 @@
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
-import { cookies } from 'next/headers';
 
-export default async function HomePage() {
-  const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
-
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (user) {
-    redirect('/dashboard');
-  } else {
-    redirect('/login');
-  }
-
-  // This component will never render anything as it always redirects.
-  // Returning null is sufficient.
-  return null;
+export default function HomePage() {
+  // All redirection logic is now handled in `src/middleware.ts`.
+  // If a user somehow lands here, we'll redirect them to the dashboard,
+  // and the middleware will catch unauthenticated users and send them to login.
+  redirect('/dashboard');
 }

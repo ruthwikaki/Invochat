@@ -64,7 +64,32 @@ export async function middleware(request: NextRequest) {
   )
 
   // Refresh session if expired - required for Server Components
-  await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
+  const { pathname } = request.nextUrl
+
+  // Define routes that require authentication
+  const protectedRoutes = ['/dashboard', '/chat', '/inventory', '/import', '/dead-stock', '/suppliers', '/analytics', '/alerts'];
+  const isProtectedRoute = protectedRoutes.some(p => pathname.startsWith(p));
+
+  // Define auth routes
+  const authRoutes = ['/login', '/signup'];
+  const isAuthRoute = authRoutes.some(p => pathname.startsWith(p));
+
+  if (!user && isProtectedRoute) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  if (user && isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+  
+  if (pathname === '/') {
+    if (user) {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
 
   return response
 }
