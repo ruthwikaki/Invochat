@@ -8,24 +8,19 @@ import { BarChart as BarChartIcon } from "lucide-react";
 
 
 export default async function AnalyticsPage() {
-    let charts: ChartConfig[] = [];
-    try {
-        const chartQueries = [
-            "Create a bar chart showing my inventory value by category",
-            "Visualize my sales velocity by category as a pie chart"
-        ];
-        
-        const chartPromises = chartQueries.map(query => handleUserMessage({ message: query }));
-        const results = await Promise.all(chartPromises);
+    const chartQueries = [
+        "Create a bar chart showing my inventory value by category",
+        "Visualize my sales velocity by category as a pie chart"
+    ];
+    
+    // This now awaits all promises. If any of the AI actions fail,
+    // this will throw an error and be caught by the nearest error.tsx boundary.
+    const chartPromises = chartQueries.map(query => handleUserMessage({ message: query }));
+    const results = await Promise.all(chartPromises);
 
-        charts = results
-            .filter(c => c.component === 'DynamicChart' && c.props)
-            .map(c => c.props as ChartConfig);
-
-    } catch (error) {
-        console.error("Failed to generate charts:", error);
-        // Silently fail and render the "No Data" card.
-    }
+    const charts: ChartConfig[] = results
+        .filter(c => c.component === 'DynamicChart' && c.props)
+        .map(c => c.props as ChartConfig);
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

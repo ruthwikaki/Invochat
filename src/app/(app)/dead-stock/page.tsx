@@ -14,14 +14,7 @@ import { getDeadStockData } from '@/app/data-actions';
 import { format, parseISO } from 'date-fns';
 
 export default async function DeadStockPage() {
-  let deadStockData = { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
-  
-  try {
-      deadStockData = await getDeadStockData();
-  } catch (error) {
-      console.error("Failed to fetch dead stock data:", error);
-  }
-
+  const deadStockData = await getDeadStockData();
   const { deadStock, totalValue, totalUnits, averageAge } = deadStockData;
 
   return (

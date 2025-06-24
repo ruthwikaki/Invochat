@@ -39,18 +39,7 @@ function MetricCard({ title, value, icon: Icon, variant = 'default', label }: { 
 }
 
 export default async function DashboardPage() {
-    let data = {
-        inventoryValue: 0,
-        deadStockValue: 0,
-        onTimeDeliveryRate: 0,
-        predictiveAlert: null,
-    };
-
-    try {
-        data = await getDashboardData();
-    } catch (error) {
-        console.error("Failed to fetch dashboard metrics:", error);
-    }
+    const data = await getDashboardData();
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
