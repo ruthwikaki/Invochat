@@ -31,8 +31,8 @@ export default function LoginPage() {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
     } else {
-      // On success, refresh the page. The middleware will handle the redirect.
-      router.refresh();
+      // Instead of refresh, use push to navigate directly
+      router.push('/dashboard');
     }
   };
 

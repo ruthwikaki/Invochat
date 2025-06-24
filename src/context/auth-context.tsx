@@ -2,8 +2,9 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User, SupabaseClient, AuthError, Session, SignInWithPasswordCredentials } from '@supabase/supabase-js';
+import type { SupabaseClient, AuthError, Session, SignInWithPasswordCredentials } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import type { User } from '@/types';
 
 interface AuthContextType {
   user: User | null;
@@ -50,8 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (credentials: SignInWithPasswordCredentials) => {
     if (!supabase) return throwUnconfiguredError();
-    // Supabase types this as having a non-null user/session on success, which we'll rely on.
-    return supabase.auth.signInWithPassword(credentials) as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
+    
+    const result = await supabase.auth.signInWithPassword(credentials);
+    
+    // If successful, manually update the user state immediately
+    if (result.data.session && result.data.user) {
+      setUser(result.data.user as User);
+    }
+    
+    return result as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
@@ -73,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    // The onAuthStateChange listener will handle setting the user to null.
+    setUser(null);
   };
 
   const value = {

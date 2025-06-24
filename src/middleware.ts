@@ -39,7 +39,9 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Refresh session to ensure we have the latest auth state
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
 
   const { pathname } = request.nextUrl
   const authRoutes = ['/login', '/signup']
