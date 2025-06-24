@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,8 +29,16 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const { loading: authLoading, signInWithEmail } = useAuth();
+  const { user, loading: authLoading, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    // If the user is already logged in, redirect them away from the login page.
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
   
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,15 +47,16 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Navigation is handled within the auth context or by the middleware.
+      // Navigation is now handled within the signInWithEmail function.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
-      setError(err.message || 'An unexpected error occurred.');
+      setError(err.message || 'An unexpected error occurred. Please check your credentials.');
       setLoading(false);
     }
   };
 
-  if (authLoading) {
+  // While checking auth state or if user is found, show loader to prevent flicker.
+  if (authLoading || user) {
     return <AuthPageLoader />;
   }
 

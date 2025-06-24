@@ -55,18 +55,21 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      await signUpWithEmail(email, password, companyName);
-      // The new auth context may not navigate on signup if email verification is needed.
-      // We show a success screen instead.
-      setIsSubmitted(true);
+      const { isSuccess } = await signUpWithEmail(email, password, companyName);
+      // If signup didn't result in an immediate session (e.g. email confirmation needed),
+      // show the success message. Otherwise, navigation is handled in the auth context.
+      if (!isSuccess) {
+          setIsSubmitted(true);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign up failed');
+      setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (authLoading || (!isSubmitted && user)) {
+  // While checking auth state or if user is found, show loader to prevent flicker.
+  if (authLoading || user) {
     return <AuthPageLoader />;
   }
 

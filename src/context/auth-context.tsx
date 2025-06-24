@@ -11,7 +11,7 @@ interface AuthContextType {
   loading: boolean;
   isConfigured: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{isSuccess: boolean}>;
   signOut: () => Promise<void>;
 }
 
@@ -31,7 +31,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Get initial session
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -45,12 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUser(session?.user ?? null);
-        // On sign-in or sign-out, refresh the page to apply middleware redirects
-        router.refresh();
+        // Do not navigate here, as it can cause race conditions.
+        // Let the calling function handle navigation.
       }
     );
 
@@ -73,49 +71,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (error) throw error;
     
-    // Navigation is handled by the onAuthStateChange listener calling router.refresh()
+    // On success, navigate to dashboard
+    router.push('/dashboard');
   };
 
-  const signUpWithEmail = async (email: string, password: string, companyName: string) => {
+  const signUpWithEmail = async (email: string, password: string, companyName: string): Promise<{isSuccess: boolean}> => {
     if (!supabase) return throwUnconfiguredError();
     
-    try {
-      // Create company first
-      const { data: company, error: companyError } = await supabase
-        .from('companies')
-        .insert({ name: companyName })
-        .select()
-        .single();
-  
-      if (companyError) {
-        console.error('Company creation error:', companyError);
-        throw new Error('Failed to create company');
-      }
-  
-      // Create auth user with company_id in metadata
-      const { error } = await supabase.auth.signUp({ 
-        email, 
-        password,
-        options: {
-          data: {
-            company_id: company.id,
-            full_name: email.split('@')[0]
-          }
+    // Create company first
+    const { data: company, error: companyError } = await supabase
+      .from('companies')
+      .insert({ name: companyName })
+      .select()
+      .single();
+
+    if (companyError) {
+      console.error('Company creation error:', companyError);
+      throw new Error('Failed to create company. The name might already be taken.');
+    }
+
+    // Create auth user with company_id in metadata
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: {
+          company_id: company.id,
+          full_name: email.split('@')[0]
         }
-      });
-      
-      if (error) {
-        // Clean up company if auth fails
-        await supabase.from('companies').delete().eq('id', company.id);
-        throw error;
       }
-      
-      // Navigation is handled by the onAuthStateChange listener
-      
-    } catch (error) {
-      console.error('Signup error:', error);
+    });
+    
+    if (error) {
+      // Clean up company if auth fails
+      await supabase.from('companies').delete().eq('id', company.id);
       throw error;
     }
+
+    // If signup is successful and returns a user session (meaning email confirmation is off), navigate.
+    if (data.session) {
+        router.push('/dashboard');
+        return { isSuccess: true };
+    }
+
+    // Otherwise, tell the UI to show the "check email" message.
+    return { isSuccess: false };
   };
 
   const signOut = async () => {
@@ -124,7 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     
-    // Navigation is handled by the onAuthStateChange listener
+    // On success, navigate to login
+    router.push('/login');
   };
 
   const value = {
