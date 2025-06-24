@@ -34,7 +34,10 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      router.push('/dashboard');
+      // Instead of pushing, we refresh. The middleware will now see the
+      // authenticated user and handle the redirect to the dashboard,
+      // which is the robust, recommended pattern.
+      router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
       if (err.message.includes('Invalid login credentials')) {
