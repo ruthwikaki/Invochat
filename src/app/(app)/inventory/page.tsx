@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Download, Search } from 'lucide-react';
+import { Download, Search, Package } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import type { InventoryItem } from '@/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getInventoryData } from '@/app/data-actions';
 import { format, parseISO } from 'date-fns';
+import Link from 'next/link';
 
 function InventorySkeleton() {
   return Array.from({ length: 8 }).map((_, i) => (
@@ -137,8 +138,15 @@ export default function InventoryPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
-                    No items found.
+                  <TableCell colSpan={6}>
+                    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
+                        <Package className="h-16 w-16 text-muted-foreground" />
+                        <h3 className="text-xl font-semibold">Your Inventory is Empty</h3>
+                        <p className="text-muted-foreground">You can start by importing your product list.</p>
+                        <Button asChild>
+                            <Link href="/import">Import Data</Link>
+                        </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
