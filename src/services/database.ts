@@ -3,8 +3,10 @@
 
 /**
  * @fileoverview
- * This file provides functions to query your Supabase database.
- * It connects to the actual database tables to fetch real-time data.
+ * This file contains server-side functions for querying the Supabase database.
+ * It uses the Supabase service role key for direct data access, bypassing RLS
+ * when necessary for backend operations. All functions are scoped by companyId
+ * to ensure data isolation between tenants.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -16,7 +18,8 @@ function getSupabase() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-        throw new Error("Supabase credentials are not configured.");
+        console.error("Supabase service role credentials are not configured on the server.");
+        throw new Error("Database service is not available. Please check server configuration.");
     }
   
     return createClient(supabaseUrl, supabaseServiceKey, {
@@ -338,30 +341,5 @@ export async function getDataForChart(query: string, companyId: string): Promise
     } catch (error) {
         console.error(`Error in getDataForChart for query "${query}":`, error);
         return [];
-    }
-}
-
-
-export async function getCompanyIdByName(companyName: string): Promise<string | null> {
-    const supabase = getSupabase();
-    try {
-        // This assumes a 'companies' table exists, which is a standard pattern for this setup.
-        const { data, error } = await supabase
-            .from('companies')
-            .select('id')
-            .eq('name', companyName)
-            .single();
-
-        // PGRST116 means "exact one row not found", which is not an error in this case.
-        if (error && error.code !== 'PGRST116') {
-            console.error(`Error fetching company ID for name "${companyName}":`, error);
-            return null;
-        }
-
-        return data?.id || null;
-
-    } catch (e) {
-        console.error('Exception in getCompanyIdByName:', e);
-        return null;
     }
 }
