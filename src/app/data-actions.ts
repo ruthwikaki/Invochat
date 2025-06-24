@@ -21,18 +21,28 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         throw new Error("User not found. Please log in again.");
     }
 
-    // The company_id is stored in the user's app_metadata, which is set by a trigger in Supabase.
-    const companyId = user.app_metadata?.company_id;
+    // First, try to get company_id from the users table (most reliable with RLS)
+    const { data: userRecord, error } = await supabase
+        .from('users')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
 
-    if (!companyId || typeof companyId !== 'string') {
-        // This is a critical error state. It means the user exists but is not properly associated with a company.
-        // This can happen in a race condition right after signup. The trigger might not have completed.
-        // We now have a fallback in the UI/error boundary to handle this.
-        console.error(`User ${user.id} is missing a valid company_id in app_metadata. This is usually set by a database trigger.`);
-        throw new Error("Your user account is not yet associated with a company. This can take a moment after signup. Please try refreshing the page.");
+    if (!error && userRecord?.company_id) {
+        return userRecord.company_id;
     }
+
+    // Fallback: Check app_metadata (might not work with RLS)
+    const companyId = user.app_metadata?.company_id;
+    if (companyId && typeof companyId === 'string') {
+        return companyId;
+    }
+
+    // Log detailed error for debugging
+    console.error(`User ${user.id} has no company_id. User record:`, userRecord, 'Error:', error);
     
-    return companyId;
+    // Better error message
+    throw new Error("Your account is not associated with a company. This usually happens right after signup. Please try refreshing the page or contact support if the issue persists.");
 }
 
 
@@ -85,7 +95,6 @@ export async function testSupabaseConnection(): Promise<{
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
-            // This can happen if the cookie is invalid or expired. It's not a config error.
             if (error.name === 'AuthSessionMissingError') {
                  return {
                     success: true,
@@ -125,32 +134,22 @@ export async function testDatabaseQuery(): Promise<{
   count: number | null;
   error: string | null;
 }> {
-  const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  if (!isConfigured) {
-    return { success: false, count: null, error: 'Supabase credentials are not configured.' };
-  }
-
   try {
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
-    
-    // Check if user is logged in first
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        return { success: false, count: null, error: "No authenticated user session found. Please log in." };
-    }
-    
-    // The RLS policies will handle scoping this to the user's company
+
+    // RLS will automatically scope the query to the user's company
     const { error, count } = await supabase
       .from('inventory')
       .select('*', { count: 'exact', head: true });
 
     if (error) {
+      // If RLS is enforced and company_id is missing, this will fail.
+      // We can check for a specific error if needed, but for now, just bubble it up.
       throw error;
     }
 
     return { success: true, count: count, error: null };
-
   } catch (e: any) {
     return { success: false, count: null, error: e.message };
   }
