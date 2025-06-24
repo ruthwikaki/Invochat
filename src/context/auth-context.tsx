@@ -2,16 +2,24 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User, SupabaseClient, AuthError } from '@supabase/supabase-js';
+import type { User, SupabaseClient, AuthError, Session } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+
+interface SignUpResponse {
+  data: {
+    user: User | null;
+    session: Session | null;
+  };
+  error: AuthError | null;
+}
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   isConfigured: boolean;
   signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{ error: AuthError | null }>;
+  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<SignUpResponse>;
   signOut: () => Promise<void>;
   authLoading: boolean;
 }
@@ -69,8 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signUpWithEmail = async (email: string, password: string, companyName: string) => {
-    if (!supabase) return throwUnconfiguredError();
+  const signUpWithEmail = async (email: string, password: string, companyName: string): Promise<SignUpResponse> => {
+    if (!supabase) {
+        const { error } = throwUnconfiguredError();
+        return { data: { user: null, session: null }, error };
+    }
     
     const { data, error } = await supabase.auth.signUp({ 
       email, 
@@ -82,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return { error };
+    return { data, error };
   };
 
   const signOut = async () => {

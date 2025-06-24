@@ -1,7 +1,7 @@
 
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -38,10 +38,13 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { setTheme } = useTheme();
   const { user, signOut, loading } = useAuth();
+  const router = useRouter();
 
   const handleSignOut = async () => {
     await signOut();
-    // The onAuthStateChange listener in AuthProvider will handle the redirect.
+    // Explicitly navigate to login after sign out.
+    // This is more reliable than relying on onAuthStateChange + middleware.
+    router.push('/login');
   };
 
   const menuItems = [
