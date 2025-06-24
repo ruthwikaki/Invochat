@@ -203,6 +203,21 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
     }
 }
 
+export async function getVendorsFromDB(companyId: string) {
+    const supabase = getSupabase();
+    try {
+        const { data, error } = await supabase
+            .from('vendors')
+            .select('*')
+            .eq('company_id', companyId);
+        if (error) throw error;
+        return data || [];
+    } catch(e) {
+        console.error('Error fetching vendors from DB', e);
+        return [];
+    }
+}
+
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     const supabase = getSupabase();
     try {
@@ -257,6 +272,10 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         console.error('Error in getAlertsFromDB:', error);
         return [];
     }
+}
+
+export async function getInventoryFromDB(companyId: string) {
+    return getInventoryItems(companyId);
 }
 
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {

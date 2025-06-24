@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { authLoading, user, signInWithEmail } = useAuth();
+  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -27,9 +29,11 @@ export default function LoginPage() {
       const { error: signInError } = await signInWithEmail(email, password);
       if (signInError) {
         setError(signInError.message || 'An unexpected error occurred.');
+      } else {
+        // The onAuthStateChange listener in the provider
+        // will trigger a router.refresh(), and the middleware will handle the redirect.
+        // No explicit navigation needed here.
       }
-      // On success, the onAuthStateChange listener in the provider
-      // will trigger a router.refresh(), and the middleware will handle the redirect.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
