@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,34 +10,26 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { user, authLoading, signInWithEmail } = useAuth();
-  const router = useRouter();
+  const { authLoading, user, signInWithEmail } = useAuth();
 
-  useEffect(() => {
-    // If user is already logged in, redirect them to the dashboard.
-    // This is a client-side check that complements the middleware.
-    if (!authLoading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, authLoading, router]);
-  
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      await signInWithEmail(email, password);
-      // On successful sign-in, the onAuthStateChange listener will fire,
-      // and a re-render will occur. We can then push to the dashboard.
-      router.push('/dashboard');
+      const { error: signInError } = await signInWithEmail(email, password);
+      if (signInError) {
+        setError(signInError.message || 'An unexpected error occurred.');
+      }
+      // On success, the onAuthStateChange listener in the provider
+      // will trigger a router.refresh(), and the middleware will handle the redirect.
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
@@ -46,9 +38,10 @@ export default function LoginPage() {
     }
   };
 
-  // Don't render the page if the auth state is still loading or if the user is already logged in
+  // While checking auth state or if user is already logged in, show a loader or nothing.
+  // The middleware will handle the redirect.
   if (authLoading || user) {
-    return null; 
+    return null;
   }
 
   return (

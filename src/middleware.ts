@@ -9,7 +9,6 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // Create a Supabase client that can be used in Server Components
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,76 +18,47 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is set, update the request's cookies.
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          // Also update the response's cookies.
+          request.cookies.set({ name, value, ...options })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
+          response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the request's cookies.
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+          request.cookies.set({ name, value: '', ...options })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          // Also update the response's cookies.
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+          response.cookies.set({ name, value: '', ...options })
         },
       },
     }
   )
 
-  // Refresh session if expired - required for Server Components
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
+  const authRoutes = ['/login', '/signup']
+  const isAuthRoute = authRoutes.includes(pathname)
 
-  const authRoutes = ['/login', '/signup'];
-  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
+  // Redirect authenticated users from auth routes to the dashboard
+  if (user && isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
 
-  if (user) {
-    // If the user is logged in and tries to access an auth page, redirect to dashboard
-    if (isAuthRoute) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
-  } else {
-    // If the user is not logged in and tries to access any page that is NOT an auth page,
-    // redirect them to the login page.
-    if (!isAuthRoute) {
-       // Also allow root path to go to login
-      if (pathname === '/') {
+  // Redirect unauthenticated users from protected routes to the login page
+  if (!user && !isAuthRoute) {
+    // Let the root path be handled by its own logic, but protect others
+    if (pathname !== '/') {
         return NextResponse.redirect(new URL('/login', request.url))
-      }
-      // Protect all other routes
-      if (pathname !== '/login') {
-          return NextResponse.redirect(new URL('/login', request.url))
-      }
     }
   }
   
-  // If user is at the root, redirect based on auth state
+  // Handle the root path explicitly
   if (pathname === '/') {
       return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url))
   }
@@ -104,7 +74,8 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - api (API routes)
+     * - _vercel (Vercel specific files)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api|_vercel).*)',
   ],
 }

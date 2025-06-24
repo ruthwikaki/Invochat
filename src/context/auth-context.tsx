@@ -10,8 +10,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isConfigured: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{ session: Session | null }>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: any | null }>;
+  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{ error: any | null }>;
   signOut: () => Promise<void>;
   authLoading: boolean;
 }
@@ -34,16 +34,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        // on SIGNED_IN or SIGNED_OUT, we want to refresh the page
+        // to let the middleware handle the redirect.
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+          router.refresh();
+        }
         setUser(session?.user ?? null);
         setAuthLoading(false);
-        // On sign out, the session is null, and we should ensure the user is on the login page.
-        if (event === 'SIGNED_OUT') {
-            router.push('/login');
-        }
       }
     );
 
-    // Set initial user state
+    // Set initial user state on load
     const setInitialUser = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
@@ -57,23 +58,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, router]);
 
   const throwUnconfiguredError = () => {
-    throw new Error('Supabase is not configured. Please check your environment variables.');
+    return { error: new Error('Supabase is not configured. Please check your environment variables.') };
   }
 
   const signInWithEmail = async (email: string, password: string) => {
     if (!supabase) return throwUnconfiguredError();
-    
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    
-    if (error) throw error;
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error };
   };
 
-  const signUpWithEmail = async (email: string, password: string, companyName: string): Promise<{ session: Session | null }> => {
+  const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
     
+    // First, create the company.
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .insert({ name: companyName })
@@ -82,9 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (companyError) {
       console.error('Company creation error:', companyError);
-      throw new Error('Failed to create company. The name might already be taken.');
+      return { error: new Error('Failed to create company. The name might already be taken.') };
     }
 
+    // If company is created, sign up the user.
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
@@ -97,18 +95,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     if (error) {
-      // Clean up created company if signup fails
+      // Clean up the created company if signup fails to prevent orphaned data.
       await supabase.from('companies').delete().eq('id', company.id);
-      throw error;
+      return { error };
     }
 
-    return { session: data.session };
+    // The onAuthStateChange listener will handle the refresh. We just return the error status.
+    return { error: null };
   };
 
   const signOut = async () => {
-    if (!supabase) return throwUnconfiguredError();
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    // The onAuthStateChange listener will handle the refresh.
   };
 
   const value = {

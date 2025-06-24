@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,7 +17,6 @@ import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -26,35 +25,27 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { user, authLoading, signUpWithEmail } = useAuth();
-  const router = useRouter();
+  const { authLoading, user, signUpWithEmail } = useAuth();
   
-  useEffect(() => {
-    // If user is already logged in, redirect them to the dashboard.
-    if (!authLoading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, authLoading, router]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      const { session } = await signUpWithEmail(email, password, companyName);
-      if (session) {
-        // If Supabase returns a session, it means email confirmation is disabled
-        // or the user has already confirmed. We can redirect to the dashboard.
-        router.push('/dashboard');
+      const { error: signUpError } = await signUpWithEmail(email, password, companyName);
+      if (signUpError) {
+        setError(signUpError.message);
       } else {
-        // If there's no session, it means email confirmation is required.
+        // This means Supabase needs email confirmation.
+        // If auto-confirmation is on, the onAuthStateChange will fire
+        // with a new session and handle the redirect.
         setIsSubmitted(true);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'Sign up failed. Please try again.');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -86,7 +77,7 @@ export default function SignupPage() {
             </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (

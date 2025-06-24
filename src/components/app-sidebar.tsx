@@ -1,7 +1,7 @@
 
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -16,7 +16,6 @@ import {
   TrendingDown,
   Truck,
   Upload,
-  User,
   Beaker,
 } from 'lucide-react';
 import { InvoChatLogo } from './invochat-logo';
@@ -39,11 +38,10 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { setTheme } = useTheme();
   const { user, signOut, loading } = useAuth();
-  const router = useRouter();
 
   const handleSignOut = async () => {
     await signOut();
-    // The onAuthStateChange listener in AuthProvider will handle the redirect to /login
+    // The onAuthStateChange listener in AuthProvider will handle the redirect.
   };
 
   const menuItems = [
