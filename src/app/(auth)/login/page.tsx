@@ -37,7 +37,11 @@ export default function LoginPage() {
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
-      setError(err.message || 'An unexpected error occurred. Please try again.');
+      if (err.message.includes('Invalid login credentials')) {
+        setError('Incorrect email or password. Please try again.');
+      } else {
+        setError(err.message || 'An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

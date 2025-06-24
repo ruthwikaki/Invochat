@@ -6,17 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { DatawiseLogo } from '@/components/datawise-logo';
 import Link from 'next/link';
 import { signUpWithEmailAndPassword } from '@/app/auth-actions';
+import { useToast } from '@/hooks/use-toast';
 
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signInWithEmail } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
 
   const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -26,17 +26,14 @@ export default function SignupPage() {
     const formData = new FormData(event.currentTarget);
     
     try {
-      // 1. Call the server action directly
       const result = await signUpWithEmailAndPassword(formData);
       
       if (result.success) {
-        // 2. If server-side creation is successful, sign in on the client
-        const email = formData.get('email') as string;
-        const password = formData.get('password') as string;
-        await signInWithEmail(email, password);
-        // The onAuthStateChanged listener in AuthProvider will eventually redirect,
-        // but we can push to the dashboard for a faster user experience.
-        router.push('/dashboard');
+        toast({
+          title: "Account Created",
+          description: "Your account was created successfully. Please sign in to continue.",
+        });
+        router.push('/login');
       } else {
         setError(result.error || 'An unexpected error occurred.');
       }
