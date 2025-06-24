@@ -77,8 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
     if (error) {
-      console.error('Error during email sign-in:', error);
-      throw new Error(error.message || 'An unexpected error occurred during sign-in.');
+      // Throw the error so the calling page can handle it in a catch block
+      throw error;
     }
   };
   
