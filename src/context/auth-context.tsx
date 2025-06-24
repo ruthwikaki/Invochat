@@ -4,7 +4,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient, AuthError, Session, SignInWithPasswordCredentials } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -22,7 +21,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -32,32 +30,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user as User ?? null);
-      setLoading(false);
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user as User ?? null);
-        
-        // Handle sign in event
-        if (event === 'SIGNED_IN' && session) {
-          router.push('/dashboard');
-        }
-        
-        // Handle sign out event
-        if (event === 'SIGNED_OUT') {
-          router.push('/login');
-        }
+        setLoading(false);
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const throwUnconfiguredError = () => {
     const error = new Error('Supabase is not configured. Please check your environment variables.') as AuthError;
@@ -90,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    setUser(null);
+    // The onAuthStateChange listener will handle setting the user to null.
   };
 
   const value = {

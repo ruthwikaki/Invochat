@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,20 +18,21 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signInWithEmail } = useAuth();
+  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { data, error: signInError } = await signInWithEmail({ email, password });
+    const { error: signInError } = await signInWithEmail({ email, password });
     
     if (signInError) {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
-    } else if (data.user) {
-      // Force a hard navigation to ensure middleware runs
-      window.location.href = '/dashboard';
+    } else {
+      // On success, refresh the page. The middleware will handle the redirect.
+      router.refresh();
     }
   };
 
