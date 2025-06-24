@@ -1,33 +1,44 @@
-
 'use client';
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useRouter } from 'next/navigation';
-import { DatawiseLogo } from '@/components/datawise-logo';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { signUpWithEmailAndPassword } from '@/app/auth-actions';
 import { useToast } from '@/hooks/use-toast';
+import { DatawiseLogo } from '@/components/datawise-logo';
 
 export default function SignupPage() {
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    
-    const formData = new FormData(event.currentTarget);
-    
+    setLoading(true);
+
+    const formData = new FormData();
+    formData.append('email', email);
+    formData.append('password', password);
+    formData.append('companyName', companyName);
+
     try {
       const result = await signUpWithEmailAndPassword(formData);
-      
       if (result.success) {
         toast({
           title: "Account Created",
@@ -35,11 +46,10 @@ export default function SignupPage() {
         });
         router.push('/login');
       } else {
-        setError(result.error || 'An unexpected error occurred.');
+        setError(result.error || 'Sign up failed');
       }
-    } catch (err: any) {
-      console.error('Client-side sign-up error:', err);
-      setError(err.message || 'An unexpected client-side error occurred.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sign up failed');
     } finally {
       setLoading(false);
     }
@@ -52,66 +62,68 @@ export default function SignupPage() {
         <h1>ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Create an Account</CardTitle>
-          <CardDescription>Get started with your smart inventory assistant.</CardDescription>
+        <CardHeader>
+          <CardTitle className="text-2xl">Create Account</CardTitle>
+          <CardDescription>
+            Enter your information to create an account
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignUp} className="space-y-4">
-            {error && (
-              <p className="rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <div className="space-y-1">
-              <Label htmlFor="companyName">Company Name</Label>
+          <form onSubmit={handleSubmit} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="company">Company Name</Label>
               <Input
-                id="companyName"
-                name="companyName"
+                id="company"
                 type="text"
                 placeholder="Your Company Inc."
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
                 required
-                minLength={2}
                 disabled={loading}
               />
             </div>
-             <div className="space-y-1">
+            <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                name="email"
                 type="email"
-                placeholder="m@example.com"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
               />
             </div>
-            <div className="space-y-1">
+            <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
-                name="password"
                 type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
                 disabled={loading}
               />
             </div>
-            <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90">
-              {loading ? 'Creating Account...' : 'Create Account'}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Creating account...' : 'Sign up'}
             </Button>
           </form>
-           <div className="mt-4 text-center text-sm">
+          <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
-            <Link href="/login" className="underline text-primary">
+            <Link href="/login" className="underline">
               Sign in
             </Link>
           </div>
         </CardContent>
       </Card>
-      <p className="mt-6 text-sm text-slate-500">
-        Your intelligent inventory copilot.
-      </p>
     </div>
   );
 }

@@ -9,34 +9,24 @@ import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { DatawiseLogo } from '@/components/datawise-logo';
 import Link from 'next/link';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function LoginPage() {
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { signInWithEmail } = useAuth();
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
-    
-    const formData = new FormData(event.currentTarget);
-    const email = (formData.get('email') as string).trim();
-    const password = (formData.get('password') as string).trim();
-
-    if (!email || !password) {
-        setError('Email and password are required.');
-        setLoading(false);
-        return;
-    }
 
     try {
       await signInWithEmail(email, password);
-      // CRITICAL FIX: Instead of pushing, we refresh the page.
-      // This allows the middleware to re-evaluate the auth state
-      // (with the now-set cookie) and perform the correct server-side
-      // redirect to the dashboard, avoiding a race condition.
+      // The middleware will handle the redirect after state change.
       router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
@@ -46,9 +36,7 @@ export default function LoginPage() {
         setError('An unexpected error occurred. Please try again.');
       }
       setLoading(false);
-    } 
-    // Do not set loading to false here on success,
-    // because the page will be refreshing and unmounting.
+    }
   };
 
   return (
@@ -65,9 +53,9 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSignIn} className="space-y-4">
             {error && (
-              <p className="rounded-md bg-destructive/10 p-3 text-center text-sm text-destructive">
-                {error}
-              </p>
+               <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
             <div className="space-y-1">
               <Label htmlFor="email">Email</Label>
@@ -78,6 +66,8 @@ export default function LoginPage() {
                 placeholder="m@example.com"
                 required
                 disabled={loading}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-1">
@@ -88,6 +78,8 @@ export default function LoginPage() {
                 type="password"
                 required
                 disabled={loading}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
             <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90">
