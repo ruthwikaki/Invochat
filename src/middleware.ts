@@ -36,25 +36,44 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Define routes that are accessible to everyone, even without authentication
-  const publicRoutes = ['/login', '/signup']
-  const isPublicRoute = publicRoutes.includes(pathname)
+  // Define routes that are accessible only to authenticated users
+  const protectedRoutes = [
+    '/dashboard',
+    '/chat',
+    '/inventory',
+    '/import',
+    '/dead-stock',
+    '/suppliers',
+    '/analytics',
+    '/alerts',
+    '/test-supabase'
+  ];
   
-  // If the user is not logged in and is trying to access a protected route,
-  // redirect them to the login page.
-  if (!user && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Define routes that are accessible only to unauthenticated users
+  const authRoutes = ['/login', '/signup'];
+
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  const isAuthRoute = authRoutes.includes(pathname);
+
+  // 1. Redirect unauthenticated users from protected routes to the login page
+  if (!user && isProtectedRoute) {
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // If the user is logged in and tries to access a public route (like /login)
-  // or the root path, redirect them to the dashboard.
-  if (user && (isPublicRoute || pathname === '/')) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  // 2. Redirect authenticated users from auth routes to the dashboard
+  if (user && isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
-  
-  // If an unauthenticated user tries to access the root path, redirect to login.
-  if (!user && pathname === '/') {
-    return NextResponse.redirect(new URL('/login', request.url));
+
+  // 3. Handle the root path ('/') explicitly
+  if (pathname === '/') {
+    if (user) {
+      // If logged in, go to dashboard
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    } else {
+      // If logged out, go to login
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
   }
 
   // Allow the request to proceed if none of the above conditions are met.
