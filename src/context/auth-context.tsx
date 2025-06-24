@@ -1,8 +1,7 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User } from '@supabase/supabase-js';
+import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 interface AuthContextType {
@@ -14,12 +13,43 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function SupabaseConfigurationError() {
+    return (
+        <div className="flex h-dvh w-full flex-col items-center justify-center bg-background p-4 text-center">
+            <div className="max-w-lg space-y-4 rounded-lg border border-destructive bg-card p-8">
+                 <h1 className="text-2xl font-bold text-destructive">Supabase Configuration Error</h1>
+                 <p className="text-muted-foreground">
+                    The application is missing required Supabase environment variables. Please add <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="font-mono bg-muted px-1 py-0.5 rounded">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to your environment file.
+                 </p>
+                  <p className="text-sm text-muted-foreground">The app cannot function without these settings.</p>
+            </div>
+        </div>
+    )
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createBrowserSupabaseClient();
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
   useEffect(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseAnonKey) {
+        setSupabase(createBrowserSupabaseClient());
+    } else {
+        console.error("Supabase environment variables are missing!");
+        setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) {
+      if (!loading) setLoading(true); // Reset loading state if supabase is not available yet
+      return;
+    }
+
     const getInitialSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setUser(session?.user ?? null);
@@ -36,11 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     return () => {
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const signInWithEmail = async (email: string, password: string) => {
+    if (!supabase) throw new Error("Supabase is not configured.");
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -52,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   
   const signOut = async () => {
+    if (!supabase) throw new Error("Supabase is not configured.");
     const { error } = await supabase.auth.signOut();
     if (error) {
         console.error('Error signing out:', error);
@@ -66,6 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithEmail,
     signOut,
   };
+
+  if (!loading && !supabase) {
+      return <SupabaseConfigurationError />;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
