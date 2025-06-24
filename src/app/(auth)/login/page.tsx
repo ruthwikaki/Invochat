@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signInWithEmail } = useAuth();
+  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -28,11 +30,12 @@ export default function LoginPage() {
     if (signInError) {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
+    } else {
+      // On success, we no longer push the route.
+      // We refresh the page to allow the middleware to handle the redirect.
+      // This is the key to fixing the race condition.
+      router.refresh();
     }
-    // On success, we don't need to do anything here.
-    // The AuthProvider's onAuthStateChange listener will trigger a router.refresh()
-    // which will cause the middleware to redirect to the dashboard.
-    // We also don't need to set loading to false on success, as a page refresh will happen.
   };
 
   return (
