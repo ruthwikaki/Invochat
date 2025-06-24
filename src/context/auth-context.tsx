@@ -2,16 +2,15 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User, SupabaseClient } from '@supabase/supabase-js';
+import type { User, SupabaseClient, Session } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   isConfigured: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{isSuccess: boolean}>;
+  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{ session: Session | null }>;
   signOut: () => Promise<void>;
   authLoading: boolean;
 }
@@ -22,7 +21,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -32,10 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Set the initial user state
     const setInitialUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
         setAuthLoading(false);
     }
     setInitialUser();
@@ -43,20 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user ?? null);
-        
-        // On sign-in or sign-out, refresh the page.
-        // This will cause Next.js to re-run the middleware with the new
-        // session cookie, which correctly handles redirects.
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-           router.refresh();
-        }
+        setAuthLoading(false);
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const throwUnconfiguredError = () => {
     throw new Error('Supabase is not configured. Please check your environment variables.');
@@ -71,13 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     if (error) throw error;
-    // Navigation is handled by onAuthStateChange listener
   };
 
-  const signUpWithEmail = async (email: string, password: string, companyName: string): Promise<{isSuccess: boolean}> => {
+  const signUpWithEmail = async (email: string, password: string, companyName: string): Promise<{ session: Session | null }> => {
     if (!supabase) return throwUnconfiguredError();
     
-    // Create company first
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .insert({ name: companyName })
@@ -89,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('Failed to create company. The name might already be taken.');
     }
 
-    // Create auth user with company_id in metadata
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
@@ -102,27 +90,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     if (error) {
-      // Clean up company if auth fails
       await supabase.from('companies').delete().eq('id', company.id);
       throw error;
     }
 
-    // If signup is successful and returns a user session (meaning email confirmation is off),
-    // the onAuthStateChange listener will handle the refresh.
-    if (data.session) {
-        return { isSuccess: true };
-    }
-
-    // Otherwise, tell the UI to show the "check email" message.
-    return { isSuccess: false };
+    return { session: data.session };
   };
 
   const signOut = async () => {
     if (!supabase) return throwUnconfiguredError();
-    
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    // Navigation is handled by onAuthStateChange listener
   };
 
   const value = {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
@@ -42,9 +43,7 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     await signOut();
-    // Refresh the page. The middleware will catch the unauthenticated state
-    // and redirect to the login page.
-    router.refresh();
+    router.push('/login');
   };
 
   const menuItems = [

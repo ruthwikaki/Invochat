@@ -18,6 +18,7 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation';
 
 function AuthPageLoader() {
     return (
@@ -39,6 +40,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { authLoading, signUpWithEmail } = useAuth();
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,24 +48,22 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const { isSuccess } = await signUpWithEmail(email, password, companyName);
-      if (isSuccess) {
-        // If signup created a session, the onAuthStateChange listener will
-        // trigger a page refresh, and the middleware will redirect to /dashboard.
-        // We don't need to do anything here as the component will unmount.
+      const { session } = await signUpWithEmail(email, password, companyName);
+      if (session) {
+        // If Supabase returns a session, it means email confirmation is disabled
+        // or the user has already confirmed. We can redirect to the dashboard.
+        router.push('/dashboard');
       } else {
-        // Otherwise, show the "check email" message.
+        // If there's no session, it means email confirmation is required.
         setIsSubmitted(true);
+        setLoading(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
 
-  // While checking auth state, show loader to prevent flicker.
-  // The middleware will handle redirecting logged-in users.
   if (authLoading) {
     return <AuthPageLoader />;
   }
