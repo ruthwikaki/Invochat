@@ -2,7 +2,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User, SupabaseClient } from '@supabase/supabase-js';
+import type { User, SupabaseClient, AuthError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -10,8 +10,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isConfigured: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<{ error: any | null }>;
-  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{ error: any | null }>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   authLoading: boolean;
 }
@@ -58,7 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, router]);
 
   const throwUnconfiguredError = () => {
-    return { error: new Error('Supabase is not configured. Please check your environment variables.') };
+    const error = new Error('Supabase is not configured. Please check your environment variables.') as AuthError;
+    error.name = 'ConfigurationError';
+    return { error };
   }
 
   const signInWithEmail = async (email: string, password: string) => {
@@ -70,17 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
     
-    // In a real application, you would likely want to create the company
-    // in a separate step or via a server-side function to handle permissions.
-    // For this example, we pass it in the user metadata.
-    // Ensure you have RLS policies to handle this securely.
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
       options: {
         data: {
-          // This metadata is accessible on the server via the user object.
-          // Note: Supabase recommends storing this kind of data in a separate 'profiles' table.
           company_name: companyName,
         }
       }
