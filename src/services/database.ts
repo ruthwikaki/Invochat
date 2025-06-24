@@ -4,10 +4,14 @@
 /**
  * @fileoverview
  * This file contains server-side functions for querying the Supabase database.
- * It uses the standard Supabase server client, which respects Row Level Security (RLS)
- * by using the user's authentication context from the request cookies.
- * All functions are scoped by companyId to ensure data isolation.
- * All functions will throw an error if the database query fails.
+ * It uses a secure, user-authenticated Supabase client for all operations,
+ * which respects Row Level Security (RLS) policies. All functions are scoped
+ * by companyId to ensure data isolation.
+ *
+ * All functions in this file will throw an error if the database query fails.
+ * This allows the calling code (e.g., Server Components or Server Actions)
+ * to handle the error appropriately, usually by bubbling it up to the
+ * nearest `error.js` boundary.
  */
 
 import { createClient } from '@/lib/supabase/server';
@@ -16,9 +20,10 @@ import { subDays, differenceInDays, parseISO, isAfter, isBefore } from 'date-fns
 import { cookies } from 'next/headers';
 
 // This function creates a Supabase client authenticated as the current user.
-// It is the secure way to access data on the server.
+// It is the secure way to access data on the server, enforcing RLS.
 function createSecureServerClient() {
     const cookieStore = cookies();
+    // The createClient function now handles the check for missing env vars.
     return createClient(cookieStore);
 }
 
@@ -32,9 +37,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   if (inventoryError) {
     console.error('Error fetching inventory for dashboard:', inventoryError);
-    throw new Error('Failed to fetch dashboard metrics.');
+    throw new Error(`Failed to fetch dashboard metrics: ${inventoryError.message}`);
   }
-  if (!inventory) return { inventoryValue: 0, deadStockValue: 0, onTimeDeliveryRate: 0, predictiveAlert: null };
 
   const ninetyDaysAgo = subDays(new Date(), 90);
   const inventoryValue = inventory.reduce((sum, item) => sum + (item.quantity * Number(item.cost)), 0);
@@ -50,7 +54,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   if (poError) {
     console.error('Error fetching purchase orders for dashboard:', poError);
-    throw new Error('Failed to fetch dashboard metrics.');
+    throw new Error(`Failed to fetch dashboard metrics: ${poError.message}`);
   }
 
   let onTimeDeliveryRate = 0;
@@ -88,9 +92,9 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
     
   if (error) {
     console.error('Error fetching inventory:', error);
-    throw new Error('Could not load inventory data.');
+    throw new Error(`Could not load inventory data: ${error.message}`);
   }
-  return data || [];
+  return data;
 }
 
 export async function getDeadStockFromDB(companyId: string): Promise<InventoryItem[]> {
@@ -104,9 +108,9 @@ export async function getDeadStockFromDB(companyId: string): Promise<InventoryIt
 
     if (error) {
         console.error('Error fetching dead stock:', error);
-        throw new Error('Could not load dead stock data.');
+        throw new Error(`Could not load dead stock data: ${error.message}`);
     }
-    return data || [];
+    return data;
 }
 
 export async function getDeadStockPageData(companyId: string) {
@@ -135,26 +139,36 @@ export async function getDeadStockPageData(companyId: string) {
 }
 
 /**
- * Fetches all suppliers for a company and aggregates their performance metrics
- * using a single, efficient RPC call to a database function.
- * This avoids the N+1 query problem.
+ * Fetches all suppliers (vendors) for a company.
+ * Note: This replaces a previous, broken implementation that tried to call a
+ * non-existent RPC. This function now performs a direct, secure query.
  */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
     const supabase = createSecureServerClient();
     
-    // Assumes a Supabase RPC function `get_suppliers_with_metrics` exists.
-    // This function should perform the necessary joins and aggregations.
-    const { data, error } = await supabase.rpc('get_suppliers_with_metrics', {
-        p_company_id: companyId
-    });
+    const { data, error } = await supabase
+        .from('vendors')
+        .select('*')
+        .eq('company_id', companyId);
 
     if (error) {
-        console.error('Error fetching suppliers with metrics:', error);
-        throw new Error('Could not load supplier data.');
+        console.error('Error fetching suppliers:', error);
+        throw new Error(`Could not load supplier data: ${error.message}`);
     }
     
-    // The RPC function is expected to return data in the shape of the Supplier type.
-    return data as Supplier[] || [];
+    // The page will now need to be updated to handle this simpler data structure.
+    // For now, we return a partial Supplier object.
+    return data.map(vendor => ({
+        id: vendor.id,
+        name: vendor.vendor_name,
+        contact_info: vendor.contact_info,
+        address: vendor.address || 'N/A',
+        terms: vendor.terms,
+        // These are placeholders as we are no longer calculating them with the broken RPC
+        onTimeDeliveryRate: 0,
+        totalSpend: 0,
+        itemsSupplied: []
+    }));
 }
 
 export async function getVendorsFromDB(companyId: string) {
@@ -166,14 +180,13 @@ export async function getVendorsFromDB(companyId: string) {
 
     if (error) {
         console.error('Error fetching vendors from DB', error);
-        throw new Error('Could not load vendor data.');
+        throw new Error(`Could not load vendor data: ${error.message}`);
     }
-    return data || [];
+    return data;
 }
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     const inventory = await getInventoryItems(companyId);
-    if (!inventory) return [];
 
     const alerts: Alert[] = [];
     const ninetyDaysAgo = subDays(new Date(), 90);

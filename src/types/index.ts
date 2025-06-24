@@ -46,12 +46,14 @@ export type AssistantMessagePayload = {
 };
 
 // Data models based on database schema
+// NOTE: This type has been simplified because the RPC to calculate metrics was removed.
 export type Supplier = {
     id: string; // UUID
     name: string;
     contact_info: string;
     address: string;
     terms: string;
+    // The following fields are placeholders and are not currently populated from the DB.
     onTimeDeliveryRate: number;
     totalSpend: number;
     itemsSupplied: string[];
