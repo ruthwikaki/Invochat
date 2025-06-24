@@ -4,34 +4,26 @@
 /**
  * @fileoverview
  * This file contains server-side functions for querying the Supabase database.
- * It uses the Supabase service role key for direct data access. All functions
- * are scoped by companyId to ensure data isolation between tenants.
+ * It uses the standard Supabase server client, which respects Row Level Security (RLS)
+ * by using the user's authentication context from the request cookies.
+ * All functions are scoped by companyId to ensure data isolation.
  * All functions will throw an error if the database query fails.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 import type { DashboardMetrics, InventoryItem, Supplier, Alert } from '@/types';
 import { subDays, differenceInDays, parseISO, isAfter, isBefore } from 'date-fns';
+import { cookies } from 'next/headers';
 
-function getSupabase() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-        const errorMessage = "Database service is not available. Please check server configuration.";
-        console.error(`[Database Service] ${errorMessage}`);
-        throw new Error(errorMessage);
-    }
-  
-    return createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        persistSession: false
-      }
-    });
+// This function creates a Supabase client authenticated as the current user.
+// It is the secure way to access data on the server.
+function createSecureServerClient() {
+    const cookieStore = cookies();
+    return createClient(cookieStore);
 }
 
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
-  const supabase = getSupabase();
+  const supabase = createSecureServerClient();
   
   const { data: inventory, error: inventoryError } = await supabase
     .from('inventory')
@@ -87,7 +79,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 }
 
 export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
-  const supabase = getSupabase();
+  const supabase = createSecureServerClient();
   const { data, error } = await supabase
     .from('inventory')
     .select('*')
@@ -102,7 +94,7 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
 }
 
 export async function getDeadStockFromDB(companyId: string): Promise<InventoryItem[]> {
-    const supabase = getSupabase();
+    const supabase = createSecureServerClient();
     const ninetyDaysAgo = subDays(new Date(), 90).toISOString();
     const { data, error } = await supabase
         .from('inventory')
@@ -148,7 +140,7 @@ export async function getDeadStockPageData(companyId: string) {
  * This avoids the N+1 query problem.
  */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
-    const supabase = getSupabase();
+    const supabase = createSecureServerClient();
     
     // Assumes a Supabase RPC function `get_suppliers_with_metrics` exists.
     // This function should perform the necessary joins and aggregations.
@@ -166,7 +158,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 }
 
 export async function getVendorsFromDB(companyId: string) {
-    const supabase = getSupabase();
+    const supabase = createSecureServerClient();
     const { data, error } = await supabase
         .from('vendors')
         .select('*')
@@ -234,7 +226,7 @@ export async function getInventoryFromDB(companyId: string) {
 }
 
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
-    const supabase = getSupabase();
+    const supabase = createSecureServerClient();
     const lowerCaseQuery = query.toLowerCase();
 
     // It's assumed a database function `get_chart_data` exists that can
