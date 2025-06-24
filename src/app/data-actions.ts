@@ -28,29 +28,12 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         throw new Error("User not found. Please log in again.");
     }
 
-    // First, check the JWT claims (app_metadata) for the company ID.
-    let companyId = user.app_metadata?.company_id;
+    // The company_id is stored in the user's metadata, which is set during signup.
+    const companyId = user.user_metadata?.company_id;
 
-    // If the company ID is not in the JWT, fall back to a direct database query.
-    // This makes the system more resilient to potential signup flow inconsistencies.
-    if (!companyId) {
-        console.warn(`Company ID not found in JWT for user ${user.id}. Falling back to database query.`);
-        
-        const { data: profile, error } = await supabase
-            .from('users')
-            .select('company_id')
-            .eq('id', user.id)
-            .single();
-
-        if (error) {
-            console.error(`Error fetching profile for user ${user.id}:`, error);
-            throw new Error("A database error occurred while trying to retrieve your company information.");
-        }
-        
-        companyId = profile?.company_id;
-    }
-
-    if (!companyId) {
+    if (!companyId || typeof companyId !== 'string') {
+        // This is a critical error state. It means the user exists but is not properly associated with a company.
+        console.error(`User ${user.id} is missing a valid company_id in user_metadata.`);
         throw new Error("Your user account is not associated with a company. Please contact support or try signing up again.");
     }
     
@@ -123,11 +106,21 @@ export async function testSupabaseConnection(): Promise<{
                 isConfigured
             };
         }
+        
+        const typedUser = user as User;
+        const companyId = typedUser?.user_metadata?.company_id;
 
         return {
             success: true,
             error: null,
-            user,
+            user: {
+                ...typedUser,
+                // Ensure app_metadata is correctly typed for display, even if sourced from user_metadata
+                app_metadata: {
+                    ...typedUser.app_metadata,
+                    company_id: companyId
+                }
+            },
             isConfigured
         };
 
@@ -173,7 +166,7 @@ export async function testDatabaseQuery(): Promise<{
 
   } catch (e: any) {
     let errorMessage = e.message;
-    if (e.message.includes('User is not associated with a company.')) {
+    if (e.message.includes('Your user account is not associated with a company')) {
         errorMessage = "Could not find a company ID for the logged-in user. The test query cannot be performed."
     }
     return { success: false, count: null, error: errorMessage };
