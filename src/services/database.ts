@@ -5,13 +5,11 @@
  * @fileoverview
  * This file contains server-side functions for querying the Supabase database.
  * It uses a secure, user-authenticated Supabase client for all operations,
- * which respects Row Level Security (RLS) policies. All functions are scoped
- * by companyId to ensure data isolation.
+ * which respects Row Level Security (RLS) policies.
  *
  * All functions in this file will throw an error if the database query fails.
  * This allows the calling code (e.g., Server Components or Server Actions)
- * to handle the error appropriately, usually by bubbling it up to the
- * nearest `error.js` boundary.
+ * to handle the error appropriately by bubbling it up to the nearest `error.js` boundary.
  */
 
 import { createClient } from '@/lib/supabase/server';
@@ -23,7 +21,7 @@ import { cookies } from 'next/headers';
 // It is the secure way to access data on the server, enforcing RLS.
 function createSecureServerClient() {
     const cookieStore = cookies();
-    // The createClient function now handles the check for missing env vars.
+    // The createClient function handles the check for missing env vars.
     return createClient(cookieStore);
 }
 
@@ -138,37 +136,15 @@ export async function getDeadStockPageData(companyId: string) {
     };
 }
 
-/**
- * Fetches all suppliers (vendors) for a company.
- * Note: This replaces a previous, broken implementation that tried to call a
- * non-existent RPC. This function now performs a direct, secure query.
- */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
     const supabase = createSecureServerClient();
-    
-    const { data, error } = await supabase
-        .from('vendors')
-        .select('*')
-        .eq('company_id', companyId);
+    const { data, error } = await supabase.rpc('get_suppliers', { p_company_id: companyId });
 
     if (error) {
-        console.error('Error fetching suppliers:', error);
+        console.error('Error fetching suppliers via RPC:', error);
         throw new Error(`Could not load supplier data: ${error.message}`);
     }
-    
-    // The page will now need to be updated to handle this simpler data structure.
-    // For now, we return a partial Supplier object.
-    return data.map(vendor => ({
-        id: vendor.id,
-        name: vendor.vendor_name,
-        contact_info: vendor.contact_info,
-        address: vendor.address || 'N/A',
-        terms: vendor.terms,
-        // These are placeholders as we are no longer calculating them with the broken RPC
-        onTimeDeliveryRate: 0,
-        totalSpend: 0,
-        itemsSupplied: []
-    }));
+    return data || [];
 }
 
 export async function getVendorsFromDB(companyId: string) {
@@ -251,10 +227,13 @@ export async function getDataForChart(query: string, companyId: string): Promise
     
     if (error) {
         console.error(`Error in getDataForChart for query "${query}":`, error);
-        // We don't throw here so the chat doesn't break, just returns no chart.
-        return [];
+        // We throw the error so the AI flow can handle it, preventing silent failure.
+        throw new Error(`Failed to get chart data: ${error.message}`);
     }
 
+    if (!data) return [];
+    
+    // For numeric values, ensure they are numbers, not strings from the DB.
     if (lowerCaseQuery.includes('inventory value by category')) {
         return data.map((d: any) => ({ name: d.name, value: Math.round(d.value) }));
     }

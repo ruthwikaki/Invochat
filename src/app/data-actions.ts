@@ -2,24 +2,17 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
     getInventoryItems, 
     getDeadStockPageData,
     getSuppliersFromDB,
-    getAlertsFromDB,
+    getAlertsFromDB
 } from '@/services/database';
 import type { User } from '@/types';
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
-    const SUPABASE_CONFIGURED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-
-    if (!SUPABASE_CONFIGURED) {
-        throw new Error("Database is not configured. Please set Supabase environment variables.");
-    }
-    
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
@@ -28,30 +21,18 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         throw new Error("User not found. Please log in again.");
     }
 
-    // The company_id is stored in the user's app_metadata (JWT claim).
-    // This is the fastest, most reliable source once the session is established.
-    const companyIdFromClaim = user.app_metadata?.company_id;
-    if (companyIdFromClaim && typeof companyIdFromClaim === 'string') {
-        return companyIdFromClaim;
+    // The company_id is stored in the user's app_metadata, which is set by a trigger in Supabase.
+    const companyId = user.app_metadata?.company_id;
+
+    if (!companyId || typeof companyId !== 'string') {
+        // This is a critical error state. It means the user exists but is not properly associated with a company.
+        // This can happen in a race condition right after signup. The trigger might not have completed.
+        // We now have a fallback in the UI/error boundary to handle this.
+        console.error(`User ${user.id} is missing a valid company_id in app_metadata. This is usually set by a database trigger.`);
+        throw new Error("Your user account is not yet associated with a company. This can take a moment after signup. Please try refreshing the page.");
     }
     
-    // Fallback for race condition: If the claim isn't populated yet (e.g., right after signup),
-    // we query the database directly. This provides a more immediate source of truth.
-    const { data: profile } = await supabase
-        .from('users')
-        .select('company_id')
-        .eq('id', user.id)
-        .single();
-
-    const companyIdFromDb = profile?.company_id;
-    if (companyIdFromDb) {
-        return companyIdFromDb;
-    }
-
-    // This is a critical error state. It means the user exists but is not properly associated with a company,
-    // even after checking the database directly.
-    console.error(`User ${user.id} is missing a valid company_id in both JWT claims and the users table. This is usually set by a database trigger on user creation.`);
-    throw new Error("Your user account is not associated with a company. Please contact support.");
+    return companyId;
 }
 
 
@@ -104,6 +85,7 @@ export async function testSupabaseConnection(): Promise<{
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
+            // This can happen if the cookie is invalid or expired. It's not a config error.
             if (error.name === 'AuthSessionMissingError') {
                  return {
                     success: true,
@@ -143,24 +125,25 @@ export async function testDatabaseQuery(): Promise<{
   count: number | null;
   error: string | null;
 }> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return { success: false, count: null, error: 'Supabase service role credentials are not configured.' };
+  const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  if (!isConfigured) {
+    return { success: false, count: null, error: 'Supabase credentials are not configured.' };
   }
 
   try {
-    const companyId = await getCompanyIdForCurrentUser();
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
     
-    const serviceSupabase = createServiceRoleClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false }
-    });
-
-    const { error, count } = await serviceSupabase
+    // Check if user is logged in first
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return { success: false, count: null, error: "No authenticated user session found. Please log in." };
+    }
+    
+    // The RLS policies will handle scoping this to the user's company
+    const { error, count } = await supabase
       .from('inventory')
-      .select('*', { count: 'exact', head: true })
-      .eq('company_id', companyId);
+      .select('*', { count: 'exact', head: true });
 
     if (error) {
       throw error;
@@ -169,10 +152,6 @@ export async function testDatabaseQuery(): Promise<{
     return { success: true, count: count, error: null };
 
   } catch (e: any) {
-    let errorMessage = e.message;
-    if (e.message.includes('Your user account is not associated with a company')) {
-        errorMessage = "Could not find a company ID for the logged-in user. The test query cannot be performed."
-    }
-    return { success: false, count: null, error: errorMessage };
+    return { success: false, count: null, error: e.message };
   }
 }

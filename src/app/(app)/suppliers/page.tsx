@@ -41,7 +41,7 @@ export default async function SuppliersPage() {
                 </Avatar>
                 <div className="flex-1">
                   <CardTitle>{supplier.name}</CardTitle>
-                  <CardDescription>{supplier.address}</CardDescription>
+                  <CardDescription>{supplier.address || 'Address not available'}</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
@@ -54,7 +54,7 @@ export default async function SuppliersPage() {
                   <span>Terms: {supplier.terms}</span>
                 </div>
               </CardContent>
-              <CardFooter>
+               <CardFooter>
                  <p className="text-xs text-muted-foreground">Performance metrics are coming soon.</p>
               </CardFooter>
             </Card>
