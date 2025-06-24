@@ -32,12 +32,8 @@ export default function LoginPage() {
       // This is a more robust pattern for the Next.js App Router.
       router.refresh();
     } catch (err: any) {
-      console.error('Client-side sign-in error:', err);
-      if (err.message.includes('Invalid login credentials')) {
-        setError('Incorrect email or password. Please try again.');
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
+      console.error('Sign-in error:', err.message);
+      setError(err.message || 'An unexpected error occurred.');
       setLoading(false);
     }
   };
