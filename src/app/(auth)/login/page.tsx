@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -33,8 +34,8 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // Redirect to the dashboard on successful sign-in.
-      // The auth context and middleware will handle the session.
+      // On successful sign-in, redirect to the dashboard.
+      // The middleware will handle the session check.
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
@@ -43,7 +44,6 @@ export default function LoginPage() {
       } else {
         setError(err.message || 'An unexpected error occurred. Please try again.');
       }
-    } finally {
       setLoading(false);
     }
   };
