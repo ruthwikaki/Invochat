@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,24 +18,24 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signInWithEmail } = useAuth();
+  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
 
-    try {
-      const { error: signInError } = await signInWithEmail(email, password);
-      if (signInError) {
-        setError(signInError.message || 'An unexpected error occurred.');
-      }
-      // The onAuthStateChange listener in AuthProvider will handle the redirect
-      // by calling router.refresh(), which then triggers the middleware.
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred. Please check your credentials.');
-    } finally {
-      setLoading(false);
+    const { data, error: signInError } = await signInWithEmail({ email, password });
+    
+    if (signInError) {
+      setError(signInError.message || 'An unexpected error occurred.');
+    } else if (data.user) {
+      // On successful login, redirect to the dashboard.
+      // This is more reliable than waiting for the auth listener.
+      router.push('/dashboard');
     }
+    
+    setLoading(false);
   };
 
   return (

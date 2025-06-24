@@ -1,7 +1,7 @@
 
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -36,13 +36,13 @@ import { Skeleton } from './ui/skeleton';
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { setTheme } = useTheme();
   const { user, signOut, loading } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
-    // The onAuthStateChange listener in AuthProvider will handle the redirect
-    // by calling router.refresh(), which then triggers the middleware.
+    router.push('/login');
   };
 
   const menuItems = [
