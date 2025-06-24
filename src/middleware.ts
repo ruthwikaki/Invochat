@@ -13,9 +13,6 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // If Supabase credentials aren't provided, we can't do anything.
-    // This might happen in development if the .env file is not set up.
-    // The app will likely fail to render, but at least the middleware won't crash.
     return response
   }
 
@@ -25,15 +22,21 @@ export async function middleware(request: NextRequest) {
         return request.cookies.get(name)?.value
       },
       set(name: string, value: string, options: CookieOptions) {
-        // If the cookie is set, update the request's cookies.
         request.cookies.set({ name, value, ...options })
-        // Also update the response's cookies.
+        response = NextResponse.next({
+          request: {
+            headers: request.headers,
+          },
+        })
         response.cookies.set({ name, value, ...options })
       },
       remove(name: string, options: CookieOptions) {
-        // If the cookie is removed, update the request's cookies.
         request.cookies.set({ name, value: '', ...options })
-        // Also update the response's cookies.
+        response = NextResponse.next({
+          request: {
+            headers: request.headers,
+          },
+        })
         response.cookies.set({ name, value: '', ...options })
       },
     },

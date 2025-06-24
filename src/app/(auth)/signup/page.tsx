@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -15,7 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { useRouter } from 'next/navigation';
+import { CheckCircle } from 'lucide-react';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -23,8 +24,8 @@ export default function SignupPage() {
   const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const { signUpWithEmail } = useAuth();
-  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,13 +34,40 @@ export default function SignupPage() {
 
     try {
       await signUpWithEmail(email, password, companyName);
-      // Refresh the page to allow the middleware to handle the redirect.
-      router.refresh();
+      setIsSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
+    } finally {
       setLoading(false);
     }
   };
+
+  if (isSubmitted) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+         <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
+          <InvoChatLogo className="h-10 w-10" />
+          <h1>ARVO</h1>
+        </div>
+        <Card className="w-full max-w-sm text-center">
+            <CardHeader>
+                <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
+                    <CheckCircle className="h-8 w-8 text-success" />
+                </div>
+                <CardTitle className="mt-4">Success!</CardTitle>
+                <CardDescription>
+                    Please check your email to verify your account.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button asChild className="w-full">
+                    <Link href="/login">Back to Sign In</Link>
+                </Button>
+            </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
