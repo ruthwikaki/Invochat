@@ -1,72 +1,47 @@
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+export async function middleware(req: NextRequest) {
+  // Create a response object that we can modify
+  const res = NextResponse.next()
 
+  // Create a Supabase client that can read and write cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({ name, value: '', ...options })
-        },
+        get: (name) => req.cookies.get(name)?.value,
+        set: (name, value, options) => res.cookies.set(name, value, options),
+        remove: (name, options) => res.cookies.delete(name, options),
       },
     }
   )
 
-  // This is essential to refresh the session cookie if it's expired.
+  // Refresh session if expired - this will write a new cookie to `res` if needed
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname === '/login' || pathname === '/signup';
-  
-  // If user is logged in and trying to access an auth page, redirect to dashboard
-  if (user && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
+  const { pathname } = req.nextUrl
+  const authRoutes = ['/login', '/signup'];
+  const isAuthRoute = authRoutes.includes(pathname);
 
-  // If user is not logged in and trying to access a protected route, redirect to login
+  // If the user is not signed in and the current path is not an auth route,
+  // redirect the user to the login page.
   if (!user && !isAuthRoute) {
-    // Allow access to the root path, it will be redirected below
-    if (pathname !== '/') {
-       return NextResponse.redirect(new URL('/login', request.url));
-    }
+    return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // Always redirect from the root path
-  if (pathname === '/') {
-    if (user) {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
-    return NextResponse.redirect(new URL('/login', request.url));
+  // If the user is signed in and the current path is an auth route or the root,
+  // redirect the user to the dashboard.
+  if (user && (isAuthRoute || pathname === '/')) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
   }
-
-  return response
+  
+  // If we've gotten here, the user is authenticated and on a protected route,
+  // or they are unauthenticated and on an auth route.
+  // The `res` object has the potentially updated session cookie.
+  return res
 }
 
 export const config = {

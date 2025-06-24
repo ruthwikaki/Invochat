@@ -32,7 +32,7 @@ export default function LoginPage() {
       setLoading(false);
     } else {
       // On success, directly navigate to the dashboard.
-      // This is more reliable than router.refresh().
+      // This will trigger the middleware, which will now have the new session cookie.
       router.push('/dashboard');
     }
   };

@@ -82,6 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
+    // After signing out, we should navigate to the login page.
+    // We can do this safely here, or rely on the middleware.
+    // Relying on middleware is more robust. We just need to refresh the page state.
+    window.location.href = '/login';
   };
 
   const value = {
