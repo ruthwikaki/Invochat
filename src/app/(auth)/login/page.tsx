@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -33,23 +34,16 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // This is the correct way to handle redirects after login with middleware.
-      // It avoids race conditions by re-triggering the middleware, which will
-      // then see the authenticated user and perform the redirect.
-      router.refresh();
+      router.push('/dashboard');
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
-      // Provide a more user-friendly error message
       if (err.message.includes('Invalid login credentials')) {
         setError('Incorrect email or password. Please try again.');
       } else {
         setError('An unexpected error occurred. Please try again.');
       }
-      // This is crucial to re-enable the form if login fails.
       setLoading(false);
     } 
-    // We intentionally do NOT set loading to false in the success case,
-    // because the page will be navigating away.
   };
 
   return (

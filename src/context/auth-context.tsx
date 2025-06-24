@@ -38,7 +38,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (supabaseUrl && supabaseAnonKey) {
-        // Use createBrowserClient from @supabase/ssr
         setSupabase(createBrowserClient(supabaseUrl, supabaseAnonKey));
     } else {
         console.error("Supabase environment variables are missing!");
@@ -48,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabase) {
-      if (!loading) setLoading(true); // Reset loading state if supabase is not available yet
+      if (!loading) setLoading(true);
       return;
     }
 
@@ -79,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
     });
     if (error) {
-      // Throw the error so the calling page can handle it in a catch block
       throw error;
     }
   };
