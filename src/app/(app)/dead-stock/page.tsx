@@ -14,7 +14,16 @@ import { getDeadStockData } from '@/app/data-actions';
 import { format, parseISO } from 'date-fns';
 
 export default async function DeadStockPage() {
-  const { deadStockItems, totalDeadStockValue } = await getDeadStockData();
+  let deadStockData = { deadStockItems: [], totalDeadStockValue: 0 };
+  
+  try {
+      deadStockData = await getDeadStockData();
+  } catch (error) {
+      console.error("Failed to fetch dead stock data:", error);
+      // Render page with empty data if fetching fails.
+  }
+
+  const { deadStockItems, totalDeadStockValue } = deadStockData;
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">

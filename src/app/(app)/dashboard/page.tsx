@@ -50,7 +50,7 @@ export default async function DashboardPage() {
         data = await getDashboardData();
     } catch (error) {
         console.error("Failed to fetch dashboard metrics:", error);
-        // You could render an error state here if needed
+        // Render the page with default/zero values if data fetching fails.
     }
 
     return (

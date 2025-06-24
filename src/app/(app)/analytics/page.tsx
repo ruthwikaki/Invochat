@@ -24,7 +24,7 @@ export default async function AnalyticsPage() {
 
     } catch (error) {
         console.error("Failed to generate charts:", error);
-        // Silently fail or render an error message
+        // Silently fail and render the "No Data" card.
     }
 
     return (
@@ -49,9 +49,9 @@ export default async function AnalyticsPage() {
                             <CardTitle>No Data</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="h-60 flex flex-col items-center justify-center text-muted-foreground">
+                            <div className="h-60 flex flex-col items-center justify-center text-muted-foreground text-center">
                                 <BarChartIcon className="h-12 w-12 mb-4" />
-                                Could not generate charts. Please ensure you have inventory and sales data.
+                                Could not generate charts. This can happen if the AI fails or if there is no data. Please ensure your database is populated and your API keys are configured.
                             </div>
                         </CardContent>
                     </Card>

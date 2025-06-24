@@ -14,7 +14,14 @@ import { getSuppliersData } from '@/app/data-actions';
 import type { Vendor } from '@/types';
 
 export default async function SuppliersPage() {
-  const vendors: Vendor[] = await getSuppliersData();
+  let vendors: Vendor[] = [];
+
+  try {
+    vendors = await getSuppliersData();
+  } catch (error) {
+    console.error("Failed to fetch suppliers data:", error);
+    // Render page with empty data if fetching fails.
+  }
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
