@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -27,7 +26,6 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { signUpWithEmail } = useAuth();
-  const router = useRouter();
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,11 +39,13 @@ export default function SignupPage() {
         setError(signUpError.message);
         setLoading(false);
       } else if (data.session) {
-        // User is logged in immediately, refresh to trigger middleware redirect.
-        router.refresh();
+        // A session means the user is logged in. The onAuthStateChange
+        // listener in AuthProvider will handle the refresh and redirect.
+        // We don't need to do anything here.
       } else if (data.user) {
         // User exists, but no session -> email verification needed
         setIsSubmitted(true);
+        setLoading(false);
       } else {
         setError('An unexpected error occurred during sign up.');
         setLoading(false);

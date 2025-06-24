@@ -2,6 +2,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import type { SupabaseClient, AuthError, Session, SignInWithPasswordCredentials } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -35,13 +37,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (event, session) => {
         setUser(session?.user as User ?? null);
         setLoading(false);
+        // On any auth event, refresh the page.
+        // This re-runs the middleware with the latest auth state.
+        // The middleware is the single source of truth for redirects.
+        router.refresh();
       }
     );
+
+    // Initial check to set user state without causing a refresh loop
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user as User ?? null);
+        setLoading(false);
+    });
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const throwUnconfiguredError = () => {
     const error = new Error('Supabase is not configured. Please check your environment variables.') as AuthError;
@@ -51,20 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (credentials: SignInWithPasswordCredentials) => {
     if (!supabase) return throwUnconfiguredError();
-    
-    const result = await supabase.auth.signInWithPassword(credentials);
-    
-    // If successful, manually update the user state immediately
-    if (result.data.session && result.data.user) {
-      setUser(result.data.user as User);
-    }
-    
-    return result as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
+    // The onAuthStateChange listener will handle the redirect.
+    return supabase.auth.signInWithPassword(credentials) as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
-    
+    // The onAuthStateChange listener will handle the redirect for verified users.
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
@@ -81,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    setUser(null);
+    // The onAuthStateChange listener will handle the redirect.
   };
 
   const value = {

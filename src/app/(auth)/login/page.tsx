@@ -2,7 +2,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,7 +17,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signInWithEmail } = useAuth();
-  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -30,10 +28,11 @@ export default function LoginPage() {
     if (signInError) {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
-    } else {
-      // Instead of refresh, use push to navigate directly
-      router.push('/dashboard');
     }
+    // On success, we don't need to do anything here.
+    // The AuthProvider's onAuthStateChange listener will trigger a router.refresh()
+    // which will cause the middleware to redirect to the dashboard.
+    // We also don't need to set loading to false on success, as a page refresh will happen.
   };
 
   return (
