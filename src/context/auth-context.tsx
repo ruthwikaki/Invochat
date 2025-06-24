@@ -1,15 +1,16 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signUpWithEmail: (email: string, password: string, companyName: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,7 +19,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [supabase] = useState<SupabaseClient>(() => createBrowserSupabaseClient());
-  const router = useRouter();
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const signInWithEmail = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -43,10 +43,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
+
+  const signUpWithEmail = async (email: string, password: string, companyName: string) => {
+    // First, sign up the user
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    
+    if (error) {
+      throw error;
+    }
+
+    // If signup successful and user created, call handle_new_user
+    if (data.user) {
+      const { error: rpcError } = await supabase.rpc('handle_new_user', {
+        company_name_param: companyName
+      });
+      
+      if (rpcError) {
+        console.error('Error creating company:', rpcError);
+        throw new Error('Account created but company setup failed. Please contact support.');
+      }
+    }
+  };
   
   const signOut = async () => {
     await supabase.auth.signOut();
-    router.push('/login');
   };
 
   const value = {
@@ -54,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signInWithEmail,
     signOut,
+    signUpWithEmail,
   };
   
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
