@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -32,7 +31,7 @@ function SupabaseConfigurationError() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
+  const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const router = useRouter();
 
 
