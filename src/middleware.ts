@@ -12,8 +12,8 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // If supabase is not configured, skip middleware
   if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase credentials not found. Middleware is skipping authentication.');
     return response;
   }
 
@@ -26,13 +26,8 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is set, update the request's cookies.
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          // Also update the response's cookies.
+          // A middleware can't set cookies on a request, only on a response.
+          // So we're modifying the response object here.
           response.cookies.set({
             name,
             value,
@@ -40,13 +35,8 @@ export async function middleware(request: NextRequest) {
           })
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the request's cookies.
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          // Also update the response's cookies.
+          // A middleware can't remove cookies from a request, only on a response.
+          // So we're modifying the response object here.
           response.cookies.set({
             name,
             value: '',
@@ -57,9 +47,10 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired - required for Server Components
-  // This will also update the session cookie if it's expired.
+  // This will refresh the session if it's expired.
+  // It's important that this is called *before* the redirect logic.
   const { data: { user } } = await supabase.auth.getUser()
+
   const { pathname } = request.nextUrl
 
   // Define routes that require authentication
@@ -71,21 +62,25 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = authRoutes.some(p => pathname.startsWith(p));
 
   if (!user && isProtectedRoute) {
+    // If no user, and it's a protected route, redirect to login
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   if (user && isAuthRoute) {
+    // If user is logged in and tries to access login/signup, redirect to dashboard
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
   if (pathname === '/') {
+    // Redirect root to either dashboard or login
     if (user) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
     }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-
+  // If we've gotten this far, the user is allowed to access the route.
+  // We return the response object, which may have had its cookies updated by `getUser`.
   return response
 }
 
