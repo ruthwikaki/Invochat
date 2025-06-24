@@ -18,49 +18,43 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+          // If the cookie is updated, update the cookies on the response.
+          response.cookies.set({
+            name,
+            value,
+            ...options,
           })
-          response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({ name, value: '', ...options })
+          // If the cookie is removed, delete it from the response.
+          response.cookies.delete(name, options)
         },
       },
     }
   )
 
-  // Refresh session to ensure we have the latest auth state
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  // Refreshing the session ensures the user is still valid and updates the cookie.
+  // This is required for Server Components and Server Actions.
+  const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
   const authRoutes = ['/login', '/signup']
   const isAuthRoute = authRoutes.includes(pathname)
 
-  // Redirect authenticated users from auth routes to the dashboard
+  // If the user is logged in and tries to access an auth route, redirect to the dashboard.
   if (user && isAuthRoute) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Redirect unauthenticated users from protected routes to the login page
+  // If the user is not logged in and tries to access a protected route, redirect to login.
   if (!user && !isAuthRoute) {
-    // Let the root path be handled by its own logic, but protect others
+    // Let the root path be handled by its own logic, but protect others.
     if (pathname !== '/') {
         return NextResponse.redirect(new URL('/login', request.url))
     }
   }
   
-  // Handle the root path explicitly
+  // Explicitly handle the root path to avoid redirect loops.
   if (pathname === '/') {
       return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', request.url))
   }
