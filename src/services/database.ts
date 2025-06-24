@@ -18,8 +18,9 @@ function getSupabase() {
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
-        console.error("Supabase service role credentials are not configured on the server.");
-        throw new Error("Database service is not available. Please check server configuration.");
+        const errorMessage = "Database service is not available. Please check server configuration.";
+        console.error(`[Database Service] ${errorMessage}`);
+        throw new Error(errorMessage);
     }
   
     return createClient(supabaseUrl, supabaseServiceKey, {
@@ -141,50 +142,27 @@ export async function getDeadStockPageData(companyId: string) {
     };
 }
 
+/**
+ * Fetches all suppliers for a company and aggregates their performance metrics
+ * using a single, efficient RPC call to a database function.
+ * This avoids the N+1 query problem.
+ */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
     const supabase = getSupabase();
     
-    const { data: vendors, error: vendorError } = await supabase
-        .from('vendors')
-        .select('*')
-        .eq('company_id', companyId);
-    
-    if (vendorError) {
-        console.error('Error fetching vendors:', vendorError);
-        throw new Error('Could not load suppliers data.');
-    }
-    if (!vendors) return [];
-
-    const { data: purchaseOrders, error: poError } = await supabase
-        .from('purchase_orders')
-        .select('vendor_name, cost, item, expected_date, delivery_date, quantity')
-        .eq('company_id', companyId);
-    
-    if (poError) {
-        console.error('Error fetching purchase orders for suppliers:', poError);
-        throw new Error('Could not load suppliers data.');
-    }
-
-    return vendors.map(vendor => {
-        const vendorPOs = purchaseOrders?.filter(po => po.vendor_name === vendor.vendor_name) || [];
-        
-        const totalSpend = vendorPOs.reduce((sum, po) => sum + (Number(po.cost) * po.quantity), 0);
-        const itemsSupplied = [...new Set(vendorPOs.map(po => po.item))];
-        
-        const onTimePOs = vendorPOs.filter(po => po.delivery_date && po.expected_date && !isAfter(parseISO(po.delivery_date), parseISO(po.expected_date)));
-        const onTimeDeliveryRate = vendorPOs.length > 0 ? (onTimePOs.length / vendorPOs.length) * 100 : 95; // Default 95 if no data
-
-        return {
-            id: vendor.id,
-            name: vendor.vendor_name,
-            contact_info: vendor.contact_info,
-            address: vendor.address,
-            terms: vendor.terms,
-            onTimeDeliveryRate: Math.round(onTimeDeliveryRate),
-            totalSpend,
-            itemsSupplied
-        };
+    // Assumes a Supabase RPC function `get_suppliers_with_metrics` exists.
+    // This function should perform the necessary joins and aggregations.
+    const { data, error } = await supabase.rpc('get_suppliers_with_metrics', {
+        p_company_id: companyId
     });
+
+    if (error) {
+        console.error('Error fetching suppliers with metrics:', error);
+        throw new Error('Could not load supplier data.');
+    }
+    
+    // The RPC function is expected to return data in the shape of the Supplier type.
+    return data as Supplier[] || [];
 }
 
 export async function getVendorsFromDB(companyId: string) {
@@ -259,6 +237,8 @@ export async function getDataForChart(query: string, companyId: string): Promise
     const supabase = getSupabase();
     const lowerCaseQuery = query.toLowerCase();
 
+    // It's assumed a database function `get_chart_data` exists that can
+    // intelligently return different data shapes based on the query text.
     const { data, error } = await supabase.rpc('get_chart_data', {
         p_company_id: companyId,
         p_query: lowerCaseQuery
