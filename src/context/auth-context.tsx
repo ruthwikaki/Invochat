@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -79,23 +78,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
     
-    // The user record creation and company creation logic is now expected to be handled
-    // by a database trigger or RPC function, as was the case in a previous version.
-    // The client-side multi-step process is brittle and exposes too much logic.
-    // We revert to calling the `handle_new_user` RPC function for robustness.
-    const { data, error } = await supabase.auth.signUp({ email, password });
-
-    if (error) throw error;
-
-    if (data.user) {
-      // This RPC function should create the company and user records transactionally.
-      const { error: rpcError } = await supabase.rpc('handle_new_user', { company_name_param: companyName });
-      if (rpcError) {
-        // Log the error, but don't block the user from seeing the success message.
-        // The user has been created in auth, but their company link failed.
-        // This is a situation that may need manual intervention or a more robust cleanup process.
-        console.error('Error in handle_new_user RPC:', rpcError);
+    try {
+      // Create company first
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .insert({ name: companyName })
+        .select()
+        .single();
+  
+      if (companyError) {
+        console.error('Company creation error:', companyError);
+        throw new Error('Failed to create company');
       }
+  
+      // Create auth user with company_id in metadata
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            company_id: company.id,
+            full_name: email.split('@')[0]
+          }
+        }
+      });
+      
+      if (error) {
+        // Clean up company if auth fails
+        await supabase.from('companies').delete().eq('id', company.id);
+        throw error;
+      }
+      
+      // The existing trigger will handle creating users and profiles
+      router.push('/dashboard');
+      
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
     }
   };
 
