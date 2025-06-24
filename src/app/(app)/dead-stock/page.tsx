@@ -9,21 +9,20 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DollarSign, Package, TrendingDown } from 'lucide-react';
+import { DollarSign, Package, TrendingDown, Clock } from 'lucide-react';
 import { getDeadStockData } from '@/app/data-actions';
 import { format, parseISO } from 'date-fns';
 
 export default async function DeadStockPage() {
-  let deadStockData = { deadStockItems: [], totalDeadStockValue: 0 };
+  let deadStockData = { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
   
   try {
       deadStockData = await getDeadStockData();
   } catch (error) {
       console.error("Failed to fetch dead stock data:", error);
-      // Render page with empty data if fetching fails.
   }
 
-  const { deadStockItems, totalDeadStockValue } = deadStockData;
+  const { deadStock, totalValue, totalUnits, averageAge } = deadStockData;
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -34,22 +33,41 @@ export default async function DeadStockPage() {
         </div>
       </div>
       
-      <Card className="border-destructive/50 text-destructive">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle>Total Dead Stock Value</CardTitle>
-            <DollarSign className="h-5 w-5 text-destructive" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold">${(totalDeadStockValue || 0).toLocaleString()}</div>
-          <p className="text-xs">Across {deadStockItems.length || 0} items</p>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="border-destructive/50 text-destructive">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+                <DollarSign className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">${totalValue.toLocaleString()}</div>
+            </CardContent>
+        </Card>
+         <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Total Units</CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{totalUnits.toLocaleString()}</div>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Average Age</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{averageAge} days</div>
+            </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {deadStockItems.length === 0 ? (
+        {deadStock.length === 0 ? (
           <p className="md:col-span-2 lg:col-span-3 text-center text-muted-foreground">No dead stock items found. Great job!</p>
         ) : (
-          deadStockItems.map((item) => (
+          deadStock.map((item) => (
             <Card key={item.id}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

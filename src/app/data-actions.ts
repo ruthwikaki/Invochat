@@ -5,9 +5,9 @@ import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
-    getInventoryFromDB, 
+    getInventoryItems, 
     getDeadStockPageData,
-    getVendorsFromDB,
+    getSuppliersFromDB,
     getAlertsFromDB
 } from '@/services/database';
 import type { User } from '@/types';
@@ -16,16 +16,12 @@ const SUPABASE_CONFIGURED = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.e
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
     if (!SUPABASE_CONFIGURED) {
-        // In a real app, you might want to return mock data or a specific error object.
-        // For now, we throw an error to make it clear that the DB is not set up.
         throw new Error("Database is not configured. Please set Supabase environment variables.");
     }
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
 
-    // The company_id should be stored in the user's metadata (app_metadata for Supabase)
-    // This is set via a custom claim or a DB trigger after signup.
     const companyId = user?.app_metadata?.company_id;
 
     if (!companyId) {
@@ -41,7 +37,7 @@ export async function getDashboardData() {
 
 export async function getInventoryData() {
     const companyId = await getCompanyIdForCurrentUser();
-    return getInventoryFromDB(companyId);
+    return getInventoryItems(companyId);
 }
 
 export async function getDeadStockData() {
@@ -51,7 +47,7 @@ export async function getDeadStockData() {
 
 export async function getSuppliersData() {
     const companyId = await getCompanyIdForCurrentUser();
-    return getVendorsFromDB(companyId);
+    return getSuppliersFromDB(companyId);
 }
 
 export async function getAlertsData() {
@@ -83,8 +79,6 @@ export async function testSupabaseConnection(): Promise<{
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
-            // An AuthSessionMissingError is expected if no user is logged in.
-            // It does NOT indicate a connection failure, so we treat it as success.
             if (error.name === 'AuthSessionMissingError') {
                  return {
                     success: true,
@@ -94,7 +88,6 @@ export async function testSupabaseConnection(): Promise<{
                 };
             }
             
-            // Any other error is a genuine connection problem.
             return {
                 success: false,
                 error: { message: 'An unexpected error occurred while fetching the user.', details: error },
@@ -103,7 +96,6 @@ export async function testSupabaseConnection(): Promise<{
             };
         }
 
-        // If no error, we have a user and a successful connection.
         return {
             success: true,
             error: null,
@@ -112,7 +104,6 @@ export async function testSupabaseConnection(): Promise<{
         };
 
     } catch (e: any) {
-        // This catches fundamental errors from createClient itself.
         return {
             success: false,
             error: { message: 'A server-side error occurred while trying to connect to Supabase.', details: e.message },

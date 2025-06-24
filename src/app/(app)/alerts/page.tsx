@@ -1,7 +1,6 @@
 
 'use client';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -19,44 +18,48 @@ import {
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAlertsData } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatDistanceToNow } from 'date-fns';
 
-function AlertCard({ alert, onToggleResolved }: { alert: Alert; onToggleResolved: (id: string) => void }) {
+function AlertCard({ alert }: { alert: Alert }) {
   const [formattedDate, setFormattedDate] = useState('');
 
   useEffect(() => {
-    setFormattedDate(new Date(alert.date).toLocaleDateString());
-  }, [alert.date]);
+    setFormattedDate(formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true }));
+  }, [alert.timestamp]);
 
+  const Icon = alert.severity === 'warning' ? AlertCircle : Info;
+  const cardClass = alert.severity === 'warning' ? 'border-warning/50 text-warning' : 'border-blue-500/50';
+  const badgeVariant = alert.type === 'low_stock' ? 'destructive' : 'secondary';
+  
   return (
-    <Card className={cn(alert.resolved && 'bg-muted/50')}>
+    <Card className={cn(cardClass)}>
       <CardHeader>
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" /> {alert.item}
+              <Icon className="h-5 w-5" /> {alert.title}
             </CardTitle>
             <CardDescription>
-              Triggered on: {formattedDate}
+              Triggered {formattedDate}
             </CardDescription>
           </div>
-          <Badge variant={'destructive'}>{alert.type}</Badge>
+          <Badge variant={badgeVariant}>{alert.type.replace('_', ' ')}</Badge>
         </div>
       </CardHeader>
       <CardContent>
         <p className="mb-4">{alert.message}</p>
-        <Button
-          size="sm"
-          variant={alert.resolved ? 'secondary' : 'outline'}
-          onClick={() => onToggleResolved(alert.id)}
-        >
-          <CheckCircle className="mr-2 h-4 w-4" />
-          {alert.resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
-        </Button>
+         <div className="text-xs bg-muted/80 p-2 rounded-md space-y-1">
+            {alert.metadata.productName && <p><strong>Product:</strong> {alert.metadata.productName}</p>}
+            {alert.metadata.currentStock !== undefined && <p><strong>Stock:</strong> {alert.metadata.currentStock}</p>}
+            {alert.metadata.reorderPoint !== undefined && <p><strong>Reorder Point:</strong> {alert.metadata.reorderPoint}</p>}
+            {alert.metadata.lastSoldDate && <p><strong>Last Sold:</strong> {new Date(alert.metadata.lastSoldDate).toLocaleDateString()}</p>}
+            {alert.metadata.value !== undefined && <p><strong>Value:</strong> ${alert.metadata.value.toLocaleString()}</p>}
+         </div>
       </CardContent>
     </Card>
   );
@@ -84,15 +87,6 @@ export default function AlertsPage() {
     fetchData();
   }, [toast]);
 
-
-  const toggleResolved = (id: string) => {
-    setAlerts(
-      alerts.map((alert) =>
-        alert.id === id ? { ...alert, resolved: !alert.resolved } : alert
-      )
-    );
-  };
-
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
        <div className="flex items-center justify-between">
@@ -106,7 +100,8 @@ export default function AlertsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Alerts</SelectItem>
-            <SelectItem value="low-stock">Low Stock</SelectItem>
+            <SelectItem value="low_stock">Low Stock</SelectItem>
+            <SelectItem value="dead_stock">Dead Stock</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -124,7 +119,7 @@ export default function AlertsPage() {
             ))
         ) : alerts.length > 0 ? (
           alerts.map((alert) => (
-            <AlertCard key={alert.id} alert={alert} onToggleResolved={toggleResolved} />
+            <AlertCard key={alert.id} alert={alert} />
           ))
         ) : (
           <div className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg">

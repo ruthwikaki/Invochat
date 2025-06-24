@@ -1,9 +1,10 @@
 
-import { AlertCircle, Package, TrendingDown, DollarSign } from 'lucide-react';
+import { AlertCircle, Package, TrendingDown, DollarSign, Truck, BarChart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { getDashboardData } from '@/app/data-actions';
+import { Badge } from '@/components/ui/badge';
 
 function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000_000) {
@@ -14,7 +15,6 @@ function formatCurrency(value: number) {
     }
     return `$${value.toFixed(0)}`;
 }
-
 
 function MetricCard({ title, value, icon: Icon, variant = 'default', label }: { title: string; value: string; icon: React.ElementType; variant?: 'default' | 'destructive' | 'success' | 'warning'; label?: string; }) {
   const variantClasses = {
@@ -40,17 +40,16 @@ function MetricCard({ title, value, icon: Icon, variant = 'default', label }: { 
 
 export default async function DashboardPage() {
     let data = {
-        totalValue: 0,
-        totalProducts: 0,
+        inventoryValue: 0,
         deadStockValue: 0,
-        lowStockItems: 0,
+        onTimeDeliveryRate: 0,
+        predictiveAlert: null,
     };
 
     try {
         data = await getDashboardData();
     } catch (error) {
         console.error("Failed to fetch dashboard metrics:", error);
-        // Render the page with default/zero values if data fetching fails.
     }
 
     return (
@@ -65,27 +64,38 @@ export default async function DashboardPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
                     title="Total Inventory Value"
-                    value={formatCurrency(data.totalValue)}
+                    value={formatCurrency(data.inventoryValue)}
                     icon={DollarSign}
                     variant="success"
                 />
                  <MetricCard
-                    title="Products"
-                    value={String(data.totalProducts)}
-                    icon={Package}
-                />
-                <MetricCard
                     title="Dead Stock Value"
                     value={formatCurrency(data.deadStockValue)}
                     icon={TrendingDown}
                     variant="destructive"
                 />
-                 <MetricCard
-                    title="Low Stock Items"
-                    value={String(data.lowStockItems)}
-                    icon={AlertCircle}
-                    variant="warning"
+                <MetricCard
+                    title="On-Time Delivery Rate"
+                    value={`${data.onTimeDeliveryRate.toFixed(0)}%`}
+                    icon={Truck}
+                    variant="default"
                 />
+                 <Card className="border-warning/50 text-warning">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Predictive Alert</CardTitle>
+                        <AlertCircle className="h-5 w-5 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        {data.predictiveAlert ? (
+                            <>
+                                <div className="text-xl font-bold">{data.predictiveAlert.item}</div>
+                                <p className="text-xs text-muted-foreground">Predicted to run out in ~{data.predictiveAlert.days} days.</p>
+                            </>
+                        ) : (
+                             <div className="text-xl font-bold text-muted-foreground">All Good!</div>
+                        )}
+                    </CardContent>
+                </Card>
             </div>
         </div>
     );

@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -38,13 +39,15 @@ export type AssistantMessagePayload = {
 };
 
 // Data models based on database schema
-export type Vendor = {
+export type Supplier = {
     id: string; // UUID
-    company_id: string; // UUID
-    vendor_name: string;
-    address: string;
+    name: string;
     contact_info: string;
+    address: string;
     terms: string;
+    onTimeDeliveryRate: number;
+    totalSpend: number;
+    itemsSupplied: string[];
 }
 
 export type InventoryItem = {
@@ -60,22 +63,33 @@ export type InventoryItem = {
     reorder_point: number;
     reorder_qty: number;
     supplier_name: string;
-    warehouse_id?: string; // UUID
+    warehouse_name?: string;
     last_sold_date?: string; // ISO String
 }
 
 export type Alert = {
     id: string;
-    type: 'Low Stock';
-    item: string;
+    type: 'low_stock' | 'dead_stock';
+    title: string;
     message: string;
-    date: string;
-    resolved: boolean;
-}
+    severity: 'warning' | 'info';
+    timestamp: string;
+    metadata: {
+        productId?: string;
+        productName?: string;
+        currentStock?: number;
+        reorderPoint?: number;
+        lastSoldDate?: string;
+        value?: number;
+    };
+};
 
 export type DashboardMetrics = {
-    totalProducts: number;
-    totalValue: number;
-    lowStockItems: number;
+    inventoryValue: number;
     deadStockValue: number;
-}
+    onTimeDeliveryRate: number;
+    predictiveAlert: {
+        item: string;
+        days: number;
+    } | null;
+};
