@@ -1,9 +1,9 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -20,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -117,9 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    
-    // On success, navigate to login
-    router.push('/login');
   };
 
   const value = {

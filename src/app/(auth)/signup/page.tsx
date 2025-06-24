@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -38,15 +39,8 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { user, loading: authLoading, signUpWithEmail } = useAuth();
+  const { loading: authLoading, signUpWithEmail } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    // Redirect if user is already logged in
-    if (!authLoading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,8 +63,9 @@ export default function SignupPage() {
     }
   };
 
-  // While checking auth state or if user is found, show loader to prevent flicker.
-  if (authLoading || user) {
+  // While checking auth state, show loader to prevent flicker.
+  // The middleware will handle redirecting logged-in users.
+  if (authLoading) {
     return <AuthPageLoader />;
   }
 
@@ -156,7 +151,7 @@ export default function SignupPage() {
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              </Aler>
             )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Creating account...' : 'Sign up'}

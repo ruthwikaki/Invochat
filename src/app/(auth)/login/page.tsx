@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -31,13 +32,6 @@ export default function LoginPage() {
   const { user, loading: authLoading, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    // If the user is already logged in when they visit the page, redirect them.
-    if (!authLoading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, authLoading, router]);
   
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -47,6 +41,7 @@ export default function LoginPage() {
     try {
       await signInWithEmail(email, password);
       // On success, explicitly navigate to the dashboard.
+      // The middleware will protect the route.
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
@@ -58,7 +53,8 @@ export default function LoginPage() {
   };
 
   // While checking auth state or if user is found, show loader to prevent flicker.
-  if (authLoading || user) {
+  // The middleware will handle redirecting logged-in users away from this page.
+  if (authLoading) {
     return <AuthPageLoader />;
   }
 
