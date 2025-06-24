@@ -21,7 +21,6 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUpWithEmail: (email: string, password: string, companyName: string) => Promise<SignUpResponse>;
   signOut: () => Promise<void>;
-  authLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,36 +28,31 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   
   const isConfigured = !!supabase;
 
   useEffect(() => {
     if (!supabase) {
-      setAuthLoading(false);
+      setLoading(false);
       return;
     }
 
+    // onAuthStateChange is called on page load with INITIAL_SESSION,
+    // and then on any subsequent auth event.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+
         // on SIGNED_IN or SIGNED_OUT, we want to refresh the page
         // to let the middleware handle the redirect.
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
           router.refresh();
         }
-        setUser(session?.user ?? null);
-        setAuthLoading(false);
       }
     );
-
-    // Set initial user state on load
-    const setInitialUser = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
-        setAuthLoading(false);
-    }
-    setInitialUser();
 
     return () => {
       subscription?.unsubscribe();
@@ -103,8 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = {
     user,
-    loading: authLoading,
-    authLoading,
+    loading,
     isConfigured,
     signInWithEmail,
     signUpWithEmail,
