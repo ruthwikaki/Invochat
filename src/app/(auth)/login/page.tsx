@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const { signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -25,7 +27,10 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // The auth context now handles redirects on auth state change.
+      // Instead of relying on the context, we refresh the page.
+      // The middleware will then handle the redirect to the dashboard.
+      // This is a more robust pattern for the Next.js App Router.
+      router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
       if (err.message.includes('Invalid login credentials')) {
@@ -33,8 +38,7 @@ export default function LoginPage() {
       } else {
         setError('An unexpected error occurred. Please try again.');
       }
-    } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 

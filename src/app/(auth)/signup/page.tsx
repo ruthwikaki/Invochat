@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
+import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -24,6 +25,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signUpWithEmail } = useAuth();
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,10 +34,10 @@ export default function SignupPage() {
 
     try {
       await signUpWithEmail(email, password, companyName);
-      // Auth context will handle the redirect on successful sign up/in.
+      // Refresh the page to allow the middleware to handle the redirect.
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed');
-    } finally {
       setLoading(false);
     }
   };

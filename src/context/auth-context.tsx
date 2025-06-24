@@ -4,7 +4,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -20,7 +19,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [supabase] = useState<SupabaseClient>(() => createBrowserSupabaseClient());
-  const router = useRouter();
 
   useEffect(() => {
     // Get initial session
@@ -40,29 +38,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        // Just update the user state. Routing is handled by middleware
+        // and router.refresh() calls in the components.
         setUser(session?.user ?? null);
-        
-        // Handle navigation based on auth state
-        if (session?.user) {
-          // User just logged in
-          if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
-            router.push('/dashboard');
-          }
-        } else {
-          // User logged out or no user
-          if (!window.location.pathname.startsWith('/login') && 
-              !window.location.pathname.startsWith('/signup') &&
-              window.location.pathname !== '/') {
-            router.push('/login');
-          }
-        }
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const signInWithEmail = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
