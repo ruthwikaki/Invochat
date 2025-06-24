@@ -43,8 +43,7 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
-    } finally {
-      // Always reset loading state, especially on error.
+      // Only reset loading state on error, as success will trigger a refresh.
       setLoading(false);
     }
   };

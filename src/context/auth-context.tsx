@@ -13,6 +13,8 @@ interface AuthContextType {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{isSuccess: boolean}>;
   signOut: () => Promise<void>;
+  // This is a temporary property to expose the user object from the auth context for debugging
+  authLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,33 +22,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const router = useRouter();
   
   const isConfigured = !!supabase;
 
   useEffect(() => {
     if (!supabase) {
-      setLoading(false);
+      setAuthLoading(false);
       return;
     }
 
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setUser(session?.user ?? null);
-      } catch (error) {
-        console.error('Error getting session:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setUser(session?.user ?? null);
+        setAuthLoading(false);
+        
         // On sign-in or sign-out, refresh the page.
         // This will cause Next.js to re-run the middleware with the new
         // session cookie, which correctly handles redirects.
@@ -128,7 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = {
     user,
-    loading,
+    loading: authLoading, // Keep 'loading' for backward compatibility if used elsewhere
+    authLoading,
     isConfigured,
     signInWithEmail,
     signUpWithEmail,

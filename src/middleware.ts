@@ -9,6 +9,7 @@ export async function middleware(request: NextRequest) {
     },
   })
 
+  // The `createServerClient` is used to read and write cookies for server-side operations
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -18,22 +19,42 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ ...options, name, value })
+          // If the cookie is set, update the request's cookies.
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({ ...options, name, value })
+          // Also update the response's cookies.
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({ ...options, name, value: '' })
+          // If the cookie is removed, update the request's cookies.
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          response.cookies.set({ ...options, name, value: '' })
+           // Also update the response's cookies.
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
         },
       },
     }
