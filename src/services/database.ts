@@ -340,3 +340,28 @@ export async function getDataForChart(query: string, companyId: string): Promise
         return [];
     }
 }
+
+
+export async function getCompanyIdByName(companyName: string): Promise<string | null> {
+    const supabase = getSupabase();
+    try {
+        // This assumes a 'companies' table exists, which is a standard pattern for this setup.
+        const { data, error } = await supabase
+            .from('companies')
+            .select('id')
+            .eq('name', companyName)
+            .single();
+
+        // PGRST116 means "exact one row not found", which is not an error in this case.
+        if (error && error.code !== 'PGRST116') {
+            console.error(`Error fetching company ID for name "${companyName}":`, error);
+            return null;
+        }
+
+        return data?.id || null;
+
+    } catch (e) {
+        console.error('Exception in getCompanyIdByName:', e);
+        return null;
+    }
+}

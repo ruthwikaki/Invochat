@@ -9,7 +9,8 @@ import {
     getInventoryItems, 
     getDeadStockPageData,
     getSuppliersFromDB,
-    getAlertsFromDB
+    getAlertsFromDB,
+    getCompanyIdByName,
 } from '@/services/database';
 import type { User } from '@/types';
 
@@ -28,16 +29,27 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         throw new Error("User not found. Please log in again.");
     }
 
-    // The company_id is stored in the user's metadata, which is set during signup.
-    const companyId = user.user_metadata?.company_id;
-
-    if (!companyId || typeof companyId !== 'string') {
-        // This is a critical error state. It means the user exists but is not properly associated with a company.
-        console.error(`User ${user.id} is missing a valid company_id in user_metadata.`);
-        throw new Error("Your user account is not associated with a company. Please contact support or try signing up again.");
+    // The company_id is stored in the user's app_metadata, which is set by a trigger in Supabase.
+    // This is the primary, most reliable source.
+    const companyIdFromAppMetadata = user.app_metadata?.company_id;
+    if (companyIdFromAppMetadata && typeof companyIdFromAppMetadata === 'string') {
+        return companyIdFromAppMetadata;
     }
     
-    return companyId;
+    // Fallback for race condition: if app_metadata is not yet populated by the trigger,
+    // we use the company_name from user_metadata (set at signup) to look up the ID.
+    const companyNameFromUserMetadata = user.user_metadata?.company_name;
+    if (companyNameFromUserMetadata && typeof companyNameFromUserMetadata === 'string') {
+        const companyId = await getCompanyIdByName(companyNameFromUserMetadata);
+        if (companyId) {
+            return companyId;
+        }
+    }
+
+
+    // This is a critical error state. It means the user exists but is not properly associated with a company.
+    console.error(`User ${user.id} is missing a valid company_id in app_metadata and a fallback lookup failed.`);
+    throw new Error("Your user account is not associated with a company. Please contact support.");
 }
 
 
@@ -108,14 +120,13 @@ export async function testSupabaseConnection(): Promise<{
         }
         
         const typedUser = user as User;
-        const companyId = typedUser?.user_metadata?.company_id;
+        const companyId = typedUser?.app_metadata?.company_id || typedUser?.user_metadata?.company_id;
 
         return {
             success: true,
             error: null,
             user: {
                 ...typedUser,
-                // Ensure app_metadata is correctly typed for display, even if sourced from user_metadata
                 app_metadata: {
                     ...typedUser.app_metadata,
                     company_id: companyId
