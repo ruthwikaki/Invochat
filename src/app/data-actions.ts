@@ -83,14 +83,27 @@ export async function testSupabaseConnection(): Promise<{
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
+            // An AuthSessionMissingError is expected if no user is logged in.
+            // It does NOT indicate a connection failure, so we treat it as success.
+            if (error.name === 'AuthSessionMissingError') {
+                 return {
+                    success: true,
+                    error: null,
+                    user: null,
+                    isConfigured
+                };
+            }
+            
+            // Any other error is a genuine connection problem.
             return {
                 success: false,
-                error: { message: 'Failed to get user. This could be due to an invalid JWT or network issue.', details: error },
+                error: { message: 'An unexpected error occurred while fetching the user.', details: error },
                 user: null,
                 isConfigured
             };
         }
 
+        // If no error, we have a user and a successful connection.
         return {
             success: true,
             error: null,
@@ -99,7 +112,7 @@ export async function testSupabaseConnection(): Promise<{
         };
 
     } catch (e: any) {
-        // This catches errors from createClient, e.g., if URL is invalid
+        // This catches fundamental errors from createClient itself.
         return {
             success: false,
             error: { message: 'A server-side error occurred while trying to connect to Supabase.', details: e.message },
