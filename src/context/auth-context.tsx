@@ -1,8 +1,9 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
-import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { createBrowserClient } from '@supabase/ssr';
 
 interface AuthContextType {
   user: User | null;
@@ -37,7 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (supabaseUrl && supabaseAnonKey) {
-        setSupabase(createBrowserSupabaseClient(supabaseUrl, supabaseAnonKey));
+        // Use createBrowserClient from @supabase/ssr
+        setSupabase(createBrowserClient(supabaseUrl, supabaseAnonKey));
     } else {
         console.error("Supabase environment variables are missing!");
         setLoading(false);
