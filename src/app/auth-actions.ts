@@ -92,11 +92,12 @@ export async function signUpWithEmailAndPassword(formData: FormData) {
         throw new Error('User creation did not return a user object.');
     }
     
-    // 3. Create the user profile in Supabase public.users table.
-    // Based on RLS policies, the `id` column links to `auth.uid()`.
+    // 3. Create the user profile in the public.users table.
+    // The `firebase_uid` column is a legacy name but is expected by the schema.
+    // We populate it with the Supabase auth user's ID.
     const { error: userProfileError } = await supabaseAdmin
       .from('users')
-      .insert({ id: user.id, company_id: companyId, email: user.email });
+      .insert({ firebase_uid: user.id, company_id: companyId, email: user.email });
 
     if (userProfileError) {
         // This is a critical failure. The user exists in Supabase Auth but not in our public DB.
