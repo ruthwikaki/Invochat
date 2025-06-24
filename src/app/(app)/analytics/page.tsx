@@ -1,52 +1,31 @@
 
-'use client'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { Skeleton } from "@/components/ui/skeleton";
 import { handleUserMessage } from "@/app/actions";
-import { useToast } from "@/hooks/use-toast";
 import type { ChartConfig } from "@/types";
 import { DynamicChart } from "@/components/ai-response/dynamic-chart";
-import { useState, useEffect } from 'react';
 import { BarChart as BarChartIcon } from "lucide-react";
 
 
-export default function AnalyticsPage() {
-    const [charts, setCharts] = useState<ChartConfig[]>([]);
-    const [loading, setLoading] = useState(true);
-    const { toast } = useToast();
+export default async function AnalyticsPage() {
+    let charts: ChartConfig[] = [];
+    try {
+        const chartQueries = [
+            "Create a bar chart showing my inventory value by category",
+            "Visualize my sales velocity by category as a pie chart"
+        ];
+        
+        const chartPromises = chartQueries.map(query => handleUserMessage({ message: query }));
+        const results = await Promise.all(chartPromises);
 
-    useEffect(() => {
-        const generateDefaultCharts = async () => {
-            setLoading(true);
-            try {
-                const chartQueries = [
-                    "Create a bar chart showing my inventory value by category",
-                    "Visualize my sales velocity by category as a pie chart"
-                ];
-                
-                const chartPromises = chartQueries.map(query => handleUserMessage({ message: query }));
-                const results = await Promise.all(chartPromises);
+        charts = results
+            .filter(c => c.component === 'DynamicChart' && c.props)
+            .map(c => c.props as ChartConfig);
 
-                const validCharts = results
-                    .filter(c => c.component === 'DynamicChart' && c.props)
-                    .map(c => c.props as ChartConfig);
-                
-                setCharts(validCharts);
-
-            } catch (error) {
-                console.error("Failed to generate charts:", error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Could not generate analytics charts.'
-                })
-            } finally {
-                setLoading(false);
-            }
-        };
-        generateDefaultCharts();
-    }, [toast]);
+    } catch (error) {
+        console.error("Failed to generate charts:", error);
+        // Silently fail or render an error message
+    }
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -58,12 +37,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-                {loading ? (
-                    <>
-                        <Card><CardHeader><Skeleton className="h-5 w-1/2"/></CardHeader><CardContent><Skeleton className="h-[300px] w-full"/></CardContent></Card>
-                        <Card><CardHeader><Skeleton className="h-5 w-1/2"/></CardHeader><CardContent><Skeleton className="h-[300px] w-full"/></CardContent></Card>
-                    </>
-                ) : charts.length > 0 ? (
+                {charts.length > 0 ? (
                     charts.map((chartProps, i) => (
                         <div key={i} className="min-w-0">
                             <DynamicChart {...chartProps} />

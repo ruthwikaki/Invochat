@@ -1,5 +1,4 @@
 
-'use client';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -11,33 +10,11 @@ import {
 } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { DollarSign, Package, TrendingDown } from 'lucide-react';
-import { useState, useEffect } from 'react';
 import { getDeadStockData } from '@/app/data-actions';
-import { useToast } from '@/hooks/use-toast';
-import type { InventoryItem } from '@/types';
-import { Skeleton } from '@/components/ui/skeleton';
 import { format, parseISO } from 'date-fns';
 
-export default function DeadStockPage() {
-  const [data, setData] = useState<{ deadStockItems: InventoryItem[], totalDeadStockValue: number } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const result = await getDeadStockData();
-        setData(result);
-      } catch (error) {
-        console.error("Failed to fetch dead stock data:", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not load dead stock data.' });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [toast]);
+export default async function DeadStockPage() {
+  const { deadStockItems, totalDeadStockValue } = await getDeadStockData();
 
   return (
     <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -54,32 +31,16 @@ export default function DeadStockPage() {
             <DollarSign className="h-5 w-5 text-destructive" />
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <Skeleton className="h-8 w-1/3" />
-          ) : (
-            <div className="text-3xl font-bold">${(data?.totalDeadStockValue || 0).toLocaleString()}</div>
-          )}
-          <p className="text-xs">Across {data?.deadStockItems.length || 0} items</p>
+          <div className="text-3xl font-bold">${(totalDeadStockValue || 0).toLocaleString()}</div>
+          <p className="text-xs">Across {deadStockItems.length || 0} items</p>
         </CardContent>
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {loading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
-              <CardContent className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-2/3" />
-              </CardContent>
-              <CardFooter><Skeleton className="h-8 w-24" /></CardFooter>
-            </Card>
-          ))
-        ) : data?.deadStockItems.length === 0 ? (
+        {deadStockItems.length === 0 ? (
           <p className="md:col-span-2 lg:col-span-3 text-center text-muted-foreground">No dead stock items found. Great job!</p>
         ) : (
-          data?.deadStockItems.map((item) => (
+          deadStockItems.map((item) => (
             <Card key={item.id}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

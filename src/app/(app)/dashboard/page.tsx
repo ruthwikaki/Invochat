@@ -1,15 +1,9 @@
 
-'use client';
-
 import { AlertCircle, Package, TrendingDown, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useState, useEffect } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 import { getDashboardData } from '@/app/data-actions';
-import type { DashboardMetrics } from '@/types';
 
 function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000_000) {
@@ -22,22 +16,7 @@ function formatCurrency(value: number) {
 }
 
 
-function MetricCard({ title, value, icon: Icon, variant = 'default', label, loading }: { title: string; value: string; icon: React.ElementType; variant?: 'default' | 'destructive' | 'success' | 'warning'; label?: string; loading: boolean }) {
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <Skeleton className="h-4 w-2/4" />
-          <Skeleton className="h-5 w-5 rounded-full" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-7 w-1/3" />
-          <Skeleton className="h-3 w-3/4 mt-1" />
-        </CardContent>
-      </Card>
-    )
-  }
-  
+function MetricCard({ title, value, icon: Icon, variant = 'default', label }: { title: string; value: string; icon: React.ElementType; variant?: 'default' | 'destructive' | 'success' | 'warning'; label?: string; }) {
   const variantClasses = {
       default: '',
       destructive: 'border-destructive/50 text-destructive',
@@ -59,30 +38,20 @@ function MetricCard({ title, value, icon: Icon, variant = 'default', label, load
   );
 }
 
-export default function DashboardPage() {
-    const [data, setData] = useState<DashboardMetrics | null>(null);
-    const [loading, setLoading] = useState(true);
-    const { toast } = useToast();
+export default async function DashboardPage() {
+    let data = {
+        totalValue: 0,
+        totalProducts: 0,
+        deadStockValue: 0,
+        lowStockItems: 0,
+    };
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const result = await getDashboardData();
-                setData(result);
-            } catch (error) {
-                console.error("Failed to fetch dashboard metrics:", error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Could not load dashboard data.'
-                });
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, [toast]);
+    try {
+        data = await getDashboardData();
+    } catch (error) {
+        console.error("Failed to fetch dashboard metrics:", error);
+        // You could render an error state here if needed
+    }
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -96,30 +65,26 @@ export default function DashboardPage() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
                     title="Total Inventory Value"
-                    value={data ? formatCurrency(data.totalValue) : '...'}
+                    value={formatCurrency(data.totalValue)}
                     icon={DollarSign}
                     variant="success"
-                    loading={loading}
                 />
                  <MetricCard
                     title="Products"
-                    value={data ? String(data.totalProducts) : '...'}
+                    value={String(data.totalProducts)}
                     icon={Package}
-                    loading={loading}
                 />
                 <MetricCard
                     title="Dead Stock Value"
-                    value={data ? formatCurrency(data.deadStockValue) : '...'}
+                    value={formatCurrency(data.deadStockValue)}
                     icon={TrendingDown}
                     variant="destructive"
-                    loading={loading}
                 />
                  <MetricCard
                     title="Low Stock Items"
-                    value={data ? String(data.lowStockItems) : '...'}
+                    value={String(data.lowStockItems)}
                     icon={AlertCircle}
                     variant="warning"
-                    loading={loading}
                 />
             </div>
         </div>
