@@ -62,13 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       throw error;
     }
-    // Let the calling component handle the navigation/refresh
   };
   
   const signOut = async () => {
     if (!supabase) throw new Error("Supabase client is not initialized.");
     await supabase.auth.signOut();
-    // After signing out, we must redirect to login, as the current page might be protected.
     router.push('/login'); 
   };
 

@@ -33,10 +33,10 @@ export default function LoginPage() {
 
     try {
       await signInWithEmail(email, password);
-      // This is the correct way to handle the redirect.
-      // It tells Next.js to re-run the server-side logic for the current page.
-      // By now, the cookie is set, so the middleware will see the user is
-      // authenticated and will correctly redirect to the dashboard.
+      // CRITICAL FIX: Instead of pushing, we refresh the page.
+      // This allows the middleware to re-evaluate the auth state
+      // (with the now-set cookie) and perform the correct server-side
+      // redirect to the dashboard, avoiding a race condition.
       router.refresh();
     } catch (err: any) {
       console.error('Client-side sign-in error:', err);
@@ -47,6 +47,8 @@ export default function LoginPage() {
       }
       setLoading(false);
     } 
+    // Do not set loading to false here on success,
+    // because the page will be refreshing and unmounting.
   };
 
   return (
