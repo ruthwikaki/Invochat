@@ -2,7 +2,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { User, SupabaseClient, Session } from '@supabase/supabase-js';
+import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (event, session) => {
         // on SIGNED_IN or SIGNED_OUT, we want to refresh the page
         // to let the middleware handle the redirect.
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
           router.refresh();
         }
         setUser(session?.user ?? null);
@@ -70,44 +70,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
     
-    // First, create the company.
-    const { data: company, error: companyError } = await supabase
-      .from('companies')
-      .insert({ name: companyName })
-      .select()
-      .single();
-
-    if (companyError) {
-      console.error('Company creation error:', companyError);
-      return { error: new Error('Failed to create company. The name might already be taken.') };
-    }
-
-    // If company is created, sign up the user.
+    // In a real application, you would likely want to create the company
+    // in a separate step or via a server-side function to handle permissions.
+    // For this example, we pass it in the user metadata.
+    // Ensure you have RLS policies to handle this securely.
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
       options: {
         data: {
-          company_id: company.id,
-          full_name: email.split('@')[0]
+          // This metadata is accessible on the server via the user object.
+          // Note: Supabase recommends storing this kind of data in a separate 'profiles' table.
+          company_name: companyName,
         }
       }
     });
-    
-    if (error) {
-      // Clean up the created company if signup fails to prevent orphaned data.
-      await supabase.from('companies').delete().eq('id', company.id);
-      return { error };
-    }
 
-    // The onAuthStateChange listener will handle the refresh. We just return the error status.
-    return { error: null };
+    return { error };
   };
 
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    // The onAuthStateChange listener will handle the refresh.
   };
 
   const value = {

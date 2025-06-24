@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { authLoading, user, signInWithEmail } = useAuth();
+  const { signInWithEmail } = useAuth();
   const router = useRouter();
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -29,24 +29,15 @@ export default function LoginPage() {
       const { error: signInError } = await signInWithEmail(email, password);
       if (signInError) {
         setError(signInError.message || 'An unexpected error occurred.');
-      } else {
-        // The onAuthStateChange listener in the provider
-        // will trigger a router.refresh(), and the middleware will handle the redirect.
-        // No explicit navigation needed here.
       }
+      // The onAuthStateChange listener in the provider
+      // will trigger a router.refresh(), and the middleware will handle the redirect.
     } catch (err: any) {
-      console.error('Sign-in error:', err.message);
       setError(err.message || 'An unexpected error occurred. Please check your credentials.');
     } finally {
       setLoading(false);
     }
   };
-
-  // While checking auth state or if user is already logged in, show a loader or nothing.
-  // The middleware will handle the redirect.
-  if (authLoading || user) {
-    return null;
-  }
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">

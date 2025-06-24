@@ -25,7 +25,7 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const { authLoading, user, signUpWithEmail } = useAuth();
+  const { signUpWithEmail } = useAuth();
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +37,6 @@ export default function SignupPage() {
       if (signUpError) {
         setError(signUpError.message);
       } else {
-        // This means Supabase needs email confirmation.
-        // If auto-confirmation is on, the onAuthStateChange will fire
-        // with a new session and handle the redirect.
         setIsSubmitted(true);
       }
     } catch (err: any) {
@@ -48,10 +45,6 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
-
-  if (authLoading || user) {
-    return null;
-  }
 
   if (isSubmitted) {
     return (
