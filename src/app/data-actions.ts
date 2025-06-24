@@ -2,6 +2,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
     getInventoryFromDB, 
@@ -18,8 +19,8 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         // For now, we throw an error to make it clear that the DB is not set up.
         throw new Error("Database is not configured. Please set Supabase environment variables.");
     }
-
-    const supabase = createClient();
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
 
     // The company_id should be stored in the user's metadata (app_metadata for Supabase)

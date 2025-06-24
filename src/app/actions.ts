@@ -7,6 +7,7 @@ import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
 import type { AssistantMessagePayload } from '@/types';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
 
 const actionResponseSchema = z.custom<AssistantMessagePayload>();
 
@@ -18,7 +19,8 @@ type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
 
 
 async function getCompanyIdForCurrentUser(): Promise<string | null> {
-    const supabase = createClient();
+    const cookieStore = cookies();
+    const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user?.app_metadata?.company_id) {
