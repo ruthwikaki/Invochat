@@ -2,7 +2,14 @@
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-export type User = SupabaseUser;
+// Extend the Supabase User type to include our custom app_metadata
+// which is automatically added by our database trigger.
+export type User = Omit<SupabaseUser, 'app_metadata'> & {
+  app_metadata: {
+    company_id: string;
+    // other metadata properties can be added here
+  };
+};
 
 export type Message = {
   id: string;
