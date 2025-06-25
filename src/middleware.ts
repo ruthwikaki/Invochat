@@ -2,14 +2,14 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  // Create a response object that we'll potentially modify
+  // Create a response object that we can modify and return
   let res = NextResponse.next({
     request: {
       headers: req.headers,
     },
   });
 
-  // Create a Supabase client configured to use cookies
+  // Create a Supabase client that can read/write cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,12 +19,14 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // Set the cookie on both request and response
+          // The middleware is the only place that can set cookies on the response.
+          // We update the cookies on both the request and the response objects.
           req.cookies.set({ name, value, ...options });
           res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          // Remove the cookie from both request and response
+          // The middleware is the only place that can remove cookies on the response.
+          // We update the cookies on both the request and the response objects.
           req.cookies.set({ name, value: '', ...options });
           res.cookies.set({ name, value: '', ...options });
         },
@@ -32,28 +34,24 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // IMPORTANT: Refresh the session to ensure it's valid
-  const { data: { session }, error } = await supabase.auth.getSession();
-  
-  // If there's an error getting the session, log it
-  if (error) {
-    console.error('Middleware: Error getting session:', error);
-  }
+  // IMPORTANT: This call will refresh the session if it's expired.
+  // It will then use the `set` cookie method above to send the new cookie back
+  // to the browser on the response.
+  const { data: { session } } = await supabase.auth.getSession();
   
   const user = session?.user;
   const { pathname } = req.nextUrl;
   
-  // Define auth routes and setup routes
   const authRoutes = ['/login', '/signup'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
-  // Handle the root path
+  // Handle the root path ('/')
   if (pathname === '/') {
     return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', req.url));
   }
 
-  // If user is not logged in, protect all non-auth routes
+  // If the user is not logged in, protect all routes except for auth and setup pages.
   if (!user) {
     if (!isAuthRoute && !isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
@@ -61,26 +59,27 @@ export async function middleware(req: NextRequest) {
     return res;
   }
   
-  // If user is logged in, handle redirects and setup checks
+  // If the user is logged in, handle redirects away from auth pages
+  // and check if their account setup is complete.
   const companyId = user.app_metadata?.company_id;
 
-  // Redirect away from auth pages if already logged in
   if (isAuthRoute) {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
-  // Check for incomplete setup
+  // If the user is missing a company_id, send them to the setup page.
   if (!companyId) {
     if (!isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/setup-incomplete', req.url));
     }
   } else {
+    // If the user has a company_id but is on the setup page, send them to the dashboard.
     if (isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   }
 
-  // Return the response with potentially updated cookies
+  // All checks have passed, so return the response with the potentially updated session cookie.
   return res;
 }
 
