@@ -15,7 +15,6 @@ const loginSchema = z.object({
 
 export async function login(formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-
   if (!parsed.success) {
     redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
   }
@@ -42,15 +41,14 @@ export async function login(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(msg)}`);
   }
 
-  const { access_token, refresh_token } = data.session;
-  await supabase.auth.setSession({ access_token, refresh_token });
-
   const companyId = data.user.app_metadata?.company_id || data.user.user_metadata?.company_id;
   if (!companyId) {
+    revalidatePath('/', 'layout');
     revalidatePath('/setup-incomplete');
     redirect('/setup-incomplete');
   }
 
+  revalidatePath('/', 'layout');
   revalidatePath('/dashboard');
   redirect('/dashboard');
 }
