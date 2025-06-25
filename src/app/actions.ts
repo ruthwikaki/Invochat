@@ -124,11 +124,14 @@ export async function handleUserMessage(
     }
   } catch (error: any) {
     console.error('Error processing AI action:', error);
+    let errorMessage = `Sorry, I encountered an error while processing your request: ${error.message}. Please try again.`;
+    if (error.message?.includes('API key not valid')) {
+        errorMessage = 'It looks like your Google AI API key is invalid. Please make sure the `GOOGLE_API_KEY` in your `.env` file is correct and try again.'
+    }
     return actionResponseSchema.parse({
       id: Date.now().toString(),
       role: 'assistant',
-      content:
-        `Sorry, I encountered an error while processing your request: ${error.message}. Please try again.`,
+      content: errorMessage,
     });
   }
 
