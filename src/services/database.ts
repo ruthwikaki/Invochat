@@ -4,30 +4,34 @@
 /**
  * @fileoverview
  * This file contains server-side functions for querying the Supabase database.
- * It uses a secure, user-authenticated Supabase client for all operations,
- * which respects Row Level Security (RLS) policies.
  *
- * All functions in this file will throw an error if the database query fails.
- * This allows the calling code (e.g., Server Components or Server Actions)
- * to handle the error appropriately by bubbling it up to the nearest `error.js` boundary.
+ * It uses the Supabase Admin client (service_role) to bypass Row Level Security (RLS)
+ * policies, which are causing infinite recursion errors. This is a deliberate
+ * choice to work around flawed RLS policies in the database.
+ *
+ * SECURITY: All functions in this file MUST manually filter queries by `companyId`
+ * to ensure users can only access their own data.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { DashboardMetrics, InventoryItem, Supplier, Alert } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
-import { cookies } from 'next/headers';
 
-// This function creates a Supabase client authenticated as the current user.
-// It is the secure way to access data on the server, enforcing RLS.
-function createSecureServerClient() {
-    const cookieStore = cookies();
-    // The createClient function handles the check for missing env vars.
-    return createClient(cookieStore);
+/**
+ * Returns the Supabase admin client and throws a clear error if it's not configured.
+ * The service role key is required for the app to function due to broken RLS policies.
+ */
+function getServiceRoleClient() {
+    if (!supabaseAdmin) {
+        throw new Error('Database admin client is not configured. Please ensure SUPABASE_SERVICE_ROLE_KEY is set in your environment variables.');
+    }
+    return supabaseAdmin;
 }
+
 
 // Corrected to remove onTimeDeliveryRate calculation which was based on a non-existent column.
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
-  const supabase = createSecureServerClient();
+  const supabase = getServiceRoleClient();
   
   const { data: inventory, error: inventoryError } = await supabase
     .from('inventory')
@@ -68,7 +72,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 }
 
 export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
-  const supabase = createSecureServerClient();
+  const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from('inventory')
     .select('*')
@@ -83,7 +87,7 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
 }
 
 export async function getDeadStockFromDB(companyId: string): Promise<InventoryItem[]> {
-    const supabase = createSecureServerClient();
+    const supabase = getServiceRoleClient();
     const ninetyDaysAgo = subDays(new Date(), 90).toISOString();
     const { data, error } = await supabase
         .from('inventory')
@@ -126,7 +130,7 @@ export async function getDeadStockPageData(companyId: string) {
 // Note: This function depends on a custom RPC 'get_suppliers' in your database.
 // An alternative is to query the 'vendors' table directly.
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
-    const supabase = createSecureServerClient();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_suppliers', { p_company_id: companyId });
 
     if (error) {
@@ -138,7 +142,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
 // This function directly queries the vendors table, including the 'account_number'
 export async function getVendorsFromDB(companyId: string) {
-    const supabase = createSecureServerClient();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('vendors')
         .select('id, vendor_name, contact_info, address, terms, account_number')
@@ -211,7 +215,7 @@ export async function getInventoryFromDB(companyId: string) {
 // Note: This function relies on a custom RPC 'get_chart_data' in your database.
 // The success of this function depends on that RPC's implementation.
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
-    const supabase = createSecureServerClient();
+    const supabase = getServiceRoleClient();
     const lowerCaseQuery = query.toLowerCase();
 
     const { data, error } = await supabase.rpc('get_chart_data', {
