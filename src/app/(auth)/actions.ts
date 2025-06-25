@@ -23,25 +23,36 @@ export async function login(prevState: any, formData: FormData) {
 
   const { email, password } = parsed.data;
 
+  // This is the call to Supabase to sign in.
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
+  // If Supabase returns an explicit error (e.g., "Invalid login credentials"),
+  // we show it to the user.
   if (error) {
-    // Supabase returns a specific error for unconfirmed emails, but it's better to check for the session.
-    if (error.message === 'Email not confirmed') {
-      return { error: 'Login failed: Please check your inbox to confirm your email address.' };
-    }
     return { error: error.message };
   }
   
-  // After a successful login attempt, we MUST check if a session was actually created.
-  // If email confirmation is required, Supabase will not return an error, but data.session will be null.
+  // After a login attempt, we MUST check if a session was actually created.
+  // If email confirmation is required, Supabase will NOT return an error, but data.session will be null.
+  // This is the most common reason for login "failures".
   if (!data.session) {
-      return { error: 'Login failed: Please check your email for a confirmation link.' };
+      return { error: 'Login failed: Please check your inbox for a confirmation link.' };
   }
 
+  // At this point, the user is authenticated and has a session.
+  // The Supabase SSR client should have automatically set the auth cookie.
+
+  // One final check: Does the user have a company_id?
+  // If not, their account setup is incomplete. Redirect them to the setup page.
+  // This prevents them from getting stuck if the `handle_new_user` trigger failed.
+  if (!data.user.app_metadata?.company_id) {
+    redirect('/setup-incomplete');
+  }
+
+  // If everything is correct, revalidate the cache and redirect to the dashboard.
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
