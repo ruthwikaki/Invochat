@@ -42,7 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Set up a listener for authentication state changes.
+    // 1. Fetch the initial session to hydrate the user state quickly.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user as User ?? null);
+      setLoading(false);
+    });
+    
+    // 2. Set up a listener for subsequent authentication state changes.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         const currentUser = session?.user as User ?? null;
