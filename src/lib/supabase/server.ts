@@ -21,22 +21,14 @@ export function createClient(cookieStore: ReturnType<typeof cookies>) {
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
+          // A Server Action should always be able to set cookies.
+          // If this throws an error, it's a real bug that needs to be fixed.
+          cookieStore.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
+          // A Server Action should always be able to set cookies.
+          // If this throws an error, it's a real bug that needs to be fixed.
+          cookieStore.set({ name, value: '', ...options })
         },
       },
     }
