@@ -1,4 +1,3 @@
-
 'use server';
 
 import { z } from 'zod';
@@ -17,14 +16,13 @@ export async function login(prevState: any, formData: FormData) {
   const supabase = createClient(cookieStore);
 
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-
   if (!parsed.success) {
     return { error: 'Invalid email or password format.' };
   }
 
   const { email, password } = parsed.data;
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: { session }, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -32,7 +30,25 @@ export async function login(prevState: any, formData: FormData) {
   if (error) {
     return { error: error.message };
   }
-  
+
+  if (!session) {
+    return { error: "Login failed: No session returned." };
+  }
+
+  // Manually persist session tokens in cookies so the server can see them
+  cookies().set('sb-access-token', session.access_token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+  cookies().set('sb-refresh-token', session.refresh_token, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
+
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
