@@ -27,9 +27,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    // After signing out, the middleware will handle the server-side redirect.
-    // We push to the login page on the client for a smoother UX and then
-    // force a full refresh to ensure all server components re-evaluate.
     router.push('/login');
     router.refresh();
   }, [supabase, router]);
@@ -40,8 +37,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // This single listener is the most reliable way to manage auth state.
-    // It handles the initial load (SIGNED_IN) and all subsequent changes.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         const currentUser = session?.user as User ?? null;
