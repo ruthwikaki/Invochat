@@ -2,11 +2,10 @@
 'use server';
 
 import { z } from 'zod';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { NextResponse } from 'next/server';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -20,9 +19,15 @@ export async function login(prevState: any, formData: FormData) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (name) => cookieStore.get(name)?.value,
-        set: (name, value, options) => cookieStore.set(name, value, options),
-        remove: (name, options) => cookieStore.set(name, '', { ...options, maxAge: -1 }),
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
       },
     }
   );
@@ -54,8 +59,6 @@ export async function login(prevState: any, formData: FormData) {
   }
 
   revalidatePath('/', 'layout');
-  // On success, redirect. This throws an error that Next.js will catch.
-  // The cookies set by the Supabase client will be included in the response.
   redirect('/dashboard');
 }
 
@@ -74,10 +77,16 @@ export async function signup(prevState: any, formData: FormData) {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookies: {
-            get: (name) => cookieStore.get(name)?.value,
-            set: (name, value, options) => cookieStore.set(name, value, options),
-            remove: (name, options) => cookieStore.delete(name, options),
-          }
+            get(name: string) {
+              return cookieStore.get(name)?.value
+            },
+            set(name: string, value: string, options: CookieOptions) {
+              cookieStore.set({ name, value, ...options })
+            },
+            remove(name: string, options: CookieOptions) {
+              cookieStore.set({ name, value: '', ...options })
+            },
+          },
         }
     );
 

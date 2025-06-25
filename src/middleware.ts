@@ -18,31 +18,28 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // The Supabase client will automatically set the cookie on the response
-          // object. This is the correct and stable way to handle cookies in middleware.
-          response.cookies.set({
-            name,
-            value,
-            ...options,
+          request.cookies.set({ name, value, ...options })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
           })
+          response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          // The Supabase client will automatically remove the cookie on the response
-          // object.
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
+          request.cookies.set({ name, value: '', ...options })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
           })
+          response.cookies.set({ name, value: '', ...options })
         },
       },
     }
   )
 
-  // This will refresh the session if it's expired
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
   
@@ -74,9 +71,7 @@ export async function middleware(request: NextRequest) {
     const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
     // If setup is incomplete (no companyId), redirect to the setup page.
-    // This logic prevents a redirect loop by NOT redirecting if they are already there.
     if (!companyId && !isSetupIncompleteRoute) {
-      // Allow access to test routes for debugging purposes, even if setup is incomplete.
       if (pathname !== '/test-supabase' && pathname !== '/quick-test') {
         return NextResponse.redirect(new URL('/setup-incomplete', request.url))
       }
@@ -88,9 +83,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-
-  // Finally, return the response. This is important so that the cookies
-  // which may have been set by the Supabase client are sent to the browser.
   return response
 }
 
