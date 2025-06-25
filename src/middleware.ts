@@ -3,145 +3,83 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  console.log('🔍 MIDDLEWARE START - Path:', req.nextUrl.pathname);
-  
-  // Check environment variables
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  console.log('🔑 Environment check:', {
-    hasUrl: !!supabaseUrl,
-    hasAnonKey: !!supabaseAnonKey,
-    urlPreview: supabaseUrl ? supabaseUrl.substring(0, 20) + '...' : 'MISSING'
-  });
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('❌ Missing Supabase environment variables');
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
-
-  // Create a response object that we can modify and return
+  // Create a response object that we can modify and return.
+  // This is a key part of the fix, ensuring we have a stable response object.
   let res = NextResponse.next({
     request: {
       headers: req.headers,
     },
   });
 
-  // Log existing cookies
-  console.log('🍪 Existing cookies:', req.cookies.getAll().map(c => c.name));
-
-  // Create a Supabase client that can read/write cookies
+  // Create a Supabase client that can read/write cookies.
+  // The cookie handling is now simplified and more robust.
   const supabase = createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
-          const value = req.cookies.get(name)?.value;
-          console.log(`🍪 GET cookie ${name}:`, value ? 'EXISTS' : 'MISSING');
-          return value;
+          return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          console.log(`🍪 SET cookie ${name}`);
-          req.cookies.set({ name, value, ...options });
+          // The `set` method is called by the Supabase client when the session is refreshed.
+          // We pass this new cookie to the response so it can be set on the browser.
           res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          console.log(`🍪 REMOVE cookie ${name}`);
-          req.cookies.set({ name, value: '', ...options });
+          // The `remove` method is called by the Supabase client when the user signs out.
           res.cookies.set({ name, value: '', ...options });
         },
       },
     }
   );
 
-  try {
-    // IMPORTANT: This call will refresh the session if it's expired.
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    console.log('🔐 Session check:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user?.id,
-      userEmail: session?.user?.email,
-      error: error?.message
-    });
+  // IMPORTANT: This call will refresh the session if it's expired.
+  // It's the critical step that was failing to persist its results before.
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  const { pathname } = req.nextUrl;
+  
+  const authRoutes = ['/login', '/signup'];
+  const isAuthRoute = authRoutes.includes(pathname);
+  const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
-    if (error) {
-      console.error('❌ Session error:', error);
+  // Handle the root path, redirecting based on auth state.
+  if (pathname === '/') {
+    const redirectTo = user ? '/dashboard' : '/login';
+    return NextResponse.redirect(new URL(redirectTo, req.url));
+  }
+
+  // If the user is not logged in, protect all routes except for auth routes.
+  if (!user) {
+    if (!isAuthRoute && !isSetupIncompleteRoute) {
+      return NextResponse.redirect(new URL('/login', req.url));
     }
-    
-    const user = session?.user;
-    const { pathname } = req.nextUrl;
-    
-    const authRoutes = ['/login', '/signup'];
-    const isAuthRoute = authRoutes.includes(pathname);
-    const isSetupIncompleteRoute = pathname === '/setup-incomplete';
-
-    console.log('📍 Route analysis:', {
-      pathname,
-      isAuthRoute,
-      isSetupIncompleteRoute,
-      hasUser: !!user
-    });
-
-    // Handle the root path ('/')
-    if (pathname === '/') {
-      const redirectTo = user ? '/dashboard' : '/login';
-      console.log('🏠 Root redirect to:', redirectTo);
-      return NextResponse.redirect(new URL(redirectTo, req.url));
-    }
-
-    // If the user is not logged in, protect all routes except for auth and setup pages.
-    if (!user) {
-      if (!isAuthRoute && !isSetupIncompleteRoute) {
-        console.log('🚫 No user, redirecting to login from:', pathname);
-        return NextResponse.redirect(new URL('/login', req.url));
-      }
-      console.log('✅ No user but on allowed route, continuing');
-      return res;
-    }
-    
-    // If the user is logged in, handle redirects away from auth pages
-    // and check if their account setup is complete.
+  }
+  // If the user is logged in, handle redirects and setup checks.
+  else {
     const companyId = user.app_metadata?.company_id;
-    
-    console.log('👤 User metadata:', {
-      userId: user.id,
-      email: user.email,
-      hasCompanyId: !!companyId,
-      companyId: companyId,
-      appMetadata: user.app_metadata
-    });
 
+    // Redirect away from auth pages if already logged in.
     if (isAuthRoute) {
-      console.log('🔄 Authenticated user on auth route, redirecting to dashboard');
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
-    // If the user is missing a company_id, send them to the setup page.
+    // Check for incomplete setup.
     if (!companyId) {
       if (!isSetupIncompleteRoute) {
-        console.log('⚠️ No company_id, redirecting to setup');
         return NextResponse.redirect(new URL('/setup-incomplete', req.url));
       }
-      console.log('✅ No company_id but on setup page, continuing');
     } else {
-      // If the user has a company_id but is on the setup page, send them to the dashboard.
       if (isSetupIncompleteRoute) {
-        console.log('🔄 Has company_id but on setup page, redirecting to dashboard');
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
     }
-
-    // All checks have passed, so return the response with the potentially updated session cookie.
-    console.log('✅ All checks passed, allowing access to:', pathname);
-    return res;
-    
-  } catch (error) {
-    console.error('💥 Middleware error:', error);
-    return NextResponse.redirect(new URL('/login', req.url));
   }
+
+  // Return the response with the potentially updated session cookie.
+  // This is what sends the new cookie to the browser.
+  return res;
 }
 
 export const config = {
