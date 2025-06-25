@@ -1,7 +1,8 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { SupabaseClient, AuthError, Session } from '@supabase/supabase-js';
+import type { SupabaseClient, AuthError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -31,49 +32,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    // Get initial session
-    const initializeAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting initial session:', error);
-        }
-        
-        if (mounted) {
-          setUser(session?.user as User ?? null);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initializeAuth();
-
-    // Listen for auth changes
+    // This is the primary mechanism for keeping the client-side auth state in sync.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event);
-        
+      (event, session) => {
         if (mounted) {
-          setUser(session?.user as User ?? null);
-          
-          // Only refresh the router on significant auth events
-          if (event === 'SIGNED_IN') {
-            // Delay slightly to ensure cookies are set
-            setTimeout(() => {
-              router.refresh();
-            }, 100);
-          } else if (event === 'SIGNED_OUT') {
-            router.push('/login');
-          }
+            setUser(session?.user as User ?? null);
+            setLoading(false);
+            
+            // On sign out, the middleware will handle the redirect.
+            // We can also push to the login page to ensure a clean transition.
+            if (event === 'SIGNED_OUT') {
+                router.push('/login');
+            }
         }
       }
     );
+
+    // Ensure we have the initial session on first load.
+    const getInitialSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+            setUser(session?.user as User ?? null);
+            setLoading(false);
+        }
+    };
+    
+    getInitialSession();
+
 
     return () => {
       mounted = false;
@@ -84,21 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (!supabase) return { error: null };
     
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      // Clear user state immediately
-      setUser(null);
-      
-      // Navigate to login
-      router.push('/login');
-      
-      return { error: null };
-    } catch (error) {
-      console.error('Sign out error:', error);
-      return { error: error as AuthError };
+    // signOut will trigger the onAuthStateChange listener, which handles the user state.
+    const { error } = await supabase.auth.signOut();
+    if(error) {
+        console.error('Sign out error:', error);
     }
+    return { error };
   };
 
   const value = {
