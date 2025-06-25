@@ -1,11 +1,7 @@
 
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 
-// This middleware is the cornerstone of the authentication system.
-// It runs before any route is rendered and performs two critical tasks:
-// 1. Session Refresh: It refreshes the user's session cookie if it has expired.
-// 2. Route Protection: It redirects users based on their authentication state.
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -13,9 +9,6 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // The createServerClient function is designed to be used in middleware,
-  // Server Components, and Server Actions. It automatically handles refreshing
-  // the session cookie if it's expired.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -24,22 +17,51 @@ export async function middleware(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        set(name: string, value: string, options) {
-          // The `set` method is called by the Supabase client when it needs
-          // to persist the session to a cookie. We pass it to the response.
-          response.cookies.set({ name, value, ...options })
+        set(name: string, value: string, options: CookieOptions) {
+          // If the cookie is updated, update the cookies for the request and response
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
         },
-        remove(name: string, options) {
-          // The `remove` method is called by the Supabase client when it needs
-          // to clear the session cookie. We pass it to the response.
-          response.cookies.set({ name, value: '', ...options })
+        remove(name: string, options: CookieOptions) {
+          // If the cookie is removed, update the cookies for the request and response
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
         },
       },
     }
   )
 
   // This will refresh the session if it's expired
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   const { pathname } = request.nextUrl
   
   const authRoutes = ['/login', '/signup']
@@ -83,6 +105,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   }
+
 
   // Finally, return the response. This is important so that the cookies
   // which may have been set by the Supabase client are sent to the browser.
