@@ -9,8 +9,8 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // Create a Supabase client that can read and write cookies for the server.
-  // This is used to refresh the session.
+  // The `createServerClient` is createdsupabase.auth.getUser() will refresh the session if it's expired.
+  // It will also update the session cookie in the response if it's refreshed.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -20,15 +20,11 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is set, update the request's cookies.
-          request.cookies.set({ name, value, ...options })
-          // Also update the response's cookies.
+          // The request object is immutable, so we have to update the response object.
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the request's cookies.
-          request.cookies.set({ name, value: '', ...options })
-          // Also update the response's cookies.
+          // The request object is immutable, so we have to update the response object.
           response.cookies.set({ name, value: '', ...options })
         },
       },

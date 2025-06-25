@@ -40,34 +40,33 @@ export async function login(formData: FormData) {
   }
 
   const { email, password } = parsed.data;
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     return redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
+  
+  // The middleware will handle the redirect to /setup-incomplete if needed
+  // after the session is established.
 
   revalidatePath('/', 'layout');
-
-  // After successful login, the middleware will handle the final redirect
-  // to /dashboard or /setup-incomplete. Redirecting to a neutral path
-  // like '/' allows the middleware to take over.
-  return redirect('/');
+  return redirect('/dashboard');
 }
 
 
 const signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  companyName: z.string().min(1, "Company name is required"),
+  email: z.string().email("Invalid email format."),
+  password: z.string().min(6, "Password must be at least 6 characters."),
+  companyName: z.string().min(1, "Company name is required."),
 });
 
 
-export async function signup(prevState: any, formData: FormData) {
+export async function signup(formData: FormData) {
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
     
     if (!parsed.success) {
         const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
-        return { error: errorMessages };
+        return redirect(`/signup?error=${encodeURIComponent(errorMessages)}`);
     }
 
     const { email, password, companyName } = parsed.data;
@@ -102,16 +101,17 @@ export async function signup(prevState: any, formData: FormData) {
     });
 
     if (error) {
-        return { error: error.message };
+        return redirect(`/signup?error=${encodeURIComponent(error.message)}`);
     }
 
     if (data.user) {
         if (data.user.identities && data.user.identities.length === 0) {
-            return { error: "This user already exists. Please try logging in or check your email for a confirmation link." }
+            return redirect(`/signup?error=${encodeURIComponent("This user already exists.")}`);
         }
         revalidatePath('/', 'layout');
-        return { success: true };
+        // Redirect to a success page that tells the user to check their email.
+        return redirect(`/signup?success=true`);
     }
     
-    return { error: "An unexpected error occurred during sign up." };
+    return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred.")}`);
 }

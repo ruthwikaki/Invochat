@@ -1,6 +1,6 @@
+
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,20 +17,9 @@ import { ArvoLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? 'Creating account...' : 'Sign up'}
-    </Button>
-  );
-}
+export default function SignupPage({ searchParams }: { searchParams?: { error?: string, success?: string } }) {
 
-
-export default function SignupPage() {
-  const [state, formAction] = useFormState(signup, undefined);
-
-  if (state?.success) {
+  if (searchParams?.success) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
@@ -71,7 +60,7 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={formAction} className="grid gap-4">
+          <form action={signup} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="companyName">Company Name</Label>
               <Input
@@ -103,12 +92,14 @@ export default function SignupPage() {
                 minLength={6}
               />
             </div>
-            {state?.error && (
+            {searchParams?.error && (
               <Alert variant="destructive">
-                <AlertDescription>{state.error}</AlertDescription>
+                <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton />
+            <Button type="submit" className="w-full">
+              Sign up
+            </Button>
           </form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
