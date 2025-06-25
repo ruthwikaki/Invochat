@@ -1,10 +1,9 @@
 
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  // Create a response object that we can modify
-  const res = NextResponse.next()
+  const res = NextResponse.next();
 
   // Create a Supabase client that can read and write cookies
   const supabase = createServerClient(
@@ -17,31 +16,31 @@ export async function middleware(req: NextRequest) {
         remove: (name, options) => res.cookies.delete(name, options),
       },
     }
-  )
+  );
 
   // Refresh session if expired - this will write a new cookie to `res` if needed
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const { pathname } = req.nextUrl
-  const authRoutes = ['/login', '/signup'];
-  const isAuthRoute = authRoutes.includes(pathname);
+  const { pathname } = req.nextUrl;
 
-  // If the user is not signed in and the current path is not an auth route,
-  // redirect the user to the login page.
-  if (!user && !isAuthRoute) {
-    return NextResponse.redirect(new URL('/login', req.url))
+  const publicRoutes = ['/login', '/signup'];
+  const isPublicRoute = publicRoutes.includes(pathname);
+
+  // If the user is not signed in and is trying to access a protected route,
+  // redirect them to the login page.
+  if (!user && !isPublicRoute) {
+    return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  // If the user is signed in and the current path is an auth route or the root,
-  // redirect the user to the dashboard.
-  if (user && (isAuthRoute || pathname === '/')) {
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+  // If the user is signed in and is trying to access a public route (like login)
+  // or the root path, redirect them to the dashboard.
+  if (user && (isPublicRoute || pathname === '/')) {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
   
-  // If we've gotten here, the user is authenticated and on a protected route,
-  // or they are unauthenticated and on an auth route.
-  // The `res` object has the potentially updated session cookie.
-  return res
+  // If none of the above conditions are met, continue with the response.
+  // This `res` object might have a new 'Set-Cookie' header if the session was refreshed.
+  return res;
 }
 
 export const config = {
@@ -56,4 +55,4 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|api|_vercel).*)',
   ],
-}
+};

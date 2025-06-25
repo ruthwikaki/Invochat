@@ -19,16 +19,41 @@ const UserMessagePayloadSchema = z.object({
 type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
 
 
-async function getCompanyIdForCurrentUser(): Promise<string | null> {
+async function getCompanyIdForCurrentUser(): Promise<string> {
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (user?.app_metadata?.company_id) {
-        return user.app_metadata.company_id;
+    if (!user) {
+        throw new Error("User not found. Please log in again.");
     }
+
+    // The company_id is stored in the user's app_metadata (JWT claim).
+    // This is the fastest, most reliable source once the session is established.
+    const companyIdFromClaim = user.app_metadata?.company_id;
+    if (companyIdFromClaim && typeof companyIdFromClaim === 'string') {
+        return companyIdFromClaim;
+    }
+
+    // This is a critical error state if the trigger is working correctly.
+    // However, we can add a fallback for robustness.
+    console.warn(`User ${user.id} is missing company_id in JWT claim. Falling back to DB query.`);
+    
+    // Fallback: Query the public.users table directly.
+    const { data: profile } = await supabase
+        .from('users')
+        .select('company_id')
+        .eq('id', user.id)
+        .single();
         
-    return null;
+    const companyIdFromDb = profile?.company_id;
+    if (companyIdFromDb) {
+        return companyIdFromDb;
+    }
+
+    // If both methods fail, it's a critical error.
+    console.error(`User ${user.id} is missing a valid company_id in both JWT claims and the users table.`);
+    throw new Error("I couldn't verify your company information. This might be a temporary issue after signup. Please try logging out and in again.");
 }
 
 
@@ -37,13 +62,14 @@ export async function handleUserMessage(
 ): Promise<AssistantMessagePayload> {
   const { message } = UserMessagePayloadSchema.parse(payload);
   
-  const companyId = await getCompanyIdForCurrentUser();
-  if (!companyId) {
+  let companyId: string;
+  try {
+    companyId = await getCompanyIdForCurrentUser();
+  } catch(error: any) {
      return actionResponseSchema.parse({
         id: Date.now().toString(),
         role: 'assistant',
-        content:
-            "I couldn't verify your company information. Please try logging out and in again.",
+        content: error.message,
     });
   }
 

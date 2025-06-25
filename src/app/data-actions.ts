@@ -21,28 +21,33 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         throw new Error("User not found. Please log in again.");
     }
 
-    // First, try to get company_id from the users table (most reliable with RLS)
-    const { data: userRecord, error } = await supabase
+    // The company_id is stored in the user's app_metadata (JWT claim).
+    // This is the fastest, most reliable source once the session is established.
+    const companyIdFromClaim = user.app_metadata?.company_id;
+    if (companyIdFromClaim && typeof companyIdFromClaim === 'string') {
+        return companyIdFromClaim;
+    }
+
+    // This is a critical error state if the trigger is working correctly.
+    // However, we can add a fallback for robustness.
+    console.warn(`User ${user.id} is missing company_id in JWT claim. Falling back to DB query.`);
+    
+    // Fallback: Query the public.users table directly.
+    // This is slower but can save a user if the JWT is slow to update.
+    const { data: profile } = await supabase
         .from('users')
         .select('company_id')
         .eq('id', user.id)
         .single();
-
-    if (!error && userRecord?.company_id) {
-        return userRecord.company_id;
+        
+    const companyIdFromDb = profile?.company_id;
+    if (companyIdFromDb) {
+        return companyIdFromDb;
     }
 
-    // Fallback: Check app_metadata (might not work with RLS)
-    const companyId = user.app_metadata?.company_id;
-    if (companyId && typeof companyId === 'string') {
-        return companyId;
-    }
-
-    // Log detailed error for debugging
-    console.error(`User ${user.id} has no company_id. User record:`, userRecord, 'Error:', error);
-    
-    // Better error message
-    throw new Error("Your account is not associated with a company. This usually happens right after signup. Please try refreshing the page or contact support if the issue persists.");
+    // If both methods fail, it's a critical error.
+    console.error(`User ${user.id} is missing a valid company_id in both JWT claims and the users table.`);
+    throw new Error("I couldn't verify your company information. This might be a temporary issue after signup. Please try logging out and in again.");
 }
 
 
@@ -135,6 +140,8 @@ export async function testDatabaseQuery(): Promise<{
   error: string | null;
 }> {
   try {
+    const companyId = await getCompanyIdForCurrentUser(); // This will throw if user is not associated
+    
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
 
@@ -144,8 +151,6 @@ export async function testDatabaseQuery(): Promise<{
       .select('*', { count: 'exact', head: true });
 
     if (error) {
-      // If RLS is enforced and company_id is missing, this will fail.
-      // We can check for a specific error if needed, but for now, just bubble it up.
       throw error;
     }
 

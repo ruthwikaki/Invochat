@@ -34,25 +34,21 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
 
-    try {
-      const { data, error: signUpError } = await signUpWithEmail(email, password, companyName);
-      
-      if (signUpError) {
-        setError(signUpError.message);
-        setLoading(false);
-      } else if (data.session) {
-        // User is logged in immediately, redirect to dashboard
-        router.push('/dashboard');
-      } else if (data.user) {
-        // User exists, but no session -> email verification needed
-        setIsSubmitted(true);
-        setLoading(false);
-      } else {
-        setError('An unexpected error occurred during sign up.');
-        setLoading(false);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Sign up failed. Please try again.');
+    const { data, error: signUpError } = await signUpWithEmail(email, password, companyName);
+    
+    if (signUpError) {
+      setError(signUpError.message);
+      setLoading(false);
+    } else if (data.session) {
+      // User is logged in immediately, refresh the page.
+      // The middleware will handle the redirect to the dashboard.
+      router.refresh();
+    } else if (data.user) {
+      // User exists, but no session -> email verification needed
+      setIsSubmitted(true);
+      setLoading(false);
+    } else {
+      setError('An unexpected error occurred during sign up.');
       setLoading(false);
     }
   };

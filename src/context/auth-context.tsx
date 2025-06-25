@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import type { SupabaseClient, AuthError, Session, SignInWithPasswordCredentials } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -82,10 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    // After signing out, we should navigate to the login page.
-    // We can do this safely here, or rely on the middleware.
-    // Relying on middleware is more robust. We just need to refresh the page state.
-    window.location.href = '/login';
+    // Refresh the page. The middleware will redirect to login.
+    router.refresh();
   };
 
   const value = {

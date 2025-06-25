@@ -31,9 +31,9 @@ export default function LoginPage() {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
     } else {
-      // On success, directly navigate to the dashboard.
-      // This will trigger the middleware, which will now have the new session cookie.
-      router.push('/dashboard');
+      // On success, refresh the page. The middleware will handle the redirect.
+      // This is the most reliable way to ensure the new session is picked up.
+      router.refresh();
     }
   };
 
