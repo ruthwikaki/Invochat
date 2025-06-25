@@ -8,39 +8,52 @@ import { AlertTriangle, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
-const sqlCode = `-- Creates a company and a user profile for each new user.
+const sqlCode = `-- This function and trigger ensure that when a new user signs up,
+-- their company information is correctly created in the database and
+-- the 'company_id' is stored in their authentication metadata (app_metadata),
+-- which is crucial for the app's multi-tenancy to work correctly.
+
+-- First, ensure the 'uuid-ossp' extension is enabled to generate UUIDs.
+create extension if not exists "uuid-ossp";
+
+-- This function runs for each new user created in the 'auth.users' table.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
 declare
-  new_company_id uuid;
+  user_company_id uuid;
   user_company_name text;
 begin
-  -- Extract company_name from metadata passed during signup
+  -- Extract company_id and company_name from the metadata provided during signup.
+  -- The signup action in the app code generates and passes this data.
+  user_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
   user_company_name := new.raw_user_meta_data->>'company_name';
 
-  -- Create a new company for the user
-  insert into public.companies (name)
-  values (user_company_name)
-  returning id into new_company_id;
+  -- Create a corresponding record in the 'public.companies' table.
+  -- 'ON CONFLICT (id) DO NOTHING' prevents errors if a company with this ID already exists.
+  insert into public.companies (id, name)
+  values (user_company_id, user_company_name)
+  on conflict (id) do nothing;
 
-  -- Create a record in your public.users table
+  -- Create a corresponding record in the 'public.users' table to link the user to their company.
   insert into public.users (id, email, company_id)
-  values (new.id, new.email, new_company_id);
+  values (new.id, new.email, user_company_id);
 
-  -- Update the user's app_metadata in the auth.users table
-  -- This makes the company_id available in the user's session
+  -- **This is the most critical step for authentication.**
+  -- It copies the company_id into 'app_metadata', which makes it available
+  -- in the user's session token (JWT). The middleware relies on this to grant access.
   update auth.users
-  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id)
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', user_company_id)
   where id = new.id;
 
   return new;
 end;
 $$;
 
--- Trigger to execute the function after a new user is created in auth.users
+-- This trigger executes the 'handle_new_user' function automatically
+-- every time a new row is inserted into 'auth.users'.
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
@@ -78,15 +91,11 @@ export default function SetupIncompletePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        This usually happens for one of two reasons:
+                        This happens when the database trigger that links your user to a company is missing or incorrect. This trigger is essential for the application to work.
                     </p>
-                    <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                        <li>The necessary database trigger (<code>handle_new_user</code>) is missing or incorrect.</li>
-                        <li>You signed up with this user account *before* the trigger was added.</li>
-                    </ul>
                     <h3 className="font-semibold pt-4">How to Fix</h3>
                     <p className="text-sm text-muted-foreground">
-                        To resolve this, please run the following SQL code in your Supabase project's SQL Editor. This only needs to be done once.
+                        To permanently fix this, please run the following SQL code in your Supabase project's SQL Editor. This only needs to be done once per project.
                     </p>
                     <div className="relative bg-background border rounded-md font-mono text-xs">
                         <Button
