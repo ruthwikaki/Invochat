@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -30,30 +29,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user as User ?? null);
-      setLoading(false);
-    });
+    let mounted = true;
 
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting initial session:', error);
+        }
+        
+        if (mounted) {
+          setUser(session?.user as User ?? null);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user as User ?? null);
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-          router.refresh();
+      async (event, session) => {
+        console.log('Auth state change:', event);
+        
+        if (mounted) {
+          setUser(session?.user as User ?? null);
+          
+          // Only refresh the router on significant auth events
+          if (event === 'SIGNED_IN') {
+            // Delay slightly to ensure cookies are set
+            setTimeout(() => {
+              router.refresh();
+            }, 100);
+          } else if (event === 'SIGNED_OUT') {
+            router.push('/login');
+          }
         }
       }
     );
 
     return () => {
+      mounted = false;
       subscription?.unsubscribe();
     };
   }, [supabase, router]);
 
   const signOut = async () => {
     if (!supabase) return { error: null };
-    const { error } = await supabase.auth.signOut();
-    return { error };
+    
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Clear user state immediately
+      setUser(null);
+      
+      // Navigate to login
+      router.push('/login');
+      
+      return { error: null };
+    } catch (error) {
+      console.error('Sign out error:', error);
+      return { error: error as AuthError };
+    }
   };
 
   const value = {
