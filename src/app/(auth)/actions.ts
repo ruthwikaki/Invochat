@@ -2,7 +2,7 @@
 'use server';
 
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -14,7 +14,17 @@ const loginSchema = z.object({
 
 export async function login(prevState: any, formData: FormData) {
   const cookieStore = cookies();
-  const supabase = createClient(cookieStore);
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get: (name) => cookieStore.get(name)?.value,
+        set: (name, value, options) => cookieStore.set(name, value, options),
+        remove: (name, options) => cookieStore.delete(name, options),
+      }
+    }
+  );
 
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
@@ -43,18 +53,19 @@ export async function login(prevState: any, formData: FormData) {
   }
 
   // At this point, the user is authenticated and has a session.
-  // The Supabase SSR client should have automatically set the auth cookie.
-
+  // The Supabase SSR client has automatically set the auth cookie via the cookieStore.
+  
   // One final check: Does the user have a company_id?
   // If not, their account setup is incomplete. Redirect them to the setup page.
   // This prevents them from getting stuck if the `handle_new_user` trigger failed.
+  // We use a standard redirect here because this is a server-side check after a successful login.
   if (!data.user.app_metadata?.company_id) {
     redirect('/setup-incomplete');
   }
 
-  // If everything is correct, revalidate the cache and redirect to the dashboard.
+  // If everything is correct, revalidate the cache and signal success to the client.
   revalidatePath('/', 'layout');
-  redirect('/dashboard');
+  return { success: true };
 }
 
 
@@ -67,7 +78,18 @@ const signupSchema = z.object({
 
 export async function signup(prevState: any, formData: FormData) {
     const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get: (name) => cookieStore.get(name)?.value,
+            set: (name, value, options) => cookieStore.set(name, value, options),
+            remove: (name, options) => cookieStore.delete(name, options),
+          }
+        }
+    );
+
 
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
     

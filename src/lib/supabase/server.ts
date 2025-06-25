@@ -2,9 +2,11 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-// This function creates a Supabase client for use in Server Components,
-// Server Actions, and Route Handlers. It's essential for server-side
-// logic that needs to interact with Supabase while respecting RLS.
+// This function is now DEPRECATED and will be removed.
+// The Supabase client should be created directly in the server-side
+// file that needs it (e.g., middleware, server actions) to ensure the
+// correct cookie-handling context is provided.
+// This file is kept to avoid breaking imports, but it should not be used.
 export function createClient(cookieStore: ReturnType<typeof cookies>) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
