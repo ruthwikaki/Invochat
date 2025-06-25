@@ -1,10 +1,10 @@
+
 'use server';
 
 import { z } from 'zod';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { revalidatePath } from 'next/cache';
-import { NextResponse } from 'next/server';
+import { redirect } from 'next/navigation';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -18,22 +18,21 @@ export async function login(formData: FormData) {
   if (!parsed.success) {
     const url = new URL('/login', siteUrl);
     url.searchParams.set('error', 'Invalid email or password format.');
-    return NextResponse.redirect(url);
+    redirect(url.toString());
   }
 
   const { email, password } = parsed.data;
 
-  // We need a response object to attach cookies to
-  let response = NextResponse.redirect(new URL('/dashboard', siteUrl));
+  const cookieStore = cookies();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (name) => cookies().get(name)?.value,
-        set: (name, value, options) => response.cookies.set(name, value, options),
-        remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
+        get: (name) => cookieStore.get(name)?.value,
+        set: (name, value, options) => cookieStore.set({ name, value, ...options }),
+        remove: (name, options) => cookieStore.set({ name, value: '', ...options }),
       },
     }
   );
@@ -44,33 +43,19 @@ export async function login(formData: FormData) {
     const url = new URL('/login', siteUrl);
     const msg = error?.message || 'Login failed: Please check your inbox for a confirmation link.';
     url.searchParams.set('error', msg);
-    return NextResponse.redirect(url);
+    redirect(url.toString());
   }
 
   const companyId = data.user.app_metadata?.company_id;
   if (!companyId) {
-    // Re-create the response object for the new redirect target
-    response = NextResponse.redirect(new URL('/setup-incomplete', siteUrl));
-    
-    // We need to re-create the client bound to the *new* response object
-    // to ensure the session cookie is set for the /setup-incomplete page.
-    const supabaseSetup = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get: (name) => cookies().get(name)?.value,
-          set: (name, value, options) => response.cookies.set(name, value, options),
-          remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
-        },
-      }
-    );
-    // Persist the session for the setup-incomplete redirect
-    await supabaseSetup.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
+    // The middleware will handle redirecting to /setup-incomplete on the next request
+    // after the session cookie has been set.
+    redirect('/dashboard');
   }
 
-  revalidatePath('/', 'layout');
-  return response;
+  // Success, redirect to dashboard.
+  // The middleware will handle revalidating the path.
+  redirect('/dashboard');
 }
 
 
@@ -89,22 +74,20 @@ export async function signup(formData: FormData) {
         const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
         const url = new URL('/signup', siteUrl);
         url.searchParams.set('error', errorMessages);
-        return NextResponse.redirect(url);
+        redirect(url.toString());
     }
 
     const { email, password, companyName } = parsed.data;
     
-    // This is a dummy response object that will be replaced by a redirect.
-    const response = NextResponse.next();
-
+    const cookieStore = cookies();
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookies: {
-            get: (name) => cookies().get(name)?.value,
-            set: (name, value, options) => response.cookies.set(name, value, options),
-            remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
+            get: (name) => cookieStore.get(name)?.value,
+            set: (name, value, options) => cookieStore.set({ name, value, ...options }),
+            remove: (name, options) => cookieStore.set({ name, value: '', ...options }),
           },
         }
     );
@@ -122,22 +105,21 @@ export async function signup(formData: FormData) {
     if (error) {
         const url = new URL('/signup', siteUrl);
         url.searchParams.set('error', error.message);
-        return NextResponse.redirect(url);
+        redirect(url.toString());
     }
 
     if (data.user) {
         if (data.user.identities && data.user.identities.length === 0) {
             const url = new URL('/signup', siteUrl);
             url.searchParams.set('error', "This user already exists.");
-            return NextResponse.redirect(url);
+            redirect(url.toString());
         }
-        revalidatePath('/', 'layout');
         const url = new URL('/signup', siteUrl);
         url.searchParams.set('success', 'true');
-        return NextResponse.redirect(url);
+        redirect(url.toString());
     }
     
     const url = new URL('/signup', siteUrl);
     url.searchParams.set('error', "An unexpected error occurred.");
-    return NextResponse.redirect(url);
+    redirect(url.toString());
 }
