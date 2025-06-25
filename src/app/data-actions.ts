@@ -1,7 +1,7 @@
 
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
 import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
@@ -17,7 +17,17 @@ import type { User } from '@/types';
 // It relies on the middleware to ensure that the user session is valid and contains a company ID.
 async function getCompanyIdForCurrentUser(): Promise<string> {
     const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                get(name: string) {
+                    return cookieStore.get(name)?.value
+                },
+            },
+        }
+    );
     const { data: { user } } = await supabase.auth.getUser();
 
     // The middleware should prevent this function from being called by a user
@@ -75,7 +85,17 @@ export async function testSupabaseConnection(): Promise<{
     
     try {
         const cookieStore = cookies();
-        const supabase = createClient(cookieStore);
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    get(name: string) {
+                        return cookieStore.get(name)?.value
+                    },
+                },
+            }
+        );
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
