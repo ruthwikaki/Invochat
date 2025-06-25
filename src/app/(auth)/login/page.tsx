@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { ArvoLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
@@ -57,7 +58,7 @@ export default function LoginPage() {
 
       <div className="z-10 text-center mb-8">
         <div className="inline-block transition-transform hover:scale-110 animate-fade-in">
-            <InvoChatLogo className="h-16 w-16 text-3xl shadow-lg" />
+            <ArvoLogo className="h-16 w-16 text-3xl shadow-lg" />
         </div>
         <h1 className="text-4xl font-bold text-white mt-4 tracking-tight">ARVO</h1>
       </div>

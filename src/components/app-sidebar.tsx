@@ -18,7 +18,7 @@ import {
   Upload,
   Beaker,
 } from 'lucide-react';
-import { InvoChatLogo } from './invochat-logo';
+import { ArvoLogo } from './invochat-logo';
 import {
   Sidebar,
   SidebarContent,
@@ -60,7 +60,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <InvoChatLogo />
+          <ArvoLogo />
           <span className="text-lg font-semibold">ARVO</span>
         </div>
       </SidebarHeader>
