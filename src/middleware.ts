@@ -5,7 +5,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
-  // Create a Supabase client that can read and write cookies.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -18,31 +17,54 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // This will refresh the session if it's expired.
   const { data: { session } } = await supabase.auth.getSession();
   const user = session?.user;
 
   const { pathname } = req.nextUrl;
+
   const authRoutes = ['/login', '/signup'];
   const isAuthRoute = authRoutes.includes(pathname);
-  const isRoot = pathname === '/';
+  const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
-  // If the user is logged in...
-  if (user) {
-    // and they try to access an auth route or the root page, redirect to the dashboard.
-    if (isAuthRoute || isRoot) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-  } 
-  // If the user is not logged in...
-  else {
-    // and they try to access any protected route (i.e., not an auth route), redirect to login.
-    if (!isAuthRoute) {
+  // If user is not logged in
+  if (!user) {
+    // If they are trying to access a protected route, redirect to login
+    if (!isAuthRoute && pathname !== '/') {
       return NextResponse.redirect(new URL('/login', req.url));
     }
+    // If they are on the root, redirect to login
+    if (pathname === '/') {
+        return NextResponse.redirect(new URL('/login', req.url));
+    }
+    // Allow access to auth routes
+    return res;
   }
 
-  // Allow the request to proceed, potentially with an updated session cookie.
+  // If user is logged in
+  const companyId = user.app_metadata?.company_id;
+
+  // If user is logged in but their account setup is incomplete
+  if (!companyId) {
+    // If they are not already on the setup page, redirect them there
+    if (!isSetupIncompleteRoute) {
+      return NextResponse.redirect(new URL('/setup-incomplete', req.url));
+    }
+    // Allow access to the setup page
+    return res;
+  }
+
+  // If user is logged in and setup is complete
+  // If they are trying to access an auth route or the root, redirect to dashboard
+  if (isAuthRoute || pathname === '/') {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
+  
+  // If they are trying to access the setup-incomplete page, but they are already setup, redirect to dashboard
+  if(isSetupIncompleteRoute) {
+     return NextResponse.redirect(new URL('/dashboard', req.url));
+  }
+
+  // Allow access to all other protected routes
   return res;
 }
 

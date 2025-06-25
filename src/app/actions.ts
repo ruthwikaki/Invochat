@@ -24,33 +24,14 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
     const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        throw new Error("User not found. Please log in again.");
+    // The middleware should prevent this function from being called by a user
+    // without a company_id. If this error is thrown, it's a bug in the middleware.
+    const companyId = user?.app_metadata?.company_id;
+    if (!user || !companyId || typeof companyId !== 'string') {
+        throw new Error("Application error: Could not determine company ID. The user may not be properly authenticated or configured.");
     }
-
-    // The company_id is stored in the user's app_metadata (JWT claim).
-    // This is the fastest, most reliable source once the session is established.
-    const companyIdFromClaim = user.app_metadata?.company_id;
-    if (companyIdFromClaim && typeof companyIdFromClaim === 'string') {
-        return companyIdFromClaim;
-    }
-
-    // Fallback for race condition: If the claim isn't populated yet (e.g., right after signup),
-    // we query the database directly. This provides a more immediate source of truth.
-    const { data: profile } = await supabase
-        .from('users')
-        .select('company_id')
-        .eq('id', user.id)
-        .single();
-        
-    const companyIdFromDb = profile?.company_id;
-    if (companyIdFromDb) {
-        return companyIdFromDb;
-    }
-
-    // This is a critical error state.
-    console.error(`User ${user.id} is missing a valid company_id in both JWT claims and the users table.`);
-    throw new Error("I couldn't verify your company information. Please try logging out and in again.");
+    
+    return companyId;
 }
 
 

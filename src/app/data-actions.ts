@@ -14,41 +14,20 @@ import {
 import type { User } from '@/types';
 
 // This function provides a robust way to get the company ID for the current user.
-// It prioritizes the JWT claim for performance and security, with a fallback to a direct DB query.
+// It relies on the middleware to ensure that the user session is valid and contains a company ID.
 async function getCompanyIdForCurrentUser(): Promise<string> {
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) {
-        throw new Error("User not found. Please log in again.");
+    // The middleware should prevent this function from being called by a user
+    // without a company_id. If this error is thrown, it's a bug in the middleware.
+    const companyId = user?.app_metadata?.company_id;
+    if (!user || !companyId || typeof companyId !== 'string') {
+        throw new Error("Application error: Could not determine company ID. The user may not be properly authenticated or configured.");
     }
-
-    // The company_id should be in the user's JWT `app_metadata` set by the database trigger.
-    // This is the fastest, most reliable source.
-    const companyIdFromClaim = user.app_metadata?.company_id;
-    if (companyIdFromClaim && typeof companyIdFromClaim === 'string') {
-        return companyIdFromClaim;
-    }
-
-    // Fallback: If the claim is missing (e.g., JWT not refreshed yet), query the public.users table.
-    // This adds robustness but should not be the primary method.
-    console.warn(`User ${user.id} is missing company_id in JWT claim. Falling back to DB query. This may indicate an issue with the handle_new_user trigger.`);
     
-    const { data: profile } = await supabase
-        .from('users')
-        .select('company_id')
-        .eq('id', user.id)
-        .single();
-        
-    const companyIdFromDb = profile?.company_id;
-    if (companyIdFromDb) {
-        return companyIdFromDb;
-    }
-
-    // If both methods fail, it is a critical configuration error.
-    console.error(`CRITICAL: User ${user.id} has no company_id in JWT or users table.`);
-    throw new Error("Your user account is not associated with a company. Please ensure the `handle_new_user` database trigger is installed and working correctly.");
+    return companyId;
 }
 
 
@@ -144,7 +123,10 @@ export async function testDatabaseQuery(): Promise<{
     return { success: true, count: count, error: null };
   } catch (e: any) {
     let errorMessage = e.message;
-    if (e.message?.includes('User not found')) {
+    // Catch the specific error from getCompanyIdForCurrentUser if it's called for a user without a session
+    if (e.message?.includes('Application error')) {
+        errorMessage = "Could not perform database query test: " + e.message;
+    } else if (e.message?.includes('User not found')) {
         errorMessage = "Could not find a logged-in user to get a company ID for the test query."
     }
     return { success: false, count: null, error: errorMessage };
