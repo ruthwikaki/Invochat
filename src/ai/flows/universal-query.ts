@@ -53,7 +53,7 @@ export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
 
 const UniversalChatOutputSchema = z.object({
     response: z.string().describe("The natural language response to the user."),
-    data: z.array(z.any()).optional().describe("The raw data retrieved from the database, if any. To be used for visualizations."),
+    data: z.array(z.any()).optional().nullable().describe("The raw data retrieved from the database, if any. To be used for visualizations."),
     suggestedVisualization: z.enum(['table', 'bar', 'pie', 'line', 'none']).optional().describe("The suggested visualization type based on the user's query and the data.")
 });
 export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
@@ -91,5 +91,11 @@ export async function universalChatFlow(input: UniversalChatInput): Promise<Univ
     if (!output) {
       throw new Error("The model did not return a valid response.");
     }
+    
+    // Ensure data is an array, even if the model returns null/undefined, to prevent client-side errors.
+    if (output.data === null || output.data === undefined) {
+        output.data = [];
+    }
+
     return output;
 }
