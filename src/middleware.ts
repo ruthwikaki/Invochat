@@ -1,3 +1,4 @@
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
@@ -17,13 +18,13 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // Set cookie on the request object
+          // If the cookie is set, update the request cookies as well.
+          // This will make sure that the server component is aware of the session.
           req.cookies.set({
             name,
             value,
             ...options,
           });
-          // Set cookie on the response object
           response = NextResponse.next({
             request: {
               headers: req.headers,
@@ -36,9 +37,12 @@ export async function middleware(req: NextRequest) {
           });
         },
         remove(name: string, options: CookieOptions) {
-          // Remove cookie from request object
-          req.cookies.delete(name);
-          // Remove cookie from response object
+          // If the cookie is removed, update the request cookies as well.
+          req.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
           response = NextResponse.next({
             request: {
               headers: req.headers,
@@ -48,7 +52,6 @@ export async function middleware(req: NextRequest) {
             name,
             value: '',
             ...options,
-            maxAge: 0,
           });
         },
       },
@@ -62,12 +65,7 @@ export async function middleware(req: NextRequest) {
   const isPublicRoute = publicRoutes.includes(pathname);
 
   try {
-    // IMPORTANT: Use getUser() instead of getSession() for more reliable auth check
-    const { data: { user }, error } = await supabase.auth.getUser();
-
-    if (error) {
-      console.error('[Middleware] Auth error:', error);
-    }
+    const { data: { user } } = await supabase.auth.getUser();
 
     // If user is authenticated
     if (user) {
