@@ -1,20 +1,16 @@
 'use server';
 
-import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
-import { generateChart } from '@/ai/flows/generate-chart';
-import { smartReordering } from '@/ai/flows/smart-reordering';
-import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
+import { universalChatFlow } from '@/ai/flows/universal-query';
 import type { AssistantMessagePayload } from '@/types';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 
-// Fix: Define the proper schema for assistant responses
 const actionResponseSchema = z.object({
   id: z.string(),
   role: z.literal('assistant'),
   content: z.string().optional(),
-  component: z.enum(['DeadStockTable', 'SupplierPerformanceTable', 'ReorderList', 'DynamicChart']).optional(),
+  component: z.enum(['DataTable', 'DynamicChart']).optional(),
   props: z.any().optional(),
 }) satisfies z.ZodType<AssistantMessagePayload>;
 
@@ -41,8 +37,6 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
     );
     const { data: { user } } = await supabase.auth.getUser();
 
-    // The middleware should prevent this function from being called by a user
-    // without a company_id. If this error is thrown, it's a bug in the middleware.
     const companyId = user?.app_metadata?.company_id;
     if (!user || !companyId || typeof companyId !== 'string') {
         throw new Error("Application error: Could not determine company ID. The user may not be properly authenticated or configured.");
@@ -51,86 +45,90 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
     return companyId;
 }
 
+function extractTitle(text: string): string {
+  return text.split('\n')[0] || 'Chart';
+}
+
+function inferChartConfig(data: any[]): any {
+  if (!data || data.length === 0) {
+    return { dataKey: 'value', nameKey: 'name' };
+  }
+  const firstItem = data[0];
+  const keys = Object.keys(firstItem);
+  
+  const nameKey = keys.find(k => ['name', 'label', 'category', 'date'].includes(k.toLowerCase())) || keys[0];
+  const dataKey = keys.find(k => ['value', 'count', 'quantity', 'total'].includes(k.toLowerCase())) || keys.find(k => typeof firstItem[k] === 'number') || keys[1];
+
+  return {
+    dataKey,
+    nameKey,
+    xAxisKey: nameKey
+  };
+}
+
 
 export async function handleUserMessage(
   payload: UserMessagePayload
 ): Promise<AssistantMessagePayload> {
   const { message } = UserMessagePayloadSchema.parse(payload);
   
-  let companyId: string;
   try {
-    companyId = await getCompanyIdForCurrentUser();
-  } catch(error: any) {
-     return actionResponseSchema.parse({
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: error.message,
+    const companyId = await getCompanyIdForCurrentUser();
+    
+    // You'll need to implement passing conversation history from the client
+    const conversationHistory: any[] = []; 
+    
+    // Let the AI handle everything
+    const flowResult = await universalChatFlow({
+      message,
+      companyId,
+      conversationHistory
     });
-  }
+    
+    const content = flowResult.response;
+    const data = flowResult.data;
+    const visualization = flowResult.suggestedVisualization;
 
-  const lowerCaseMessage = message.toLowerCase();
-
-  try {
-    if (/(chart|graph|plot|visual|draw|show me a visual)/i.test(lowerCaseMessage)) {
-      const response = await generateChart({ query: message, companyId });
-      if (response) {
-        return actionResponseSchema.parse({
-          id: Date.now().toString(),
-          role: 'assistant',
-          component: 'DynamicChart',
-          props: response,
-        });
+    if (visualization && data && data.length > 0) {
+      switch (visualization) {
+        case 'bar':
+        case 'pie':
+        case 'line':
+          return actionResponseSchema.parse({
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: content,
+            component: 'DynamicChart',
+            props: {
+              chartType: visualization,
+              title: extractTitle(content),
+              data: data,
+              config: inferChartConfig(data)
+            }
+          });
+        case 'table':
+          return actionResponseSchema.parse({
+            id: Date.now().toString(),
+            role: 'assistant',
+            content: content,
+            component: 'DataTable',
+            props: { data: data }
+          });
+        default:
+          // Fallthrough for 'none'
+          break;
       }
     }
-
-    if (
-      lowerCaseMessage.includes('dead stock') ||
-      lowerCaseMessage.includes('slow inventory')
-    ) {
-      const response = await analyzeDeadStock({ query: message, companyId });
-      if (response && response.deadStockItems) {
-        return actionResponseSchema.parse({
-          id: Date.now().toString(),
-          role: 'assistant',
-          component: 'DeadStockTable',
-          props: { data: response.deadStockItems },
-        });
-      }
-    }
-
-    if (
-      lowerCaseMessage.includes('order from') ||
-      lowerCaseMessage.includes('reorder')
-    ) {
-      const response = await smartReordering({ query: message, companyId });
-      if (response && response.reorderList) {
-        return actionResponseSchema.parse({
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: 'Here are the suggested items to reorder:',
-          component: 'ReorderList',
-          props: { items: response.reorderList },
-        });
-      }
-    }
-
-    if (
-      lowerCaseMessage.includes('vendor') ||
-      lowerCaseMessage.includes('supplier performance') ||
-      lowerCaseMessage.includes('on time')
-    ) {
-      const response = await getSupplierPerformance({ query: message, companyId });
-      if (response && response.vendors) {
-        return actionResponseSchema.parse({
-          id: Date.now().toString(),
-          role: 'assistant',
-          component: 'SupplierPerformanceTable',
-          props: { data: response.vendors },
-        });
-      }
-    }
+    
+    // Default case: just return the text response
+    return actionResponseSchema.parse({
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: content
+    });
+    
   } catch (error: any) {
-    console.error('Error processing AI action:', error);
+    console.error('Chat error:', error);
     let errorMessage = `Sorry, I encountered an error while processing your request: ${error.message}. Please try again.`;
     if (error.message?.includes('API key not valid')) {
         errorMessage = 'It looks like your Google AI API key is invalid. Please make sure the `GOOGLE_API_KEY` in your `.env` file is correct and try again.'
@@ -141,12 +139,4 @@ export async function handleUserMessage(
       content: errorMessage,
     });
   }
-
-  // Fallback response
-  return actionResponseSchema.parse({
-    id: Date.now().toString(),
-    role: 'assistant',
-    content:
-      "I'm sorry, I can't help with that. You can ask me about 'dead stock', to 'visualize warehouse distribution', or 'supplier performance'.",
-  });
 }

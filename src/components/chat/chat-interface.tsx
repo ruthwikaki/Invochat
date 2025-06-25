@@ -6,6 +6,7 @@ import { DeadStockTable } from '@/components/ai-response/dead-stock-table';
 import { ReorderList } from '@/components/ai-response/reorder-list';
 import { SupplierPerformanceTable } from '@/components/ai-response/supplier-performance-table';
 import { DynamicChart } from '@/components/ai-response/dynamic-chart';
+import { DataTable } from '@/components/ai-response/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -20,6 +21,7 @@ const AiComponentMap = {
   SupplierPerformanceTable,
   ReorderList,
   DynamicChart,
+  DataTable,
 };
 
 const quickActions = [
@@ -48,8 +50,8 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const processResponse = (response: AssistantMessagePayload) => {
     let contentNode: React.ReactNode = response.content;
 
-    if (response.component) {
-      const Component = AiComponentMap[response.component];
+    if (response.component && response.component in AiComponentMap) {
+      const Component = AiComponentMap[response.component as keyof typeof AiComponentMap];
       contentNode = (
         <div className="space-y-2">
           {response.content && <p>{response.content}</p>}
