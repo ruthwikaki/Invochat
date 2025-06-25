@@ -1,10 +1,8 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
 import React, { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,10 +16,10 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button 
-      type="submit" 
-      disabled={pending} 
-      className="w-full"
+    <Button
+      type="submit"
+      disabled={pending}
+      className="w-full bg-[#7C3AED] hover:bg-[#6B46C1]"
     >
       {pending ? 'Signing in...' : 'Sign In'}
     </Button>
@@ -38,7 +36,7 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
         type={showPassword ? 'text' : 'password'}
         placeholder="••••••••"
         required={required}
-        className="pr-10"
+        className="pr-10 focus:border-[#7C3AED]"
         autoComplete="current-password"
       />
       <Button
@@ -58,81 +56,62 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
   return (
-    <main className="grid min-h-dvh w-full lg:grid-cols-2">
-      <div className="flex items-center justify-center p-6 sm:p-8">
-        <div className="w-full max-w-md">
-            <div className="mb-8 flex flex-col items-center text-center">
-                <Link href="/" className="mb-4 flex items-center gap-3 text-2xl font-bold">
-                    <InvochatLogo className="h-8 w-8" />
-                    <h1>InvoChat</h1>
-                </Link>
-                <p className="text-muted-foreground">Inventory Intelligence Made Simple</p>
-            </div>
-
-            <form action={login} className="space-y-4">
-              {searchParams?.error && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Login Failed</AlertTitle>
-                  <AlertDescription>{searchParams.error}</AlertDescription>
-                </Alert>
-              )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" placeholder="you@company.com" required autoComplete="email"/>
-              </div>
-
-              <div className="space-y-2">
-                 <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <Link href="#" className="text-sm font-medium text-primary hover:underline">
-                        Forgot password?
-                    </Link>
-                 </div>
-                <PasswordInput id="password" name="password" required />
-              </div>
-              
-              <div className="flex items-center">
-                <Checkbox id="remember-me" name="remember-me" />
-                <Label htmlFor="remember-me" className="ml-2 font-normal leading-none">
-                  Remember me
-                </Label>
-              </div>
-
-              <SubmitButton />
-            </form>
-            
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              New to InvoChat?{' '}
-              <Link href="/signup" className="font-semibold text-primary hover:underline">
-                Sign up
+    <main className="flex min-h-dvh w-full items-center justify-center bg-gray-100 p-4 dark:bg-gray-900">
+      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 sm:p-8">
+          <div className="mb-8 flex flex-col items-center text-center">
+              <Link href="/" className="mb-4 flex items-center gap-3 text-2xl font-bold">
+                  <InvochatLogo className="h-8 w-8" />
+                  <h1 className="text-gray-900 dark:text-white">InvoChat</h1>
               </Link>
+              <p className="text-gray-600 dark:text-gray-400">Inventory Intelligence Made Simple</p>
+          </div>
+
+          <form action={login} className="space-y-4">
+            {searchParams?.error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Login Failed</AlertTitle>
+                <AlertDescription>{searchParams.error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email</Label>
+              <Input id="email" name="email" type="email" placeholder="you@company.com" required autoComplete="email" className="focus:border-[#7C3AED]"/>
             </div>
 
-             <div className="mt-8 text-center text-xs text-muted-foreground">
-                <Link href="#" className="hover:underline">Terms of Service</Link>
-                <span className="mx-2">·</span>
-                <Link href="#" className="hover:underline">Privacy Policy</Link>
+            <div className="space-y-2">
+               <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">Password</Label>
+                  <Link href="#" className="text-sm font-medium text-primary hover:underline">
+                      Forgot password?
+                  </Link>
+               </div>
+              <PasswordInput id="password" name="password" required />
             </div>
-        </div>
-      </div>
-      <div className="relative hidden bg-primary lg:flex">
-        <Image
-            src="https://placehold.co/1200x900.png"
-            alt="Warehouse inventory being managed on a computer"
-            data-ai-hint="warehouse inventory"
-            fill
-            className="object-cover opacity-20"
-        />
-        <div className="relative z-10 m-auto max-w-lg p-8 text-primary-foreground">
-            <blockquote className="space-y-2">
-                <p className="text-2xl font-semibold">
-                    "InvoChat has been a game-changer. We cut our dead stock by 40% in the first quarter and now have a real-time pulse on our entire operation."
-                </p>
-                <footer className="text-lg">— Sarah Johnson, Warehouse Manager</footer>
-            </blockquote>
-        </div>
+            
+            <div className="flex items-center">
+              <Checkbox id="remember-me" name="remember-me" />
+              <Label htmlFor="remember-me" className="ml-2 font-normal leading-none text-gray-600 dark:text-gray-400">
+                Remember me
+              </Label>
+            </div>
+
+            <SubmitButton />
+          </form>
+          
+          <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+            New to InvoChat?{' '}
+            <Link href="/signup" className="font-semibold text-primary hover:underline">
+              Sign up
+            </Link>
+          </div>
+
+           <div className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400">
+              <Link href="#" className="hover:underline">Terms of Service</Link>
+              <span className="mx-2">·</span>
+              <Link href="#" className="hover:underline">Privacy Policy</Link>
+          </div>
       </div>
     </main>
   );
