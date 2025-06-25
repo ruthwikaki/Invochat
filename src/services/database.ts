@@ -14,7 +14,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import type { DashboardMetrics, InventoryItem, Supplier, Alert } from '@/types';
-import { subDays, differenceInDays, parseISO, isAfter, isBefore } from 'date-fns';
+import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { cookies } from 'next/headers';
 
 // This function creates a Supabase client authenticated as the current user.
@@ -25,6 +25,7 @@ function createSecureServerClient() {
     return createClient(cookieStore);
 }
 
+// Corrected to remove onTimeDeliveryRate calculation which was based on a non-existent column.
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
   const supabase = createSecureServerClient();
   
@@ -43,7 +44,6 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     return {
       inventoryValue: 0,
       deadStockValue: 0,
-      onTimeDeliveryRate: 0,
       predictiveAlert: null
     };
   }
@@ -54,28 +54,6 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
       .filter(item => item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo))
       .reduce((sum, item) => sum + (item.quantity * Number(item.cost)), 0);
 
-  const { data: purchaseOrders, error: poError } = await supabase
-      .from('purchase_orders')
-      .select('expected_date, delivery_date')
-      .eq('company_id', companyId)
-      .not('delivery_date', 'is', null);
-
-  if (poError) {
-    console.error('Error fetching purchase orders for dashboard:', poError);
-    // Don't throw here, just continue with 0 delivery rate
-  }
-
-  let onTimeDeliveryRate = 0;
-  if (purchaseOrders && purchaseOrders.length > 0) {
-      let onTimeDeliveries = 0;
-      purchaseOrders.forEach(po => {
-          if (po.delivery_date && po.expected_date && !isAfter(parseISO(po.delivery_date), parseISO(po.expected_date))) {
-              onTimeDeliveries++;
-          }
-      });
-      onTimeDeliveryRate = (onTimeDeliveries / purchaseOrders.length) * 100;
-  }
-
   const lowStockItem = inventory.find(item => item.quantity <= item.reorder_point);
   const predictiveAlert = lowStockItem ? {
       item: lowStockItem.name,
@@ -85,7 +63,6 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   return {
       inventoryValue: Math.round(inventoryValue),
       deadStockValue: Math.round(deadStockValue),
-      onTimeDeliveryRate: Math.round(onTimeDeliveryRate),
       predictiveAlert
   };
 }
@@ -102,7 +79,7 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
     console.error('Error fetching inventory:', error);
     throw new Error(`Could not load inventory data: ${error.message}`);
   }
-  return data;
+  return data || [];
 }
 
 export async function getDeadStockFromDB(companyId: string): Promise<InventoryItem[]> {
@@ -118,7 +95,7 @@ export async function getDeadStockFromDB(companyId: string): Promise<InventoryIt
         console.error('Error fetching dead stock:', error);
         throw new Error(`Could not load dead stock data: ${error.message}`);
     }
-    return data;
+    return data || [];
 }
 
 export async function getDeadStockPageData(companyId: string) {
@@ -146,29 +123,36 @@ export async function getDeadStockPageData(companyId: string) {
     };
 }
 
+// Note: This function depends on a custom RPC 'get_suppliers' in your database.
+// An alternative is to query the 'vendors' table directly.
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
     const supabase = createSecureServerClient();
     const { data, error } = await supabase.rpc('get_suppliers', { p_company_id: companyId });
 
     if (error) {
         console.error('Error fetching suppliers via RPC:', error);
-        throw new Error(`Could not load supplier data: ${error.message}`);
+        throw new Error(`Could not load supplier data: ${error.message}. Ensure the 'get_suppliers' function exists and is correctly defined in your database.`);
     }
     return data || [];
 }
 
+// This function directly queries the vendors table, including the 'account_number'
 export async function getVendorsFromDB(companyId: string) {
     const supabase = createSecureServerClient();
     const { data, error } = await supabase
         .from('vendors')
-        .select('*')
+        .select('id, vendor_name, contact_info, address, terms, account_number')
         .eq('company_id', companyId);
 
     if (error) {
         console.error('Error fetching vendors from DB', error);
         throw new Error(`Could not load vendor data: ${error.message}`);
     }
-    return data;
+    return data.map(v => ({
+        id: v.id,
+        name: v.vendor_name, // Mapping to match Supplier type
+        ...v
+    })) || [];
 }
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
@@ -224,12 +208,12 @@ export async function getInventoryFromDB(companyId: string) {
     return getInventoryItems(companyId);
 }
 
+// Note: This function relies on a custom RPC 'get_chart_data' in your database.
+// The success of this function depends on that RPC's implementation.
 export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
     const supabase = createSecureServerClient();
     const lowerCaseQuery = query.toLowerCase();
 
-    // It's assumed a database function `get_chart_data` exists that can
-    // intelligently return different data shapes based on the query text.
     const { data, error } = await supabase.rpc('get_chart_data', {
         p_company_id: companyId,
         p_query: lowerCaseQuery
@@ -237,13 +221,11 @@ export async function getDataForChart(query: string, companyId: string): Promise
     
     if (error) {
         console.error(`Error in getDataForChart for query "${query}":`, error);
-        // We throw the error so the AI flow can handle it, preventing silent failure.
-        throw new Error(`Failed to get chart data: ${error.message}`);
+        throw new Error(`Failed to get chart data: ${error.message}. Please ensure the 'get_chart_data' database function can handle the query.`);
     }
 
     if (!data) return [];
     
-    // For numeric values, ensure they are numbers, not strings from the DB.
     if (lowerCaseQuery.includes('inventory value by category')) {
         return data.map((d: any) => ({ name: d.name, value: Math.round(d.value) }));
     }

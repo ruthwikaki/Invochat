@@ -46,13 +46,14 @@ export type AssistantMessagePayload = {
 };
 
 // Data models based on database schema
-// This type is based on the `get_suppliers` RPC function.
+// This type is based on the `get_suppliers` RPC function, updated to match vendors table.
 export type Supplier = {
     id: string; // UUID
     name: string;
     contact_info: string;
-    address: string;
+    address: string | null;
     terms: string;
+    account_number: string | null;
 }
 
 export type InventoryItem = {
@@ -60,16 +61,16 @@ export type InventoryItem = {
     company_id: string; // UUID
     sku: string;
     name: string;
-    description: string;
-    category: string;
+    description: string | null;
+    category: string | null;
     quantity: number;
     cost: number;
     price: number;
     reorder_point: number;
     reorder_qty: number;
-    supplier_name: string;
-    warehouse_name?: string;
-    last_sold_date?: string; // ISO String
+    supplier_name: string | null;
+    warehouse_name: string | null;
+    last_sold_date: string | null; // ISO String
 }
 
 export type Alert = {
@@ -84,15 +85,15 @@ export type Alert = {
         productName?: string;
         currentStock?: number;
         reorderPoint?: number;
-        lastSoldDate?: string;
+        lastSoldDate?: string | null;
         value?: number;
     };
 };
 
+// Corrected DashboardMetrics to remove the metric that can't be calculated.
 export type DashboardMetrics = {
     inventoryValue: number;
     deadStockValue: number;
-    onTimeDeliveryRate: number;
     predictiveAlert: {
         item: string;
         days: number;

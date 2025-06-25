@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { getDashboardData } from '@/app/data-actions';
-import { Badge } from '@/components/ui/badge';
 
 function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000_000) {
@@ -50,7 +49,7 @@ export default async function DashboardPage() {
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <MetricCard
                     title="Total Inventory Value"
                     value={formatCurrency(data.inventoryValue)}
@@ -62,12 +61,6 @@ export default async function DashboardPage() {
                     value={formatCurrency(data.deadStockValue)}
                     icon={TrendingDown}
                     variant="destructive"
-                />
-                <MetricCard
-                    title="On-Time Delivery Rate"
-                    value={`${data.onTimeDeliveryRate.toFixed(0)}%`}
-                    icon={Truck}
-                    variant="default"
                 />
                  <Card className="border-warning/50 text-warning">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

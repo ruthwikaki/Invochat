@@ -2,6 +2,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
@@ -12,6 +13,8 @@ import {
 } from '@/services/database';
 import type { User } from '@/types';
 
+// This function provides a robust way to get the company ID for the current user.
+// It prioritizes the JWT claim for performance and security, with a fallback to a direct DB query.
 async function getCompanyIdForCurrentUser(): Promise<string> {
     const cookieStore = cookies();
     const supabase = createClient(cookieStore);
@@ -21,19 +24,17 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         throw new Error("User not found. Please log in again.");
     }
 
-    // The company_id is stored in the user's app_metadata (JWT claim).
-    // This is the fastest, most reliable source once the session is established.
+    // The company_id should be in the user's JWT `app_metadata` set by the database trigger.
+    // This is the fastest, most reliable source.
     const companyIdFromClaim = user.app_metadata?.company_id;
     if (companyIdFromClaim && typeof companyIdFromClaim === 'string') {
         return companyIdFromClaim;
     }
 
-    // This is a critical error state if the trigger is working correctly.
-    // However, we can add a fallback for robustness.
-    console.warn(`User ${user.id} is missing company_id in JWT claim. Falling back to DB query.`);
+    // Fallback: If the claim is missing (e.g., JWT not refreshed yet), query the public.users table.
+    // This adds robustness but should not be the primary method.
+    console.warn(`User ${user.id} is missing company_id in JWT claim. Falling back to DB query. This may indicate an issue with the handle_new_user trigger.`);
     
-    // Fallback: Query the public.users table directly.
-    // This is slower but can save a user if the JWT is slow to update.
     const { data: profile } = await supabase
         .from('users')
         .select('company_id')
@@ -45,9 +46,9 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         return companyIdFromDb;
     }
 
-    // If both methods fail, it's a critical error.
-    console.error(`User ${user.id} is missing a valid company_id in both JWT claims and the users table.`);
-    throw new Error("I couldn't verify your company information. This might be a temporary issue after signup. Please try logging out and in again.");
+    // If both methods fail, it is a critical configuration error.
+    console.error(`CRITICAL: User ${user.id} has no company_id in JWT or users table.`);
+    throw new Error("Your user account is not associated with a company. Please ensure the `handle_new_user` database trigger is installed and working correctly.");
 }
 
 
@@ -76,7 +77,6 @@ export async function getAlertsData() {
     return getAlertsFromDB(companyId);
 }
 
-
 export async function testSupabaseConnection(): Promise<{
     success: boolean;
     error: { message: string; details?: any; } | null;
@@ -100,62 +100,53 @@ export async function testSupabaseConnection(): Promise<{
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
+            // AuthSessionMissingError is not a "real" error in this context, it just means no one is logged in.
             if (error.name === 'AuthSessionMissingError') {
-                 return {
-                    success: true,
-                    error: null,
-                    user: null,
-                    isConfigured
-                };
+                 return { success: true, error: null, user: null, isConfigured };
             }
-            
-            return {
-                success: false,
-                error: { message: 'An unexpected error occurred while fetching the user.', details: error },
-                user: null,
-                isConfigured
-            };
+            return { success: false, error: { message: error.message, details: error }, user: null, isConfigured };
         }
         
-        return {
-            success: true,
-            error: null,
-            user,
-            isConfigured
-        };
+        return { success: true, error: null, user, isConfigured };
 
     } catch (e: any) {
-        return {
-            success: false,
-            error: { message: 'A server-side error occurred while trying to connect to Supabase.', details: e.message },
-            user: null,
-            isConfigured
-        };
+        return { success: false, error: { message: e.message, details: e }, user: null, isConfigured };
     }
 }
 
+// Corrected to use service_role key to bypass RLS for a raw table count.
 export async function testDatabaseQuery(): Promise<{
   success: boolean;
   count: number | null;
   error: string | null;
 }> {
   try {
-    const companyId = await getCompanyIdForCurrentUser(); // This will throw if user is not associated
-    
-    const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const companyId = await getCompanyIdForCurrentUser();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // RLS will automatically scope the query to the user's company
-    const { error, count } = await supabase
-      .from('inventory')
-      .select('*', { count: 'exact', head: true });
-
-    if (error) {
-      throw error;
+    if (!supabaseUrl || !supabaseServiceKey) {
+        return { success: false, count: null, error: 'Supabase service role credentials are not configured on the server.' };
     }
+
+    // Create a client with the service_role key to bypass RLS for this test.
+    const serviceSupabase = createServiceRoleClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false }
+    });
+
+    const { error, count } = await serviceSupabase
+      .from('inventory')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId);
+
+    if (error) throw error;
 
     return { success: true, count: count, error: null };
   } catch (e: any) {
-    return { success: false, count: null, error: e.message };
+    let errorMessage = e.message;
+    if (e.message?.includes('User not found')) {
+        errorMessage = "Could not find a logged-in user to get a company ID for the test query."
+    }
+    return { success: false, count: null, error: errorMessage };
   }
 }

@@ -20,6 +20,7 @@ export default function LoginPage() {
   const { signInWithEmail } = useAuth();
   const router = useRouter();
 
+  // This is the definitive, robust sign-in handler.
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true);
@@ -31,8 +32,9 @@ export default function LoginPage() {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
     } else {
-      // On success, refresh the page. The middleware will handle the redirect.
-      // This is the most reliable way to ensure the new session is picked up.
+      // On success, simply refresh the page.
+      // The middleware will see the new session and handle the redirect to the dashboard.
+      // This is the most reliable way to avoid race conditions.
       router.refresh();
     }
   };

@@ -17,7 +17,6 @@ import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -27,8 +26,8 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const { signUpWithEmail } = useAuth();
-  const router = useRouter();
   
+  // This is the definitive, robust sign-up handler.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -36,20 +35,16 @@ export default function SignupPage() {
 
     const { data, error: signUpError } = await signUpWithEmail(email, password, companyName);
     
+    setLoading(false);
     if (signUpError) {
       setError(signUpError.message);
-      setLoading(false);
-    } else if (data.session) {
-      // User is logged in immediately, refresh the page.
-      // The middleware will handle the redirect to the dashboard.
-      router.refresh();
     } else if (data.user) {
-      // User exists, but no session -> email verification needed
+      // On success, don't redirect. Show a success message.
+      // This prevents race conditions and gives the database trigger time to run.
+      // It also accounts for email verification if it's enabled.
       setIsSubmitted(true);
-      setLoading(false);
     } else {
       setError('An unexpected error occurred during sign up.');
-      setLoading(false);
     }
   };
 
@@ -67,7 +62,7 @@ export default function SignupPage() {
                 </div>
                 <CardTitle className="mt-4">Success!</CardTitle>
                 <CardDescription>
-                    Please check your email to verify your account.
+                    Please check your email to verify your account, then sign in.
                 </CardDescription>
             </CardHeader>
             <CardContent>

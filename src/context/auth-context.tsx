@@ -5,17 +5,15 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import type { SupabaseClient, AuthError, Session, SignInWithPasswordCredentials } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
-import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   isConfigured: boolean;
-  signInWithEmail: (credentials: SignInWithPasswordCredentials) => Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null }>;
+  signInWithEmail: (credentials: SignInWithPasswordCredentials) => Promise<{ error: AuthError | null }>;
   signUpWithEmail: (email: string, password: string, companyName: string) => Promise<{ data: { user: User | null; session: Session | null; }; error: AuthError | null; }>;
-  signOut: () => Promise<void>;
+  signOut: () => Promise<{ error: AuthError | null }>;
 }
-
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -23,7 +21,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   
   const isConfigured = !!supabase;
 
@@ -33,19 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const getSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user as User ?? null);
+        setLoading(false);
+    };
+    getSession();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user as User ?? null);
-        setLoading(false);
       }
     );
-
-    // Also check the initial session when the app loads.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session) {
-            setLoading(false);
-        }
-    });
 
     return () => {
       subscription?.unsubscribe();
@@ -60,14 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (credentials: SignInWithPasswordCredentials) => {
     if (!supabase) return throwUnconfiguredError();
-    const result = await supabase.auth.signInWithPassword(credentials);
-    return result as Promise<{ data: { user: User; session: Session; } | { user: null; session: null; }; error: AuthError | null; }>;
+    const { error } = await supabase.auth.signInWithPassword(credentials);
+    return { error };
   };
 
   const signUpWithEmail = async (email: string, password: string, companyName: string) => {
     if (!supabase) return throwUnconfiguredError();
-    // This relies on the database trigger you will add.
-    // It passes the company_name in the metadata.
+    // This passes the company_name in the metadata, which the database trigger uses.
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,
@@ -82,10 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    // Refresh the page. The middleware will redirect to login.
-    router.refresh();
+    if (!supabase) return { error: null };
+    const { error } = await supabase.auth.signOut();
+    return { error };
   };
 
   const value = {
