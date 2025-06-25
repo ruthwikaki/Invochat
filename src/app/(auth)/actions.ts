@@ -5,17 +5,18 @@ import { z } from 'zod';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import crypto from 'crypto';
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1, 'Password is required'),
 });
 
-export async function login(prevState: any, formData: FormData) {
+export async function login(formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
 
   if (!parsed.success) {
-    return { error: 'Invalid email or password format.' };
+    redirect('/login?error=Invalid email or password format.');
   }
 
   const { email, password } = parsed.data;
@@ -36,16 +37,16 @@ export async function login(prevState: any, formData: FormData) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.session) {
-    const msg = error?.message || 'Login failed: Please check your inbox for a confirmation link.';
-    return { error: msg };
+    const msg = error?.message || 'Login failed: Please check your credentials.';
+    redirect(`/login?error=${encodeURIComponent(msg)}`);
   }
 
   const companyId = data.user.app_metadata?.company_id;
   if (!companyId) {
-    return { success: true, redirect: '/setup-incomplete' };
+    redirect('/setup-incomplete');
   }
 
-  return { success: true, redirect: '/dashboard' };
+  redirect('/dashboard');
 }
 
 
@@ -56,12 +57,12 @@ const signupSchema = z.object({
 });
 
 
-export async function signup(prevState: any, formData: FormData) {
+export async function signup(formData: FormData) {
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {
         const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
-        return { error: errorMessages };
+        redirect(`/signup?error=${encodeURIComponent(errorMessages)}`);
     }
 
     const { email, password, companyName } = parsed.data;
@@ -79,8 +80,6 @@ export async function signup(prevState: any, formData: FormData) {
         }
     );
 
-    // We must disable email confirmation for this demo to work, otherwise the user
-    // will be blocked until they click a link in an email.
     const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -88,21 +87,22 @@ export async function signup(prevState: any, formData: FormData) {
             emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
             data: {
                 company_name: companyName,
+                company_id: crypto.randomUUID(),
             }
         }
     });
 
     if (error) {
-        return { error: error.message };
+        redirect(`/signup?error=${encodeURIComponent(error.message)}`);
     }
 
     if (data.user) {
         // Handle case where user already exists but isn't confirmed
         if (data.user.identities && data.user.identities.length === 0) {
-            return { error: "This user already exists." };
+            redirect(`/signup?error=${encodeURIComponent("This user already exists.")}`);
         }
-        return { success: true, redirect: '/signup?success=true' };
+        redirect('/signup?success=true');
     }
     
-    return { error: "An unexpected error occurred." };
+    redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
 }

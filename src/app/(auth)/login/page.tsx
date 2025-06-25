@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useFormStatus, useFormState } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,8 +9,6 @@ import { ArvoLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -46,15 +44,7 @@ const FloatingLabelInput = ({ id, name, type, label, required }: { id: string, n
 );
 
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [state, formAction] = useFormState(login, null);
-
-  useEffect(() => {
-    if (state?.redirect) {
-      router.push(state.redirect);
-    }
-  }, [state, router]);
+export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] p-4 overflow-hidden relative font-body">
@@ -77,10 +67,10 @@ export default function LoginPage() {
             <p className="text-white/80 mt-1 text-sm">Sign in to access your inventory chat assistant.</p>
           </div>
           
-          <form action={formAction} className="space-y-6">
-            {state?.error && (
+          <form action={login} className="space-y-6">
+            {searchParams?.error && (
               <Alert variant="destructive" className="bg-red-500/80 border-0 text-white">
-                <AlertDescription>{state.error}</AlertDescription>
+                <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
             

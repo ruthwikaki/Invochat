@@ -1,9 +1,7 @@
 
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -30,15 +28,7 @@ function SubmitButton() {
 }
 
 
-export default function SignupPage({ searchParams }: { searchParams?: { success?: string } }) {
-  const router = useRouter();
-  const [state, formAction] = useFormState(signup, null);
-
-  useEffect(() => {
-    if (state?.redirect) {
-      router.push(state.redirect);
-    }
-  }, [state, router]);
+export default function SignupPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
 
   if (searchParams?.success) {
     return (
@@ -81,7 +71,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={formAction} className="grid gap-4">
+          <form action={signup} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="companyName">Company Name</Label>
               <Input
@@ -113,9 +103,9 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
                 minLength={6}
               />
             </div>
-            {state?.error && (
+            {searchParams?.error && (
               <Alert variant="destructive">
-                <AlertDescription>{state.error}</AlertDescription>
+                <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
             <SubmitButton />
