@@ -1,34 +1,21 @@
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest }      from 'next/server'
+import { NextResponse, type NextRequest } from 'next/server'
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 
 export async function middleware(req: NextRequest) {
-  // 1) create a single response up front
   const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req, res })
 
-  // 2) wire up your cookie helpers to that response
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get:    (name: string)             => req.cookies.get(name)?.value,
-        set:    (name: string, value: string, opts: CookieOptions) => res.cookies.set(name, value, opts),
-        remove: (name: string, opts: CookieOptions)        => res.cookies.delete(name, opts),
-      },
-    }
-  )
-
-  // 3) this reads *and* refreshes your session, writing new cookies as needed
+  // This will read your sb-access-token / sb-refresh-token cookies automatically.
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
   const { pathname } = req.nextUrl
-  const authRoutes   = ['/login', '/signup']
+  const authRoutes = ['/login', '/signup']
   const publicRoutes = ['/quick-test']
 
-  const isAuthRoute   = authRoutes.includes(pathname)
+  const isAuthRoute = authRoutes.includes(pathname)
   const isPublicRoute = publicRoutes.includes(pathname)
 
   if (!session && !isAuthRoute && !isPublicRoute) {
@@ -60,8 +47,6 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-
-  // 4) return the one response you mutated
   return res
 }
 
