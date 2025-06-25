@@ -13,6 +13,9 @@ export async function middleware(request: NextRequest) {
     },
   })
 
+  // The createServerClient function is designed to be used in middleware,
+  // Server Components, and Server Actions. It automatically handles refreshing
+  // the session cookie if it's expired.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -23,12 +26,12 @@ export async function middleware(request: NextRequest) {
         },
         set(name: string, value: string, options) {
           // The `set` method is called by the Supabase client when it needs
-          // to persist the session to a cookie.
+          // to persist the session to a cookie. We pass it to the response.
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options) {
           // The `remove` method is called by the Supabase client when it needs
-          // to clear the session cookie.
+          // to clear the session cookie. We pass it to the response.
           response.cookies.set({ name, value: '', ...options })
         },
       },
@@ -81,6 +84,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Finally, return the response. This is important so that the cookies
+  // which may have been set by the Supabase client are sent to the browser.
   return response
 }
 

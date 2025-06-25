@@ -23,7 +23,7 @@ export async function login(prevState: any, formData: FormData) {
 
   const { email, password } = parsed.data;
 
-  const { data: { session }, error } = await supabase.auth.signInWithPassword({
+  const { error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -31,24 +31,9 @@ export async function login(prevState: any, formData: FormData) {
   if (error) {
     return { error: error.message };
   }
-
-  if (!session) {
-    return { error: "Login failed: No session returned." };
-  }
-
-  // Manually persist session tokens in cookies so the server can see them
-  cookies().set('sb-access-token', session.access_token, {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'Lax',
-    secure: process.env.NODE_ENV === 'production',
-  });
-  cookies().set('sb-refresh-token', session.refresh_token, {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'Lax',
-    secure: process.env.NODE_ENV === 'production',
-  });
+  
+  // The createServerClient handles cookie persistence automatically.
+  // Manual setting is not required and was causing the login failure.
 
   revalidatePath('/', 'layout');
   redirect('/dashboard');
