@@ -2,10 +2,10 @@
 'use server';
 
 import { z } from 'zod';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { NextResponse } from 'next/server';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -14,48 +14,64 @@ const loginSchema = z.object({
 
 export async function login(formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-  
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:9003';
+
   if (!parsed.success) {
-    return redirect(`/login?error=${encodeURIComponent("Invalid email or password format.")}`);
+    const url = new URL('/login', siteUrl);
+    url.searchParams.set('error', 'Invalid email or password format.');
+    return NextResponse.redirect(url);
   }
 
   const { email, password } = parsed.data;
-  const cookieStore = cookies();
+
+  // We need a response object to attach cookies to
+  let response = NextResponse.redirect(new URL('/dashboard', siteUrl));
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-            return cookieStore.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options })
-        },
+        get: (name) => cookies().get(name)?.value,
+        set: (name, value, options) => response.cookies.set(name, value, options),
+        remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
       },
     }
   );
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (error) {
-    return redirect(`/login?error=${encodeURIComponent(error.message)}`);
-  }
-  
-  if (!data.session) {
-    return redirect(`/login?error=${encodeURIComponent('Login failed: Please check your inbox for a confirmation link.')}`);
+  if (error || !data.session) {
+    const url = new URL('/login', siteUrl);
+    const msg = error?.message || 'Login failed: Please check your inbox for a confirmation link.';
+    url.searchParams.set('error', msg);
+    return NextResponse.redirect(url);
   }
 
   const companyId = data.user.app_metadata?.company_id;
   if (!companyId) {
-    return redirect('/setup-incomplete');
+    // Re-create the response object for the new redirect target
+    response = NextResponse.redirect(new URL('/setup-incomplete', siteUrl));
+    
+    // We need to re-create the client bound to the *new* response object
+    // to ensure the session cookie is set for the /setup-incomplete page.
+    const supabaseSetup = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get: (name) => cookies().get(name)?.value,
+          set: (name, value, options) => response.cookies.set(name, value, options),
+          remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
+        },
+      }
+    );
+    // Persist the session for the setup-incomplete redirect
+    await supabaseSetup.auth.setSession({ access_token: data.session.access_token, refresh_token: data.session.refresh_token });
   }
 
   revalidatePath('/', 'layout');
-  return redirect('/dashboard');
+  return response;
 }
 
 
@@ -68,32 +84,31 @@ const signupSchema = z.object({
 
 export async function signup(formData: FormData) {
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
-    
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:9003';
+
     if (!parsed.success) {
         const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
-        return redirect(`/signup?error=${encodeURIComponent(errorMessages)}`);
+        const url = new URL('/signup', siteUrl);
+        url.searchParams.set('error', errorMessages);
+        return NextResponse.redirect(url);
     }
 
     const { email, password, companyName } = parsed.data;
-    const cookieStore = cookies();
+    
+    // This is a dummy response object that will be replaced by a redirect.
+    const response = NextResponse.next();
+
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookies: {
-            get(name: string) {
-                return cookieStore.get(name)?.value
-            },
-            set(name: string, value: string, options: CookieOptions) {
-                cookieStore.set({ name, value, ...options })
-            },
-            remove(name: string, options: CookieOptions) {
-                cookieStore.set({ name, value: '', ...options })
-            },
+            get: (name) => cookies().get(name)?.value,
+            set: (name, value, options) => response.cookies.set(name, value, options),
+            remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
           },
         }
     );
-
 
     const { data, error } = await supabase.auth.signUp({
         email,
@@ -106,17 +121,24 @@ export async function signup(formData: FormData) {
     });
 
     if (error) {
-        return redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+        const url = new URL('/signup', siteUrl);
+        url.searchParams.set('error', error.message);
+        return NextResponse.redirect(url);
     }
 
     if (data.user) {
         if (data.user.identities && data.user.identities.length === 0) {
-            return redirect(`/signup?error=${encodeURIComponent("This user already exists.")}`);
+            const url = new URL('/signup', siteUrl);
+            url.searchParams.set('error', "This user already exists.");
+            return NextResponse.redirect(url);
         }
         revalidatePath('/', 'layout');
-        // Redirect to a success page that tells the user to check their email.
-        return redirect(`/signup?success=true`);
+        const url = new URL('/signup', siteUrl);
+        url.searchParams.set('success', 'true');
+        return NextResponse.redirect(url);
     }
     
-    return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred.")}`);
+    const url = new URL('/signup', siteUrl);
+    url.searchParams.set('error', "An unexpected error occurred.");
+    return NextResponse.redirect(url);
 }
