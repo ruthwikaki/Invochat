@@ -4,7 +4,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
   // Create a response object that we can modify and return.
-  // This is a key part of the fix, ensuring we have a stable response object.
   let res = NextResponse.next({
     request: {
       headers: req.headers,
@@ -22,11 +21,14 @@ export async function middleware(req: NextRequest) {
         },
         set(name: string, value: string, options: CookieOptions) {
           // The `set` method is called by the Supabase client when the session is refreshed.
-          // We pass this new cookie to the response so it can be set on the browser.
+          // We pass this new cookie to the request and the response so it can be set on the browser
+          // and available to subsequent server components.
+          req.cookies.set({ name, value, ...options });
           res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
           // The `remove` method is called by the Supabase client when the user signs out.
+          req.cookies.set({ name, value: '', ...options });
           res.cookies.set({ name, value: '', ...options });
         },
       },
@@ -34,7 +36,6 @@ export async function middleware(req: NextRequest) {
   );
 
   // IMPORTANT: This call will refresh the session if it's expired.
-  // It's the critical step that was failing to persist its results before.
   const { data: { user } } = await supabase.auth.getUser();
   
   const { pathname } = req.nextUrl;
@@ -77,7 +78,6 @@ export async function middleware(req: NextRequest) {
   }
 
   // Return the response with the potentially updated session cookie.
-  // This is what sends the new cookie to the browser.
   return res;
 }
 

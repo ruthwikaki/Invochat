@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
@@ -35,9 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (mounted) {
-          console.log(`AUTH_EVENT: ${event}`, session);
           setUser(session?.user as User ?? null);
           setLoading(false);
+          
+          if (event === 'SIGNED_OUT') {
+            router.push('/login');
+          }
         }
       }
     );
@@ -46,16 +50,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription?.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const signOut = useCallback(async () => {
     if (!supabase) return { error: null };
     await supabase.auth.signOut();
-    // onAuthStateChange listener will set user to null.
-    // middleware will handle redirect.
-    router.push('/login'); // Client-side redirect as a fallback.
+    // onAuthStateChange listener will set user to null and trigger redirect.
     return { error: null };
-  }, [supabase, router]);
+  }, [supabase]);
 
   // Memoize the context value to prevent unnecessary re-renders of consumers.
   const value = useMemo(() => ({
