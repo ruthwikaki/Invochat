@@ -11,14 +11,14 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 // This tool lets the AI execute ANY SQL query it needs
 const executeSQLTool = ai.defineTool({
   name: 'executeSQL',
-  description: `Execute SQL queries on the inventory database.
-    Available tables:
+  description: `Executes a SQL SELECT query against the company's database and returns the result as a JSON array.
+    Available tables and their columns:
     - inventory: id, company_id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date
     - vendors: id, company_id, vendor_name, contact_info, address, terms, account_number
     - companies: id, name
-    Use this to answer any question about inventory, suppliers, or business data. You must construct a valid SQL SELECT query.`,
+    Use this tool to answer any question about inventory, suppliers, or business data by constructing a valid SQL SELECT query.`,
   inputSchema: z.object({
-    query: z.string().describe('The SQL SELECT query to execute. It must be a SELECT statement.'),
+    query: z.string().describe("The SQL SELECT query to execute. It must start with 'SELECT'."),
   }),
   outputSchema: z.array(z.any()),
 }, async ({ query }) => {
@@ -27,7 +27,8 @@ const executeSQLTool = ai.defineTool({
       throw new Error('For security reasons, only SELECT queries are allowed.');
   }
 
-  // The RPC function will handle JSON aggregation and security.
+  // The RPC function will handle JSON aggregation. RLS is bypassed by service_role key,
+  // so the query MUST contain a "WHERE company_id = '...'" clause, which the prompt instructs the LLM to add.
   const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
       query_text: query
   });
@@ -64,23 +65,25 @@ const universalChatPrompt = ai.definePrompt({
     input: { schema: UniversalChatInputSchema },
     output: { schema: UniversalChatOutputSchema },
     tools: [executeSQLTool],
-    prompt: `You are InvoChat, an intelligent inventory assistant.
-      You have access to a SQL database with inventory, vendor, and company data.
-      The user's company ID is {{companyId}}. ALL queries MUST be filtered by this company_id. For example: SELECT * FROM inventory WHERE company_id = '{{companyId}}';
+    prompt: `You are InvoChat, an expert inventory management assistant. Your goal is to provide accurate, data-driven answers to the user.
 
-      Conversation history:
-      {{#each conversationHistory}}
-      {{this.role}}: {{this.content}}
-      {{/each}}
+**CRITICAL INSTRUCTIONS:**
+1.  When the user asks a question that requires data, you **MUST** use the \`executeSQL\` tool to query the database.
+2.  **NEVER** show the raw SQL query to the user. Do not ask for permission to run it. Just use the tool to get the data and then answer the question.
+3.  **SECURITY REQUIREMENT:** Every SQL query you write **MUST** include a \`WHERE company_id = '{{companyId}}'\` clause to ensure you only access data for the current user's company. This is a mandatory security filter.
+4.  Analyze the tool's output to formulate a helpful, natural language response.
+5.  Based on the query and the data, suggest a suitable visualization ('table', 'bar', 'pie', 'line', or 'none').
+6.  If the tool returns an error, inform the user gracefully that you couldn't retrieve the data.
+7.  For simple conversational messages (like "hello" or "thank you"), just respond naturally without using any tools.
 
-      Current user message: {{message}}
+Conversation history:
+{{#each conversationHistory}}
+{{this.role}}: {{this.content}}
+{{/each}}
 
-      Based on the user's message and the conversation history, decide if you need to query the database using the executeSQL tool.
-      If you use the tool, analyze its output to formulate a helpful, natural language response.
-      Based on the query and the data, suggest a suitable visualization ('table', 'bar', 'pie', 'line', or 'none').
-      If the tool returns an error, explain it to the user gracefully.
-      If the user's request is conversational and doesn't require data, just chat with them.
-      Your final output must be a single JSON object matching the defined output schema.
+Current user message: {{message}}
+
+Your final output must be a single JSON object matching the defined output schema.
     `
 });
 
