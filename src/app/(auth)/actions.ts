@@ -33,7 +33,7 @@ export async function login(prevState: any, formData: FormData) {
     return { error: error.message };
   }
   
-  // CRITICAL: Revalidate the entire app layout to ensure the new
+  // CRITICAL FIX: Revalidate the entire app layout to ensure the new
   // auth state is reflected everywhere, preventing stale cache issues.
   revalidatePath('/', 'layout');
   redirect('/dashboard');
@@ -76,10 +76,10 @@ export async function signup(prevState: any, formData: FormData) {
     }
 
     if (data.user) {
-        // If email confirmation is required, this will be true
         if (data.user.identities && data.user.identities.length === 0) {
             return { error: "An error occurred, but the user was not created. Please try again." }
         }
+        // CRITICAL FIX: Revalidate after signup as well.
         revalidatePath('/', 'layout');
         return { success: true };
     }
