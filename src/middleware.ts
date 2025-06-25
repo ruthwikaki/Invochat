@@ -3,14 +3,14 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // The `response` object is used by the Supabase client to set cookies.
   const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
-  // Create a Supabase client that can be used in Server Components
+  // The createServerClient function is used to create a Supabase client that
+  // can be used in Server Components, Route Handlers, and Server Actions.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,19 +19,39 @@ export async function middleware(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        // The `set` and `remove` methods are passed to the Supabase client
-        // so that it can update the cookies in the browser.
         set(name: string, value: string, options: CookieOptions) {
-          response.cookies.set({ name, value, ...options })
+          // If the cookie is set, update the request's cookies.
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          // Also update the response's cookies.
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
         },
         remove(name: string, options: CookieOptions) {
-          response.cookies.set({ name, value: '', ...options })
+          // If the cookie is removed, update the request's cookies.
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          // Also update the response's cookies.
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
         },
       },
     }
   )
 
-  // This call is vital for Supabase to refresh the session if it's expired.
+  // Refreshing the session cookie is required for server-side rendering to work.
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
