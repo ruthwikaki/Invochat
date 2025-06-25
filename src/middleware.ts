@@ -3,14 +3,14 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  // Create a response object that we can modify and return.
-  let res = NextResponse.next({
+  // We need to create a response and hand it to the supabase client.
+  // This will allow the client to send back updated cookies after refreshing the session.
+  const res = NextResponse.next({
     request: {
       headers: req.headers,
     },
   });
 
-  // Create a Supabase client that can read/write cookies.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -21,24 +21,11 @@ export async function middleware(req: NextRequest) {
         },
         set(name: string, value: string, options: CookieOptions) {
           // The `set` method is called by the Supabase client when the session is refreshed.
-          // We pass this new cookie to the request and the response so it can be set on the browser
-          // and available to subsequent server components.
-          req.cookies.set({ name, value, ...options });
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
+          // We pass this new cookie to the response so it can be set on the browser.
           res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
           // The `remove` method is called by the Supabase client when the user signs out.
-          req.cookies.set({ name, value: '', ...options });
-           res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
           res.cookies.set({ name, value: '', ...options });
         },
       },
@@ -46,8 +33,9 @@ export async function middleware(req: NextRequest) {
   );
 
   // IMPORTANT: This call will refresh the session if it's expired.
+  // It also returns the user object.
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   const { pathname } = req.nextUrl;
   
   const authRoutes = ['/login', '/signup'];
@@ -60,7 +48,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(redirectTo, req.url));
   }
 
-  // If the user is not logged in, protect all routes except for auth routes.
+  // If the user is not logged in, protect all routes except for auth and setup pages.
   if (!user) {
     if (!isAuthRoute && !isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
@@ -75,19 +63,21 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
-    // Check for incomplete setup.
+    // If the user is missing a company_id, send them to the setup page.
     if (!companyId) {
       if (!isSetupIncompleteRoute) {
         return NextResponse.redirect(new URL('/setup-incomplete', req.url));
       }
     } else {
+      // If the user has a company_id but is on the setup page, send them to the dashboard.
       if (isSetupIncompleteRoute) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
     }
   }
 
-  // Return the response with the potentially updated session cookie.
+  // All checks have passed. Return the response, which may have an updated
+  // 'Set-Cookie' header from the session refresh.
   return res;
 }
 

@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (!supabase) return { error: null };
     await supabase.auth.signOut();
-    // onAuthStateChange listener will set user to null and trigger redirect.
+    // onAuthStateChange listener will handle the redirect
     return { error: null };
   }, [supabase]);
 
@@ -39,7 +39,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    // onAuthStateChange handles initial session check (SIGNED_IN) and all subsequent events.
+    // This single listener handles the initial check (SIGNED_IN) and all subsequent events.
+    // This is the most reliable way to manage auth state on the client.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (mounted) {
@@ -47,7 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           
           if (event === 'SIGNED_OUT') {
-            router.push('/login');
+            // Use replace to prevent user from navigating back to a protected page.
+            router.replace('/login');
           }
         }
       }
