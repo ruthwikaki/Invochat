@@ -17,7 +17,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Use the new ssr library's browser client
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    router.refresh();
+    setUser(null);
+    router.push('/login');
   }, [supabase, router]);
 
   useEffect(() => {
@@ -37,21 +37,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 1. Fetch the initial session to hydrate the user state quickly.
+    // 1. Fetch the initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user as User ?? null);
       setLoading(false);
     });
     
-    // 2. Set up a listener for subsequent authentication state changes.
+    // 2. Set up a listener for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         const currentUser = session?.user as User ?? null;
         setUser(currentUser);
         setLoading(false);
 
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-            router.refresh();
+        // Only handle specific navigation cases
+        if (event === 'SIGNED_OUT') {
+          router.push('/login');
+        } else if (event === 'SIGNED_IN' && window.location.pathname === '/login') {
+          // Only redirect from login page after sign in
+          router.push('/dashboard');
         }
       }
     );

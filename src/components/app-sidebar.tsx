@@ -36,13 +36,16 @@ import { Skeleton } from './ui/skeleton';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { setTheme } = useTheme();
   const { user, signOut, loading } = useAuth();
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push('/login');
+    try {
+      await signOut();
+      // The signOut function in auth-context now handles navigation
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
   };
 
   const menuItems = [
