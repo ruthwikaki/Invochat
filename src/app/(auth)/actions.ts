@@ -2,25 +2,19 @@
 'use server';
 
 import { z } from 'zod';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import type { CookieOptions } from '@supabase/ssr';
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1, "Password is required"),
+  email: z.string().email("Invalid email format."),
+  password: z.string().min(1, "Password is required."),
 });
 
 export async function login(formData: FormData) {
-  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    return redirect('/login?error=Invalid email or password format.');
-  }
-
-  const { email, password } = parsed.data;
   const cookieStore = cookies();
-
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -39,16 +33,25 @@ export async function login(formData: FormData) {
     }
   );
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    const errorMessages = parsed.error.issues.map(i => i.message).join(' ');
+    return redirect(`/login?error=${encodeURIComponent(errorMessages)}`);
+  }
+
+  const { email, password } = parsed.data;
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     return redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
-  // The middleware will handle redirecting to /setup-incomplete if needed
-  // after the session is set and the user navigates.
   revalidatePath('/', 'layout');
-  return redirect('/dashboard');
+
+  // After successful login, the middleware will handle the final redirect
+  // to /dashboard or /setup-incomplete. Redirecting to a neutral path
+  // like '/' allows the middleware to take over.
+  return redirect('/');
 }
 
 
