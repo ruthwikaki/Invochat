@@ -3,10 +3,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function middleware(req: NextRequest) {
+  // Start with a single response object that can be mutated
   const res = NextResponse.next();
+
   const isProd = process.env.NODE_ENV === 'production';
 
-  // Create a Supabase client configured to use cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -37,53 +38,62 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // Refresh session if expired - this will set new cookies on the response.
-  const { data: { user } } = await supabase.auth.getUser();
-
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup'];
   const publicRoutes = ['/quick-test'];
-
   const isAuthRoute = authRoutes.includes(pathname);
   const isPublicRoute = publicRoutes.includes(pathname);
 
-  // If user is not signed in and the route is not public or an auth route, redirect to login
-  if (!user && !isAuthRoute && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
+  // First, try to get the session from cookies (fast)
+  const { data: { session } } = await supabase.auth.getSession();
 
-  if (user) {
-    // If user is signed in and on an auth route, redirect to dashboard
+  // If user is authenticated
+  if (session) {
     if (isAuthRoute) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
-    // If user is signed in and at the root, redirect to dashboard
     if (pathname === '/') {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
-    // Handle incomplete account setup
-    const companyId = user.app_metadata?.company_id;
+    const companyId = session.user.app_metadata?.company_id;
     const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
-    // If companyId is missing and they are not on the setup page, redirect them
     if (!companyId && !isSetupIncompleteRoute) {
-      // Allow access to test pages even if setup is incomplete
       if (pathname !== '/test-supabase' && pathname !== '/quick-test') {
         return NextResponse.redirect(new URL('/setup-incomplete', req.url));
       }
     }
 
-    // If companyId exists and they land on the setup page, redirect to dashboard
     if (companyId && isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
+    
+    return res;
   }
 
-  // Return the response, which may have been modified with new cookies
+  // If user is not authenticated and trying to access a protected route
+  if (!isAuthRoute && !isPublicRoute) {
+    // As a fallback, try getUser to double-check with the server (slower)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+  }
+  
   return res;
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api|_vercel|public).*)'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public (public files)
+     * - api (API routes)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public|api).*)',
+  ],
 };
