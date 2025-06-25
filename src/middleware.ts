@@ -23,6 +23,8 @@ export async function middleware(req: NextRequest) {
             ...options,
             path: '/',
             secure: isProd,
+            sameSite: 'lax',
+            httpOnly: true,
           });
         },
         remove(name: string, options: CookieOptions) {
@@ -31,7 +33,7 @@ export async function middleware(req: NextRequest) {
             value: '',
             ...options,
             path: '/',
-            maxAge: -1,
+            maxAge: 0,
           });
         },
       },
