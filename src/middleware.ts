@@ -1,8 +1,8 @@
-
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function middleware(req: NextRequest) {
+  console.log(`[Middleware] Path: ${req.nextUrl.pathname}, Method: ${req.method}`);
   // Start with a single response object that can be mutated
   const res = NextResponse.next();
 
@@ -48,9 +48,11 @@ export async function middleware(req: NextRequest) {
     // If user is authenticated
     if (session) {
       if (isAuthRoute) {
+        console.log(`[Middleware] Redirecting from ${req.nextUrl.pathname} to /dashboard`);
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
       if (pathname === '/') {
+        console.log(`[Middleware] Redirecting from ${req.nextUrl.pathname} to /dashboard`);
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
 
@@ -59,11 +61,13 @@ export async function middleware(req: NextRequest) {
 
       if (!companyId && !isSetupIncompleteRoute) {
         if (pathname !== '/test-supabase' && pathname !== '/quick-test') {
+          console.log(`[Middleware] Redirecting from ${req.nextUrl.pathname} to /setup-incomplete`);
           return NextResponse.redirect(new URL('/setup-incomplete', req.url));
         }
       }
 
       if (companyId && isSetupIncompleteRoute) {
+        console.log(`[Middleware] Redirecting from ${req.nextUrl.pathname} to /dashboard`);
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
       
@@ -75,6 +79,7 @@ export async function middleware(req: NextRequest) {
       // As a fallback, try getUser to double-check with the server (slower)
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
+        console.log(`[Middleware] Redirecting from ${req.nextUrl.pathname} to /login`);
         return NextResponse.redirect(new URL('/login', req.url));
       }
     }
@@ -82,6 +87,7 @@ export async function middleware(req: NextRequest) {
     console.error('Middleware auth error:', error);
     // On error, redirect to login for protected routes
     if (!isAuthRoute && !isPublicRoute) {
+      console.log(`[Middleware] Redirecting from ${req.nextUrl.pathname} to /login due to error`);
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
