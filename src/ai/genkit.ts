@@ -6,7 +6,7 @@ const plugins: GenkitPlugin[] = [];
 let genkitInstance: Genkit;
 
 if (process.env.GOOGLE_API_KEY) {
-  plugins.push(googleAI());
+  plugins.push(googleAI({apiKey: process.env.GOOGLE_API_KEY}));
   genkitInstance = genkit({
     plugins,
     // Note: The model will only be available if the googleAI() plugin is loaded.
