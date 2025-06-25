@@ -1,6 +1,7 @@
 
 'use client';
 import { AppSidebar } from '@/components/app-sidebar';
+import { ChatWidget } from '@/components/chat/chat-widget';
 import { SidebarProvider } from '@/components/ui/sidebar';
 
 export default function AppLayout({
@@ -15,6 +16,7 @@ export default function AppLayout({
         <main className="flex flex-1 flex-col overflow-y-auto">
           {children}
         </main>
+        <ChatWidget />
       </div>
     </SidebarProvider>
   );

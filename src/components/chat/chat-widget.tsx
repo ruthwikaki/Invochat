@@ -55,7 +55,7 @@ export function ChatWidget() {
           <SheetHeader className="p-4 border-b flex-row justify-between items-center">
             <SheetTitle>ARVO Assistant</SheetTitle>
             <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length === 0}>
+                <Button variant="ghost" size="icon" onClick={clearChat} disabled={messages.length <= 1}>
                     <Trash2 className="h-4 w-4" />
                     <span className="sr-only">Clear Chat</span>
                 </Button>
