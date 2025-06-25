@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,6 @@ import { ArvoLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
-import { useEffect, useState } from 'react';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -46,14 +45,6 @@ const FloatingLabelInput = ({ id, name, type, label, required }: { id: string, n
 
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
-  const [state, formAction] = useFormState(login, undefined);
-  const [errorMessage, setErrorMessage] = useState<string | undefined>(searchParams?.error);
-
-  useEffect(() => {
-    setErrorMessage(state?.error || searchParams?.error);
-  }, [state, searchParams]);
-
-
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] p-4 overflow-hidden relative font-body">
       <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-white/5 rounded-full animate-float" style={{ animationDelay: '0s' }}></div>
@@ -75,10 +66,10 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             <p className="text-white/80 mt-1 text-sm">Sign in to access your inventory chat assistant.</p>
           </div>
           
-          <form action={formAction} className="space-y-6">
-            {errorMessage && (
+          <form action={login} className="space-y-6">
+            {searchParams?.error && (
               <Alert variant="destructive" className="bg-red-500/80 border-0 text-white">
-                <AlertDescription>{errorMessage}</AlertDescription>
+                <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
             

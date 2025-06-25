@@ -5,63 +5,57 @@ import { z } from 'zod';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { NextResponse } from 'next/server';
+import { redirect } from 'next/navigation';
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1, 'Password is required'),
 });
 
-export async function login(prevState: any, formData: FormData) {
+export async function login(formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
+  
   if (!parsed.success) {
-    return { error: 'Invalid email or password format.' };
+    return redirect(`/login?error=${encodeURIComponent("Invalid email or password format.")}`);
   }
 
   const { email, password } = parsed.data;
-
-  // Create a response to return
-  const response = NextResponse.redirect(new URL('/dashboard', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
-
+  const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (name) => cookies().get(name)?.value,
-        set: (name, value, options) => response.cookies.set(name, value, options),
-        remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
+        get(name: string) {
+            return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+            cookieStore.set({ name, value: '', ...options })
+        },
       },
     }
   );
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (error) return { error: error.message };
-  if (!data.session) return { error: 'Login failed: Please check your inbox for a confirmation link.' };
+  if (error) {
+    return redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  }
+  
+  if (!data.session) {
+    return redirect(`/login?error=${encodeURIComponent('Login failed: Please check your inbox for a confirmation link.')}`);
+  }
 
   const companyId = data.user.app_metadata?.company_id;
   if (!companyId) {
-    const setupResponse = NextResponse.redirect(new URL('/setup-incomplete', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
-    // Need to re-create the client bound to the *new* response object
-    const supabaseSetup = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get: (name) => cookies().get(name)?.value,
-          set: (name, value, options) => setupResponse.cookies.set(name, value, options),
-          remove: (name, options) => setupResponse.cookies.set(name, '', { ...options, maxAge: -1 }),
-        },
-      }
-    );
-    // Re-authenticate to ensure the cookie is set on the setupResponse
-    await supabaseSetup.auth.signInWithPassword({ email, password });
-    return setupResponse;
+    return redirect('/setup-incomplete');
   }
 
   revalidatePath('/', 'layout');
-  return response;
+  return redirect('/dashboard');
 }
 
 
@@ -125,10 +119,4 @@ export async function signup(formData: FormData) {
     }
     
     return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred.")}`);
-}
-
-// A temporary redirect function until the Next.js types are fixed
-// see: https://github.com/vercel/next.js/issues/52179
-function redirect(url: string) {
-    return NextResponse.redirect(new URL(url, process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
 }
