@@ -1,7 +1,7 @@
 
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import type { SupabaseClient, AuthError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
@@ -17,13 +17,39 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
+  // Use useRef to ensure supabase client is only created once
+  const supabaseRef = useRef<SupabaseClient | null>(null);
+  if (!supabaseRef.current) {
+    supabaseRef.current = createBrowserSupabaseClient();
+  }
+  const supabase = supabaseRef.current;
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   
   const isConfigured = !!supabase;
+
+  // Memoize the signOut function to prevent unnecessary re-renders
+  const signOut = useCallback(async () => {
+    if (!supabase) return { error: null };
+    
+    console.log('🚪 AuthContext: Signing out user');
+    
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('🔴 AuthContext: Sign out error:', error);
+      } else {
+        console.log('✅ AuthContext: Sign out successful');
+      }
+      return { error };
+    } catch (error) {
+      console.error('🔴 AuthContext: Sign out exception:', error);
+      return { error: error as AuthError };
+    }
+  }, [supabase]);
 
   useEffect(() => {
     if (!supabase) {
@@ -32,11 +58,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let mounted = true;
+    // Prevent multiple initializations
+    if (initialized) {
+      console.log('⚠️ AuthContext: Already initialized, skipping');
+      return;
+    }
 
     console.log('🟡 AuthContext: Setting up auth state management');
+    setInitialized(true);
 
-    // Get initial session first
+    let mounted = true;
+
+    // Get initial session
     const getInitialSession = async () => {
       try {
         console.log('🔍 AuthContext: Getting initial session...');
@@ -58,14 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           setUser(authUser);
           setLoading(false);
-          setInitialLoadComplete(true);
         }
       } catch (error) {
         console.error('🔴 AuthContext: Exception getting initial session:', error);
         if (mounted) {
           setUser(null);
           setLoading(false);
-          setInitialLoadComplete(true);
         }
       }
     };
@@ -77,29 +108,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           event,
           hasSession: !!session,
           hasUser: !!session?.user,
-          initialLoadComplete
+          mounted
         });
 
         if (mounted) {
           const authUser = session?.user as User ?? null;
           setUser(authUser);
-          
-          // Only set loading to false if we haven't completed initial load
-          if (!initialLoadComplete) {
-            setLoading(false);
-            setInitialLoadComplete(true);
-          }
+          setLoading(false);
           
           // Handle different auth events
           if (event === 'SIGNED_OUT') {
             console.log('🚪 AuthContext: User signed out, redirecting to login');
-            // Small delay to ensure state is updated
-            setTimeout(() => {
-              router.push('/login');
-            }, 100);
+            // Use replace instead of push to prevent back button issues
+            router.replace('/login');
           } else if (event === 'SIGNED_IN') {
             console.log('🔐 AuthContext: User signed in');
-            // Don't redirect here, let middleware handle it
           } else if (event === 'TOKEN_REFRESHED') {
             console.log('🔄 AuthContext: Token refreshed');
           }
@@ -115,26 +138,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription?.unsubscribe();
     };
-  }, [supabase, router, initialLoadComplete]);
+  }, [supabase, router, initialized]); // Added initialized to dependencies
 
-  const signOut = async () => {
-    if (!supabase) return { error: null };
-    
-    console.log('🚪 AuthContext: Signing out user');
-    
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('🔴 AuthContext: Sign out error:', error);
-      } else {
-        console.log('✅ AuthContext: Sign out successful');
-      }
-      return { error };
-    } catch (error) {
-      console.error('🔴 AuthContext: Sign out exception:', error);
-      return { error: error as AuthError };
-    }
-  };
+  // Debug logging for state changes - but only when state actually changes
+  useEffect(() => {
+    console.log('📊 AuthContext State:', {
+      hasUser: !!user,
+      userEmail: user?.email,
+      companyId: user?.app_metadata?.company_id,
+      loading,
+      isConfigured,
+      initialized
+    });
+  }, [user?.id, user?.app_metadata?.company_id, loading, isConfigured, initialized]); // Only log when these specific values change
 
   const value = {
     user,
@@ -142,18 +158,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isConfigured,
     signOut,
   };
-
-  // Debug logging for state changes
-  useEffect(() => {
-    console.log('📊 AuthContext State:', {
-      hasUser: !!user,
-      loading,
-      isConfigured,
-      initialLoadComplete,
-      userEmail: user?.email,
-      companyId: user?.app_metadata?.company_id
-    });
-  }, [user, loading, isConfigured, initialLoadComplete]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
