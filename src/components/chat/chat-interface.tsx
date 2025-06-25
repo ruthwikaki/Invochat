@@ -87,7 +87,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
       .slice(-10) // Last 10 messages for context
       .map(m => ({
         role: m.role as 'user' | 'assistant',
-        content: typeof m.content === 'string' ? m.content : 'A visual element was displayed.'
+        content: typeof m.content === 'string' ? m.content : 'Visual response'
       }));
 
     startTransition(async () => {

@@ -12,11 +12,8 @@ const executeSQLTool = ai.defineTool({
     - inventory: id, company_id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date
     - vendors: id, company_id, vendor_name, contact_info, address, terms, account_number
     - companies: id, name
-    - users: id, company_id, email
-    - sales: id, company_id, sale_date, total_amount
-    - purchase_orders: id, company_id, po_number, vendor, item, quantity, cost
     
-    IMPORTANT: Every SQL query you write MUST include a \`WHERE company_id = '{{companyId}}'\` clause. This is a non-negotiable security requirement.`,
+    IMPORTANT: Every SQL query you write MUST include a \`WHERE company_id = '...' \` clause. This is a non-negotiable security requirement.`,
   inputSchema: z.object({
     query: z.string().describe("The SQL SELECT query to execute. It must start with 'SELECT'."),
   }),
@@ -27,17 +24,18 @@ const executeSQLTool = ai.defineTool({
       throw new Error('For security reasons, only SELECT queries are allowed.');
   }
 
-  // The RPC function will handle JSON aggregation. RLS is bypassed by service_role key,
-  // so the query MUST contain a "WHERE company_id = '...'" clause, which the prompt instructs the LLM to add.
+  console.log('Executing SQL:', query); // Debug log
+
   const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
       query_text: query
   });
 
   if (error) {
     console.error('SQL execution error:', error);
-    // Provide a more user-friendly error message to the LLM.
     return [{ error: `Query failed: ${error.message}` }];
   }
+  
+  console.log('Query result:', data); // Debug log
   return data || [];
 });
 
@@ -45,7 +43,7 @@ const UniversalChatInputSchema = z.object({
     message: z.string(),
     companyId: z.string(),
     conversationHistory: z.array(z.object({
-      role: z.enum(['user', 'model']), // Genkit uses 'model' for assistant
+      role: z.enum(['user', 'assistant']),
       content: z.string()
     })).optional()
 });
@@ -55,60 +53,76 @@ export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
 const UniversalChatOutputSchema = z.object({
     response: z.string().describe("The natural language response to the user."),
     data: z.array(z.any()).optional().nullable().describe("The raw data retrieved from the database, if any. To be used for visualizations."),
-    suggestedVisualization: z.enum(['table', 'bar', 'pie', 'line', 'none']).optional().describe("The suggested visualization type based on the user's query and the data.")
+    visualization: z.object({
+        type: z.enum(['table', 'bar', 'pie', 'line', 'none']),
+        title: z.string().optional(),
+        config: z.any().optional()
+    }).optional()
 });
 export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
 
 
-const universalChatPrompt = ai.definePrompt({
-    name: 'universalChatPrompt',
-    input: { schema: UniversalChatInputSchema },
-    output: { schema: UniversalChatOutputSchema },
-    tools: [executeSQLTool],
-    prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are not a simple database interface; you are an analyst that provides insights.
+export const universalChatFlow = ai.defineFlow({
+  name: 'universalChatFlow',
+  inputSchema: UniversalChatInputSchema,
+  outputSchema: UniversalChatOutputSchema,
+}, async (input) => {
+    const { message, companyId, conversationHistory = [] } = input;
 
-**Your Goal:** Help the user understand their inventory data and make better decisions.
+    // Create the prompt with the tools
+    const prompt = ai.definePrompt({
+        name: 'universalChatPrompt',
+        input: { 
+            schema: z.object({
+                message: z.string(),
+                companyId: z.string(),
+                history: z.string()
+            }) 
+        },
+        output: { schema: UniversalChatOutputSchema },
+        tools: [executeSQLTool],
+        prompt: `You are InvoChat, an intelligent inventory assistant. You help users understand their inventory data through natural conversation.
 
-**Core Instructions:**
-1.  **Understand and Query:** When the user asks a question, use the \`executeSQL\` tool to get the necessary data from the database.
-2.  **NEVER Show Your Work:** **Never** show the raw SQL query to the user or mention that you are running one. Simply get the data and use it to answer the question.
-3.  **Provide Insights First:** Don't just dump data. Summarize your findings in a conversational way. For example, instead of just showing a table of 12 dead stock items, say "I found 12 items that haven't sold in over 90 days, with a total value of $X. The biggest concern is item Y."
-4.  **Offer Details:** After providing a summary, offer to show the full data. For example, "Would you like to see the full list?" If the user says yes, then you can show the table visualization.
-5.  **Suggest Actions & Visualizations:**
-    *   Based on the data, suggest a relevant visualization type ('table', 'bar', 'pie', 'line').
-    *   Propose logical next steps. If items are low, suggest reordering. If stock is dead, suggest a sale.
-6.  **Security is Paramount:** Every SQL query you write **MUST** include a \`WHERE company_id = '{{companyId}}'\` clause. This is a non-negotiable security requirement.
-7.  **Be Conversational:** For simple greetings like "hello", respond naturally without using tools. Maintain the conversation context using the history below.
+        Current conversation:
+        {{{history}}}
 
-**Conversation History:**
-{{#each conversationHistory}}
-{{this.role}}: {{this.content}}
-{{/each}}
+        User's message: {{{message}}}
 
-**Current User Message:** {{message}}
+        Instructions:
+        1. When users ask about inventory data, use the executeSQL tool to query the database.
+        2. Security is paramount: Every SQL query you write **MUST** include a \`WHERE company_id = '{{{companyId}}}'\` clause. This is a non-negotiable security requirement.
+        3. NEVER show SQL queries or technical details to the user.
+        4. Provide insights and summaries, not just raw data.
+        5. For inventory breakdown by category, query: SELECT category, COUNT(*) as count, SUM(quantity * cost) as value FROM inventory WHERE company_id = '{{{companyId}}}' GROUP BY category
+        6. Suggest appropriate visualizations:
+           - Use 'bar' for comparisons (like inventory by category)
+           - Use 'pie' for distributions
+           - Use 'table' for detailed lists
+        7. Be conversational and helpful.
 
-Based on the user's message, decide if you need data. If so, use the \`executeSQL\` tool. Then, formulate your response and suggest a visualization if appropriate, all within a single JSON output matching the required required schema.
-    `
-});
+        Remember: You're an intelligent assistant. When asked for charts or data, ACTUALLY query the database and return the data.`
+    });
 
-export async function universalChatFlow(input: UniversalChatInput): Promise<UniversalChatOutput> {
-    // Map roles for Genkit: 'assistant' -> 'model'
-    const mappedHistory = input.conversationHistory?.map(msg => ({
-        ...msg,
-        role: msg.role === 'assistant' ? 'model' : 'user'
-    })) as any[] | undefined;
+    // Format conversation history
+    const historyText = conversationHistory
+        .map(msg => `${msg.role}: ${msg.content}`)
+        .join('\n');
 
-    const llmResponse = await universalChatPrompt({ ...input, conversationHistory: mappedHistory });
+    // Execute the prompt
+    const { output } = await prompt({
+        message,
+        companyId,
+        history: historyText
+    });
 
-    const output = llmResponse.output;
     if (!output) {
-      throw new Error("The model did not return a valid response.");
+        throw new Error('Failed to generate response');
     }
     
-    // Ensure data is an array, even if the model returns null/undefined, to prevent client-side errors.
+    // Ensure data is always an array
     if (output.data === null || output.data === undefined) {
         output.data = [];
     }
-
+    
     return output;
-}
+});
