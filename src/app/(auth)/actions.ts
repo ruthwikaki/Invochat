@@ -2,55 +2,66 @@
 'use server';
 
 import { z } from 'zod';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import type { CookieOptions } from '@supabase/ssr';
+import { NextResponse } from 'next/server';
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email format."),
-  password: z.string().min(1, "Password is required."),
+  email: z.string().email(),
+  password: z.string().min(1, 'Password is required'),
 });
 
-export async function login(formData: FormData) {
-  const cookieStore = cookies();
+export async function login(prevState: any, formData: FormData) {
+  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return { error: 'Invalid email or password format.' };
+  }
+
+  const { email, password } = parsed.data;
+
+  // Create a response to return
+  const response = NextResponse.redirect(new URL('/dashboard', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options })
-        },
+        get: (name) => cookies().get(name)?.value,
+        set: (name, value, options) => response.cookies.set(name, value, options),
+        remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
       },
     }
   );
 
-  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    const errorMessages = parsed.error.issues.map(i => i.message).join(' ');
-    return redirect(`/login?error=${encodeURIComponent(errorMessages)}`);
-  }
-
-  const { email, password } = parsed.data;
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-  if (error) {
-    return redirect(`/login?error=${encodeURIComponent(error.message)}`);
+  if (error) return { error: error.message };
+  if (!data.session) return { error: 'Login failed: Please check your inbox for a confirmation link.' };
+
+  const companyId = data.user.app_metadata?.company_id;
+  if (!companyId) {
+    const setupResponse = NextResponse.redirect(new URL('/setup-incomplete', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+    // Need to re-create the client bound to the *new* response object
+    const supabaseSetup = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get: (name) => cookies().get(name)?.value,
+          set: (name, value, options) => setupResponse.cookies.set(name, value, options),
+          remove: (name, options) => setupResponse.cookies.set(name, '', { ...options, maxAge: -1 }),
+        },
+      }
+    );
+    // Re-authenticate to ensure the cookie is set on the setupResponse
+    await supabaseSetup.auth.signInWithPassword({ email, password });
+    return setupResponse;
   }
-  
-  // The middleware will handle the redirect to /setup-incomplete if needed
-  // after the session is established.
 
   revalidatePath('/', 'layout');
-  return redirect('/dashboard');
+  return response;
 }
 
 
@@ -114,4 +125,10 @@ export async function signup(formData: FormData) {
     }
     
     return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred.")}`);
+}
+
+// A temporary redirect function until the Next.js types are fixed
+// see: https://github.com/vercel/next.js/issues/52179
+function redirect(url: string) {
+    return NextResponse.redirect(new URL(url, process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
 }
