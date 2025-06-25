@@ -6,7 +6,7 @@ import { generateChart } from '@/ai/flows/generate-chart';
 import { smartReordering } from '@/ai/flows/smart-reordering';
 import { getSupplierPerformance } from '@/ai/flows/supplier-performance';
 import type { AssistantMessagePayload } from '@/types';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 
@@ -21,7 +21,15 @@ type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
     const cookieStore = cookies();
-    const supabase = createClient(cookieStore);
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get: (name) => cookieStore.get(name)?.value,
+          },
+        }
+    );
     const { data: { user } } = await supabase.auth.getUser();
 
     // The middleware should prevent this function from being called by a user
