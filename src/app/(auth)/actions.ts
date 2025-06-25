@@ -32,8 +32,8 @@ export async function login(prevState: any, formData: FormData) {
     return { error: error.message };
   }
   
-  // The createServerClient handles cookie persistence automatically.
-  // Manual setting is not required and was causing the login failure.
+  // By fixing the createClient function in server.ts, the Supabase client
+  // now correctly handles cookie persistence automatically.
 
   revalidatePath('/', 'layout');
   redirect('/dashboard');
@@ -75,8 +75,10 @@ export async function signup(prevState: any, formData: FormData) {
     }
 
     if (data.user) {
+        // This is a Supabase-specific check for when a user already exists
+        // but has not confirmed their email.
         if (data.user.identities && data.user.identities.length === 0) {
-            return { error: "This user already exists. Please try logging in." }
+            return { error: "This user already exists. Please try logging in or check your email for a confirmation link." }
         }
         revalidatePath('/', 'layout');
         return { success: true };

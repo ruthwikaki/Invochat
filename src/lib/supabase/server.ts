@@ -15,22 +15,15 @@ export function createClient(cookieStore: ReturnType<typeof cookies>) {
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
+          // The `set` method is called by the Supabase client when it needs
+          // to persist the session to a cookie. This is essential for
+          // Server Actions, which are the only place cookies can be set.
+          cookieStore.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
-            // The `delete` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
-          }
+          // The `remove` method is called by the Supabase client when it needs
+          // to clear the session cookie.
+          cookieStore.set({ name, value: '', ...options })
         },
       },
     }
