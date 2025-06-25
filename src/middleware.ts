@@ -3,14 +3,17 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // Create an unmodified response
+  // The `get` method is used by the Supabase client to read cookies.
+  // The `set` and `remove` methods are used to write cookies to the browser.
+  // The `response` object is used to send the cookies back to the browser.
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
-  // Create a Supabase client that can read and write cookies
+  // Create a Supabase client that can read and write cookies.
+  // This is used to refresh the session cookie and handle authentication.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,30 +22,17 @@ export async function middleware(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        // IMPORTANT: The `set` and `remove` methods must be configured to modify the `response` object.
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
           response.cookies.set({ name, value: '', ...options })
         },
       },
     }
   )
 
-  // IMPORTANT: This call will refresh the session if it's expired.
+  // This call will refresh the session if it's expired.
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
