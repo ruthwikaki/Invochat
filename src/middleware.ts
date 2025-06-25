@@ -1,3 +1,4 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -17,16 +18,13 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
+          // If the cookie is set, update the request's cookies.
           request.cookies.set({
             name,
             value,
             ...options,
           })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
+          // Also update the response's cookies.
           response.cookies.set({
             name,
             value,
@@ -34,16 +32,13 @@ export async function middleware(request: NextRequest) {
           })
         },
         remove(name: string, options: CookieOptions) {
+          // If the cookie is removed, update the request's cookies.
           request.cookies.set({
             name,
             value: '',
             ...options,
           })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
+          // Also update the response's cookies.
           response.cookies.set({
             name,
             value: '',
@@ -54,6 +49,7 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // This will refresh the session if it's expired.
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -62,13 +58,12 @@ export async function middleware(request: NextRequest) {
 
   const authRoutes = ['/login', '/signup']
   const isAuthRoute = authRoutes.includes(pathname)
+  const publicRoutes = ['/quick-test'];
+  const isPublicRoute = publicRoutes.includes(pathname);
 
   // If user is not logged in, redirect them to the login page,
   // unless they are trying to access an auth page or a public/diagnostic page.
-  if (!user && !isAuthRoute) {
-    if (pathname === '/quick-test') {
-      return response
-    }
+  if (!user && !isAuthRoute && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
@@ -89,6 +84,7 @@ export async function middleware(request: NextRequest) {
 
     // If setup is incomplete (no companyId), redirect to the setup page.
     if (!companyId && !isSetupIncompleteRoute) {
+      // Allow access to test pages even if setup is incomplete
       if (pathname !== '/test-supabase' && pathname !== '/quick-test') {
         return NextResponse.redirect(new URL('/setup-incomplete', request.url))
       }

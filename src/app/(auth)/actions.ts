@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -25,12 +26,14 @@ export async function login(formData: FormData) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get: (name) => cookieStore.get(name)?.value,
-        set: (name, value, options) => {
-          cookieStore.set({ name, value, ...options });
+        get(name: string) {
+          return cookieStore.get(name)?.value
         },
-        remove: (name, options) => {
-          cookieStore.set({ name, value: '', ...options });
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options })
         },
       },
     }
@@ -42,15 +45,8 @@ export async function login(formData: FormData) {
     return redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
-  if (!data.session) {
-     return redirect(`/login?error=${encodeURIComponent('Login failed: Please check your inbox for a confirmation link.')}`);
-  }
-
-  const companyId = data.user?.app_metadata?.company_id;
-  if (!companyId) {
-    return redirect('/setup-incomplete');
-  }
-
+  // The middleware will handle redirecting to /setup-incomplete if needed
+  // after the session is set and the user navigates.
   revalidatePath('/', 'layout');
   return redirect('/dashboard');
 }
@@ -78,12 +74,14 @@ export async function signup(prevState: any, formData: FormData) {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookies: {
-            get: (name) => cookieStore.get(name)?.value,
-            set: (name, value, options) => {
-                cookieStore.set({ name, value, ...options });
+            get(name: string) {
+                return cookieStore.get(name)?.value
             },
-            remove: (name, options) => {
-                cookieStore.set({ name, value: '', ...options });
+            set(name: string, value: string, options: CookieOptions) {
+                cookieStore.set({ name, value, ...options })
+            },
+            remove(name: string, options: CookieOptions) {
+                cookieStore.set({ name, value: '', ...options })
             },
           },
         }
