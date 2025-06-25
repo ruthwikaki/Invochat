@@ -18,17 +18,8 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is updated, update the cookies for the request and response
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
+          // The Supabase client will automatically set the cookie on the response
+          // object. This is the correct and stable way to handle cookies in middleware.
           response.cookies.set({
             name,
             value,
@@ -36,17 +27,8 @@ export async function middleware(request: NextRequest) {
           })
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the cookies for the request and response
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
+          // The Supabase client will automatically remove the cookie on the response
+          // object.
           response.cookies.set({
             name,
             value: '',
