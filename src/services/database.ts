@@ -127,21 +127,11 @@ export async function getDeadStockPageData(companyId: string) {
     };
 }
 
-// Note: This function depends on a custom RPC 'get_suppliers' in your database.
-// An alternative is to query the 'vendors' table directly.
+/**
+ * This function directly queries the vendors table to get a list of all suppliers
+ * for a given company, ensuring a single, consistent method for data retrieval.
+ */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_suppliers', { p_company_id: companyId });
-
-    if (error) {
-        console.error('Error fetching suppliers via RPC:', error);
-        throw new Error(`Could not load supplier data: ${error.message}. Ensure the 'get_suppliers' function exists and is correctly defined in your database.`);
-    }
-    return data || [];
-}
-
-// This function directly queries the vendors table, including the 'account_number'
-export async function getVendorsFromDB(companyId: string) {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('vendors')
@@ -149,15 +139,21 @@ export async function getVendorsFromDB(companyId: string) {
         .eq('company_id', companyId);
 
     if (error) {
-        console.error('Error fetching vendors from DB', error);
-        throw new Error(`Could not load vendor data: ${error.message}`);
+        console.error('Error fetching suppliers from DB', error);
+        throw new Error(`Could not load supplier data: ${error.message}`);
     }
-    return data.map(v => ({
+    
+    // Map the database fields to the consistent 'Supplier' type
+    return data?.map(v => ({
         id: v.id,
-        name: v.vendor_name, // Mapping to match Supplier type
-        ...v
+        name: v.vendor_name,
+        contact_info: v.contact_info,
+        address: v.address,
+        terms: v.terms,
+        account_number: v.account_number,
     })) || [];
 }
+
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     const inventory = await getInventoryItems(companyId);

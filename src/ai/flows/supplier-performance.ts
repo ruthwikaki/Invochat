@@ -5,7 +5,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import { getVendorsFromDB } from '@/services/database';
+import { getSuppliersFromDB } from '@/services/database';
 import {z} from 'genkit';
 
 const SupplierPerformanceInputSchema = z.object({
@@ -28,17 +28,17 @@ const SupplierPerformanceOutputSchema = z.object({
 export type SupplierPerformanceOutput = z.infer<typeof SupplierPerformanceOutputSchema>;
 
 // Tool to fetch supplier data from our "database".
-const getVendorsTool = ai.defineTool({
-  name: 'getVendors',
+const getSuppliersTool = ai.defineTool({
+  name: 'getSuppliers',
   description: 'Retrieves a list of all vendors/suppliers.',
   inputSchema: z.object({ companyId: z.string() }),
   outputSchema: z.array(z.any()),
 }, async ({ companyId }) => {
-    const vendors = await getVendorsFromDB(companyId);
-    return vendors.map(v => ({
-        vendorName: v.vendor_name,
-        contactInfo: v.contact_info,
-        terms: v.terms,
+    const suppliers = await getSuppliersFromDB(companyId);
+    return suppliers.map(s => ({
+        vendorName: s.name,
+        contactInfo: s.contact_info,
+        terms: s.terms,
     }));
 });
 
@@ -46,8 +46,8 @@ const prompt = ai.definePrompt({
   name: 'supplierPerformancePrompt',
   input: { schema: SupplierPerformanceInputSchema },
   output: { schema: SupplierPerformanceOutputSchema },
-  tools: [getVendorsTool],
-  prompt: `You are an expert supply chain analyst. A user is asking about supplier performance. Their query is: {{{query}}}. Use the getVendors tool to retrieve the vendor information and then format the result to match the output schema.`,
+  tools: [getSuppliersTool],
+  prompt: `You are an expert supply chain analyst. A user is asking about supplier performance. Their query is: {{{query}}}. Use the getSuppliers tool to retrieve the vendor information and then format the result to match the output schema.`,
 });
 
 const supplierPerformanceFlow = ai.defineFlow(

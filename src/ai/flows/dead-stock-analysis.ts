@@ -7,7 +7,6 @@
 import {ai} from '@/ai/genkit';
 import { getDeadStockFromDB } from '@/services/database';
 import {z} from 'genkit';
-import { isBefore, parseISO, subDays } from 'date-fns';
 
 // Define the input schema.
 const AnalyzeDeadStockInputSchema = z.object({
@@ -33,6 +32,8 @@ const AnalyzeDeadStockOutputSchema = z.object({
 export type AnalyzeDeadStockOutput = z.infer<typeof AnalyzeDeadStockOutputSchema>;
 
 // Tool to fetch dead stock data from our "database".
+// This tool now directly uses the database service function, which already filters for items
+// not sold in 90 days, removing redundant logic from the tool itself.
 const getDeadStockTool = ai.defineTool({
     name: 'getDeadStockData',
     description: 'Retrieves a list of all products that have not been sold in over 90 days.',
@@ -40,11 +41,7 @@ const getDeadStockTool = ai.defineTool({
     outputSchema: z.array(z.any()),
 }, async ({ companyId }) => {
     const items = await getDeadStockFromDB(companyId);
-    const ninetyDaysAgo = subDays(new Date(), 90);
-
-    return items
-      .filter(item => item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo))
-      .map(item => ({
+    return items.map(item => ({
         item: item.name,
         sku: item.sku,
         quantity: item.quantity,
