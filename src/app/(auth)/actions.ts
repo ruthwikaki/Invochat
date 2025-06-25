@@ -4,8 +4,30 @@
 import { z } from 'zod';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+
+// Reusable Supabase client for Server Actions
+function createActionClient() {
+    const cookieStore = cookies();
+    return createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                get(name: string) {
+                  return cookieStore.get(name)?.value;
+                },
+                set(name: string, value: string, options: CookieOptions) {
+                  cookieStore.set({ name, value, ...options });
+                },
+                remove(name: string, options: CookieOptions) {
+                  cookieStore.set({ name, value: '', ...options });
+                },
+            },
+        }
+    );
+}
+
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -13,25 +35,8 @@ const loginSchema = z.object({
 });
 
 export async function login(prevState: any, formData: FormData) {
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-
+  const supabase = createActionClient();
+  
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: 'Invalid email or password format.' };
@@ -54,12 +59,13 @@ export async function login(prevState: any, formData: FormData) {
   
   const companyId = data.user.app_metadata?.company_id;
   if (!companyId) {
-    revalidatePath('/', 'layout');
-    redirect('/setup-incomplete');
+    // Return a specific state for client-side redirect
+    return { setupIncomplete: true };
   }
 
   revalidatePath('/', 'layout');
-  redirect('/dashboard');
+  // Return success state for client-side redirect
+  return { success: true };
 }
 
 
@@ -71,25 +77,7 @@ const signupSchema = z.object({
 
 
 export async function signup(prevState: any, formData: FormData) {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: {
-            get(name: string) {
-              return cookieStore.get(name)?.value
-            },
-            set(name: string, value: string, options: CookieOptions) {
-              cookieStore.set({ name, value, ...options })
-            },
-            remove(name: string, options: CookieOptions) {
-              cookieStore.set({ name, value: '', ...options })
-            },
-          },
-        }
-    );
-
+    const supabase = createActionClient();
 
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
     

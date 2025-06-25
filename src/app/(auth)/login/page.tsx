@@ -9,6 +9,8 @@ import { ArvoLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -46,6 +48,17 @@ const FloatingLabelInput = ({ id, name, type, label, required }: { id: string, n
 
 export default function LoginPage() {
   const [state, formAction] = useFormState(login, undefined);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (state?.success) {
+      router.push('/dashboard');
+    }
+    if (state?.setupIncomplete) {
+      router.push('/setup-incomplete');
+    }
+  }, [state, router]);
+
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] p-4 overflow-hidden relative font-body">
