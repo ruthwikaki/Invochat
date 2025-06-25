@@ -1,7 +1,11 @@
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
+// This middleware is the cornerstone of the authentication system.
+// It runs before any route is rendered and performs two critical tasks:
+// 1. Session Refresh: It refreshes the user's session cookie if it has expired.
+// 2. Route Protection: It redirects users based on their authentication state.
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -9,7 +13,6 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // The createServerClient function needs to be called in a middleware or route handler.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -18,60 +21,34 @@ export async function middleware(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is set, update the request's cookies.
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
+        set(name: string, value: string, options) {
+          request.cookies.set({ name, value, ...options })
           response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+            request: { headers: request.headers },
           })
-          // Also update the response's cookies.
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
+          response.cookies.set({ name, value, ...options })
         },
-        remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the request's cookies.
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+        remove(name: string, options) {
+          request.cookies.set({ name, value: '', ...options })
           response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
+            request: { headers: request.headers },
           })
-          // Also update the response's cookies.
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+          response.cookies.set({ name, value: '', ...options })
         },
       },
     }
   )
 
-  // This will refresh the session if it's expired.
+  // This will refresh the session if it's expired
   const { data: { user } } = await supabase.auth.getUser()
-
   const { pathname } = request.nextUrl
   
   const authRoutes = ['/login', '/signup']
   const isAuthRoute = authRoutes.includes(pathname)
 
-  // If user is not logged in, redirect them to the login page...
-  // ...unless they are trying to access an auth page.
+  // If user is not logged in, redirect them to the login page,
+  // unless they are trying to access an auth page or a diagnostic page.
   if (!user && !isAuthRoute) {
-    // Allow access to the root page and quick-test page for diagnostics.
     if (pathname === '/quick-test') {
         return response;
     }
@@ -80,12 +57,12 @@ export async function middleware(request: NextRequest) {
   
   // If user is logged in, handle redirects and setup checks.
   if (user) {
-    // If they are on an auth route, redirect to dashboard.
+    // If they are on an auth route, they shouldn't be. Redirect to dashboard.
     if (isAuthRoute) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
     
-    // Redirect from root to dashboard.
+    // Redirect from the root path to the dashboard.
     if (pathname === '/') {
         return NextResponse.redirect(new URL('/dashboard', request.url));
     }
@@ -93,16 +70,16 @@ export async function middleware(request: NextRequest) {
     const companyId = user.app_metadata?.company_id;
     const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
-    // If setup is incomplete (no companyId), redirect to setup page.
-    // This logic prevents a redirect loop by not redirecting if they are already on the setup page.
+    // If setup is incomplete (no companyId), redirect to the setup page.
+    // This logic prevents a redirect loop by NOT redirecting if they are already there.
     if (!companyId && !isSetupIncompleteRoute) {
-      // Allow access to test routes for debugging purposes.
+      // Allow access to test routes for debugging purposes, even if setup is incomplete.
       if (pathname !== '/test-supabase' && pathname !== '/quick-test') {
         return NextResponse.redirect(new URL('/setup-incomplete', request.url))
       }
     }
     
-    // If setup is complete, but they are on the setup page, they don't belong there.
+    // If setup IS complete, but they somehow land on the setup page, redirect them away.
     if (companyId && isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }

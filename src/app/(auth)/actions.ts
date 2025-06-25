@@ -33,8 +33,6 @@ export async function login(prevState: any, formData: FormData) {
     return { error: error.message };
   }
   
-  // CRITICAL FIX: Revalidate the entire app layout to ensure the new
-  // auth state is reflected everywhere, preventing stale cache issues.
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
@@ -54,7 +52,6 @@ export async function signup(prevState: any, formData: FormData) {
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
     
     if (!parsed.success) {
-        // Concatenate errors for better feedback
         const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
         return { error: errorMessages };
     }
@@ -79,7 +76,6 @@ export async function signup(prevState: any, formData: FormData) {
         if (data.user.identities && data.user.identities.length === 0) {
             return { error: "This user already exists. Please try logging in." }
         }
-        // CRITICAL FIX: Revalidate after signup as well.
         revalidatePath('/', 'layout');
         return { success: true };
     }
