@@ -23,17 +23,24 @@ export async function login(prevState: any, formData: FormData) {
 
   const { email, password } = parsed.data;
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
+    // Supabase returns a specific error for unconfirmed emails.
+    if (error.message === 'Email not confirmed') {
+      return { error: 'Login failed: Please check your inbox to confirm your email address.' };
+    }
     return { error: error.message };
   }
   
-  // By fixing the createClient function in server.ts, the Supabase client
-  // now correctly handles cookie persistence automatically.
+  // After a successful login attempt, we MUST check if a session was actually created.
+  // If email confirmation is required, Supabase will not return an error, but data.session will be null.
+  if (!data.session) {
+      return { error: 'Login failed: Please check your email for a confirmation link.' };
+  }
 
   revalidatePath('/', 'layout');
   redirect('/dashboard');
