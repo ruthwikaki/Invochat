@@ -6,6 +6,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { NextResponse } from 'next/server';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -14,18 +15,6 @@ const loginSchema = z.object({
 
 export async function login(prevState: any, formData: FormData) {
   const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name) => cookieStore.get(name)?.value,
-        set: (name, value, options) => cookieStore.set(name, value, options),
-        remove: (name, options) => cookieStore.delete(name, options),
-      }
-    }
-  );
-
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     return { error: 'Invalid email or password format.' };
@@ -33,39 +22,64 @@ export async function login(prevState: any, formData: FormData) {
 
   const { email, password } = parsed.data;
 
-  // This is the call to Supabase to sign in.
+  // Since we need to return a response to set cookies, we can't use
+  // a shared Supabase client instance. We create one here with the
+  // correct cookie handlers for this specific response.
+  const response = NextResponse.redirect(new URL('/dashboard', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get: (name) => cookieStore.get(name)?.value,
+        set: (name, value, options) => response.cookies.set(name, value, options),
+        remove: (name, options) => response.cookies.set(name, '', { ...options, maxAge: -1 }),
+      },
+    }
+  );
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
 
-  // If Supabase returns an explicit error (e.g., "Invalid login credentials"),
-  // we show it to the user.
   if (error) {
+    // If there's an error, we don't redirect. We return the error state to the form.
+    // We create a new, non-redirecting response to avoid issues.
     return { error: error.message };
   }
-  
-  // After a login attempt, we MUST check if a session was actually created.
-  // If email confirmation is required, Supabase will NOT return an error, but data.session will be null.
-  // This is the most common reason for login "failures".
+
   if (!data.session) {
-      return { error: 'Login failed: Please check your inbox for a confirmation link.' };
+    // This handles the case where email confirmation is required.
+    return { error: 'Login failed: Please check your inbox for a confirmation link.' };
   }
-
-  // At this point, the user is authenticated and has a session.
-  // The Supabase SSR client has automatically set the auth cookie via the cookieStore.
   
-  // One final check: Does the user have a company_id?
-  // If not, their account setup is incomplete. Redirect them to the setup page.
-  // This prevents them from getting stuck if the `handle_new_user` trigger failed.
-  // We use a standard redirect here because this is a server-side check after a successful login.
-  if (!data.user.app_metadata?.company_id) {
-    redirect('/setup-incomplete');
+  const companyId = data.user.app_metadata?.company_id;
+  if (!companyId) {
+    // If setup is incomplete, redirect to the setup page.
+    const setupResponse = NextResponse.redirect(new URL('/setup-incomplete', process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'));
+    // We need to re-create the client with the new response object to set the cookies.
+    const setupSupabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get: (name) => cookieStore.get(name)?.value,
+            set: (name, value, options) => setupResponse.cookies.set(name, value, options),
+            remove: (name, options) => setupResponse.cookies.set(name, '', { ...options, maxAge: -1 }),
+          },
+        }
+    );
+    // We still need to sign in the user again for this response context.
+    await setupSupabase.auth.signInWithPassword({ email, password });
+    return setupResponse;
   }
 
-  // If everything is correct, revalidate the cache and signal success to the client.
   revalidatePath('/', 'layout');
-  return { success: true };
+  // On success, return the response object which now has the Set-Cookie headers.
+  // The browser will follow the redirect and the new request will have the auth cookie.
+  return response;
 }
 
 
@@ -115,8 +129,6 @@ export async function signup(prevState: any, formData: FormData) {
     }
 
     if (data.user) {
-        // This is a Supabase-specific check for when a user already exists
-        // but has not confirmed their email.
         if (data.user.identities && data.user.identities.length === 0) {
             return { error: "This user already exists. Please try logging in or check your email for a confirmation link." }
         }

@@ -9,8 +9,6 @@ import { ArvoLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -26,14 +24,13 @@ function SubmitButton() {
   );
 }
 
-// Floating label input component for the new glassmorphism design
 const FloatingLabelInput = ({ id, name, type, label, required }: { id: string, name: string, type: string, label: string, required?: boolean }) => (
   <div className="relative">
     <Input
       id={id}
       name={name}
       type={type}
-      placeholder=" " // A space is crucial for the :placeholder-shown pseudo-class to work
+      placeholder=" " 
       required={required}
       className="block px-3.5 py-3 w-full text-sm text-white bg-white/10 rounded-lg border border-white/30 appearance-none focus:outline-none focus:ring-0 focus:border-[#8B5CF6] peer"
     />
@@ -49,18 +46,9 @@ const FloatingLabelInput = ({ id, name, type, label, required }: { id: string, n
 
 export default function LoginPage() {
   const [state, formAction] = useFormState(login, undefined);
-  const router = useRouter();
-
-  useEffect(() => {
-    if (state?.success) {
-      router.push('/dashboard');
-    }
-  }, [state, router]);
-
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-br from-[#667eea] to-[#764ba2] p-4 overflow-hidden relative font-body">
-      {/* Floating Shapes */}
       <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-white/5 rounded-full animate-float" style={{ animationDelay: '0s' }}></div>
       <div className="absolute top-1/2 right-1/4 w-48 h-48 bg-white/5 rounded-2xl animate-float" style={{ animationDelay: '2s' }}></div>
       <div className="absolute bottom-1/4 left-1/3 w-24 h-24 bg-white/5 rounded-full animate-float" style={{ animationDelay: '4s' }}></div>
