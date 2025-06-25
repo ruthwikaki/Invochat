@@ -77,7 +77,7 @@ export async function signup(prevState: any, formData: FormData) {
 
     if (data.user) {
         if (data.user.identities && data.user.identities.length === 0) {
-            return { error: "An error occurred, but the user was not created. Please try again." }
+            return { error: "This user already exists. Please try logging in." }
         }
         // CRITICAL FIX: Revalidate after signup as well.
         revalidatePath('/', 'layout');
