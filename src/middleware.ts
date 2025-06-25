@@ -3,7 +3,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  let res = NextResponse.next({
+  const res = NextResponse.next({
     request: {
       headers: req.headers,
     },
@@ -18,40 +18,12 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is updated, update the cookies for the request and response
-          req.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          res.cookies.set({
-            name,
-            value,
-            ...options,
-          });
+          req.cookies.set({ name, value, ...options });
+          res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the cookies for the request and response
-          req.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          res.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
+          req.cookies.set({ name, value: '', ...options });
+          res.cookies.set({ name, value: '', ...options });
         },
       },
     }
@@ -64,6 +36,7 @@ export async function middleware(req: NextRequest) {
   const authRoutes = ['/login', '/signup'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isSetupIncompleteRoute = pathname === '/setup-incomplete';
+  const isTestRoute = pathname === '/test-supabase';
 
   // Handle the root path, redirecting based on auth state.
   if (pathname === '/') {
@@ -88,7 +61,8 @@ export async function middleware(req: NextRequest) {
 
     // If the user is missing a company_id, send them to the setup page.
     if (!companyId) {
-      if (!isSetupIncompleteRoute) {
+      // Allow access to the test page even without a companyId to help debug.
+      if (!isSetupIncompleteRoute && !isTestRoute) {
         return NextResponse.redirect(new URL('/setup-incomplete', req.url));
       }
     } else {
