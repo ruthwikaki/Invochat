@@ -72,7 +72,7 @@ export function AppSidebar() {
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
-                <Link href={item.href}>
+                <Link href={item.href} prefetch={false}>
                   <item.icon />
                   {item.label}
                 </Link>
@@ -103,7 +103,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/test-supabase'}>
-              <Link href="/test-supabase">
+              <Link href="/test-supabase" prefetch={false}>
                 <Beaker />
                 <span>Connection Test</span>
               </Link>

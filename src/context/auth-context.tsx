@@ -26,8 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (!supabase) return;
-    await supabase.auth.signOut();
+    
+    // Clear the user state immediately
     setUser(null);
+    
+    // Sign out from Supabase
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+    }
+    
+    // Navigate to login
     router.push('/login');
   }, [supabase, router]);
 
@@ -37,33 +46,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // 1. Fetch the initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user as User ?? null);
-      setLoading(false);
-    });
-    
-    // 2. Set up a listener for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        const currentUser = session?.user as User ?? null;
-        setUser(currentUser);
-        setLoading(false);
+    let mounted = true;
 
-        // Only handle specific navigation cases
-        if (event === 'SIGNED_OUT') {
-          router.push('/login');
-        } else if (event === 'SIGNED_IN' && window.location.pathname === '/login') {
-          // Only redirect from login page after sign in
-          router.push('/dashboard');
+    // 1. Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          setUser(session?.user as User ?? null);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+    
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (mounted) {
+          setUser(session?.user as User ?? null);
         }
       }
     );
 
     return () => {
+      mounted = false;
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const value = {
     user,

@@ -20,8 +20,8 @@ export async function middleware(req: NextRequest) {
             name,
             value,
             ...options,
-            path: '/', // Crucial for cookie visibility across the app
-            secure: isProd, // Use secure cookies in production
+            path: '/',
+            secure: isProd,
           });
         },
         remove(name: string, options: CookieOptions) {
@@ -30,7 +30,7 @@ export async function middleware(req: NextRequest) {
             value: '',
             ...options,
             path: '/',
-            maxAge: -1, // A common way to delete a cookie
+            maxAge: -1,
           });
         },
       },
@@ -38,7 +38,7 @@ export async function middleware(req: NextRequest) {
   );
 
   // Refresh session if expired - this will set new cookies on the response.
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup'];
@@ -48,11 +48,11 @@ export async function middleware(req: NextRequest) {
   const isPublicRoute = publicRoutes.includes(pathname);
 
   // If user is not signed in and the route is not public or an auth route, redirect to login
-  if (!session && !isAuthRoute && !isPublicRoute) {
+  if (!user && !isAuthRoute && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  if (session) {
+  if (user) {
     // If user is signed in and on an auth route, redirect to dashboard
     if (isAuthRoute) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
@@ -63,7 +63,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // Handle incomplete account setup
-    const companyId = session.user.app_metadata?.company_id;
+    const companyId = user.app_metadata?.company_id;
     const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
     // If companyId is missing and they are not on the setup page, redirect them
