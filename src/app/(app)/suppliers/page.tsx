@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Mail, Briefcase } from 'lucide-react';
+import { Mail, Briefcase, FileText } from 'lucide-react';
 import { getSuppliersData } from '@/app/data-actions';
 import type { Supplier } from '@/types';
 
@@ -53,6 +53,12 @@ export default async function SuppliersPage() {
                   <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
                   <span>Terms: {supplier.terms}</span>
                 </div>
+                {supplier.account_number && (
+                  <div className="flex items-center">
+                    <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <span>Account: {supplier.account_number}</span>
+                  </div>
+                )}
               </CardContent>
                <CardFooter>
                  <p className="text-xs text-muted-foreground">Performance metrics are coming soon.</p>

@@ -31,8 +31,9 @@ begin
   values (new.id, new.email, new_company_id);
 
   -- Update the user's app_metadata in the auth.users table
+  -- This makes the company_id available in the user's session
   update auth.users
-  set app_metadata = app_metadata || jsonb_build_object('company_id', new_company_id)
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id)
   where id = new.id;
 
   return new;
@@ -80,7 +81,7 @@ export default function SetupIncompletePage() {
                         This usually happens for one of two reasons:
                     </p>
                     <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                        <li>The necessary database trigger (<code>handle_new_user</code>) is missing.</li>
+                        <li>The necessary database trigger (<code>handle_new_user</code>) is missing or incorrect.</li>
                         <li>You signed up with this user account *before* the trigger was added.</li>
                     </ul>
                     <h3 className="font-semibold pt-4">How to Fix</h3>

@@ -36,6 +36,7 @@ function InventorySkeleton() {
       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
     </TableRow>
   ));
 }
@@ -121,6 +122,7 @@ export default function InventoryPage() {
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Unit Cost</TableHead>
                 <TableHead>Last Sold</TableHead>
+                <TableHead>Warehouse</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -128,7 +130,7 @@ export default function InventoryPage() {
                 <InventorySkeleton />
               ) : error ? (
                 <TableRow>
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={7}>
                         <div className="flex flex-col items-center justify-center gap-4 py-12 text-center text-destructive">
                             <AlertTriangle className="h-16 w-16" />
                             <h3 className="text-xl font-semibold">An Error Occurred</h3>
@@ -152,11 +154,12 @@ export default function InventoryPage() {
                       ${Number(item.cost).toLocaleString()}
                     </TableCell>
                     <TableCell>{item.last_sold_date ? format(parseISO(item.last_sold_date), 'yyyy-MM-dd') : 'N/A'}</TableCell>
+                    <TableCell>{item.warehouse_name || 'N/A'}</TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6}>
+                  <TableCell colSpan={7}>
                     <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
                         <Package className="h-16 w-16 text-muted-foreground" />
                         <h3 className="text-xl font-semibold">Your Inventory is Empty</h3>
