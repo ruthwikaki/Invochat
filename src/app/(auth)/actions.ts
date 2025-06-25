@@ -80,7 +80,7 @@ export async function signup(prevState: any, formData: FormData) {
         if (data.user.identities && data.user.identities.length === 0) {
             return { error: "An error occurred, but the user was not created. Please try again." }
         }
-        revalidatePath('/');
+        revalidatePath('/', 'layout');
         return { success: true };
     }
     

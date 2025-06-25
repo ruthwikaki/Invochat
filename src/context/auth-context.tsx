@@ -26,8 +26,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    // The onAuthStateChange listener below will handle the redirect.
-  }, [supabase]);
+    // After signing out, the middleware will handle the server-side redirect.
+    // We push to the login page on the client for a smoother UX.
+    router.push('/login');
+    router.refresh(); // Force a refresh to ensure all server components re-evaluate.
+  }, [supabase, router]);
 
   useEffect(() => {
     if (!supabase) {
@@ -42,18 +45,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const currentUser = session?.user as User ?? null;
         setUser(currentUser);
         setLoading(false);
-        
-        // On sign out, forcefully redirect to login to ensure clean state.
-        if (event === 'SIGNED_OUT') {
-          router.push('/login');
-        }
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase]);
 
   const value = {
     user,
