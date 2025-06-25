@@ -71,69 +71,43 @@ export const universalChatFlow = ai.defineFlow({
     
     const { message, companyId, conversationHistory = [] } = input;
 
-    // Verify we have required data
-    if (!companyId) {
-      throw new Error('Company ID is required but was not provided');
-    }
-
-    if (!ai) {
-      throw new Error('AI instance is not initialized');
-    }
+    if (!companyId) throw new Error('Company ID is required but was not provided');
+    if (!ai) throw new Error('AI instance is not initialized');
 
     try {
-      // Create the prompt with the tools
-      const prompt = ai.definePrompt({
-          name: 'universalChatPrompt',
-          input: { 
-              schema: z.object({
-                  message: z.string(),
-                  companyId: z.string(),
-                  history: z.string()
-              }) 
-          },
-          output: { schema: UniversalChatOutputSchema },
-          tools: [executeSQLTool],
-          prompt: `You are InvoChat, an intelligent inventory assistant. You help users understand their inventory data through natural conversation.
+      const history = conversationHistory.map(msg => ({
+        role: msg.role as 'user' | 'model', // Genkit uses 'model' for assistant
+        content: [{ text: msg.content }],
+      }));
 
-          Current conversation:
-          {{{history}}}
+      const { output } = await ai.generate({
+        history,
+        tools: [executeSQLTool],
+        prompt: `You are InvoChat, an intelligent inventory assistant. You help users understand their inventory data through natural conversation.
 
-          User's message: {{{message}}}
-          Company ID: {{{companyId}}}
+        User's message: ${message}
 
-          Instructions:
-          1. When users ask about inventory value, use the executeSQL tool to query: SELECT SUM(quantity * cost) as total_value FROM inventory WHERE company_id = '{{{companyId}}}'
-          2. Security is paramount: Every SQL query you write **MUST** include a WHERE company_id = '{{{companyId}}}' clause.
-          3. NEVER show SQL queries or technical details to the user.
-          4. Provide insights and summaries, not just raw data.
-          5. Be conversational and helpful.
+        Instructions:
+        1. When users ask about inventory data, use the executeSQL tool to query the database.
+        2. Security is paramount: Every SQL query you write **MUST** include a \`WHERE company_id = '${companyId}'\` clause. This is a non-negotiable security requirement.
+        3. NEVER show SQL queries or technical details to the user.
+        4. Provide insights and summaries, not just raw data.
+        5. For inventory breakdown by category, query: SELECT category, COUNT(*) as count, SUM(quantity * cost) as value FROM inventory WHERE company_id = '${companyId}' GROUP BY category
+        6. Suggest appropriate visualizations.
+        7. Be conversational and helpful.
 
-          Remember: You're an intelligent assistant. When asked about inventory data, ACTUALLY query the database and return helpful insights.`
+        Remember: You're an intelligent assistant. When asked about charts or data, ACTUALLY query the database and return the data.`,
+        output: {
+          schema: UniversalChatOutputSchema
+        }
       });
-
-      console.log('[UniversalChat] Prompt created successfully');
-
-      // Format conversation history
-      const historyText = conversationHistory
-          .map(msg => `${msg.role}: ${msg.content}`)
-          .join('\n');
-
-      console.log('[UniversalChat] Executing prompt...');
-
-      // Execute the prompt
-      const { output } = await prompt({
-          message,
-          companyId,
-          history: historyText
-      });
-
+      
       console.log('[UniversalChat] Prompt output:', output);
 
       if (!output) {
           throw new Error('Failed to generate response - output was null');
       }
       
-      // Ensure data is always an array
       if (output.data === null || output.data === undefined) {
           output.data = [];
       }
