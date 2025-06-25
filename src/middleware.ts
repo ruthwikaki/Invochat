@@ -22,17 +22,13 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options) {
-          request.cookies.set({ name, value, ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
+          // The `set` method is called by the Supabase client when it needs
+          // to persist the session to a cookie.
           response.cookies.set({ name, value, ...options })
         },
         remove(name: string, options) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({
-            request: { headers: request.headers },
-          })
+          // The `remove` method is called by the Supabase client when it needs
+          // to clear the session cookie.
           response.cookies.set({ name, value: '', ...options })
         },
       },
