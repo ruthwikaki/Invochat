@@ -24,11 +24,21 @@ export async function middleware(req: NextRequest) {
           // We pass this new cookie to the request and the response so it can be set on the browser
           // and available to subsequent server components.
           req.cookies.set({ name, value, ...options });
+          res = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
           res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
           // The `remove` method is called by the Supabase client when the user signs out.
           req.cookies.set({ name, value: '', ...options });
+           res = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
           res.cookies.set({ name, value: '', ...options });
         },
       },

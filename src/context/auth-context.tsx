@@ -1,7 +1,7 @@
 
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import type { SupabaseClient, AuthError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
@@ -23,6 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   
   const isConfigured = !!supabase;
+
+  const signOut = useCallback(async () => {
+    if (!supabase) return { error: null };
+    await supabase.auth.signOut();
+    // onAuthStateChange listener will set user to null and trigger redirect.
+    return { error: null };
+  }, [supabase]);
 
   useEffect(() => {
     if (!supabase) {
@@ -52,20 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [supabase, router]);
 
-  const signOut = useCallback(async () => {
-    if (!supabase) return { error: null };
-    await supabase.auth.signOut();
-    // onAuthStateChange listener will set user to null and trigger redirect.
-    return { error: null };
-  }, [supabase]);
-
-  // Memoize the context value to prevent unnecessary re-renders of consumers.
-  const value = useMemo(() => ({
+  const value = {
     user,
     loading,
     isConfigured,
     signOut,
-  }), [user, loading, isConfigured, signOut]);
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
