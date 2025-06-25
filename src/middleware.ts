@@ -1,10 +1,9 @@
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  // Create a response object that we'll potentially modify
-  let res = NextResponse.next({
+  // We need to create a response and hand it to the supabase client to be able to modify the cookies.
+  const res = NextResponse.next({
     request: {
       headers: req.headers,
     },
@@ -20,36 +19,33 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // Set the cookie on both request and response
-          req.cookies.set({ name, value, ...options });
+          // If the cookie is set, update the response cookies.
           res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          // Remove the cookie from both request and response
-          req.cookies.set({ name, value: '', ...options });
-          res.cookies.set({ name, value: '', ...options });
+          // If the cookie is removed, update the response cookies.
+          res.cookies.delete(name, options);
         },
       },
     }
   );
 
-  // IMPORTANT: Refresh the session to ensure it's valid
+  // IMPORTANT: The `getSession` method will refresh the session if it's expired.
   const { data: { session } } = await supabase.auth.getSession();
   
-  // Get the user from the session if it exists
   const user = session?.user;
-
   const { pathname } = req.nextUrl;
+  
   const authRoutes = ['/login', '/signup'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
-  // Handle the root path
+  // Handle the root path, redirecting based on auth state
   if (pathname === '/') {
     return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', req.url));
   }
 
-  // If user is not logged in, protect routes
+  // If user is not logged in, protect all non-auth routes
   if (!user) {
     if (!isAuthRoute && !isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
@@ -57,7 +53,8 @@ export async function middleware(req: NextRequest) {
     return res;
   }
   
-  // If user is logged in, handle redirects
+  // If user is logged in, handle redirects away from auth pages
+  // and handle the setup-incomplete case.
   const companyId = user.app_metadata?.company_id;
 
   if (isAuthRoute) {
@@ -65,15 +62,18 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!companyId) {
+    // If user is missing company_id, redirect to setup page, unless they are already there.
     if (!isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/setup-incomplete', req.url));
     }
   } else {
+    // If user has a company_id, they should not be on the setup page.
     if (isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   }
 
+  // If all checks pass, return the original response, which now has the updated cookie.
   return res;
 }
 
