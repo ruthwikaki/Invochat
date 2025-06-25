@@ -3,12 +3,13 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
-  let response = NextResponse.next({
+  const res = NextResponse.next({
     request: {
       headers: req.headers,
     },
   })
 
+  // Create a Supabase client that can be used in Server Components
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -18,18 +19,24 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
+          // If the cookie is set, update the request's cookies
+          // and the response's cookies
           req.cookies.set({ name, value, ...options })
-          response.cookies.set({ name, value, ...options })
+          res.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
+          // If the cookie is removed, update the request's cookies
+          // and the response's cookies
           req.cookies.set({ name, value: '', ...options })
-          response.cookies.set({ name, value, ...options })
+          res.cookies.set({ name, value: '', ...options })
         },
       },
     }
   )
 
+  // This will refresh the session if it's expired
   const { data: { user } } = await supabase.auth.getUser()
+
   const { pathname } = req.nextUrl
   
   const authRoutes = ['/login', '/signup']
@@ -41,7 +48,7 @@ export async function middleware(req: NextRequest) {
   // If user is not logged in
   if (!user) {
     if (isAuthRoute || isSetupIncompleteRoute) {
-      return response
+      return res
     }
     return NextResponse.redirect(new URL('/login', req.url))
   }
@@ -68,7 +75,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return response
+  return res
 }
 
 export const config = {

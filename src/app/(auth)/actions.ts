@@ -36,7 +36,7 @@ export async function login(prevState: any, formData: FormData) {
   // CRITICAL: Revalidate the entire app layout to ensure the new
   // auth state is reflected everywhere, preventing stale cache issues.
   revalidatePath('/', 'layout');
-  return redirect('/dashboard');
+  redirect('/dashboard');
 }
 
 

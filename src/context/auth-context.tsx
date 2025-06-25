@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
-    router.push('/login');
+    // Use router.refresh() to force a server-side re-render and re-run middleware
     router.refresh();
   }, [supabase, router]);
 
@@ -42,13 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const currentUser = session?.user as User ?? null;
         setUser(currentUser);
         setLoading(false);
+        // On SIGNED_IN or SIGNED_OUT, refresh to ensure server components are up-to-date
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+            router.refresh();
+        }
       }
     );
 
     return () => {
       subscription?.unsubscribe();
     };
-  }, [supabase]);
+  }, [supabase, router]);
 
   const value = {
     user,
