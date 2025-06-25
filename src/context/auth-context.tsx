@@ -2,7 +2,6 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import type { SupabaseClient, AuthError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
 import { useRouter } from 'next/navigation';
@@ -11,7 +10,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isConfigured: boolean;
-  signOut: () => Promise<{ error: AuthError | null }>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,10 +24,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isConfigured = !!supabase;
 
   const signOut = useCallback(async () => {
-    if (!supabase) return { error: null };
+    if (!supabase) return;
     await supabase.auth.signOut();
-    // onAuthStateChange listener will handle the redirect
-    return { error: null };
+    // The onAuthStateChange listener below will handle the redirect.
   }, [supabase]);
 
   useEffect(() => {
@@ -37,26 +35,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    let mounted = true;
-
-    // This single listener handles the initial check (SIGNED_IN) and all subsequent events.
-    // This is the most reliable way to manage auth state on the client.
+    // This single listener is the most reliable way to manage auth state.
+    // It handles the initial load (SIGNED_IN) and all subsequent changes.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (mounted) {
-          setUser(session?.user as User ?? null);
-          setLoading(false);
-          
-          if (event === 'SIGNED_OUT') {
-            // Use replace to prevent user from navigating back to a protected page.
-            router.replace('/login');
-          }
+        const currentUser = session?.user as User ?? null;
+        setUser(currentUser);
+        setLoading(false);
+        
+        // On sign out, forcefully redirect to login to ensure clean state.
+        if (event === 'SIGNED_OUT') {
+          router.push('/login');
         }
       }
     );
 
     return () => {
-      mounted = false;
       subscription?.unsubscribe();
     };
   }, [supabase, router]);

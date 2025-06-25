@@ -1,13 +1,13 @@
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { NextResponse, type NextRequest } from 'next/server';
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next({
+  let res = NextResponse.next({
     request: {
       headers: req.headers,
     },
-  });
+  })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,65 +15,64 @@ export async function middleware(req: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          return req.cookies.get(name)?.value;
+          return req.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          req.cookies.set({ name, value, ...options });
-          res.cookies.set({ name, value, ...options });
+          // If the cookie is set, update the request's cookies.
+          req.cookies.set({ name, value, ...options })
+          // Also update the response's cookies.
+          res.cookies.set({ name, value, ...options })
         },
         remove(name: string, options: CookieOptions) {
-          req.cookies.set({ name, value: '', ...options });
-          res.cookies.set({ name, value: '', ...options });
+          // If the cookie is removed, update the request's cookies.
+          req.cookies.set({ name, value: '', ...options })
+          // Also update the response's cookies.
+          res.cookies.set({ name, value: '', ...options })
         },
       },
     }
-  );
+  )
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = req.nextUrl;
+  const { pathname } = req.nextUrl
   
-  const authRoutes = ['/login', '/signup'];
-  const isAuthRoute = authRoutes.includes(pathname);
-  const isSetupIncompleteRoute = pathname === '/setup-incomplete';
+  const authRoutes = ['/login', '/signup']
+  const isAuthRoute = authRoutes.includes(pathname)
+  const isSetupIncompleteRoute = pathname === '/setup-incomplete'
   const isTestRoute = pathname === '/test-supabase';
 
-  // Handle the root path, redirecting based on auth state.
-  if (pathname === '/') {
-    const redirectTo = user ? '/dashboard' : '/login';
-    return NextResponse.redirect(new URL(redirectTo, req.url));
-  }
-
-  // If the user is not logged in, protect all routes except for auth and setup pages.
+  // If user is not logged in, redirect to login page if not on an auth route.
   if (!user) {
-    if (!isAuthRoute && !isSetupIncompleteRoute) {
-      return NextResponse.redirect(new URL('/login', req.url));
+    if (isAuthRoute || isSetupIncompleteRoute) {
+      return res
     }
+    return NextResponse.redirect(new URL('/login', req.url))
   }
-  // If the user is logged in, handle redirects and setup checks.
-  else {
-    const companyId = user.app_metadata?.company_id;
-
-    // Redirect away from auth pages if already logged in.
-    if (isAuthRoute) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
-    // If the user is missing a company_id, send them to the setup page.
-    if (!companyId) {
-      // Allow access to the test page even without a companyId to help debug.
-      if (!isSetupIncompleteRoute && !isTestRoute) {
-        return NextResponse.redirect(new URL('/setup-incomplete', req.url));
-      }
-    } else {
-      // If the user has a company_id but is on the setup page, send them to the dashboard.
-      if (isSetupIncompleteRoute) {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-      }
-    }
+  
+  // If user is logged in, handle redirects and setup checks.
+  
+  // Redirect away from auth pages if already logged in.
+  if (isAuthRoute) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
-  return res;
+  const companyId = user.app_metadata?.company_id;
+
+  // If user lacks company_id, force them to the setup page.
+  // Allow access to the test page to help debug.
+  if (!companyId) {
+    if (!isSetupIncompleteRoute && !isTestRoute) {
+      return NextResponse.redirect(new URL('/setup-incomplete', req.url))
+    }
+  } else {
+    // If user has company_id but is on the setup page, send them away.
+    if (isSetupIncompleteRoute) {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+  }
+
+  return res
 }
 
 export const config = {

@@ -33,7 +33,8 @@ export async function login(prevState: any, formData: FormData) {
     return { error: error.message };
   }
   
-  // Revalidate the entire app to ensure layout reflects the new auth state
+  // CRITICAL: Revalidate the entire app layout to ensure the new
+  // auth state is reflected everywhere, preventing stale cache issues.
   revalidatePath('/', 'layout');
   return redirect('/dashboard');
 }
