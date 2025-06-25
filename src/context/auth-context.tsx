@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
 import { useRouter } from 'next/navigation';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
@@ -16,7 +17,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [supabase] = useState(() => createBrowserSupabaseClient());
+  const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -27,9 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     await supabase.auth.signOut();
     // After signing out, the middleware will handle the server-side redirect.
-    // We push to the login page on the client for a smoother UX.
+    // We push to the login page on the client for a smoother UX and then
+    // force a full refresh to ensure all server components re-evaluate.
     router.push('/login');
-    router.refresh(); // Force a refresh to ensure all server components re-evaluate.
+    router.refresh();
   }, [supabase, router]);
 
   useEffect(() => {
