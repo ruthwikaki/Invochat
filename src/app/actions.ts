@@ -1,4 +1,3 @@
-
 'use server';
 
 import { analyzeDeadStock } from '@/ai/flows/dead-stock-analysis';
@@ -10,7 +9,15 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 
-const actionResponseSchema = z.custom<AssistantMessagePayload>();
+// Fix: Define the proper schema for assistant responses
+const actionResponseSchema = z.object({
+  id: z.string(),
+  role: z.literal('assistant'),
+  content: z.string().optional(),
+  component: z.enum(['DeadStockTable', 'SupplierPerformanceTable', 'ReorderList', 'DynamicChart']).optional(),
+  props: z.any().optional(),
+}) satisfies z.ZodType<AssistantMessagePayload>;
+
 
 const UserMessagePayloadSchema = z.object({
   message: z.string(),
