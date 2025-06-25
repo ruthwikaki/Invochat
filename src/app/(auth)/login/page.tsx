@@ -4,12 +4,12 @@
 import { useFormStatus } from 'react-dom';
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InvochatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
@@ -58,22 +58,17 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
   return (
-    <main className="flex min-h-dvh w-full items-center justify-center bg-muted/40 p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <Link href="/" className="mb-4 flex items-center gap-3 text-2xl font-bold">
-            <InvochatLogo className="h-8 w-8" />
-            <h1>InvoChat</h1>
-          </Link>
-          <p className="text-muted-foreground">Inventory Intelligence Made Simple</p>
-        </div>
-        
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access your account.</CardDescription>
-          </CardHeader>
-          <CardContent>
+    <main className="grid min-h-dvh w-full lg:grid-cols-2">
+      <div className="flex items-center justify-center p-6 sm:p-8">
+        <div className="w-full max-w-md">
+            <div className="mb-8 flex flex-col items-center text-center">
+                <Link href="/" className="mb-4 flex items-center gap-3 text-2xl font-bold">
+                    <InvochatLogo className="h-8 w-8" />
+                    <h1>InvoChat</h1>
+                </Link>
+                <p className="text-muted-foreground">Inventory Intelligence Made Simple</p>
+            </div>
+
             <form action={login} className="space-y-4">
               {searchParams?.error && (
                 <Alert variant="destructive">
@@ -114,13 +109,29 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 Sign up
               </Link>
             </div>
-          </CardContent>
-        </Card>
 
-        <div className="mt-8 text-center text-xs text-muted-foreground">
-            <Link href="#" className="hover:underline">Terms of Service</Link>
-            <span className="mx-2">·</span>
-            <Link href="#" className="hover:underline">Privacy Policy</Link>
+             <div className="mt-8 text-center text-xs text-muted-foreground">
+                <Link href="#" className="hover:underline">Terms of Service</Link>
+                <span className="mx-2">·</span>
+                <Link href="#" className="hover:underline">Privacy Policy</Link>
+            </div>
+        </div>
+      </div>
+      <div className="relative hidden bg-primary lg:flex">
+        <Image
+            src="https://placehold.co/1200x900.png"
+            alt="Warehouse inventory being managed on a computer"
+            data-ai-hint="warehouse inventory"
+            fill
+            className="object-cover opacity-20"
+        />
+        <div className="relative z-10 m-auto max-w-lg p-8 text-primary-foreground">
+            <blockquote className="space-y-2">
+                <p className="text-2xl font-semibold">
+                    "InvoChat has been a game-changer. We cut our dead stock by 40% in the first quarter and now have a real-time pulse on our entire operation."
+                </p>
+                <footer className="text-lg">— Sarah Johnson, Warehouse Manager</footer>
+            </blockquote>
         </div>
       </div>
     </main>
