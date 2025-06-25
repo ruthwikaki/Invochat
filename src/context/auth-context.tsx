@@ -16,6 +16,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Use the new ssr library's browser client
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabase) {
-      console.log('[Auth Context] No supabase client');
       setLoading(false);
       return;
     }
@@ -51,16 +51,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 1. Get initial session
     const initializeAuth = async () => {
       try {
-        console.log('[Auth Context] Getting session...');
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('[Auth Context] Session:', session ? 'Found' : 'Not found');
         
         if (mounted) {
           setUser(session?.user as User ?? null);
           setLoading(false);
         }
       } catch (error) {
-        console.error('[Auth Context] Error initializing auth:', error);
+        console.error('Error initializing auth:', error);
         if (mounted) {
           setLoading(false);
         }
@@ -72,7 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 2. Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('[Auth Context] Auth state changed:', event, session ? 'Session exists' : 'No session');
         if (mounted) {
           setUser(session?.user as User ?? null);
         }
