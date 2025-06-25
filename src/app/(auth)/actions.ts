@@ -29,7 +29,7 @@ export async function login(prevState: any, formData: FormData) {
   });
 
   if (error) {
-    // Supabase returns a specific error for unconfirmed emails.
+    // Supabase returns a specific error for unconfirmed emails, but it's better to check for the session.
     if (error.message === 'Email not confirmed') {
       return { error: 'Login failed: Please check your inbox to confirm your email address.' };
     }
