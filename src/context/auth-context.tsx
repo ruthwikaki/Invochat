@@ -20,61 +20,120 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const router = useRouter();
   
   const isConfigured = !!supabase;
 
   useEffect(() => {
     if (!supabase) {
+      console.log('🔴 AuthContext: Supabase not configured');
       setLoading(false);
       return;
     }
 
     let mounted = true;
 
-    // This is the primary mechanism for keeping the client-side auth state in sync.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+    console.log('🟡 AuthContext: Setting up auth state management');
+
+    // Get initial session first
+    const getInitialSession = async () => {
+      try {
+        console.log('🔍 AuthContext: Getting initial session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('🔴 AuthContext: Error getting initial session:', error);
+        }
+
         if (mounted) {
-            setUser(session?.user as User ?? null);
+          const authUser = session?.user as User ?? null;
+          console.log('🟢 AuthContext: Initial session loaded:', {
+            hasSession: !!session,
+            hasUser: !!authUser,
+            userId: authUser?.id,
+            email: authUser?.email,
+            companyId: authUser?.app_metadata?.company_id
+          });
+          
+          setUser(authUser);
+          setLoading(false);
+          setInitialLoadComplete(true);
+        }
+      } catch (error) {
+        console.error('🔴 AuthContext: Exception getting initial session:', error);
+        if (mounted) {
+          setUser(null);
+          setLoading(false);
+          setInitialLoadComplete(true);
+        }
+      }
+    };
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔄 AuthContext: Auth state changed:', {
+          event,
+          hasSession: !!session,
+          hasUser: !!session?.user,
+          initialLoadComplete
+        });
+
+        if (mounted) {
+          const authUser = session?.user as User ?? null;
+          setUser(authUser);
+          
+          // Only set loading to false if we haven't completed initial load
+          if (!initialLoadComplete) {
             setLoading(false);
-            
-            // On sign out, the middleware will handle the redirect.
-            // We can also push to the login page to ensure a clean transition.
-            if (event === 'SIGNED_OUT') {
-                router.push('/login');
-            }
+            setInitialLoadComplete(true);
+          }
+          
+          // Handle different auth events
+          if (event === 'SIGNED_OUT') {
+            console.log('🚪 AuthContext: User signed out, redirecting to login');
+            // Small delay to ensure state is updated
+            setTimeout(() => {
+              router.push('/login');
+            }, 100);
+          } else if (event === 'SIGNED_IN') {
+            console.log('🔐 AuthContext: User signed in');
+            // Don't redirect here, let middleware handle it
+          } else if (event === 'TOKEN_REFRESHED') {
+            console.log('🔄 AuthContext: Token refreshed');
+          }
         }
       }
     );
 
-    // Ensure we have the initial session on first load.
-    const getInitialSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (mounted) {
-            setUser(session?.user as User ?? null);
-            setLoading(false);
-        }
-    };
-    
+    // Get initial session
     getInitialSession();
 
-
     return () => {
+      console.log('🧹 AuthContext: Cleaning up');
       mounted = false;
       subscription?.unsubscribe();
     };
-  }, [supabase, router]);
+  }, [supabase, router, initialLoadComplete]);
 
   const signOut = async () => {
     if (!supabase) return { error: null };
     
-    // signOut will trigger the onAuthStateChange listener, which handles the user state.
-    const { error } = await supabase.auth.signOut();
-    if(error) {
-        console.error('Sign out error:', error);
+    console.log('🚪 AuthContext: Signing out user');
+    
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('🔴 AuthContext: Sign out error:', error);
+      } else {
+        console.log('✅ AuthContext: Sign out successful');
+      }
+      return { error };
+    } catch (error) {
+      console.error('🔴 AuthContext: Sign out exception:', error);
+      return { error: error as AuthError };
     }
-    return { error };
   };
 
   const value = {
@@ -83,6 +142,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isConfigured,
     signOut,
   };
+
+  // Debug logging for state changes
+  useEffect(() => {
+    console.log('📊 AuthContext State:', {
+      hasUser: !!user,
+      loading,
+      isConfigured,
+      initialLoadComplete,
+      userEmail: user?.email,
+      companyId: user?.app_metadata?.company_id
+    });
+  }, [user, loading, isConfigured, initialLoadComplete]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
