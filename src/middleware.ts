@@ -3,9 +3,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  // We need to create a response and hand it to the supabase client.
-  // This will allow the client to send back updated cookies after refreshing the session.
-  const res = NextResponse.next({
+  let res = NextResponse.next({
     request: {
       headers: req.headers,
     },
@@ -20,20 +18,45 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // The `set` method is called by the Supabase client when the session is refreshed.
-          // We pass this new cookie to the response so it can be set on the browser.
-          res.cookies.set({ name, value, ...options });
+          // If the cookie is updated, update the cookies for the request and response
+          req.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+          res = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
+          res.cookies.set({
+            name,
+            value,
+            ...options,
+          });
         },
         remove(name: string, options: CookieOptions) {
-          // The `remove` method is called by the Supabase client when the user signs out.
-          res.cookies.set({ name, value: '', ...options });
+          // If the cookie is removed, update the cookies for the request and response
+          req.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
+          res = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
+          res.cookies.set({
+            name,
+            value: '',
+            ...options,
+          });
         },
       },
     }
   );
 
-  // IMPORTANT: This call will refresh the session if it's expired.
-  // It also returns the user object.
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = req.nextUrl;
@@ -76,8 +99,6 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // All checks have passed. Return the response, which may have an updated
-  // 'Set-Cookie' header from the session refresh.
   return res;
 }
 
