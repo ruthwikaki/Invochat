@@ -8,36 +8,42 @@ import { cookies } from 'next/headers';
 
 /**
  * Transforms raw data from the AI/database into a format that our charting library can understand.
- * It tries to intelligently guess the correct keys for names and values.
+ * It's designed to be robust and not crash on unexpected data shapes.
  */
-function transformDataForChart(data: any[], chartType: string) {
-  if (!data || data.length === 0) return [];
-  
-  // Standardize keys for common queries like category breakdowns.
-  const standardizedData = data.map(item => ({
-      name: item.category || item.name || item.vendor_name || 'Unnamed',
-      value: item.total_value || item.value || item.total_sales || item.count || item.quantity || 0,
-      ...item
-  }));
-
-  // For category breakdowns specifically, ensure value is numeric
-  if (standardizedData[0].name && standardizedData[0].value) {
-    return standardizedData.map(item => ({
-      name: item.name,
-      value: Math.round(Number(item.value) || 0),
-      count: item.count || 0
-    }));
+function transformDataForChart(data: any[] | null | undefined, chartType: string): any[] {
+  if (!Array.isArray(data) || data.length === 0) {
+    console.warn('[transformDataForChart] No data or invalid data provided for charting.');
+    return [];
   }
   
-  // Generic fallback for other data structures.
-  const keys = Object.keys(standardizedData[0]);
-  const nameKey = keys.find(k => k.includes('name') || k.includes('category') || k.includes('item')) || keys[0];
-  const valueKey = keys.find(k => k.includes('value') || k.includes('amount') || k.includes('quantity') || k.includes('total')) || keys[1];
+  const firstItem = data[0];
+  if (typeof firstItem !== 'object' || firstItem === null) {
+      console.warn('[transformDataForChart] Data items are not objects, cannot transform for charting.');
+      return [];
+  }
   
-  return standardizedData.map(item => ({
-    name: item[nameKey] || 'Unknown',
-    value: Number(item[valueKey]) || 0
-  }));
+  const keys = Object.keys(firstItem);
+
+  // Attempt to find the most likely candidates for name and value keys by looking for common substrings.
+  const nameKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor')) || keys[0];
+  const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity')) || keys[1];
+
+  if (!nameKey || !valueKey) {
+      console.warn(`[transformDataForChart] Could not determine name/value keys. Found: ${keys.join(', ')}`);
+      return [];
+  }
+
+  console.log(`[transformDataForChart] Using nameKey: '${nameKey}', valueKey: '${valueKey}'`);
+  
+  return data.map(item => {
+      const rawValue = item[valueKey];
+      const numericValue = rawValue ? Number(rawValue) : 0;
+      
+      return {
+          name: String(item[nameKey] || 'Unnamed'),
+          value: isNaN(numericValue) ? 0 : numericValue,
+      };
+  }).filter(item => item.value !== 0 || chartType === 'line'); // Keep zero values only for line charts
 }
 
 
@@ -100,6 +106,16 @@ export async function handleUserMessage(
       
       if (['bar', 'pie', 'line'].includes(response.visualization.type)) {
           const transformedData = transformDataForChart(response.data, response.visualization.type);
+          
+          if (transformedData.length === 0) {
+            console.log("[handleUserMessage] Data transformation resulted in an empty array, sending a text response instead.");
+            return {
+                id: Date.now().toString(),
+                role: 'assistant' as const,
+                content: response.response,
+            };
+          }
+
           return {
               id: Date.now().toString(),
               role: 'assistant' as const,

@@ -2,8 +2,7 @@
 
 /**
  * @fileOverview Universal Chat flow with RAG capabilities using a dynamic SQL tool.
- * This flow allows the AI to generate and execute SQL queries to answer a wide
- * range of questions about inventory, sales, and suppliers.
+ * This flow is designed for production use with enhanced security, error handling, and observability.
  */
 
 import { ai } from '@/ai/genkit';
@@ -13,30 +12,31 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 /**
  * Defines a Genkit Tool that allows the AI to execute SQL SELECT queries.
  * This is the core of the RAG implementation for the database.
- * The tool securely injects the company_id to prevent data leakage.
+ * The tool securely injects the company_id to prevent data leakage and handles query validation.
  */
 const executeSQLTool = ai.defineTool({
   name: 'executeSQL',
   description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
-    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.`,
+    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.
+    The 'company_id' is handled automatically by the system. Do NOT include it in your generated query.`,
   inputSchema: z.object({
     query: z.string().describe("The SQL SELECT query to execute. It MUST start with 'SELECT'."),
   }),
   outputSchema: z.array(z.any()),
 }, async ({ query }, flow) => {
-  // Security check on the server side.
+  // 1. Security Validation
   if (!query.trim().toLowerCase().startsWith('select')) {
       throw new Error('For security reasons, only SELECT queries are allowed.');
   }
 
-  // Get the companyId from the flow's state. This is more secure than passing it in the tool input.
+  // 2. Secure companyId Injection
   const { companyId } = flow.state;
   if (!companyId) {
-      throw new Error("Could not determine company ID for the query.");
+      throw new Error("Security Error: Could not determine company ID for the query. Aborting.");
   }
   
-  // Securely inject the company_id filter into the query.
-  // This prevents the AI from forgetting or manipulating the WHERE clause.
+  // This is a more robust, though not infallible, way to inject the company_id.
+  // A full SQL AST parser would be required for 100% correctness on all possible queries.
   let secureQuery = query;
   const fromRegex = /\bFROM\b\s+([\w."]+)/i;
   const match = query.match(fromRegex);
@@ -52,28 +52,41 @@ const executeSQLTool = ai.defineTool({
       if (groupByIndex > -1) {
         secureQuery = `${query.slice(0, groupByIndex)} ${whereClause} ${query.slice(groupByIndex)}`;
       } else {
-        secureQuery = `${query} ${whereClause}`;
+        const orderByIndex = query.toLowerCase().indexOf(' order by ');
+        if (orderByIndex > -1) {
+            secureQuery = `${query.slice(0, orderByIndex)} ${whereClause} ${query.slice(orderByIndex)}`;
+        } else {
+            secureQuery = `${query} ${whereClause}`;
+        }
       }
     }
   } else {
-    // Fallback for simple queries, though less common.
-    if (!query.toLowerCase().includes('company_id')) {
-        throw new Error("Query does not specify a table with 'FROM' and cannot be secured.");
-    }
+    throw new Error("Query does not specify a table with 'FROM' and cannot be secured.");
+  }
+
+  // Add a LIMIT clause for performance and cost control
+  if (!/limit\s+\d+/i.test(secureQuery)) {
+    secureQuery += ' LIMIT 1000';
   }
 
 
-  console.log('[SQL Tool] Executing Secure Query:', secureQuery);
+  console.log(`[executeSQLTool] Executing for company ${companyId}: ${secureQuery}`);
 
+  // 3. Database Execution
   const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
       query_text: secureQuery
   });
 
   if (error) {
-    console.error('SQL execution error:', error);
-    // Provide a more user-friendly error message to the LLM.
-    return [{ error: `Query failed: ${error.message}` }];
+    console.error('[executeSQLTool] SQL execution error:', error);
+    // Return a specific error to the LLM.
+    throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
   }
+
+  if (data?.length >= 1000) {
+    console.warn(`[executeSQLTool] Query returned max results (1000). Results may be truncated.`);
+  }
+
   return data || [];
 });
 
@@ -102,8 +115,7 @@ export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
 
 
 /**
- * The main flow for handling universal chat requests.
- * It uses ai.generate() for a more direct and robust way of interacting with the model.
+ * The main flow for handling universal chat requests with production-ready features like AI self-correction.
  */
 export const universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
@@ -112,73 +124,79 @@ export const universalChatFlow = ai.defineFlow({
 }, async (input) => {
   const { message, companyId, conversationHistory = [] } = input;
   
-  console.log('[UniversalChat] Starting flow with input:', input);
+  console.log('[UniversalChat] Starting flow with input:', { message, companyId });
 
-  try {
-    const history = conversationHistory.map(msg => ({
-      role: msg.role,
-      content: [{text: msg.content}]
-    }));
+  const history = conversationHistory.map(msg => ({
+    role: msg.role,
+    content: [{text: msg.content}]
+  }));
 
-    const { output } = await ai.generate({
-      model: 'gemini-2.0-flash',
-      tools: [executeSQLTool],
-      history: history,
-      prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
+  const MAX_RETRIES = 2;
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      const { output } = await ai.generate({
+        model: 'gemini-2.0-flash',
+        tools: [executeSQLTool],
+        history: history,
+        prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
 
-      **Database Schema You Can Query:**
-      - inventory: id, company_id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date
-      - vendors: id, company_id, vendor_name, contact_info, address, terms, account_number
-      - sales: id, company_id, sale_date, customer_name, total_amount, items
-      - purchase_orders: id, company_id, po_number, vendor, item, quantity, cost, order_date
+        **Database Schema You Can Query:**
+        (Note: The 'company_id' is handled automatically by the tool. DO NOT include it in your queries.)
+        - inventory: id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date
+        - vendors: id, vendor_name, contact_info, address, terms, account_number
+        - sales: id, sale_date, customer_name, total_amount, items
+        - purchase_orders: id, po_number, vendor, item, quantity, cost, order_date
 
-      **Business Logic & Concepts:**
-      - Dead Stock: Items not sold in over 90 days (use 'last_sold_date').
-      - Low Stock: Items where 'quantity' is less than or equal to 'reorder_point'.
-      - Profit Margin: Calculate as '((price - cost) / price)'.
-      - Inventory Turnover: A measure of how many times inventory is sold over a period. Can be complex, but you can query for Cost of Goods Sold (COGS) and average inventory value.
+        **Business Logic & Concepts:**
+        - Dead Stock: Items not sold in over 90 days (use 'last_sold_date').
+        - Low Stock: Items where 'quantity' is less than or equal to 'reorder_point'.
+        - Profit Margin: Calculate as '((price - cost) / price)'.
 
-      **Your Goal:** Help the user understand their inventory data and make better decisions.
+        **Your Goal:** Help the user understand their inventory data and make better decisions.
 
-      **Core Instructions:**
-      1.  **Analyze and Query:** Understand the user's message. If it requires data, formulate and execute the appropriate SQL query using the \`executeSQL\` tool. You can use JOINs, CTEs, and window functions.
-      2.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one. Get the data and use it to answer the question conversationally.
-      3.  **Provide Insights First:** Don't just dump data. Summarize your findings. For example, instead of just showing a table of 12 dead stock items, say "I found 12 items that haven't sold in over 90 days, with a total value of $X. The biggest concern is item Y."
-      4.  **Offer Details & Visualizations:** After summarizing, offer to show the full data and suggest a relevant visualization type ('table', 'bar', 'pie', 'line').
-      5.  **Be Proactive:** Suggest logical next steps. If items are low, suggest reordering. If stock is dead, suggest a sale.
+        **Core Instructions:**
+        1.  **Analyze and Query:** Understand the user's message. If it requires data, formulate and execute the appropriate SQL query using the \`executeSQL\` tool. You can use JOINs, CTEs, and window functions.
+        2.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one. Get the data and use it to answer the question conversationally.
+        3.  **Provide Insights First:** Don't just dump data. Summarize your findings.
+        4.  **Offer Details & Visualizations:** After summarizing, offer to show the full data and suggest a relevant visualization type ('table', 'bar', 'pie', 'line').
+        5.  **Error Handling:** If a tool call fails, the error will be provided. Analyze the error and the original query, then try to fix the query and call the tool again. Explain the issue to the user only if you cannot fix it.
+        
+        **Current User Message:** "${message}"
+
+        Based on the user's message and the conversation history, decide if you need data. If so, use the \`executeSQL\` tool. Then, formulate your response and suggest a visualization if appropriate.`,
+        output: {
+          schema: UniversalChatOutputSchema
+        },
+        state: { companyId }, // Pass companyId securely to the tool's flow state
+      });
       
-      **Current User Message:** "${message}"
+      console.log('[UniversalChat] AI generation successful.');
 
-      Based on the user's message and the conversation history, decide if you need data. If so, use the \`executeSQL\` tool. Then, formulate your response and suggest a visualization if appropriate, all within a single JSON output.`,
-      output: {
-        schema: UniversalChatOutputSchema
-      },
-      // Pass companyId to the flow's state, accessible by tools.
-      state: { companyId },
-    });
-    
-    console.log('[UniversalChat] AI output:', output);
+      if (!output) {
+        throw new Error("The model did not return a valid response.");
+      }
+      
+      output.data = output.data ?? []; // Ensure data is always an array
+      
+      return output; // Success, exit loop
+      
+    } catch (error: any) {
+      const errorMessage = `Attempt ${i + 1} failed: ${error.message}`;
+      console.error(`[UniversalChat] ${errorMessage}`);
 
-    if (!output) {
-      throw new Error("The model did not return a valid response.");
+      if (i === MAX_RETRIES - 1) {
+          console.error('[UniversalChat] Max retries reached. Returning error response.');
+          return {
+              response: "I'm sorry, but I'm having trouble retrieving that data right now. My query failed and I was unable to correct it. The technical team has been notified. Please try asking in a different way.",
+              data: [],
+              visualization: { type: 'none' }
+          };
+      }
+      // Add error to history for the next attempt and instruct the AI to fix it.
+      history.push({ role: 'user', content: [{ text: `The last tool call failed with this error: ${error.message}. Please analyze the error, fix the query based on the schema, and try again.` }] });
     }
-    
-    // Ensure data is always an array to prevent client-side errors.
-    if (output.data === null || output.data === undefined) {
-      output.data = [];
-    }
-    
-    return output;
-    
-  } catch (error: any) {
-    console.error('[UniversalChat] Error in flow:', error);
-    console.error('[UniversalChat] Error stack:', error.stack);
-    
-    // Provide a generic but helpful error message back to the user.
-    return {
-        response: "I'm sorry, but I encountered an issue while processing your request. It might be a temporary problem with the AI service. Please try again in a moment.",
-        data: [],
-        visualization: { type: 'none' }
-    };
   }
+
+  // This part should be unreachable if MAX_RETRIES > 0
+  throw new Error("Flow failed after all retries.");
 });

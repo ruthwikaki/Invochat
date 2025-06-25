@@ -207,35 +207,3 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 export async function getInventoryFromDB(companyId: string) {
     return getInventoryItems(companyId);
 }
-
-// Note: This function relies on a custom RPC 'get_chart_data' in your database.
-// The success of this function depends on that RPC's implementation.
-export async function getDataForChart(query: string, companyId: string): Promise<any[]> {
-    const supabase = getServiceRoleClient();
-    const lowerCaseQuery = query.toLowerCase();
-
-    const { data, error } = await supabase.rpc('get_chart_data', {
-        p_company_id: companyId,
-        p_query: lowerCaseQuery
-    });
-    
-    if (error) {
-        console.error(`Error in getDataForChart for query "${query}":`, error);
-        throw new Error(`Failed to get chart data: ${error.message}. Please ensure the 'get_chart_data' database function can handle the query.`);
-    }
-
-    if (!data) return [];
-    
-    if (lowerCaseQuery.includes('inventory value by category')) {
-        return data.map((d: any) => ({ name: d.name, value: Math.round(d.value) }));
-    }
-    
-    if (lowerCaseQuery.includes('slowest moving') || lowerCaseQuery.includes('dead stock')) {
-        return data.map((d: any) => ({
-            name: d.name,
-            value: differenceInDays(new Date(), parseISO(d.last_sold_date))
-        }));
-    }
-
-    return data || [];
-}
