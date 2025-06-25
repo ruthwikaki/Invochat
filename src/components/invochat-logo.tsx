@@ -1,7 +1,6 @@
-
 import { cn } from '@/lib/utils';
 
-export function ArvoLogo({ className }: { className?: string }) {
+export function InvochatLogo({ className }: { className?: string }) {
   return (
     <div
       className={cn(
@@ -9,7 +8,7 @@ export function ArvoLogo({ className }: { className?: string }) {
         className
       )}
     >
-      A
+      I
     </div>
   );
 }

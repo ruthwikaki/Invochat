@@ -1,7 +1,6 @@
-
 'use client';
 
-import { ArvoLogo } from '@/components/invochat-logo';
+import { InvochatLogo } from '@/components/invochat-logo';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
@@ -41,7 +40,7 @@ export function ChatMessage({
     >
       {!isUserMessage && (
         <Avatar className="h-8 w-8 shrink-0">
-          <ArvoLogo className="h-8 w-8" />
+          <InvochatLogo className="h-8 w-8" />
         </Avatar>
       )}
       <div

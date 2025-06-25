@@ -1,11 +1,10 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArvoLogo } from '@/components/invochat-logo';
+import { InvochatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
@@ -55,9 +54,9 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
 
       <div className="z-10 text-center mb-8">
         <div className="inline-block transition-transform hover:scale-110 animate-fade-in">
-            <ArvoLogo className="h-16 w-16 text-3xl shadow-lg" />
+            <InvochatLogo className="h-16 w-16 text-3xl shadow-lg" />
         </div>
-        <h1 className="text-4xl font-bold text-white mt-4 tracking-tight">ARVO</h1>
+        <h1 className="text-4xl font-bold text-white mt-4 tracking-tight">InvoChat</h1>
       </div>
 
       <div className="w-full max-w-sm z-10 bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl border border-white/20 animate-fade-in" style={{ animationDelay: '200ms' }}>

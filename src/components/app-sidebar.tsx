@@ -1,4 +1,3 @@
-
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -18,7 +17,7 @@ import {
   Upload,
   Beaker,
 } from 'lucide-react';
-import { ArvoLogo } from './invochat-logo';
+import { InvochatLogo } from './invochat-logo';
 import {
   Sidebar,
   SidebarContent,
@@ -50,7 +49,7 @@ export function AppSidebar() {
 
   const menuItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/chat', label: 'Chat with ARVO', icon: MessageSquare },
+    { href: '/chat', label: 'Chat with InvoChat', icon: MessageSquare },
     { href: '/inventory', label: 'Inventory', icon: Package },
     { href: '/import', label: 'Import Data', icon: Upload },
     { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
@@ -63,8 +62,8 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <ArvoLogo />
-          <span className="text-lg font-semibold">ARVO</span>
+          <InvochatLogo />
+          <span className="text-lg font-semibold">InvoChat</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
