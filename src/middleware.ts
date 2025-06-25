@@ -3,11 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function middleware(req: NextRequest) {
-  // We need to create a response and hand it to the client.
-  // It will be mutated by the `set` and `remove` methods.
   const res = NextResponse.next();
   const isProd = process.env.NODE_ENV === 'production';
 
+  // Create a Supabase client configured to use cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,32 +16,28 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // The cookie methods on the response object are used to set cookies.
           res.cookies.set({
             name,
             value,
             ...options,
-            path: '/',
-            // This is crucial for ensuring cookies work in development.
-            secure: isProd,
+            path: '/', // Crucial for cookie visibility across the app
+            secure: isProd, // Use secure cookies in production
           });
         },
         remove(name: string, options: CookieOptions) {
-          // The cookie methods on the response object are used to remove cookies.
-          // Setting an empty value and maxAge to -1 is a common way to delete a cookie.
           res.cookies.set({
             name,
             value: '',
             ...options,
             path: '/',
-            maxAge: -1,
+            maxAge: -1, // A common way to delete a cookie
           });
         },
       },
     }
   );
 
-  // This will refresh the session if it's expired. If it is, new cookies will be set on the response.
+  // Refresh session if expired - this will set new cookies on the response.
   const { data: { session } } = await supabase.auth.getSession();
 
   const { pathname } = req.nextUrl;
