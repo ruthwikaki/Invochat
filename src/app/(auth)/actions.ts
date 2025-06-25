@@ -1,4 +1,3 @@
-
 'use server';
 
 import { z } from 'zod';
@@ -16,7 +15,7 @@ export async function login(formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
 
   if (!parsed.success) {
-    redirect('/login?error=Invalid email or password format.');
+    redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
   }
 
   const { email, password } = parsed.data;
@@ -41,7 +40,14 @@ export async function login(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(msg)}`);
   }
 
+  const { access_token, refresh_token } = data.session;
+
+  // Re-set the session explicitly to ensure cookie is stored
+  await supabase.auth.setSession({ access_token, refresh_token });
+
   const companyId = data.user.app_metadata?.company_id;
+
+  // Redirect based on setup completion
   if (!companyId) {
     redirect('/setup-incomplete');
   }
