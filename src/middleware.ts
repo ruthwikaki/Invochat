@@ -3,18 +3,35 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  // Create a single response object up front that we can mutate.
   const res = NextResponse.next();
+  const isProd = process.env.NODE_ENV === 'production';
 
-  // Create a Supabase client that can read and write cookies to the response.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get: (name) => req.cookies.get(name)?.value,
-        set: (name, value, options) => res.cookies.set({ name, value, ...options }),
-        remove: (name, options) => res.cookies.set({ name, value: '', ...options }),
+        set: (name, value, options) => {
+          res.cookies.set({
+            name,
+            value,
+            ...options,
+            path: '/',
+            secure: isProd,
+            // NOTE: Use your own domain in production. Using 'localhost' for development.
+            domain: isProd ? undefined : 'localhost', 
+          });
+        },
+        remove: (name, options) => {
+          res.cookies.set({
+            name,
+            value: '',
+            ...options,
+            path: '/',
+            maxAge: 0,
+          });
+        },
       },
     }
   );
