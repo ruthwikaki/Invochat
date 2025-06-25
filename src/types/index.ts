@@ -41,7 +41,7 @@ export type AssistantMessagePayload = {
   id: string;
   role: 'assistant';
   content?: string;
-  component?: 'DataTable' | 'DynamicChart';
+  component?: 'DataTable' | 'DynamicChart' | 'DeadStockTable' | 'SupplierPerformanceTable' | 'ReorderList';
   props?: any;
 };
 

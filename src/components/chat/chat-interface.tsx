@@ -81,12 +81,28 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     };
     setMessages((prev) => [...prev, userMessage]);
 
+    // Create conversation history for context
+    const conversationHistory = messages
+      .filter(m => m.role !== 'system')
+      .slice(-10) // Last 10 messages for context
+      .map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: typeof m.content === 'string' ? m.content : 'A visual element was displayed.'
+      }));
+
     startTransition(async () => {
       try {
-        const response = await handleUserMessage({ message: messageText });
+        const response = await handleUserMessage({ 
+          message: messageText,
+          conversationHistory 
+        });
         processResponse(response);
       } catch (e) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not get response from assistant.'})
+        toast({ 
+          variant: 'destructive', 
+          title: 'Error', 
+          description: 'Could not get response from InvoChat.'
+        });
       }
     });
   };

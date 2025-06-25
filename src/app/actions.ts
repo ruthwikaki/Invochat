@@ -1,26 +1,20 @@
 'use server';
 
-import { universalChatFlow } from '@/ai/flows/universal-query';
-import type { AssistantMessagePayload } from '@/types';
+import { universalChatFlow } from '@/ai/flows/universal-chat';
+import type { AssistantMessagePayload, Message } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
 
-const actionResponseSchema = z.object({
-  id: z.string(),
-  role: z.literal('assistant'),
-  content: z.string().optional(),
-  component: z.enum(['DataTable', 'DynamicChart']).optional(),
-  props: z.any().optional(),
-}) satisfies z.ZodType<AssistantMessagePayload>;
-
-
 const UserMessagePayloadSchema = z.object({
   message: z.string(),
+  conversationHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string()
+  })).optional()
 });
 
 type UserMessagePayload = z.infer<typeof UserMessagePayloadSchema>;
-
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
     const cookieStore = cookies();
@@ -70,19 +64,15 @@ function inferChartConfig(data: any[]): any {
 export async function handleUserMessage(
   payload: UserMessagePayload
 ): Promise<AssistantMessagePayload> {
-  const { message } = UserMessagePayloadSchema.parse(payload);
+  const { message, conversationHistory = [] } = UserMessagePayloadSchema.parse(payload);
   
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
-    // You'll need to implement passing conversation history from the client
-    const conversationHistory: any[] = []; 
-    
-    // Let the AI handle everything
     const flowResult = await universalChatFlow({
       message,
       companyId,
-      conversationHistory
+      conversationHistory: conversationHistory.map(m => ({ role: m.role, content: m.content })) as any,
     });
     
     const content = flowResult.response;
@@ -94,7 +84,7 @@ export async function handleUserMessage(
         case 'bar':
         case 'pie':
         case 'line':
-          return actionResponseSchema.parse({
+          return {
             id: Date.now().toString(),
             role: 'assistant',
             content: content,
@@ -105,15 +95,17 @@ export async function handleUserMessage(
               data: data,
               config: inferChartConfig(data)
             }
-          });
+          };
         case 'table':
-          return actionResponseSchema.parse({
+           // Use a generic DataTable component since we now have a universal query system.
+           // The old specific components are no longer needed for AI responses.
+          return {
             id: Date.now().toString(),
             role: 'assistant',
             content: content,
             component: 'DataTable',
             props: { data: data }
-          });
+          };
         default:
           // Fallthrough for 'none'
           break;
@@ -121,11 +113,11 @@ export async function handleUserMessage(
     }
     
     // Default case: just return the text response
-    return actionResponseSchema.parse({
+    return {
       id: Date.now().toString(),
       role: 'assistant',
       content: content
-    });
+    };
     
   } catch (error: any) {
     console.error('Chat error:', error);
@@ -133,10 +125,10 @@ export async function handleUserMessage(
     if (error.message?.includes('API key not valid')) {
         errorMessage = 'It looks like your Google AI API key is invalid. Please make sure the `GOOGLE_API_KEY` in your `.env` file is correct and try again.'
     }
-    return actionResponseSchema.parse({
+    return {
       id: Date.now().toString(),
       role: 'assistant',
       content: errorMessage,
-    });
+    };
   }
 }

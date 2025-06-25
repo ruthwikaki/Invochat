@@ -1,4 +1,4 @@
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/universal-query.ts';
+import '@/ai/flows/universal-chat.ts';
