@@ -1,19 +1,13 @@
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // The `get` method is used by the Supabase client to read cookies.
-  // The `set` and `remove` methods are used to write cookies to the browser.
-  // The `response` object is used to send the cookies back to the browser.
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
-  // Create a Supabase client that can read and write cookies.
-  // This is used to refresh the session cookie and handle authentication.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -23,20 +17,49 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          response.cookies.set({ name, value, ...options })
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
         },
         remove(name: string, options: CookieOptions) {
-          response.cookies.set({ name, value: '', ...options })
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
         },
       },
     }
   )
 
-  // This call will refresh the session if it's expired.
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
-  
+
   const authRoutes = ['/login', '/signup']
   const isAuthRoute = authRoutes.includes(pathname)
 
@@ -44,25 +67,25 @@ export async function middleware(request: NextRequest) {
   // unless they are trying to access an auth page or a public/diagnostic page.
   if (!user && !isAuthRoute) {
     if (pathname === '/quick-test') {
-        return response;
+      return response
     }
     return NextResponse.redirect(new URL('/login', request.url))
   }
-  
+
   // If user is logged in, handle redirects and setup checks.
   if (user) {
     // If they are on an auth route, they shouldn't be. Redirect to dashboard.
     if (isAuthRoute) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
-    
+
     // Redirect from the root path to the dashboard.
     if (pathname === '/') {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
-    const companyId = user.app_metadata?.company_id;
-    const isSetupIncompleteRoute = pathname === '/setup-incomplete';
+    const companyId = user.app_metadata?.company_id
+    const isSetupIncompleteRoute = pathname === '/setup-incomplete'
 
     // If setup is incomplete (no companyId), redirect to the setup page.
     if (!companyId && !isSetupIncompleteRoute) {
@@ -70,7 +93,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/setup-incomplete', request.url))
       }
     }
-    
+
     // If setup IS complete, but they somehow land on the setup page, redirect them away.
     if (companyId && isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
@@ -94,4 +117,4 @@ export const config = {
      */
     '/((?!_next/static|_next/image|favicon.ico|api|_vercel|public).*)',
   ],
-};
+}

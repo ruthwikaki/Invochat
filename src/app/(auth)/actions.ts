@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -20,9 +20,6 @@ export async function login(formData: FormData) {
   const { email, password } = parsed.data;
   const cookieStore = cookies();
 
-  // Note: This client is created with a read-only cookie store from `cookies()`.
-  // It can be used to *start* the sign-in process, but the cookie itself
-  // will be set by the middleware on the subsequent request after the redirect.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -30,12 +27,10 @@ export async function login(formData: FormData) {
       cookies: {
         get: (name) => cookieStore.get(name)?.value,
         set: (name, value, options) => {
-          // This is a no-op in a server action.
-          // The cookie is set by the middleware.
+          cookieStore.set({ name, value, ...options });
         },
         remove: (name, options) => {
-          // This is a no-op in a server action.
-          // The cookie is removed by the middleware.
+          cookieStore.set({ name, value: '', ...options });
         },
       },
     }
@@ -77,15 +72,19 @@ export async function signup(prevState: any, formData: FormData) {
     }
 
     const { email, password, companyName } = parsed.data;
-
+    const cookieStore = cookies();
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
           cookies: {
-            get: (name) => cookies().get(name)?.value,
-            set: () => {},
-            remove: () => {},
+            get: (name) => cookieStore.get(name)?.value,
+            set: (name, value, options) => {
+                cookieStore.set({ name, value, ...options });
+            },
+            remove: (name, options) => {
+                cookieStore.set({ name, value: '', ...options });
+            },
           },
         }
     );
