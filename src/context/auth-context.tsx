@@ -30,14 +30,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user as User ?? null);
+      setLoading(false);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUser(session?.user as User ?? null);
-        setLoading(false);
-        // On sign-in or sign-out, refresh the page to ensure server components
-        // and middleware have the latest session.
         if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-            router.refresh();
+          router.refresh();
         }
       }
     );

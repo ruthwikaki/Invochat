@@ -2,17 +2,15 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// The middleware is responsible for refreshing the session cookie and redirecting
-// users based on their authentication state.
 export async function middleware(req: NextRequest) {
-  // We need to create a response object to be able to set the cookie.
+  // Create a response object that we'll potentially modify
   let res = NextResponse.next({
     request: {
       headers: req.headers,
     },
   });
 
-  // Create a Supabase client that can read and write cookies.
+  // Create a Supabase client configured to use cookies
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -22,49 +20,36 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is set, update the request's cookies.
+          // Set the cookie on both request and response
           req.cookies.set({ name, value, ...options });
-          // And update the response's cookies.
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
           res.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the request's cookies.
+          // Remove the cookie from both request and response
           req.cookies.set({ name, value: '', ...options });
-          // And update the response's cookies.
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
           res.cookies.set({ name, value: '', ...options });
         },
       },
     }
   );
 
-  // Refresh session if expired - important for Server Components
-  // https://supabase.com/docs/guides/auth/auth-helpers/nextjs#managing-session-with-middleware
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // IMPORTANT: Refresh the session to ensure it's valid
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  // Get the user from the session if it exists
+  const user = session?.user;
 
   const { pathname } = req.nextUrl;
-
   const authRoutes = ['/login', '/signup'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
-  // Handle the root path explicitly.
+  // Handle the root path
   if (pathname === '/') {
     return NextResponse.redirect(new URL(user ? '/dashboard' : '/login', req.url));
   }
 
-  // If user is not logged in, protect routes.
+  // If user is not logged in, protect routes
   if (!user) {
     if (!isAuthRoute && !isSetupIncompleteRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
@@ -72,7 +57,7 @@ export async function middleware(req: NextRequest) {
     return res;
   }
   
-  // If user is logged in, handle redirects for auth and setup pages.
+  // If user is logged in, handle redirects
   const companyId = user.app_metadata?.company_id;
 
   if (isAuthRoute) {
