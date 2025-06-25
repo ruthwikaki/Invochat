@@ -1,57 +1,82 @@
 'use server';
 
+/**
+ * @fileOverview Universal Chat flow with RAG capabilities using a dynamic SQL tool.
+ * This flow allows the AI to generate and execute SQL queries to answer a wide
+ * range of questions about inventory, sales, and suppliers.
+ */
+
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
-// SQL execution tool
+/**
+ * Defines a Genkit Tool that allows the AI to execute SQL SELECT queries.
+ * This is the core of the RAG implementation for the database.
+ * The tool securely injects the company_id to prevent data leakage.
+ */
 const executeSQLTool = ai.defineTool({
   name: 'executeSQL',
-  description: `Execute SQL SELECT queries on the inventory database.
-    Available tables and columns:
-    - inventory: id, company_id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date
-    - vendors: id, company_id, vendor_name, contact_info, address, terms, account_number
-    - companies: id, name
-    
-    IMPORTANT: Always include WHERE company_id = '{companyId}' in your queries for security.`,
-  inputSchema: z.object({ 
-    query: z.string().describe('The SQL SELECT query to execute'),
-    companyId: z.string().describe('The company ID to filter by')
+  description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
+    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.`,
+  inputSchema: z.object({
+    query: z.string().describe("The SQL SELECT query to execute. It MUST start with 'SELECT'."),
   }),
   outputSchema: z.array(z.any()),
-}, async ({ query, companyId }) => {
-  try {
-    // Ensure the query includes the company_id filter
-    if (!query.toLowerCase().includes('where')) {
-      query = query + ` WHERE company_id = '${companyId}'`;
-    } else if (!query.includes(companyId)) {
-      query = query.replace(/where/i, `WHERE company_id = '${companyId}' AND`);
-    }
-    
-    console.log('[SQL Tool] Executing:', query);
-    
-    const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
-      query_text: query
-    });
-    
-    if (error) {
-      console.error('[SQL Tool] RPC error:', error);
-      throw error;
-    }
-    
-    // Check if the result contains an error
-    if (data && typeof data === 'object' && 'error' in data) {
-      console.error('[SQL Tool] Query error:', data.error);
-      return [];
-    }
-    
-    console.log('[SQL Tool] Result:', data);
-    return data || [];
-  } catch (error) {
-    console.error('[SQL Tool] Execution error:', error);
-    return [];
+}, async ({ query }, flow) => {
+  // Security check on the server side.
+  if (!query.trim().toLowerCase().startsWith('select')) {
+      throw new Error('For security reasons, only SELECT queries are allowed.');
   }
+
+  // Get the companyId from the flow's state. This is more secure than passing it in the tool input.
+  const { companyId } = flow.state;
+  if (!companyId) {
+      throw new Error("Could not determine company ID for the query.");
+  }
+  
+  // Securely inject the company_id filter into the query.
+  // This prevents the AI from forgetting or manipulating the WHERE clause.
+  let secureQuery = query;
+  const fromRegex = /\bFROM\b\s+([\w."]+)/i;
+  const match = query.match(fromRegex);
+
+  if (match) {
+    const tableName = match[1];
+    const whereClause = `WHERE ${tableName}.company_id = '${companyId}'`;
+
+    if (query.toLowerCase().includes(' where ')) {
+      secureQuery = query.replace(/ where /i, ` ${whereClause} AND `);
+    } else {
+      const groupByIndex = query.toLowerCase().indexOf(' group by ');
+      if (groupByIndex > -1) {
+        secureQuery = `${query.slice(0, groupByIndex)} ${whereClause} ${query.slice(groupByIndex)}`;
+      } else {
+        secureQuery = `${query} ${whereClause}`;
+      }
+    }
+  } else {
+    // Fallback for simple queries, though less common.
+    if (!query.toLowerCase().includes('company_id')) {
+        throw new Error("Query does not specify a table with 'FROM' and cannot be secured.");
+    }
+  }
+
+
+  console.log('[SQL Tool] Executing Secure Query:', secureQuery);
+
+  const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
+      query_text: secureQuery
+  });
+
+  if (error) {
+    console.error('SQL execution error:', error);
+    // Provide a more user-friendly error message to the LLM.
+    return [{ error: `Query failed: ${error.message}` }];
+  }
+  return data || [];
 });
+
 
 const UniversalChatInputSchema = z.object({
   message: z.string(),
@@ -65,18 +90,21 @@ export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
 
 
 const UniversalChatOutputSchema = z.object({
-  response: z.string().describe("Natural language response to the user"),
-  data: z.array(z.any()).optional().describe("Data for visualization if needed"),
+  response: z.string().describe("The natural language response to the user."),
+  data: z.array(z.any()).optional().nullable().describe("The raw data retrieved from the database, if any, for visualizations."),
   visualization: z.object({
     type: z.enum(['table', 'bar', 'pie', 'line', 'none']),
     title: z.string().optional(),
     config: z.any().optional()
-  }).optional()
+  }).optional().describe("A suggested visualization for the data.")
 });
 export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
 
 
-// Create the flow without using definePrompt (which is causing the error)
+/**
+ * The main flow for handling universal chat requests.
+ * It uses ai.generate() for a more direct and robust way of interacting with the model.
+ */
 export const universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
   inputSchema: UniversalChatInputSchema,
@@ -85,102 +113,72 @@ export const universalChatFlow = ai.defineFlow({
   const { message, companyId, conversationHistory = [] } = input;
   
   console.log('[UniversalChat] Starting flow with input:', input);
-  
+
   try {
-    // Direct AI generation with tools
+    const history = conversationHistory.map(msg => ({
+      role: msg.role,
+      content: [{text: msg.content}]
+    }));
+
     const { output } = await ai.generate({
-      model: 'gemini-2.0-flash', // Specify the model
+      model: 'gemini-2.0-flash',
       tools: [executeSQLTool],
-      prompt: `You are InvoChat, an intelligent inventory assistant. You help users understand their inventory data through natural conversation.
+      history: history,
+      prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
 
-User's message: ${message}
-Company ID for queries: ${companyId}
+      **Database Schema You Can Query:**
+      - inventory: id, company_id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date
+      - vendors: id, company_id, vendor_name, contact_info, address, terms, account_number
+      - sales: id, company_id, sale_date, customer_name, total_amount, items
+      - purchase_orders: id, company_id, po_number, vendor, item, quantity, cost, order_date
 
-${conversationHistory.length > 0 ? `Previous conversation:
-${conversationHistory.map(msg => `${msg.role}: ${msg.content}`).join('\n')}` : ''}
+      **Business Logic & Concepts:**
+      - Dead Stock: Items not sold in over 90 days (use 'last_sold_date').
+      - Low Stock: Items where 'quantity' is less than or equal to 'reorder_point'.
+      - Profit Margin: Calculate as '((price - cost) / price)'.
+      - Inventory Turnover: A measure of how many times inventory is sold over a period. Can be complex, but you can query for Cost of Goods Sold (COGS) and average inventory value.
 
-Instructions:
-1. When users ask about inventory data, use the executeSQL tool to query the database
-2. Always pass companyId: "${companyId}" when calling executeSQL
-3. NEVER show SQL queries or technical details to the user
-4. Provide insights and summaries, not just raw data
-5. For inventory breakdown by category, use: SELECT category, COUNT(*) as count, SUM(quantity * cost) as value FROM inventory GROUP BY category
-6. Suggest appropriate visualizations:
-   - Use 'bar' for comparisons (like inventory by category)
-   - Use 'pie' for distributions
-   - Use 'table' for detailed lists
-7. Be conversational and helpful
+      **Your Goal:** Help the user understand their inventory data and make better decisions.
 
-Remember: You're an intelligent assistant. When asked for charts or data, ACTUALLY query the database and return the data.
+      **Core Instructions:**
+      1.  **Analyze and Query:** Understand the user's message. If it requires data, formulate and execute the appropriate SQL query using the \`executeSQL\` tool. You can use JOINs, CTEs, and window functions.
+      2.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one. Get the data and use it to answer the question conversationally.
+      3.  **Provide Insights First:** Don't just dump data. Summarize your findings. For example, instead of just showing a table of 12 dead stock items, say "I found 12 items that haven't sold in over 90 days, with a total value of $X. The biggest concern is item Y."
+      4.  **Offer Details & Visualizations:** After summarizing, offer to show the full data and suggest a relevant visualization type ('table', 'bar', 'pie', 'line').
+      5.  **Be Proactive:** Suggest logical next steps. If items are low, suggest reordering. If stock is dead, suggest a sale.
+      
+      **Current User Message:** "${message}"
 
-Return your response in this JSON format:
-{
-  "response": "Your natural language response",
-  "data": [array of data if applicable],
-  "visualization": {
-    "type": "bar|pie|line|table|none",
-    "title": "Chart title if applicable",
-    "config": {}
-  }
-}`,
+      Based on the user's message and the conversation history, decide if you need data. If so, use the \`executeSQL\` tool. Then, formulate your response and suggest a visualization if appropriate, all within a single JSON output.`,
       output: {
         schema: UniversalChatOutputSchema
-      }
+      },
+      // Pass companyId to the flow's state, accessible by tools.
+      state: { companyId },
     });
     
     console.log('[UniversalChat] AI output:', output);
-    
-    // The AI might return a string that needs to be parsed as JSON, but the schema should handle it.
-    let result = output;
-    
-    // Ensure data is always an array
-    if (!result.data || !Array.isArray(result.data)) {
-      result.data = [];
+
+    if (!output) {
+      throw new Error("The model did not return a valid response.");
     }
     
-    return result;
+    // Ensure data is always an array to prevent client-side errors.
+    if (output.data === null || output.data === undefined) {
+      output.data = [];
+    }
+    
+    return output;
     
   } catch (error: any) {
     console.error('[UniversalChat] Error in flow:', error);
     console.error('[UniversalChat] Error stack:', error.stack);
     
-    // Fallback: Handle specific requests manually
-    if (message.toLowerCase().includes('inventory') && message.toLowerCase().includes('chart')) {
-      console.log('[UniversalChat] Fallback: Handling chart request manually');
-      
-      try {
-        // Directly query the database
-        const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
-          query_text: `SELECT category, COUNT(*) as count, SUM(quantity * cost) as value FROM inventory WHERE company_id = '${companyId}' GROUP BY category`
-        });
-        
-        console.log('[UniversalChat] Fallback query result:', { data, error });
-        
-        if (error) throw error;
-        
-        const chartData = data ? data.map((item: any) => ({
-          name: item.category || 'Uncategorized',
-          value: Math.round(Number(item.value || 0)),
-          count: item.count || 0
-        })) : [];
-        
-        return {
-          response: `I've analyzed your inventory by category. ${chartData.length > 0 ? `You have ${chartData.length} different categories. The total inventory value is distributed across these categories.` : 'No inventory data found for your company.'}`,
-          data: chartData,
-          visualization: {
-            type: 'bar' as const,
-            title: 'Inventory Value by Category',
-            config: {
-              dataKey: 'value',
-              nameKey: 'name'
-            }
-          }
-        };
-      } catch (fallbackError) {
-        console.error('[UniversalChat] Fallback error:', fallbackError);
-      }
-    }
-    
-    throw error;
+    // Provide a generic but helpful error message back to the user.
+    return {
+        response: "I'm sorry, but I encountered an issue while processing your request. It might be a temporary problem with the AI service. Please try again in a moment.",
+        data: [],
+        visualization: { type: 'none' }
+    };
   }
 });
