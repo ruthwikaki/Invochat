@@ -1,7 +1,7 @@
 
 'use server';
 
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
@@ -16,7 +16,18 @@ import type { User } from '@/types';
 // This function provides a robust way to get the company ID for the current user.
 // It relies on the middleware to ensure that the user session is valid and contains a company ID.
 async function getCompanyIdForCurrentUser(): Promise<string> {
-    const supabase = createServerActionClient({ cookies });
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+        },
+      }
+    );
     const { data: { user } } = await supabase.auth.getUser();
 
     // The middleware should prevent this function from being called by a user
@@ -73,12 +84,23 @@ export async function testSupabaseConnection(): Promise<{
     }
     
     try {
-        const supabase = createServerActionClient({ cookies });
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    get(name: string) {
+                        return cookieStore.get(name)?.value;
+                    },
+                },
+            }
+        );
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
-            // AuthSessionMissingError is not a "real" error in this context, it just means no one is logged in.
-            if (error.name === 'AuthSessionMissingError') {
+            // AuthError is not a "real" error in this context, it just means no one is logged in.
+            if (error.name === 'AuthError') {
                  return { success: true, error: null, user: null, isConfigured };
             }
             return { success: false, error: { message: error.message, details: error }, user: null, isConfigured };

@@ -2,11 +2,11 @@
 'use server';
 
 import { z } from 'zod';
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import crypto from 'crypto';
 import { revalidatePath } from 'next/cache';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -20,7 +20,24 @@ export async function login(formData: FormData) {
   }
 
   const { email, password } = parsed.data;
-  const supabase = createServerActionClient({ cookies });
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -58,8 +75,24 @@ export async function signup(formData: FormData) {
     }
 
     const { email, password, companyName } = parsed.data;
-    
-    const supabase = createServerActionClient({ cookies });
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            cookieStore.set({ name, value, ...options })
+          },
+          remove(name: string, options: CookieOptions) {
+            cookieStore.set({ name, value: '', ...options })
+          },
+        },
+      }
+    );
 
     const { data, error } = await supabase.auth.signUp({
         email,
