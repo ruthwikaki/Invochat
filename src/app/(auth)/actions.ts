@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -32,6 +33,8 @@ export async function login(prevState: any, formData: FormData) {
     return { error: error.message };
   }
   
+  // Revalidate the entire app to ensure layout reflects the new auth state
+  revalidatePath('/', 'layout');
   return redirect('/dashboard');
 }
 
@@ -76,6 +79,7 @@ export async function signup(prevState: any, formData: FormData) {
         if (data.user.identities && data.user.identities.length === 0) {
             return { error: "An error occurred, but the user was not created. Please try again." }
         }
+        revalidatePath('/');
         return { success: true };
     }
     
