@@ -67,62 +67,81 @@ export const universalChatFlow = ai.defineFlow({
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
+    console.log('[UniversalChat] Starting flow with input:', input);
+    
     const { message, companyId, conversationHistory = [] } = input;
 
-    // Create the prompt with the tools
-    const prompt = ai.definePrompt({
-        name: 'universalChatPrompt',
-        input: { 
-            schema: z.object({
-                message: z.string(),
-                companyId: z.string(),
-                history: z.string()
-            }) 
-        },
-        output: { schema: UniversalChatOutputSchema },
-        tools: [executeSQLTool],
-        prompt: `You are InvoChat, an intelligent inventory assistant. You help users understand their inventory data through natural conversation.
-
-        Current conversation:
-        {{{history}}}
-
-        User's message: {{{message}}}
-
-        Instructions:
-        1. When users ask about inventory data, use the executeSQL tool to query the database.
-        2. Security is paramount: Every SQL query you write **MUST** include a \`WHERE company_id = '{{{companyId}}}'\` clause. This is a non-negotiable security requirement.
-        3. NEVER show SQL queries or technical details to the user.
-        4. Provide insights and summaries, not just raw data.
-        5. For inventory breakdown by category, query: SELECT category, COUNT(*) as count, SUM(quantity * cost) as value FROM inventory WHERE company_id = '{{{companyId}}}' GROUP BY category
-        6. Suggest appropriate visualizations:
-           - Use 'bar' for comparisons (like inventory by category)
-           - Use 'pie' for distributions
-           - Use 'table' for detailed lists
-        7. Be conversational and helpful.
-
-        Remember: You're an intelligent assistant. When asked for charts or data, ACTUALLY query the database and return the data.`
-    });
-
-    // Format conversation history
-    const historyText = conversationHistory
-        .map(msg => `${msg.role}: ${msg.content}`)
-        .join('\n');
-
-    // Execute the prompt
-    const { output } = await prompt({
-        message,
-        companyId,
-        history: historyText
-    });
-
-    if (!output) {
-        throw new Error('Failed to generate response');
+    // Verify we have required data
+    if (!companyId) {
+      throw new Error('Company ID is required but was not provided');
     }
-    
-    // Ensure data is always an array
-    if (output.data === null || output.data === undefined) {
-        output.data = [];
+
+    if (!ai) {
+      throw new Error('AI instance is not initialized');
     }
-    
-    return output;
+
+    try {
+      // Create the prompt with the tools
+      const prompt = ai.definePrompt({
+          name: 'universalChatPrompt',
+          input: { 
+              schema: z.object({
+                  message: z.string(),
+                  companyId: z.string(),
+                  history: z.string()
+              }) 
+          },
+          output: { schema: UniversalChatOutputSchema },
+          tools: [executeSQLTool],
+          prompt: `You are InvoChat, an intelligent inventory assistant. You help users understand their inventory data through natural conversation.
+
+          Current conversation:
+          {{{history}}}
+
+          User's message: {{{message}}}
+          Company ID: {{{companyId}}}
+
+          Instructions:
+          1. When users ask about inventory value, use the executeSQL tool to query: SELECT SUM(quantity * cost) as total_value FROM inventory WHERE company_id = '{{{companyId}}}'
+          2. Security is paramount: Every SQL query you write **MUST** include a WHERE company_id = '{{{companyId}}}' clause.
+          3. NEVER show SQL queries or technical details to the user.
+          4. Provide insights and summaries, not just raw data.
+          5. Be conversational and helpful.
+
+          Remember: You're an intelligent assistant. When asked about inventory data, ACTUALLY query the database and return helpful insights.`
+      });
+
+      console.log('[UniversalChat] Prompt created successfully');
+
+      // Format conversation history
+      const historyText = conversationHistory
+          .map(msg => `${msg.role}: ${msg.content}`)
+          .join('\n');
+
+      console.log('[UniversalChat] Executing prompt...');
+
+      // Execute the prompt
+      const { output } = await prompt({
+          message,
+          companyId,
+          history: historyText
+      });
+
+      console.log('[UniversalChat] Prompt output:', output);
+
+      if (!output) {
+          throw new Error('Failed to generate response - output was null');
+      }
+      
+      // Ensure data is always an array
+      if (output.data === null || output.data === undefined) {
+          output.data = [];
+      }
+      
+      return output;
+    } catch (error: any) {
+      console.error('[UniversalChat] Error in flow:', error);
+      console.error('[UniversalChat] Error stack:', error.stack);
+      throw error;
+    }
 });
