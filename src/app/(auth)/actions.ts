@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -5,6 +6,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import crypto from 'crypto';
+import { revalidatePath } from 'next/cache';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -36,22 +38,20 @@ export async function login(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.session) {
-    const msg = error?.message || 'Login failed: Please check your credentials.';
+    const msg = error?.message || 'Login failed. Check credentials or confirm your email.';
     redirect(`/login?error=${encodeURIComponent(msg)}`);
   }
 
   const { access_token, refresh_token } = data.session;
-
-  // Re-set the session explicitly to ensure cookie is stored
   await supabase.auth.setSession({ access_token, refresh_token });
 
-  const companyId = data.user.app_metadata?.company_id;
-
-  // Redirect based on setup completion
+  const companyId = data.user.app_metadata?.company_id || data.user.user_metadata?.company_id;
   if (!companyId) {
+    revalidatePath('/setup-incomplete');
     redirect('/setup-incomplete');
   }
 
+  revalidatePath('/dashboard');
   redirect('/dashboard');
 }
 
