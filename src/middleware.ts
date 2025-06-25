@@ -1,122 +1,70 @@
 
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse, type NextRequest }      from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+export async function middleware(req: NextRequest) {
+  // 1) create a single response up front
+  const res = NextResponse.next()
 
+  // 2) wire up your cookie helpers to that response
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-        },
+        get:    (name: string)             => req.cookies.get(name)?.value,
+        set:    (name: string, value: string, opts: CookieOptions) => res.cookies.set(name, value, opts),
+        remove: (name: string, opts: CookieOptions)        => res.cookies.delete(name, opts),
       },
     }
   )
 
-  // This will refresh the session if it's expired
+  // 3) this reads *and* refreshes your session, writing new cookies as needed
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    data: { session },
+  } = await supabase.auth.getSession()
 
-  const { pathname } = request.nextUrl
-  const authRoutes = ['/login', '/signup']
+  const { pathname } = req.nextUrl
+  const authRoutes   = ['/login', '/signup']
   const publicRoutes = ['/quick-test']
 
-  const isAuthRoute = authRoutes.includes(pathname)
+  const isAuthRoute   = authRoutes.includes(pathname)
   const isPublicRoute = publicRoutes.includes(pathname)
 
-  // If user is not logged in, redirect them to the login page,
-  // unless they are trying to access an auth page or a public/diagnostic page.
-  if (!user && !isAuthRoute && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  if (!session && !isAuthRoute && !isPublicRoute) {
+    return NextResponse.redirect(new URL('/login', req.url))
   }
-
-  // If user is logged in, handle redirects and setup checks.
-  if (user) {
-    // If they are on an auth route, they shouldn't be. Redirect to dashboard.
+  
+  if (session) {
     if (isAuthRoute) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL('/dashboard', req.url))
     }
-
-    // Redirect from the root path to the dashboard.
     if (pathname === '/') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+        return NextResponse.redirect(new URL('/dashboard', req.url))
     }
-
-    const companyId = user.app_metadata?.company_id
+    
+    const companyId = session.user.app_metadata?.company_id
     const isSetupIncompleteRoute = pathname === '/setup-incomplete'
 
     // If setup is incomplete (no companyId), redirect to the setup page.
     if (!companyId && !isSetupIncompleteRoute) {
       // Allow access to test pages even if setup is incomplete
       if (pathname !== '/test-supabase' && pathname !== '/quick-test') {
-        return NextResponse.redirect(new URL('/setup-incomplete', request.url))
+        return NextResponse.redirect(new URL('/setup-incomplete', req.url))
       }
     }
 
     // If setup IS complete, but they somehow land on the setup page, redirect them away.
     if (companyId && isSetupIncompleteRoute) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL('/dashboard', req.url))
     }
   }
 
-  // Return the response object, which may have new cookies set.
-  return response
+
+  // 4) return the one response you mutated
+  return res
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - api (API routes)
-     * - _vercel (Vercel specific files)
-     * - public (public files)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|api|_vercel|public).*)',
-  ],
+  matcher: [ '/((?!_next/static|_next/image|favicon.ico|api|_vercel|public).*)' ],
 }
