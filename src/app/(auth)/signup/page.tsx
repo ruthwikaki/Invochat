@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -14,41 +14,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
+import { signup } from '@/app/(auth)/actions';
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? 'Creating account...' : 'Sign up'}
+    </Button>
+  );
+}
+
 
 export default function SignupPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const { signUpWithEmail } = useAuth();
-  
-  // This is the definitive, robust sign-up handler.
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
+  const [state, formAction] = useFormState(signup, undefined);
 
-    const { data, error: signUpError } = await signUpWithEmail(email, password, companyName);
-    
-    setLoading(false);
-    if (signUpError) {
-      setError(signUpError.message);
-    } else if (data.user) {
-      // On success, don't redirect. Show a success message.
-      // This prevents race conditions and gives the database trigger time to run.
-      // It also accounts for email verification if it's enabled.
-      setIsSubmitted(true);
-    } else {
-      setError('An unexpected error occurred during sign up.');
-    }
-  };
-
-  if (isSubmitted) {
+  if (state?.success) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
@@ -89,52 +72,44 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="grid gap-4">
+          <form action={formAction} className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="company">Company Name</Label>
+              <Label htmlFor="companyName">Company Name</Label>
               <Input
-                id="company"
+                id="companyName"
+                name="companyName"
                 type="text"
                 placeholder="Your Company Inc."
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
                 required
-                disabled={loading}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                disabled={loading}
               />
             </div>
-            {error && (
+            {state?.error && (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{state.error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Sign up'}
-            </Button>
+            <SubmitButton />
           </form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
@@ -147,3 +122,4 @@ export default function SignupPage() {
     </div>
   );
 }
+

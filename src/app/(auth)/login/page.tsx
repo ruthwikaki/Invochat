@@ -1,42 +1,28 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/context/auth-context';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useRouter } from 'next/navigation';
+import { login } from '@/app/(auth)/actions';
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" disabled={pending} className="w-full bg-primary hover:bg-primary/90">
+      {pending ? 'Signing in...' : 'Sign In'}
+    </Button>
+  );
+}
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const { signInWithEmail } = useAuth();
-  const router = useRouter();
-
-  // This is the definitive, robust sign-in handler.
-  const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const { error: signInError } = await signInWithEmail({ email, password });
-    
-    if (signInError) {
-      setError(signInError.message || 'An unexpected error occurred.');
-      setLoading(false);
-    } else {
-      // On success, explicitly push to the dashboard.
-      // This is more reliable than router.refresh() for this purpose.
-      router.push('/dashboard');
-    }
-  };
+  const [state, formAction] = useFormState(login, undefined);
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
@@ -50,10 +36,10 @@ export default function LoginPage() {
           <CardDescription>Sign in to access your inventory assistant.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignIn} className="space-y-4">
-            {error && (
+          <form action={formAction} className="space-y-4">
+            {state?.error && (
                <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{state.error}</AlertDescription>
               </Alert>
             )}
             <div className="space-y-1">
@@ -64,9 +50,6 @@ export default function LoginPage() {
                 type="email"
                 placeholder="m@example.com"
                 required
-                disabled={loading}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-1">
@@ -76,14 +59,9 @@ export default function LoginPage() {
                 name="password"
                 type="password"
                 required
-                disabled={loading}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            <Button type="submit" disabled={loading} className="w-full bg-primary hover:bg-primary/90">
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
+            <SubmitButton />
           </form>
            <div className="mt-4 text-center text-sm">
             Don&apos;t have an account?{' '}
