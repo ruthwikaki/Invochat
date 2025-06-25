@@ -1,6 +1,9 @@
 
 'use client';
 
+import { useFormState, useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,7 +20,25 @@ import { ArvoLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 
-export default function SignupPage({ searchParams }: { searchParams?: { error?: string, success?: string } }) {
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? 'Signing up...' : 'Sign up'}
+    </Button>
+  );
+}
+
+
+export default function SignupPage({ searchParams }: { searchParams?: { success?: string } }) {
+  const router = useRouter();
+  const [state, formAction] = useFormState(signup, null);
+
+  useEffect(() => {
+    if (state?.redirect) {
+      router.push(state.redirect);
+    }
+  }, [state, router]);
 
   if (searchParams?.success) {
     return (
@@ -60,7 +81,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { error?: 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={signup} className="grid gap-4">
+          <form action={formAction} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="companyName">Company Name</Label>
               <Input
@@ -92,14 +113,12 @@ export default function SignupPage({ searchParams }: { searchParams?: { error?: 
                 minLength={6}
               />
             </div>
-            {searchParams?.error && (
+            {state?.error && (
               <Alert variant="destructive">
-                <AlertDescription>{searchParams.error}</AlertDescription>
+                <AlertDescription>{state.error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full">
-              Sign up
-            </Button>
+            <SubmitButton />
           </form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}

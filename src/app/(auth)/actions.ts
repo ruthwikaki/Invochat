@@ -11,18 +11,14 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
-export async function login(formData: FormData) {
+export async function login(prevState: any, formData: FormData) {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:9003';
 
   if (!parsed.success) {
-    const url = new URL('/login', siteUrl);
-    url.searchParams.set('error', 'Invalid email or password format.');
-    redirect(url.toString());
+    return { error: 'Invalid email or password format.' };
   }
 
   const { email, password } = parsed.data;
-
   const cookieStore = cookies();
 
   const supabase = createServerClient(
@@ -40,22 +36,16 @@ export async function login(formData: FormData) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.session) {
-    const url = new URL('/login', siteUrl);
     const msg = error?.message || 'Login failed: Please check your inbox for a confirmation link.';
-    url.searchParams.set('error', msg);
-    redirect(url.toString());
+    return { error: msg };
   }
 
   const companyId = data.user.app_metadata?.company_id;
   if (!companyId) {
-    // The middleware will handle redirecting to /setup-incomplete on the next request
-    // after the session cookie has been set.
-    redirect('/dashboard');
+    return { success: true, redirect: '/setup-incomplete' };
   }
 
-  // Success, redirect to dashboard.
-  // The middleware will handle revalidating the path.
-  redirect('/dashboard');
+  return { success: true, redirect: '/dashboard' };
 }
 
 
@@ -66,15 +56,12 @@ const signupSchema = z.object({
 });
 
 
-export async function signup(formData: FormData) {
+export async function signup(prevState: any, formData: FormData) {
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:9003';
 
     if (!parsed.success) {
         const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
-        const url = new URL('/signup', siteUrl);
-        url.searchParams.set('error', errorMessages);
-        redirect(url.toString());
+        return { error: errorMessages };
     }
 
     const { email, password, companyName } = parsed.data;
@@ -92,10 +79,13 @@ export async function signup(formData: FormData) {
         }
     );
 
+    // We must disable email confirmation for this demo to work, otherwise the user
+    // will be blocked until they click a link in an email.
     const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
             data: {
                 company_name: companyName,
             }
@@ -103,23 +93,16 @@ export async function signup(formData: FormData) {
     });
 
     if (error) {
-        const url = new URL('/signup', siteUrl);
-        url.searchParams.set('error', error.message);
-        redirect(url.toString());
+        return { error: error.message };
     }
 
     if (data.user) {
+        // Handle case where user already exists but isn't confirmed
         if (data.user.identities && data.user.identities.length === 0) {
-            const url = new URL('/signup', siteUrl);
-            url.searchParams.set('error', "This user already exists.");
-            redirect(url.toString());
+            return { error: "This user already exists." };
         }
-        const url = new URL('/signup', siteUrl);
-        url.searchParams.set('success', 'true');
-        redirect(url.toString());
+        return { success: true, redirect: '/signup?success=true' };
     }
     
-    const url = new URL('/signup', siteUrl);
-    url.searchParams.set('error', "An unexpected error occurred.");
-    redirect(url.toString());
+    return { error: "An unexpected error occurred." };
 }
