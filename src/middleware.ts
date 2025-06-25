@@ -1,9 +1,11 @@
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
+
+  // Create a Supabase client that can read and write cookies.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -16,25 +18,31 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // This refreshes the session cookie if it's expired.
-  const { data: { user } } = await supabase.auth.getUser();
+  // This will refresh the session if it's expired.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
 
   const { pathname } = req.nextUrl;
-  const isAuthRoute = ['/login', '/signup'].includes(pathname);
+  const authRoutes = ['/login', '/signup'];
+  const isAuthRoute = authRoutes.includes(pathname);
+  const isRoot = pathname === '/';
 
-  // If the user is not logged in, redirect them to the login page
-  // unless they are already on a public route.
-  if (!user && !isAuthRoute) {
-    return NextResponse.redirect(new URL('/login', req.url));
+  // If the user is logged in...
+  if (user) {
+    // and they try to access an auth route or the root page, redirect to the dashboard.
+    if (isAuthRoute || isRoot) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+  } 
+  // If the user is not logged in...
+  else {
+    // and they try to access any protected route (i.e., not an auth route), redirect to login.
+    if (!isAuthRoute) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
   }
 
-  // If the user is logged in, redirect them to the dashboard
-  // if they try to access an auth route or the root.
-  if (user && (isAuthRoute || pathname === '/')) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
-  
-  // Continue with the request, potentially with an updated session cookie.
+  // Allow the request to proceed, potentially with an updated session cookie.
   return res;
 }
 

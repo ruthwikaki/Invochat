@@ -32,10 +32,9 @@ export default function LoginPage() {
       setError(signInError.message || 'An unexpected error occurred.');
       setLoading(false);
     } else {
-      // On success, simply refresh the page.
-      // The middleware will see the new session and handle the redirect to the dashboard.
-      // This is the most reliable way to avoid race conditions.
-      router.refresh();
+      // On success, explicitly push to the dashboard.
+      // This is more reliable than router.refresh() for this purpose.
+      router.push('/dashboard');
     }
   };
 

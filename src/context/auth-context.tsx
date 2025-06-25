@@ -56,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithEmail = async (credentials: SignInWithPasswordCredentials) => {
     if (!supabase) return throwUnconfiguredError();
+    // The onAuthStateChange listener will handle setting the user state.
+    // We just need to call the signIn method and return its result.
     const { error } = await supabase.auth.signInWithPassword(credentials);
     return { error };
   };
