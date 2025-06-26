@@ -2,10 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   webpack: (config, { dev }) => {
-    if (dev) {
-      // Prevent webpack from following symlinks, which might be causing issues on Windows/OneDrive
-      config.resolve.symlinks = false; 
-    }
+    // This setting can help resolve strange build issues on Windows,
+    // especially when the project is in a cloud-synced directory like OneDrive.
+    config.resolve.symlinks = false;
     return config;
   },
   images: {
