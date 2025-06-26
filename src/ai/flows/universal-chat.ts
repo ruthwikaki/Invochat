@@ -23,7 +23,7 @@ const UniversalChatInputSchema = z.object({
 export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
 
 
-const UniversalChatOutputSchema = z.object({
+export const UniversalChatOutputSchema = z.object({
   response: z.string().describe("The natural language response to the user."),
   data: z.array(z.any()).optional().nullable().describe("The raw data retrieved from the database, if any, for visualizations."),
   visualization: z.object({
@@ -78,11 +78,17 @@ const executeSQLTool = ai.defineTool({
     console.log('[executeSQLTool] Original query from AI:', query);
     console.log('[executeSQLTool] Secured & Executed query:', finalQuery);
 
-    // This RPC function must exist in the database.
-    // We provide the SQL to create it in the setup-incomplete page.
-    const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
+    const QUERY_TIMEOUT_MS = 10000; // 10 seconds
+    const queryPromise = supabaseAdmin.rpc('execute_dynamic_query', {
         query_text: finalQuery
     });
+    
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Query timed out after ${QUERY_TIMEOUT_MS / 1000} seconds. The query may be too complex.`)), QUERY_TIMEOUT_MS)
+    );
+
+    const result = await Promise.race([queryPromise, timeoutPromise]) as { data: any, error: any };
+    const { data, error } = result;
 
     if (error) {
         console.error('[executeSQLTool] SQL execution error:', error);
@@ -105,41 +111,30 @@ export const universalChatFlow = ai.defineFlow({
   
   console.log(`[UniversalChat] Starting flow for company ${companyId}. History length:`, conversationHistory.length);
 
-  // Filter and format messages for Gemini.
-  // The API requires the conversation to start with a 'user' role.
-  const filteredHistory = conversationHistory
-    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0);
-
-  const messages: { role: 'user' | 'model'; content: { text: string; }[]; }[] = [];
-  let foundFirstUser = false;
+  // Map conversation history to Gemini's format.
+  let geminiHistory = conversationHistory.map(msg => ({
+    role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
+    // Ensure content is a string for the AI flow.
+    content: [{ text: typeof msg.content === 'string' ? msg.content : '[Previous data displayed]' }]
+  }));
   
-  for (const msg of filteredHistory) {
-    if (!foundFirstUser && msg.role === 'user') {
-      foundFirstUser = true;
-    }
-    if (foundFirstUser) {
-        messages.push({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          content: [{ text: msg.content }]
-        });
-    }
-  }
-
-  // If after filtering, there are no valid messages, use the last user message.
-  if (messages.length === 0) {
-    const lastUserMessage = conversationHistory.filter(m => m.role === 'user').at(-1);
-    console.log('[UniversalChat] No valid user-initiated conversation history, using last user message or default "Hello".');
-    messages.push({
-      role: 'user',
-      content: [{ text: lastUserMessage?.content || 'Hello' }]
-    });
+  // Ensure the history starts with a 'user' message as required by the Gemini API.
+  const firstUserIndex = geminiHistory.findIndex(msg => msg.role === 'user');
+  if (firstUserIndex > 0) {
+    geminiHistory = geminiHistory.slice(firstUserIndex);
+  } else if (firstUserIndex === -1) {
+    // This case should ideally not happen with a loading UI, but as a fallback...
+    const lastMessage = conversationHistory.at(-1)?.content || 'Hello';
+    console.warn('[UniversalChat] No user message found in history, creating one from last message.');
+    geminiHistory = [{ role: 'user', content: [{text: lastMessage}] }];
   }
   
   try {
     const modelResponse = await ai.generate({
       model: APP_CONFIG.ai.model,
       tools: [executeSQLTool],
-      messages: messages,
+      history: geminiHistory,
+      prompt: "Analyze the user's last message and respond.", // A simple prompt since history is now the main driver
       system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions about business data by generating and executing SQL queries. You must base ALL responses strictly on data returned from the 'executeSQL' tool.
 
       **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
@@ -185,5 +180,3 @@ export const universalChatFlow = ai.defineFlow({
     throw error;
   }
 });
-
-    

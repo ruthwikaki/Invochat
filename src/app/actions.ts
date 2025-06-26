@@ -1,7 +1,7 @@
 
 'use server';
 
-import { universalChatFlow } from '@/ai/flows/universal-chat';
+import { universalChatFlow, UniversalChatOutputSchema } from '@/ai/flows/universal-chat';
 import type { AssistantMessagePayload, Message } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
@@ -10,49 +10,65 @@ import { APP_CONFIG } from '@/config/app-config';
 
 /**
  * Transforms raw data from the AI/database into a format that our charting library can understand.
- * It's designed to be robust and not crash on unexpected data shapes.
+ * This function has been rewritten to be robust and handle unexpected data shapes gracefully.
  */
-function transformDataForChart(data: any[] | null | undefined, chartType: string): any[] {
-  if (!Array.isArray(data) || data.length === 0) {
-    console.warn('[transformDataForChart] No data or invalid data provided for charting.');
-    return [];
-  }
-  
-  const firstItem = data[0];
-  if (typeof firstItem !== 'object' || firstItem === null) {
-      console.warn('[transformDataForChart] Data items are not objects, cannot transform for charting.');
-      return [];
-  }
-  
-  const keys = Object.keys(firstItem);
-  if (keys.length === 0) {
-    console.warn('[transformDataForChart] Data items have no keys, cannot transform for charting.');
-    return [];
-  }
+function transformDataForChart(data: any[] | null | undefined, chartType: string): { name: string; value: number }[] {
+    // 1. Validate input data
+    if (!Array.isArray(data) || data.length === 0) {
+        console.warn('[transformDataForChart] No data or invalid data provided for charting.');
+        return [];
+    }
 
-  // Attempt to find the most likely candidates for name and value keys by looking for common substrings.
-  const nameKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor')) || keys[0];
-  // Find a key that is NOT the name key and is likely a number.
-  const valueKey = keys.find(k => k !== nameKey && (k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity'))) || (keys.length > 1 ? keys.find(k => k !== nameKey) : null);
+    const firstItem = data[0];
+    if (typeof firstItem !== 'object' || firstItem === null) {
+        console.warn('[transformDataForChart] Data items are not objects, cannot transform for charting.');
+        return [];
+    }
 
+    const keys = Object.keys(firstItem);
+    if (keys.length < 2) {
+        console.warn(`[transformDataForChart] Data items have fewer than 2 keys, cannot generate a meaningful chart. Found keys: ${keys.join(', ')}.`);
+        return [];
+    }
+    
+    // 2. More robust key finding logic
+    const nameKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor') || k.toLowerCase().includes('item')) || keys[0];
+    const valueKey = keys.find(k => k !== nameKey && (typeof firstItem[k] === 'number' || !isNaN(Number(firstItem[k]))))
+                     || keys.find(k => k !== nameKey && (k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('amount')));
 
-  // If we can't determine a distinct value key, we can't create a meaningful chart.
-  if (!valueKey) {
-    console.warn(`[transformDataForChart] Could not determine a 'value' key for charting. Found keys: ${keys.join(', ')}`);
-    return [];
-  }
+    if (!valueKey) {
+        console.warn(`[transformDataForChart] Could not automatically determine a numeric 'value' key for charting from keys: ${keys.join(', ')}.`);
+        return [];
+    }
 
-  console.log(`[transformDataForChart] Using nameKey: '${nameKey}', valueKey: '${valueKey}'`);
-  
-  return data.map(item => {
-      const rawValue = item[valueKey];
-      const numericValue = rawValue ? Number(rawValue) : 0;
-      
-      return {
-          name: String(item[nameKey] || 'Unnamed'),
-          value: isNaN(numericValue) ? 0 : numericValue,
-      };
-  }).filter(item => item.value !== 0 || chartType === 'line'); // Keep zero values only for line charts
+    console.log(`[transformDataForChart] Using nameKey: '${nameKey}', valueKey: '${valueKey}'`);
+
+    // 3. Map and sanitize data
+    const transformed = data.map((item, index) => {
+        if (typeof item !== 'object' || item === null) return null;
+
+        const rawValue = item[valueKey];
+        // Use parseFloat for better handling of decimal values
+        const numericValue = parseFloat(rawValue);
+
+        // Ensure value is a valid number
+        if (isNaN(numericValue)) {
+            console.warn(`[transformDataForChart] Row ${index} has a non-numeric value for key '${valueKey}':`, rawValue);
+            return null;
+        }
+
+        return {
+            name: String(item[nameKey] ?? `Category ${index + 1}`),
+            value: numericValue,
+        };
+    }).filter((item): item is { name: string; value: number } => item !== null);
+
+    // 4. Filter out zero values for certain chart types
+    if (chartType === 'pie' || chartType === 'bar') {
+        return transformed.filter(item => item.value !== 0);
+    }
+
+    return transformed;
 }
 
 
@@ -92,15 +108,28 @@ export async function handleUserMessage(
   payload: z.infer<typeof UserMessagePayloadSchema>
 ): Promise<AssistantMessagePayload> {
   // Validate the raw payload from the client.
-  const { conversationHistory } = UserMessagePayloadSchema.parse(payload);
+  const parsedPayload = UserMessagePayloadSchema.safeParse(payload);
+  if (!parsedPayload.success) {
+      return { id: Date.now().toString(), role: 'assistant', content: "There was a problem with the message format." };
+  }
+  const { conversationHistory } = parsedPayload.data;
   
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
-    const response = await universalChatFlow({
+    const flowResponse = await universalChatFlow({
       companyId,
       conversationHistory,
     });
+    
+    // **Robust Validation:** Safely parse the AI's output.
+    const parsedResponse = UniversalChatOutputSchema.safeParse(flowResponse);
+
+    if (!parsedResponse.success) {
+      console.error('Invalid AI response structure:', parsedResponse.error);
+      throw new Error('The AI returned data in an unexpected format. Please try again.');
+    }
+    const response = parsedResponse.data;
     
     // Handle visualization suggestions from the AI
     if (response.visualization && response.visualization.type !== 'none' && response.data && response.data.length > 0) {
@@ -109,7 +138,7 @@ export async function handleUserMessage(
           const transformedData = transformDataForChart(response.data, response.visualization.type);
           
           if (transformedData.length === 0) {
-            console.log("[handleUserMessage] Data transformation resulted in an empty array, sending a text response instead.");
+            console.log("[handleUserMessage] Data transformation for chart resulted in an empty array, sending a text response instead.");
             return {
                 id: Date.now().toString(),
                 role: 'assistant' as const,
@@ -158,8 +187,10 @@ export async function handleUserMessage(
     let errorMessage = `An unexpected error occurred. Please try again.`;
 
     // Provide more specific, helpful error messages for common issues.
-    if (error.message?.includes('Query failed with error')) {
-      errorMessage = "I tried to query the database, but the query failed. The AI may have generated an invalid SQL query. Please try rephrasing your request.";
+    if (error.message?.includes('Query timed out')) {
+      errorMessage = error.message;
+    } else if (error.message?.includes('Query failed with error')) {
+      errorMessage = "I tried to query the database, but the query failed. The AI may have generated an invalid SQL query or requested a non-existent column. Please try rephrasing your request.";
     } else if (error.message?.includes('Query is insecure')) {
       errorMessage = "The AI generated a query that was deemed insecure and was blocked. Please try your request again.";
     } else if (error.message?.includes('The AI model did not return a valid response object')) {
