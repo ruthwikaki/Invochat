@@ -164,6 +164,8 @@ export const universalChatFlow = ai.defineFlow({
         5.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one.
         6.  **Error Handling:** If a tool call fails, the error will be provided. Analyze the error, fix the query, and retry. Only explain the error to the user if you cannot fix it.
         
+        Base all responses strictly on data returned from the executeSQL tool. If a query returns empty results, acknowledge this directly.
+
         **Current User Message:** "${message}"
 
         Based on the user's message and the conversation history, decide if you need data. If so, use the \`executeSQL\` tool. Then, formulate your response and suggest a visualization if appropriate.`,
