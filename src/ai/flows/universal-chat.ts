@@ -122,11 +122,15 @@ export const universalChatFlow = ai.defineFlow({
   const firstUserIndex = geminiHistory.findIndex(msg => msg.role === 'user');
   if (firstUserIndex > 0) {
     geminiHistory = geminiHistory.slice(firstUserIndex);
-  } else if (firstUserIndex === -1) {
+  } else if (firstUserIndex === -1 && geminiHistory.length > 0) {
     // This case should ideally not happen with a loading UI, but as a fallback...
     const lastMessage = conversationHistory.at(-1)?.content || 'Hello';
     console.warn('[UniversalChat] No user message found in history, creating one from last message.');
     geminiHistory = [{ role: 'user', content: [{text: lastMessage}] }];
+  } else if (geminiHistory.length === 0) {
+    // It's possible to start a flow with an empty history, which is not an error.
+    // The prompt will just be whatever the user's first message is.
+    console.warn("[UniversalChat] Conversation history is empty.");
   }
   
   try {
