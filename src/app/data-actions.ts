@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
@@ -14,61 +15,87 @@ import {
 import type { User } from '@/types';
 
 // This function provides a robust way to get the company ID for the current user.
-// It relies on the middleware to ensure that the user session is valid and contains a company ID.
-async function getCompanyIdForCurrentUser(): Promise<string> {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
-    const { data: { user } } = await supabase.auth.getUser();
+// It is now designed to be crash-proof. It returns null if any issue occurs.
+async function getCompanyIdForCurrentUser(): Promise<string | null> {
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              get(name: string) {
+                return cookieStore.get(name)?.value;
+              },
+            },
+          }
+        );
+        const { data: { user }, error } = await supabase.auth.getUser();
 
-    // The middleware should prevent this function from being called by a user
-    // without a company_id. If this error is thrown, it's a bug in the middleware.
-    // We check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
-    const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
-    if (!user || !companyId || typeof companyId !== 'string') {
-        throw new Error("Application error: Could not determine company ID. The user may not be properly authenticated or configured.");
+        if (error) {
+            console.error('[getCompanyIdForCurrentUser] Supabase auth error:', error.message);
+            return null;
+        }
+
+        const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
+        
+        if (!user || !companyId || typeof companyId !== 'string') {
+            return null;
+        }
+        
+        return companyId;
+    } catch (e: any) {
+        console.error('[getCompanyIdForCurrentUser] Caught exception:', e.message);
+        return null;
     }
-    
-    return companyId;
 }
 
 
 export async function getDashboardData() {
     const companyId = await getCompanyIdForCurrentUser();
+    if (!companyId) {
+        return { inventoryValue: 0, deadStockValue: 0, predictiveAlert: null };
+    }
     return getDashboardMetrics(companyId);
 }
 
 export async function getInventoryData() {
     const companyId = await getCompanyIdForCurrentUser();
+    if (!companyId) {
+        return [];
+    }
     return getInventoryItems(companyId);
 }
 
 export async function getDeadStockData() {
     const companyId = await getCompanyIdForCurrentUser();
+    if (!companyId) {
+        return { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
+    }
     return getDeadStockPageData(companyId);
 }
 
 export async function getSuppliersData() {
     const companyId = await getCompanyIdForCurrentUser();
+    if (!companyId) {
+        return [];
+    }
     return getSuppliersFromDB(companyId);
 }
 
 export async function getAlertsData() {
     const companyId = await getCompanyIdForCurrentUser();
+    if (!companyId) {
+        return [];
+    }
     return getAlertsFromDB(companyId);
 }
 
 export async function getDatabaseSchemaAndData() {
     const companyId = await getCompanyIdForCurrentUser();
+    if (!companyId) {
+        return [];
+    }
     return getDbSchemaAndData(companyId);
 }
 
@@ -127,6 +154,10 @@ export async function testDatabaseQuery(): Promise<{
 }> {
   try {
     const companyId = await getCompanyIdForCurrentUser();
+    if (!companyId) {
+        return { success: false, count: null, error: 'Could not determine company ID for the test query. User might not be logged in or there was a connection issue.' };
+    }
+    
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -148,13 +179,6 @@ export async function testDatabaseQuery(): Promise<{
 
     return { success: true, count: count, error: null };
   } catch (e: any) {
-    let errorMessage = e.message;
-    // Catch the specific error from getCompanyIdForCurrentUser if it's called for a user without a session
-    if (e.message?.includes('Application error')) {
-        errorMessage = "Could not perform database query test: " + e.message;
-    } else if (e.message?.includes('User not found')) {
-        errorMessage = "Could not find a logged-in user to get a company ID for the test query."
-    }
-    return { success: false, count: null, error: errorMessage };
+    return { success: false, count: null, error: e.message };
   }
 }
