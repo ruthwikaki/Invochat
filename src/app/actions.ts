@@ -157,9 +157,9 @@ export async function handleUserMessage(
     console.error('Chat error:', error);
     let errorMessage = `Sorry, I encountered an error while processing your request. Please try again.`;
     
-    // Provide a specific, helpful error message for the most likely root cause.
+    // Provide a specific, helpful error message for the most likely root causes.
     if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) {
-      errorMessage = 'It seems the AI model is not available. This is likely due to the "Generative Language API" not being enabled in your Google Cloud project. Please enable it and try again.';
+      errorMessage = 'It seems the AI model is not available. This is likely due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account. Please enable the API and link a billing account, then try again.';
     } else if (error.message?.includes('API key not valid')) {
         errorMessage = 'It looks like your Google AI API key is invalid. Please make sure the `GOOGLE_API_KEY` in your `.env` file is correct and try again.'
     } else if (error.message?.includes('authenticated or configured')) {

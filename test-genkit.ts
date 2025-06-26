@@ -2,8 +2,8 @@
 import { config } from 'dotenv';
 config(); // Load environment variables from .env
 
-import { genkit, type Genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/googleai';
+import {genkit, type Genkit} from 'genkit';
+import {googleAI} from '@genkit-ai/googleai';
 
 async function runTest() {
   console.log('--- Genkit Standalone Diagnostic Test ---');
@@ -46,8 +46,8 @@ async function runTest() {
     console.error('❌❌❌ TEST FAILED ❌❌❌');
     console.error('Error Details:', error.message);
     
-    if (error.message?.includes('404') || error.message?.includes('Not Found')) {
-        console.log('\nRoot Cause: The "Model not found" error persists even in isolation. This strongly confirms the issue is with your Google Cloud Project setup or API Key.');
+    if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) {
+        console.log('\nRoot Cause: The "Model not found" error persists. This strongly confirms the issue is with your Google Cloud Project setup or API Key.');
         console.log('Possible reasons:');
         console.log('1. The model is not available in your project\'s region.');
         console.log('2. Your project is missing a billing account, which is required for this API.');
