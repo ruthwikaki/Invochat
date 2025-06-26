@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -37,7 +36,7 @@ const executeSQLTool = ai.defineTool({
 
   // 2. SECURE COMPANY ID INJECTION: Enforce data isolation.
   // The user's companyId is retrieved from the secure flow state, not from AI input.
-  const { companyId } = flow.state;
+  const { companyId } = flow.context;
   if (!companyId) {
       // If the companyId is missing, something is fundamentally wrong. Abort immediately.
       throw new Error("Security Error: Could not determine company ID for the query. Aborting.");
@@ -145,16 +144,23 @@ export const universalChatFlow = ai.defineFlow({
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
-  // The input is already validated by the Zod schema.
+  // The input is validated by the Zod schema.
   // The conversationHistory is now guaranteed to be in the correct format.
   const { companyId, conversationHistory } = input;
   
   console.log('[UniversalChat] Starting flow. History length:', conversationHistory.length);
+
+  const messages = conversationHistory
+    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant'))
+    .map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user', // Gemini uses 'model' instead of 'assistant'
+      content: msg.content
+    }));
   
   const { output } = await ai.generate({
     model: APP_CONFIG.ai.model,
     tools: [executeSQLTool],
-    history: conversationHistory,
+    history: messages,
     system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
     **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
@@ -173,7 +179,7 @@ export const universalChatFlow = ai.defineFlow({
     output: {
       schema: UniversalChatOutputSchema
     },
-    state: { companyId }, // Pass companyId securely to the tool's flow state
+    context: { companyId }, // Pass companyId securely to the tool's flow context
   });
   
   console.log('[UniversalChat] AI generation successful.');
