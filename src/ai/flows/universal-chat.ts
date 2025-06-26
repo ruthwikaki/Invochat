@@ -165,7 +165,7 @@ export const universalChatFlow = ai.defineFlow({
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       const { output } = await ai.generate({
-        model: googleAI.model(APP_CONFIG.ai.model),
+        model: APP_CONFIG.ai.model,
         tools: [executeSQLTool],
         history: history,
         prompt: `You are InvoChat, an expert AI inventory management analyst. Your primary function is to answer user questions by querying a database using the \`executeSQL\` tool.
