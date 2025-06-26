@@ -17,7 +17,7 @@ async function runTest() {
 
   try {
     console.log('Initializing Genkit with Google AI plugin...');
-    genkit({
+    const ai = genkit({
       plugins: [googleAI({ apiKey: process.env.GOOGLE_API_KEY })],
     });
     console.log('✅ Genkit initialized successfully.');
@@ -25,7 +25,7 @@ async function runTest() {
     const modelName = 'googleai/gemini-1.0-pro';
     console.log(`Attempting to generate content with model: ${modelName}...`);
 
-    const { output } = await genkit.generate({
+    const { output } = await ai.generate({
       model: modelName,
       prompt: 'Tell me a one-sentence joke.',
     });
@@ -41,7 +41,7 @@ async function runTest() {
     if (error.status === 'NOT_FOUND') {
         console.log('\nRoot Cause: The "Model not found" error persists even in isolation. This strongly confirms the issue is with your Google Cloud Project setup or API Key, not the application code.');
         console.log('Next Steps:');
-        console.log('1. Verify your GOOGLE_API_KEY in .env belongs to the project where the "Gemini API" is enabled.');
+        console.log('1. Verify your GOOGLE_API_KEY in .env belongs to the project where the "Generative Language API" is enabled.');
         console.log('2. Check that a billing account is linked to your Google Cloud project: https://cloud.google.com/billing/docs/how-to/modify-project');
     } else {
         console.log('\nAn unexpected error occurred:', error);
