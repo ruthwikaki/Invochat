@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -56,14 +57,20 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
   return (
-    <main className="flex min-h-dvh w-full items-center justify-center bg-gray-100 p-4 dark:bg-gray-900">
-      <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-md dark:bg-gray-800 sm:p-8">
+    <main className="relative flex min-h-dvh w-full items-center justify-center p-4">
+       <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
+          data-ai-hint="warehouse logistics"
+       />
+       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+      <div className="relative z-10 w-full max-w-sm rounded-xl border bg-card/70 p-6 shadow-2xl backdrop-blur-lg sm:p-8">
           <div className="mb-8 flex flex-col items-center text-center">
               <Link href="/" className="mb-4 flex items-center gap-3 text-2xl font-bold">
                   <InvochatLogo className="h-8 w-8" />
-                  <h1 className="text-gray-900 dark:text-white">InvoChat</h1>
+                  <h1 className="text-foreground">InvoChat</h1>
               </Link>
-              <p className="text-gray-600 dark:text-gray-400">Inventory Intelligence Made Simple</p>
+              <p className="text-muted-foreground">Inventory Intelligence Made Simple</p>
           </div>
 
           <form action={login} className="space-y-4">
@@ -76,13 +83,13 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email</Label>
+              <Label htmlFor="email" className="text-card-foreground">Email</Label>
               <Input id="email" name="email" type="email" placeholder="you@company.com" required autoComplete="email" className="focus:border-[#7C3AED]"/>
             </div>
 
             <div className="space-y-2">
                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-gray-700 dark:text-gray-300">Password</Label>
+                  <Label htmlFor="password" className="text-card-foreground">Password</Label>
                   <Link href="#" className="text-sm font-medium text-primary hover:underline">
                       Forgot password?
                   </Link>
@@ -92,7 +99,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             
             <div className="flex items-center">
               <Checkbox id="remember-me" name="remember-me" />
-              <Label htmlFor="remember-me" className="ml-2 font-normal leading-none text-gray-600 dark:text-gray-400">
+              <Label htmlFor="remember-me" className="ml-2 font-normal leading-none text-muted-foreground">
                 Remember me
               </Label>
             </div>
@@ -100,14 +107,14 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             <SubmitButton />
           </form>
           
-          <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+          <div className="mt-6 text-center text-sm text-muted-foreground">
             New to InvoChat?{' '}
             <Link href="/signup" className="font-semibold text-primary hover:underline">
               Sign up
             </Link>
           </div>
 
-           <div className="mt-8 text-center text-xs text-gray-500 dark:text-gray-400">
+           <div className="mt-8 text-center text-xs text-muted-foreground">
               <Link href="#" className="hover:underline">Terms of Service</Link>
               <span className="mx-2">·</span>
               <Link href="#" className="hover:underline">Privacy Policy</Link>
