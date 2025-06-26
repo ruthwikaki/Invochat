@@ -36,8 +36,8 @@ const executeSQLTool = ai.defineTool({
   }
 
   // 2. SECURE COMPANY ID INJECTION: Enforce data isolation.
-  // The user's companyId is retrieved from the secure flow context, not from AI input.
-  const { companyId } = flow.context;
+  // The user's companyId is retrieved from the secure flow state, not from AI input.
+  const { companyId } = flow.state;
   if (!companyId) {
       // If the companyId is missing, something is fundamentally wrong. Abort immediately.
       throw new Error("Security Error: Could not determine company ID for the query. Aborting.");
@@ -184,7 +184,7 @@ export const universalChatFlow = ai.defineFlow({
   }
   
   try {
-    const { output } = await ai.generate({
+    const modelResponse = await ai.generate({
       model: APP_CONFIG.ai.model,
       tools: [executeSQLTool],
       messages: messages,
@@ -206,13 +206,15 @@ export const universalChatFlow = ai.defineFlow({
       output: {
         schema: UniversalChatOutputSchema
       },
-      context: { companyId },
+      state: { companyId },
     });
+
+    const output = modelResponse.output;
     
     console.log('[UniversalChat] AI generation successful.');
 
     if (!output) {
-      throw new Error("The model did not return a valid response.");
+      throw new Error("The model did not return a valid response object. The output was null.");
     }
     
     output.data = output.data ?? [];
