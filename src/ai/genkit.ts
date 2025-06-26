@@ -8,10 +8,9 @@ let genkitInstance: Genkit;
 if (process.env.GOOGLE_API_KEY) {
   console.log('[Genkit] Initializing with Google AI plugin');
   plugins.push(googleAI({apiKey: process.env.GOOGLE_API_KEY}));
+  // Simplify initialization: model is specified in the generate call.
   genkitInstance = genkit({
     plugins,
-    // Note: The model will only be available if the googleAI() plugin is loaded.
-    model: 'googleai/gemini-pro',
   });
   console.log('[Genkit] Initialized successfully');
 } else {

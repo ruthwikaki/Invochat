@@ -139,7 +139,7 @@ export const universalChatFlow = ai.defineFlow({
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       const { output } = await ai.generate({
-        model: 'gemini-pro',
+        model: 'googleai/gemini-pro',
         tools: [executeSQLTool],
         history: history,
         prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
@@ -190,11 +190,8 @@ export const universalChatFlow = ai.defineFlow({
 
       if (i === MAX_RETRIES - 1) {
           console.error('[UniversalChat] Max retries reached. Returning error response.');
-          return {
-              response: "I'm sorry, but I'm having trouble retrieving that data right now. My query failed and I was unable to correct it. The technical team has been notified. Please try asking in a different way.",
-              data: [],
-              visualization: { type: 'none' }
-          };
+          // Re-throw the original error to be caught by the action handler
+          throw error;
       }
       // Add error to history for the next attempt and instruct the AI to fix it.
       history.push({ role: 'user', content: [{ text: `The last tool call failed with this error: ${error.message}. Please analyze the error, fix the query based on the schema, and try again.` }] });
