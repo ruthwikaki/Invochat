@@ -11,7 +11,7 @@ if (process.env.GOOGLE_API_KEY) {
   genkitInstance = genkit({
     plugins,
     // Note: The model will only be available if the googleAI() plugin is loaded.
-    model: 'googleai/gemini-1.5-flash',
+    model: 'googleai/gemini-pro',
   });
   console.log('[Genkit] Initialized successfully');
 } else {
