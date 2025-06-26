@@ -101,11 +101,11 @@ const executeSQLTool = ai.defineTool({
     throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
   }
 
-  // This is a critical step to prevent the AI from hallucinating data when a query correctly returns no results.
-  // By throwing a specific, instructional error, we force the AI to acknowledge the empty set and report it to the user
-  // instead of making up fake data. The flow's retry logic will catch this and feed it back to the model.
+  // A query that returns no results is a valid state, not an error.
+  // The AI prompt will be instructed on how to handle an empty array.
   if (!data || data.length === 0) {
-    throw new Error("The query executed successfully but returned no results. Inform the user that no data was found for their request. Do not try to 'fix' the query, simply state that there is no data.");
+    console.log('[executeSQLTool] Query executed successfully but returned no results.');
+    return [];
   }
 
   if (data?.length >= APP_CONFIG.database.queryLimit) {
@@ -165,7 +165,7 @@ export const universalChatFlow = ai.defineFlow({
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       const { output } = await ai.generate({
-        model: APP_CONFIG.ai.model,
+        model: googleAI.model(APP_CONFIG.ai.model),
         tools: [executeSQLTool],
         history: history,
         prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
@@ -189,8 +189,9 @@ export const universalChatFlow = ai.defineFlow({
         4.  **Suggest Charts:** For analytical queries, if the data is suitable for a chart ('bar', 'pie', 'line'), suggest one. For example, data grouped by category is good for a pie or bar chart.
         5.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one.
         6.  **Error Handling:** If a tool call fails, the error will be provided. Analyze the error, fix the query, and retry. Only explain the error to the user if you cannot fix it.
+        7.  **Handle Empty Results:** If a query executes but returns no data (an empty array \`[]\`), you MUST inform the user directly that no data was found for their request. Do not say "Here is the data..." or introduce a table. Simply state that no data is available (e.g., "I couldn't find any products in your inventory.").
         
-        Base all responses strictly on data returned from the executeSQL tool. If a query returns empty results, acknowledge this directly.`,
+        Base all responses strictly on data returned from the executeSQL tool.`,
         output: {
           schema: UniversalChatOutputSchema
         },
@@ -216,9 +217,8 @@ export const universalChatFlow = ai.defineFlow({
           // Re-throw the original error to be caught by the action handler
           throw error;
       }
-      // Add a more nuanced error to the history for the next attempt.
-      // This instructs the AI on how to handle different types of errors, including the "no results" case.
-      history.push({ role: 'user', content: [{ text: `CRITICAL_ERROR: The previous attempt to use a tool failed with this message: '${error.message}'. STOP. DO NOT try to answer the original question. Your ONLY task now is to analyze this error. If the error says 'no results were found', your entire response MUST BE to inform the user that their query returned no data. DO NOT suggest a table or any visualization.` }] });
+      // Add a simple error to the history for the next attempt.
+      history.push({ role: 'user', content: [{ text: `An error occurred. The tool failed with this message: '${error.message}'. Analyze this error, correct your query, and try again.` }] });
     }
   }
 
