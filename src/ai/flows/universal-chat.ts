@@ -98,6 +98,13 @@ const executeSQLTool = ai.defineTool({
     throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
   }
 
+  // This is a critical step to prevent the AI from hallucinating data when a query correctly returns no results.
+  // By throwing a specific, instructional error, we force the AI to acknowledge the empty set and report it to the user
+  // instead of making up fake data. The flow's retry logic will catch this and feed it back to the model.
+  if (!data || data.length === 0) {
+    throw new Error("The query executed successfully but returned no results. Inform the user that no data was found for their request. Do not try to 'fix' the query, simply state that there is no data.");
+  }
+
   if (data?.length >= 1000) {
     console.warn(`[executeSQLTool] Query returned max results (1000). Results may be truncated.`);
   }
@@ -205,8 +212,9 @@ export const universalChatFlow = ai.defineFlow({
           // Re-throw the original error to be caught by the action handler
           throw error;
       }
-      // Add error to history for the next attempt and instruct the AI to fix it.
-      history.push({ role: 'user', content: [{ text: `The last tool call failed with this error: ${error.message}. Please analyze the error, fix the query based on the schema, and try again.` }] });
+      // Add a more nuanced error to the history for the next attempt.
+      // This instructs the AI on how to handle different types of errors, including the "no results" case.
+      history.push({ role: 'user', content: [{ text: `The last tool call failed with this error: ${error.message}. Analyze the error message. If it indicates the query was wrong, fix the query and retry. If it indicates no results were found, inform the user you could not find any data.` }] });
     }
   }
 
