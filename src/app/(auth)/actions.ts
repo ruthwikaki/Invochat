@@ -49,12 +49,12 @@ export async function login(formData: FormData) {
   const companyId = data.user.app_metadata?.company_id || data.user.user_metadata?.company_id;
   if (!companyId) {
     revalidatePath('/', 'layout');
-    revalidatePath('/setup-incomplete');
+    revalidatePath('/setup-incomplete', 'page');
     redirect('/setup-incomplete');
   }
 
   revalidatePath('/', 'layout');
-  revalidatePath('/dashboard');
+  revalidatePath('/dashboard', 'page');
   redirect('/dashboard');
 }
 

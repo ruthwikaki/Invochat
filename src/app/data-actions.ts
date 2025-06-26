@@ -15,8 +15,8 @@ import {
 import type { User } from '@/types';
 
 // This function provides a robust way to get the company ID for the current user.
-// It is now designed to be crash-proof. It returns null if any issue occurs.
-async function getCompanyIdForCurrentUser(): Promise<string | null> {
+// It is now designed to be crash-proof. It throws an error if any issue occurs.
+async function getCompanyIdForCurrentUser(): Promise<string> {
     console.log('[getCompanyIdForCurrentUser] Attempting to determine Company ID...');
     try {
         const cookieStore = cookies();
@@ -35,7 +35,7 @@ async function getCompanyIdForCurrentUser(): Promise<string | null> {
 
         if (error) {
             console.error('[getCompanyIdForCurrentUser] Supabase auth error:', error.message);
-            return null;
+            throw new Error(`Authentication error: ${error.message}`);
         }
 
         // Check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
@@ -43,64 +43,48 @@ async function getCompanyIdForCurrentUser(): Promise<string | null> {
         
         if (!user || !companyId || typeof companyId !== 'string') {
             console.warn('[getCompanyIdForCurrentUser] Could not determine Company ID. User may not be fully signed up or session is invalid.');
-            return null;
+            throw new Error('Your user session is invalid or not fully configured. Please try signing out and signing back in.');
         }
         
         console.log(`[getCompanyIdForCurrentUser] Success. Company ID: ${companyId}`);
         return companyId;
     } catch (e: any) {
         console.error('[getCompanyIdForCurrentUser] Caught exception:', e.message);
-        return null;
+        // Re-throw the error to be caught by the calling function's error boundary.
+        throw e;
     }
 }
 
 
 export async function getDashboardData() {
     const companyId = await getCompanyIdForCurrentUser();
-    if (!companyId) {
-        // Return a default object that won't crash the UI.
-        return { inventoryValue: 0, deadStockValue: 0, lowStockCount: 0, totalSKUs: 0, totalSuppliers: 0, totalSalesValue: 0 };
-    }
+    // No `if` check needed here. If getCompanyId fails, it will throw and be caught
+    // by the error boundary on the page calling this action.
     return getDashboardMetrics(companyId);
 }
 
 export async function getInventoryData() {
     const companyId = await getCompanyIdForCurrentUser();
-    if (!companyId) {
-        return [];
-    }
     return getInventoryItems(companyId);
 }
 
 export async function getDeadStockData() {
     const companyId = await getCompanyIdForCurrentUser();
-    if (!companyId) {
-        return { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
-    }
     return getDeadStockPageData(companyId);
 }
 
 export async function getSuppliersData() {
     const companyId = await getCompanyIdForCurrentUser();
-    if (!companyId) {
-        return [];
-    }
     return getSuppliersFromDB(companyId);
 }
 
 export async function getAlertsData() {
     const companyId = await getCompanyIdForCurrentUser();
-    if (!companyId) {
-        return [];
-    }
     return getAlertsFromDB(companyId);
 }
 
 export async function getDatabaseSchemaAndData() {
     const companyId = await getCompanyIdForCurrentUser();
-    if (!companyId) {
-        return [];
-    }
     return getDbSchemaAndData(companyId);
 }
 
@@ -159,9 +143,6 @@ export async function testDatabaseQuery(): Promise<{
 }> {
   try {
     const companyId = await getCompanyIdForCurrentUser();
-    if (!companyId) {
-        return { success: false, count: null, error: 'Could not determine company ID for the test query. User might not be logged in or there was a connection issue.' };
-    }
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -184,6 +165,11 @@ export async function testDatabaseQuery(): Promise<{
 
     return { success: true, count: count, error: null };
   } catch (e: any) {
-    return { success: false, count: null, error: e.message };
+    // If getCompanyId throws, its error message is more informative.
+    let errorMessage = e.message;
+    if (e.message?.includes('database')) { // Supabase-specific error
+        errorMessage = `Database query failed: ${e.message}`;
+    }
+    return { success: false, count: null, error: errorMessage };
   }
 }
