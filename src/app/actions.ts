@@ -1,7 +1,8 @@
 
 'use server';
 
-import { universalChatFlow, UniversalChatOutputSchema } from '@/ai/flows/universal-chat';
+import { universalChatFlow } from '@/ai/flows/universal-chat';
+import { UniversalChatOutputSchema } from '@/types/ai-schemas';
 import type { AssistantMessagePayload, Message } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';

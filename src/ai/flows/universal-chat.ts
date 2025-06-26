@@ -11,29 +11,12 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { APP_CONFIG } from '@/config/app-config';
-
-// This schema accepts the raw history format from the client action.
-const UniversalChatInputSchema = z.object({
-  companyId: z.string(),
-  conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
-    content: z.string(),
-  })),
-});
-export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
-
-
-export const UniversalChatOutputSchema = z.object({
-  response: z.string().describe("The natural language response to the user."),
-  data: z.array(z.any()).optional().nullable().describe("The raw data retrieved from the database, if any, for visualizations."),
-  visualization: z.object({
-    type: z.enum(['table', 'bar', 'pie', 'line', 'none']),
-    title: z.string().optional(),
-    config: z.any().optional()
-  }).optional().describe("A suggested visualization for the data.")
-});
-export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
-
+import {
+  type UniversalChatInput,
+  UniversalChatInputSchema,
+  type UniversalChatOutput,
+  UniversalChatOutputSchema,
+} from '@/types/ai-schemas';
 
 /**
  * Defines the SQL tool globally.
@@ -100,9 +83,19 @@ const executeSQLTool = ai.defineTool({
 });
 
 /**
- * The main flow for handling universal chat requests.
+ * The exported, callable function that wraps the Genkit flow.
+ * This is the only function exported from this file to comply with 'use server' constraints.
  */
-export const universalChatFlow = ai.defineFlow({
+export async function universalChatFlow(input: UniversalChatInput): Promise<UniversalChatOutput> {
+  return _universalChatFlow(input);
+}
+
+
+/**
+ * The internal Genkit flow definition.
+ * It is not exported directly.
+ */
+const _universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
