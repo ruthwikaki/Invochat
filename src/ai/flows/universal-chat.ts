@@ -111,11 +111,15 @@ const executeSQLTool = ai.defineTool({
 });
 
 
+// This schema defines the expected input for the flow. It now expects the conversation
+// history to be pre-formatted in the exact structure that Genkit requires.
 const UniversalChatInputSchema = z.object({
   companyId: z.string(),
   conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
-    content: z.string()
+    role: z.enum(['user', 'assistant']),
+    content: z.array(z.object({
+        text: z.string()
+    })),
   })),
 });
 export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
@@ -141,24 +145,16 @@ export const universalChatFlow = ai.defineFlow({
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
-  const { companyId, conversationHistory = [] } = input;
+  // The input is already validated by the Zod schema.
+  // The conversationHistory is now guaranteed to be in the correct format.
+  const { companyId, conversationHistory } = input;
   
   console.log('[UniversalChat] Starting flow. History length:', conversationHistory.length);
-
-  // Defensive filtering and mapping to the format Genkit expects.
-  // This is the single source of truth for history formatting to prevent data corruption.
-  const history = conversationHistory
-    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0)
-    .map(msg => ({
-        role: msg.role as 'user' | 'assistant',
-        content: [{text: msg.content}]
-    }));
-
   
   const { output } = await ai.generate({
     model: APP_CONFIG.ai.model,
     tools: [executeSQLTool],
-    history: history,
+    history: conversationHistory,
     system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
     **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**

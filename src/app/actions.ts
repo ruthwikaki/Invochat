@@ -48,6 +48,7 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
 }
 
 
+// This schema defines the raw payload from the client.
 const UserMessagePayloadSchema = z.object({
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant', 'system']),
@@ -82,15 +83,25 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
 export async function handleUserMessage(
   payload: z.infer<typeof UserMessagePayloadSchema>
 ): Promise<AssistantMessagePayload> {
+  // Validate the raw payload from the client.
   const { conversationHistory = [] } = UserMessagePayloadSchema.parse(payload);
   
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
-    // Pass the raw history directly to the flow. The flow is now responsible for mapping and validation.
+    // Format the history into the structure Genkit requires. This is the single
+    // source of truth for history formatting to prevent data corruption.
+    const formattedHistory = conversationHistory
+        .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0)
+        .map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: [{ text: msg.content }]
+        }));
+
+    // Pass the correctly formatted history to the flow.
     const response = await universalChatFlow({
       companyId,
-      conversationHistory
+      conversationHistory: formattedHistory,
     });
     
     // Handle visualization suggestions from the AI
