@@ -108,8 +108,8 @@ const executeSQLTool = ai.defineTool({
 
   if (error) {
     console.error('[executeSQLTool] SQL execution error:', error);
-    // Return a descriptive error to the model so it can potentially correct the query.
-    return `Query failed with error: ${error.message}. The attempted query was: ${query}`;
+    // Throw an error to signal failure to the model clearly.
+    throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
   }
 
   return data || [];
