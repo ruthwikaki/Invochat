@@ -7,7 +7,7 @@
  */
 export const APP_CONFIG = {
   ai: {
-    model: process.env.AI_MODEL || 'gemini-1.5-flash',
+    model: process.env.AI_MODEL || 'gemini-pro',
     maxRetries: 2,
     historyLimit: 10,
   },
