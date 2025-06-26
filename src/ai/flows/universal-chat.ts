@@ -2,7 +2,7 @@
 
 /**
  * @fileOverview Universal Chat flow with RAG capabilities using a dynamic SQL tool.
- * This flow is designed for production use with enhanced security, error handling, and observability.
+ * This file contains the core logic for how the AI interacts with the database.
  */
 
 import { ai } from '@/ai/genkit';
@@ -214,7 +214,7 @@ export const universalChatFlow = ai.defineFlow({
       }
       // Add a more nuanced error to the history for the next attempt.
       // This instructs the AI on how to handle different types of errors, including the "no results" case.
-      history.push({ role: 'user', content: [{ text: `The last tool call failed with this error: ${error.message}. Analyze the error message. If it indicates the query was wrong, fix the query and retry. If it indicates no results were found, inform the user you could not find any data.` }] });
+      history.push({ role: 'user', content: [{ text: `CRITICAL_ERROR: The previous attempt to use a tool failed with this message: '${error.message}'. STOP. DO NOT try to answer the original question. Your ONLY task now is to analyze this error. If the error says 'no results were found', your entire response MUST BE to inform the user that their query returned no data. DO NOT suggest a table or any visualization.` }] });
     }
   }
 
