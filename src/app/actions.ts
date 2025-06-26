@@ -89,19 +89,11 @@ export async function handleUserMessage(
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
-    // Format the history into the structure Genkit requires. This is the single
-    // source of truth for history formatting to prevent data corruption.
-    const formattedHistory = conversationHistory
-        .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0)
-        .map(msg => ({
-            role: msg.role as 'user' | 'assistant',
-            content: [{ text: msg.content }]
-        }));
-
-    // Pass the correctly formatted history to the flow.
+    // The history is now passed directly to the flow without any formatting.
+    // The flow itself is responsible for ensuring the format is correct for the AI.
     const response = await universalChatFlow({
       companyId,
-      conversationHistory: formattedHistory,
+      conversationHistory,
     });
     
     // Handle visualization suggestions from the AI

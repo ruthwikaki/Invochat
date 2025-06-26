@@ -35,7 +35,7 @@ const executeSQLTool = ai.defineTool({
   }
 
   // 2. SECURE COMPANY ID INJECTION: Enforce data isolation.
-  // The user's companyId is retrieved from the secure flow state, not from AI input.
+  // The user's companyId is retrieved from the secure flow context, not from AI input.
   const { companyId } = flow.context;
   if (!companyId) {
       // If the companyId is missing, something is fundamentally wrong. Abort immediately.
@@ -110,15 +110,12 @@ const executeSQLTool = ai.defineTool({
 });
 
 
-// This schema defines the expected input for the flow. It now expects the conversation
-// history to be pre-formatted in the exact structure that Genkit requires.
+// This schema now accepts the raw history format from the client action.
 const UniversalChatInputSchema = z.object({
   companyId: z.string(),
   conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant']),
-    content: z.array(z.object({
-        text: z.string()
-    })),
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string(),
   })),
 });
 export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
@@ -137,24 +134,23 @@ export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
 
 
 /**
- * The main flow for handling universal chat requests. It no longer retries on failure.
+ * The main flow for handling universal chat requests.
  */
 export const universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
-  // The input is validated by the Zod schema.
-  // The conversationHistory is now guaranteed to be in the correct format.
-  const { companyId, conversationHistory } = input;
+  const { companyId, conversationHistory = [] } = input;
   
   console.log('[UniversalChat] Starting flow. History length:', conversationHistory.length);
 
+  // The history is formatted here, right before calling the AI, to ensure it's always correct.
   const messages = conversationHistory
-    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant'))
+    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0)
     .map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user', // Gemini uses 'model' instead of 'assistant'
-      content: msg.content
+      content: [{ text: msg.content }] // This is the required format for Genkit's Gemini plugin.
     }));
   
   const { output } = await ai.generate({
