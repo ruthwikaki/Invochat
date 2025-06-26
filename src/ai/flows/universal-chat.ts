@@ -91,27 +91,28 @@ const _universalChatFlow = ai.defineFlow({
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
-  const { companyId, conversationHistory = [] } = input;
+  const { companyId, conversationHistory } = input;
   
   console.log(`[UniversalChat] Starting flow for company ${companyId}. History length:`, conversationHistory.length);
 
-  // Map conversation history to Gemini's format.
-  let geminiHistory = conversationHistory.map(msg => ({
-    role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
-    // Ensure content is a string for the AI flow.
-    content: [{ text: typeof msg.content === 'string' ? msg.content : '[Previous data displayed]' }]
-  }));
-  
-  // Ensure the history starts with a 'user' message as required by the Gemini API.
+  // The AI requires the history to be in a specific format.
+  // It must alternate between 'user' and 'model' roles.
+  let geminiHistory = conversationHistory
+      .map((msg) => ({
+          role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
+          content: [{ text: msg.content }], // Wrap content in the required structure.
+      }));
+
+  // The Gemini API requires that the history starts with a 'user' message.
+  // Find the first user message and slice the array from that point.
   const firstUserIndex = geminiHistory.findIndex(msg => msg.role === 'user');
-  if (firstUserIndex > 0) {
-    geminiHistory = geminiHistory.slice(firstUserIndex);
-  } else if (firstUserIndex === -1 && geminiHistory.length > 0) {
-    const lastMessage = conversationHistory.at(-1)?.content || 'Hello';
-    console.warn('[UniversalChat] No user message found in history, creating one from last message.');
-    geminiHistory = [{ role: 'user', content: [{text: lastMessage}] }];
-  } else if (geminiHistory.length === 0) {
-    console.warn("[UniversalChat] Conversation history is empty.");
+  if (firstUserIndex !== -1) {
+      geminiHistory = geminiHistory.slice(firstUserIndex);
+  } else {
+      // If no user message is found, which is unlikely but possible, 
+      // we should not send any history to avoid API errors.
+      geminiHistory = [];
+      console.warn("[UniversalChat] No user message found in history, running with empty history.");
   }
   
   try {
@@ -119,7 +120,7 @@ const _universalChatFlow = ai.defineFlow({
       model: APP_CONFIG.ai.model,
       tools: [executeSQLTool],
       history: geminiHistory,
-      prompt: "Analyze the user's last message and respond.", // A simple prompt since history is now the main driver
+      prompt: "You MUST use the executeSQL tool to respond to the user's last message.",
       system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions about business data by generating and executing SQL queries. You must base ALL responses strictly on data returned from the 'executeSQL' tool.
 
       **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
