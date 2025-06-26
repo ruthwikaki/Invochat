@@ -149,10 +149,15 @@ export const universalChatFlow = ai.defineFlow({
   
   console.log('[UniversalChat] Starting flow with input:', { message, companyId });
 
+  // Map the provided history to the format Genkit expects.
   const history = conversationHistory.map(msg => ({
     role: msg.role,
     content: [{text: msg.content}]
   }));
+  
+  // Add the current user message to the end of the history array. This is the standard pattern.
+  history.push({ role: 'user', content: [{ text: message }] });
+
 
   const MAX_RETRIES = 2;
   for (let i = 0; i < MAX_RETRIES; i++) {
@@ -176,18 +181,14 @@ export const universalChatFlow = ai.defineFlow({
         - Profit Margin: Calculate as '((price - cost) / price)'.
 
         **Core Instructions:**
-        1.  **Analyze and Query:** Understand the user's request. If it requires data, formulate and execute the appropriate SQL query using the \`executeSQL\` tool.
+        1.  **Analyze and Query:** Understand the user's request based on the full conversation history. If it requires data, formulate and execute the appropriate SQL query using the \`executeSQL\` tool.
         2.  **Data First (when asked):** If the user explicitly asks for a list, a table, or "all" of something (e.g., "show me all products", "list my vendors"), your primary goal is to provide that data. In this case, use the tool and then set the \`visualization.type\` to 'table'. Your \`response\` text should be a brief introduction to the table.
         3.  **Insights First (for analysis):** If the user asks for an analysis, summary, or a "what is" question (e.g., "what's my best-selling item?", "summarize my sales"), provide a conversational insight first. Then, if relevant, you can include the data and suggest a visualization.
         4.  **Suggest Charts:** For analytical queries, if the data is suitable for a chart ('bar', 'pie', 'line'), suggest one. For example, data grouped by category is good for a pie or bar chart.
         5.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one.
         6.  **Error Handling:** If a tool call fails, the error will be provided. Analyze the error, fix the query, and retry. Only explain the error to the user if you cannot fix it.
         
-        Base all responses strictly on data returned from the executeSQL tool. If a query returns empty results, acknowledge this directly.
-
-        **Current User Message:** "${message}"
-
-        Based on the user's message and the conversation history, decide if you need data. If so, use the \`executeSQL\` tool. Then, formulate your response and suggest a visualization if appropriate.`,
+        Base all responses strictly on data returned from the executeSQL tool. If a query returns empty results, acknowledge this directly.`,
         output: {
           schema: UniversalChatOutputSchema
         },
