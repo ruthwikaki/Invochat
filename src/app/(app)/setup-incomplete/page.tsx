@@ -8,13 +8,17 @@ import { AlertTriangle, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 
-const sqlCode = `-- This function and trigger ensure that when a new user signs up,
--- their company information is correctly created in the database and
--- the 'company_id' is stored in their authentication metadata (app_metadata),
--- which is crucial for the app's multi-tenancy to work correctly.
+const sqlCode = `-- This file contains all the necessary SQL to set up your database.
+-- It should be run once in your Supabase project's SQL Editor.
+
+-- ========= Part 1: New User Trigger =========
+-- This function and trigger ensure that when a new user signs up,
+-- their company information is correctly created and the 'company_id'
+-- is stored in their authentication metadata, which is crucial for
+-- the app's multi-tenancy to work correctly.
 
 -- First, ensure the 'uuid-ossp' extension is enabled to generate UUIDs.
-create extension if not exists "uuid-ossp";
+create extension if not exists "uuid-ossp" with schema extensions;
 
 -- This function runs for each new user created in the 'auth.users' table.
 create or replace function public.handle_new_user()
@@ -27,12 +31,10 @@ declare
   user_company_name text;
 begin
   -- Extract company_id and company_name from the metadata provided during signup.
-  -- The signup action in the app code generates and passes this data.
   user_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
   user_company_name := new.raw_user_meta_data->>'company_name';
 
   -- Create a corresponding record in the 'public.companies' table.
-  -- 'ON CONFLICT (id) DO NOTHING' prevents errors if a company with this ID already exists.
   insert into public.companies (id, name)
   values (user_company_id, user_company_name)
   on conflict (id) do nothing;
@@ -57,6 +59,29 @@ $$;
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+
+-- ========= Part 2: Dynamic Query Function =========
+-- This function is CRITICAL for the AI chat functionality.
+-- It allows the AI to securely execute read-only queries that your application constructs.
+-- It takes a SQL query string as input and returns the result as a JSON array.
+
+create or replace function public.execute_dynamic_query(query_text text)
+returns json
+language plpgsql
+as $$
+declare
+  result_json json;
+begin
+  -- Execute the dynamic query and aggregate the results into a JSON array.
+  -- The coalesce function ensures that if the query returns no rows,
+  -- we get an empty JSON array '[]' instead of NULL.
+  execute format('select coalesce(json_agg(t), ''[]'') from (%s) t', query_text)
+  into result_json;
+
+  return result_json;
+end;
+$$;
 `;
 
 
@@ -79,29 +104,29 @@ export default function SetupIncompletePage() {
 
     return (
         <div className="flex items-center justify-center min-h-dvh bg-muted/40 p-4">
-            <Card className="w-full max-w-2xl">
+            <Card className="w-full max-w-3xl">
                 <CardHeader className="text-center">
                     <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
                         <AlertTriangle className="h-8 w-8 text-destructive" />
                     </div>
                     <CardTitle className="mt-4">Account Setup Incomplete</CardTitle>
                     <CardDescription>
-                        Your user account is authenticated, but it's not fully configured in the database.
+                        Your user account is authenticated, but your database is not fully configured.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        This happens when the database trigger that links your user to a company is missing or incorrect. This trigger is essential for the application to work.
+                        This application requires two components in your database to function correctly: a trigger to handle new user signups, and a special function to allow the AI to securely query your data.
                     </p>
                     <h3 className="font-semibold pt-4">How to Fix</h3>
                     <p className="text-sm text-muted-foreground">
-                        To permanently fix this, please run the following SQL code in your Supabase project's SQL Editor. This only needs to be done once per project.
+                        Please run the following SQL code **once** in your Supabase project's SQL Editor. This will create both required components.
                     </p>
-                    <div className="relative bg-background border rounded-md font-mono text-xs">
+                    <div className="relative bg-background border rounded-md font-mono text-xs max-h-72 overflow-y-auto">
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="absolute top-2 right-2"
+                            className="absolute top-2 right-2 z-10"
                             onClick={copyToClipboard}
                         >
                             Copy
@@ -111,7 +136,7 @@ export default function SetupIncompletePage() {
                         </pre>
                     </div>
                      <p className="text-sm text-muted-foreground pt-2">
-                        After running the SQL, you must **sign out and sign up with a new user account**. The trigger only runs for new accounts.
+                        After running the SQL, you must **sign out and sign up with a new user account**. The trigger only runs for new accounts. Existing accounts will not be fixed automatically.
                     </p>
                 </CardContent>
                 <CardFooter>

@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -48,6 +49,8 @@ const executeSQLTool = ai.defineTool({
   }),
   outputSchema: z.array(z.any()),
 }, async ({ query }, flow) => {
+    // This is the secure, correct way to get request-scoped data into a tool.
+    // The `state` is passed from the `ai.generate()` call within the flow.
     const companyId = flow?.state?.companyId;
     if (!companyId) {
         throw new Error("[executeSQLTool] Critical security error: companyId was not found in the flow's execution state. Aborting query.");
@@ -69,13 +72,14 @@ const executeSQLTool = ai.defineTool({
     // PERFORMANCE & COST CONTROL: Add a LIMIT clause if one doesn't already exist.
     let finalQuery = secureQuery;
     if (!/limit\s+\d+/i.test(finalQuery)) {
-        // Add limit before a potential semicolon
         finalQuery = finalQuery.replace(/;?$/, ` LIMIT ${APP_CONFIG.database.queryLimit};`);
     }
 
     console.log('[executeSQLTool] Original query from AI:', query);
     console.log('[executeSQLTool] Secured & Executed query:', finalQuery);
 
+    // This RPC function must exist in the database.
+    // We provide the SQL to create it in the setup-incomplete page.
     const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
         query_text: finalQuery
     });
@@ -101,7 +105,7 @@ export const universalChatFlow = ai.defineFlow({
   
   console.log(`[UniversalChat] Starting flow for company ${companyId}. History length:`, conversationHistory.length);
 
-  // Filter and format messages for Gemini
+  // Filter and format messages for Gemini.
   // The API requires the conversation to start with a 'user' role.
   const filteredHistory = conversationHistory
     .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0);
@@ -121,12 +125,13 @@ export const universalChatFlow = ai.defineFlow({
     }
   }
 
-  // If after filtering, there are no messages, create a default one from the last message.
+  // If after filtering, there are no valid messages, use the last user message.
   if (messages.length === 0) {
-    console.log('[UniversalChat] No valid user-initiated conversation history, using default "Hello" message.');
+    const lastUserMessage = conversationHistory.filter(m => m.role === 'user').at(-1);
+    console.log('[UniversalChat] No valid user-initiated conversation history, using last user message or default "Hello".');
     messages.push({
       role: 'user',
-      content: [{ text: conversationHistory.at(-1)?.content || 'Hello' }]
+      content: [{ text: lastUserMessage?.content || 'Hello' }]
     });
   }
   
@@ -151,7 +156,6 @@ export const universalChatFlow = ai.defineFlow({
       - Example (JOIN): \`SELECT i.name, s.total_amount FROM inventory i JOIN sales s ON i.id = s.item_id WHERE i.company_id = 'COMPANY_ID_PLACEHOLDER' AND s.company_id = 'COMPANY_ID_PLACEHOLDER'\`
 
       **DATABASE SCHEMA:**
-      (Note: The 'company_id' is handled automatically. DO NOT include it in your queries.)
       - **inventory**: Contains all product and stock item information. Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
       - **vendors**: Contains all supplier information. Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
       - **sales**: Records all sales transactions. Columns: \`id, sale_date, customer_name, total_amount, items\`.
@@ -159,7 +163,7 @@ export const universalChatFlow = ai.defineFlow({
       output: {
         schema: UniversalChatOutputSchema
       },
-      // Pass the entire flow input as state, making companyId available to tools.
+      // This is the correct way to pass request-scoped context to tools.
       state: input, 
     });
 
@@ -177,6 +181,7 @@ export const universalChatFlow = ai.defineFlow({
 
   } catch (error) {
     console.error('[UniversalChat] An error occurred during AI generation:', error);
+    // Rethrow the error to be handled by the calling server action.
     throw error;
   }
 });
