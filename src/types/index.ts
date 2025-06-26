@@ -14,8 +14,13 @@ export type User = Omit<SupabaseUser, 'app_metadata'> & {
 export type Message = {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  content: ReactNode;
+  content: string; // Keep this as string only
   timestamp: number;
+  visualization?: {
+    type: 'table' | 'chart' | 'alert';
+    data: any;
+    config?: any;
+  };
 };
 
 // Represents the configuration for a dynamically generated chart.
@@ -36,14 +41,6 @@ export type ChartConfig = {
         paddingAngle?: number;
     }
 }
-
-export type AssistantMessagePayload = {
-  id: string;
-  role: 'assistant';
-  content?: string;
-  component?: 'DataTable' | 'DynamicChart' | 'DeadStockTable' | 'SupplierPerformanceTable' | 'ReorderList';
-  props?: any;
-};
 
 // Data models based on database schema
 // This type is based on the `get_suppliers` RPC function, updated to match vendors table.

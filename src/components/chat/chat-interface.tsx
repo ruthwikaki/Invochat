@@ -1,28 +1,16 @@
+
 'use client';
 
 import { handleUserMessage } from '@/app/actions';
-import { DeadStockTable } from '@/components/ai-response/dead-stock-table';
-import { ReorderList } from '@/components/ai-response/reorder-list';
-import { SupplierPerformanceTable } from '@/components/ai-response/supplier-performance-table';
-import { DynamicChart } from '@/components/ai-response/dynamic-chart';
-import { DataTable } from '@/components/ai-response/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { AssistantMessagePayload, Message } from '@/types';
+import type { Message } from '@/types';
 import { ArrowRight } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
 import { APP_CONFIG } from '@/config/app-config';
-
-const AiComponentMap = {
-  DeadStockTable,
-  SupplierPerformanceTable,
-  ReorderList,
-  DynamicChart,
-  DataTable,
-};
 
 const quickActions = APP_CONFIG.chat.quickActions;
 
@@ -37,7 +25,6 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
   };
@@ -50,69 +37,36 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
       timestamp: Date.now(),
     };
     
-    // Add the user's message and a loading state for the assistant.
-    setMessages(prev => [
-      ...prev,
-      userMessage,
-      {
+    setMessages(prev => [...prev, userMessage]);
+    
+    startTransition(async () => {
+      // Add loading message
+      const loadingMessage: Message = {
         id: 'loading',
         role: 'assistant',
         content: '...',
         timestamp: Date.now(),
-      }
-    ]);
-    
-    startTransition(async () => {
+      };
+      setMessages(prev => [...prev, loadingMessage]);
+      
       try {
-        // Construct the history from the state *before* this message was sent.
-        const historyForAI = messages
-            .filter(m => m.role === 'user' || m.role === 'assistant')
-            .slice(-APP_CONFIG.ai.historyLimit)
-            .map(m => ({
-                role: m.role as 'user' | 'assistant',
-                // Ensure content is a string for the AI flow.
-                content: typeof m.content === 'string' ? m.content : '[Previous data displayed]',
-            }));
-            
-        // Add the new user message to the history for the current call.
-        historyForAI.push({ role: 'user', content: userMessageText });
-
-        const response = await handleUserMessage({ 
-          conversationHistory: historyForAI
+        const response = await handleUserMessage({
+          // Pass the history *with* the new user message
+          conversationHistory: [...messages, userMessage].slice(-APP_CONFIG.ai.historyLimit),
         });
         
+        // Replace loading message with actual response
         setMessages(prev => {
-            // Find the loading message and replace it with the actual response.
-            const newMessages = prev.filter(m => m.id !== 'loading');
-
-            let contentNode: React.ReactNode = response.content;
-            if (response.component && response.component in AiComponentMap) {
-              const Component = AiComponentMap[response.component as keyof typeof AiComponentMap];
-              contentNode = (
-                <div className="space-y-2">
-                  {response.content && <p>{response.content}</p>}
-                  <Component {...response.props} />
-                </div>
-              );
-            }
-
-            newMessages.push({
-                id: response.id,
-                role: 'assistant',
-                content: contentNode,
-                timestamp: Date.now(),
-            });
-
-            return newMessages;
+          const filtered = prev.filter(m => m.id !== 'loading');
+          return [...filtered, response];
         });
-
-      } catch (e: any) {
-        toast({ 
-          variant: 'destructive', 
-          title: 'Error', 
-          description: e.message || 'Could not get response from InvoChat.'
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: error.message || 'Could not get response from InvoChat.',
         });
-        // Remove loading indicator on error
+        // Remove loading message on error
         setMessages(prev => prev.filter(m => m.id !== 'loading'));
       }
     });
@@ -120,7 +74,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (input.trim()) {
+    if (input.trim() && !isPending) {
       processAndSetMessages(input);
       setInput('');
     }

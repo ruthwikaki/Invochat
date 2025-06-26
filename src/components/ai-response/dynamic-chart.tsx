@@ -1,3 +1,4 @@
+
 import type { ChartConfig } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +18,7 @@ import {
   Legend
 } from 'recharts';
 
-type DynamicChartProps = ChartConfig;
+type DynamicChartProps = ChartConfig & { isExpanded?: boolean };
 
 const COLORS = ['#6B46C1', '#475569', '#10B981', '#F59E0B', '#F43F5E'];
 
@@ -48,8 +49,8 @@ function renderChart(props: DynamicChartProps) {
                         nameKey={config.nameKey}
                         cx="50%"
                         cy="50%"
-                        outerRadius={80}
-                        innerRadius={50}
+                        outerRadius="80%"
+                        innerRadius="50%"
                         paddingAngle={5}
                         fill="hsl(var(--primary))"
                         labelLine={false}
@@ -92,24 +93,22 @@ export function DynamicChart(props: DynamicChartProps) {
     if (!props.data || props.data.length === 0) {
         return <p>No data available to display the chart.</p>;
     }
+    
+    // If it's part of the full-screen dialog, just render the chart
+    if (props.isExpanded) {
+        return (
+            <ResponsiveContainer width="100%" height="100%">
+                {renderChart(props)}
+            </ResponsiveContainer>
+        )
+    }
 
+    // Otherwise, render it within the component container for the chat
     return (
-        <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base font-medium">{props.title}</CardTitle>
-                <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-6 w-6"><Expand className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" className="h-6 w-6"><Download className="h-4 w-4" /></Button>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="h-[250px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        {renderChart(props)}
-                    </ResponsiveContainer>
-                </div>
-            </CardContent>
-        </Card>
+        <div className="h-full w-full">
+            <ResponsiveContainer width="100%" height="100%">
+                {renderChart(props)}
+            </ResponsiveContainer>
+        </div>
     );
 }
