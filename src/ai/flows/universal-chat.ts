@@ -42,83 +42,55 @@ export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
 const executeSQLTool = ai.defineTool({
   name: 'executeSQL',
   description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
-    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.
-    The 'company_id' is handled automatically by the system. Do NOT include it in your generated query.`,
+    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.`,
   inputSchema: z.object({
-    query: z.string().describe("The SQL SELECT query to execute. It MUST start with 'SELECT'."),
+    query: z.string().describe("The SQL SELECT query to execute. It MUST contain the `company_id = 'COMPANY_ID_PLACEHOLDER'` clause."),
   }),
   outputSchema: z.array(z.any()),
 }, async ({ query }, flow) => {
-  // This is the correct, secure way to access request-scoped state.
-  if (!flow?.state?.companyId) {
-    throw new Error("[executeSQLTool] Critical security error: companyId was not found in the flow's execution state. Aborting query.");
-  }
-  const companyId = flow.state.companyId;
-  
-  // SECURITY VALIDATION: Allow only SELECT queries.
-  if (!query.trim().toLowerCase().startsWith('select')) {
-      throw new Error('For security reasons, only SELECT queries are allowed.');
-  }
-  
-  // SECURE COMPANY ID INJECTION
-  // A simple but effective way to inject the company_id into the WHERE clause.
-  // This prevents the AI from accessing data from other companies.
-  const fromMatch = query.match(/\sFROM\s+([`"'\w]+)/i);
-  if (!fromMatch || !fromMatch[1]) {
-      throw new Error("Query does not specify a valid 'FROM' clause and cannot be secured.");
-  }
-  const tableName = fromMatch[1].replace(/[`"']/g, '');
-  const securityClause = `${tableName}.company_id = '${companyId}'`;
+    const companyId = flow?.state?.companyId;
+    if (!companyId) {
+        throw new Error("[executeSQLTool] Critical security error: companyId was not found in the flow's execution state. Aborting query.");
+    }
+    
+    // SECURITY VALIDATION: Allow only SELECT queries.
+    if (!query.trim().toLowerCase().startsWith('select')) {
+        throw new Error('For security reasons, only SELECT queries are allowed.');
+    }
 
-  let secureQuery = query;
-  const whereRegex = /\sWHERE\s/i;
+    // SECURITY VALIDATION: Ensure the placeholder is present. This is a critical safeguard.
+    if (!query.includes('COMPANY_ID_PLACEHOLDER')) {
+        throw new Error("Query is insecure. It is missing the required `company_id = 'COMPANY_ID_PLACEHOLDER'` clause. Please regenerate the query correctly.");
+    }
 
-  if (whereRegex.test(secureQuery)) {
-      // If a WHERE clause already exists, AND the company_id check to it.
-      secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
-  } else {
-      // If no WHERE clause, find where to inject it (before GROUP BY, ORDER BY, etc.)
-      const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i, /;/i];
-      let insertionPoint = -1;
-      for (const clauseRegex of otherClauses) {
-          const match = secureQuery.match(clauseRegex);
-          if (match?.index !== undefined && (insertionPoint === -1 || match.index < insertionPoint)) {
-              insertionPoint = match.index;
-          }
-      }
-      if (insertionPoint !== -1) {
-          secureQuery = `${secureQuery.slice(0, insertionPoint)} WHERE ${securityClause} ${secureQuery.slice(insertionPoint)}`;
-      } else {
-          secureQuery += ` WHERE ${securityClause}`;
-      }
-  }
+    // SECURE COMPANY ID INJECTION: Replace the placeholder with the actual companyId.
+    const secureQuery = query.replace(/COMPANY_ID_PLACEHOLDER/g, companyId);
+    
+    // PERFORMANCE & COST CONTROL: Add a LIMIT clause if one doesn't already exist.
+    let finalQuery = secureQuery;
+    if (!/limit\s+\d+/i.test(finalQuery)) {
+        // Add limit before a potential semicolon
+        finalQuery = finalQuery.replace(/;?$/, ` LIMIT ${APP_CONFIG.database.queryLimit};`);
+    }
 
-  // PERFORMANCE & COST CONTROL: Add a LIMIT clause if one doesn't already exist.
-  if (!/limit\s+\d+/i.test(secureQuery)) {
-    secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
-  }
+    console.log('[executeSQLTool] Original query from AI:', query);
+    console.log('[executeSQLTool] Secured & Executed query:', finalQuery);
 
-  console.log('[executeSQLTool] Original query from AI:', query);
-  console.log('[executeSQLTool] Secured & Executed query:', secureQuery);
+    const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
+        query_text: finalQuery
+    });
 
-  // Database Execution
-  const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
-      query_text: secureQuery
-  });
+    if (error) {
+        console.error('[executeSQLTool] SQL execution error:', error);
+        // Provide a clear error to the model so it can potentially correct the query.
+        throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
+    }
 
-  if (error) {
-    console.error('[executeSQLTool] SQL execution error:', error);
-    // Throw an error to signal failure to the model clearly.
-    throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
-  }
-
-  return data || [];
+    return data || [];
 });
 
 /**
  * The main flow for handling universal chat requests.
- * This has been re-architected to be more robust and align with Genkit's design principles.
- * The SQL tool is defined globally and receives the companyId securely via the flow's state.
  */
 export const universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
@@ -149,7 +121,7 @@ export const universalChatFlow = ai.defineFlow({
     }
   }
 
-  // If after filtering, there are no messages, create a default one.
+  // If after filtering, there are no messages, create a default one from the last message.
   if (messages.length === 0) {
     console.log('[UniversalChat] No valid user-initiated conversation history, using default "Hello" message.');
     messages.push({
@@ -163,34 +135,36 @@ export const universalChatFlow = ai.defineFlow({
       model: APP_CONFIG.ai.model,
       tools: [executeSQLTool],
       messages: messages,
-      system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
+      system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions about business data by generating and executing SQL queries. You must base ALL responses strictly on data returned from the 'executeSQL' tool.
 
       **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
-      1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions like "What information are you looking for?". You have all the context you need.
+      1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions. You have all the context you need.
       2.  **IMMEDIATELY USE THE TOOL.** For any user question about inventory, products, vendors, or sales, your first and only action should be to construct and execute a SQL query using the \`executeSQL\` tool.
-      3.  **ALWAYS RETURN DATA:** If the \`executeSQL\` tool returns data, you MUST populate the 'data' field in your output with the exact data returned by the tool. This is mandatory.
-      4.  **ANALYZE & VISUALIZE:** After receiving data from the tool, analyze it. If the data is a list of items or records, you MUST suggest a 'table' visualization. If it's suitable for a chart (e.g., categorical data, time series), you MUST suggest the appropriate chart type ('bar', 'pie', 'line'). If no data is returned, suggest 'none'.
-      5.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found for their request. DO NOT invent data and DO NOT say "Here is the data...".
-      6.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
-      7.  Base all responses strictly on data returned from the \`executeSQL\` tool.
+      3.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
+      4.  **NEVER INVENT DATA:** If the tool returns an empty result (\`[]\`), you MUST state that no data was found for their request. Do not apologize. Do not say "Here is the data...".
+      5.  **ANALYZE & VISUALIZE:** After receiving data, analyze it. If the data is a list of items, you MUST suggest a 'table' visualization. If it's suitable for a chart, you MUST suggest the appropriate chart type ('bar', 'pie', 'line'). If no data is returned, suggest 'none' for the visualization type.
+      6.  **MANDATORY DATA RETURN:** If the \`executeSQL\` tool returns data, you MUST populate the 'data' field in your output with the exact data returned by the tool. This is not optional.
+      
+      **CRITICAL QUERYING RULE:**
+      For every table you query (e.g., 'inventory', 'vendors'), you MUST include a condition in the WHERE clause to filter by the company ID. Use the exact placeholder 'COMPANY_ID_PLACEHOLDER' for the ID. The system will securely replace this placeholder. Queries without this placeholder will be rejected.
+      - Example (1 table): \`SELECT name, quantity FROM inventory WHERE quantity < 10 AND company_id = 'COMPANY_ID_PLACEHOLDER'\`
+      - Example (JOIN): \`SELECT i.name, s.total_amount FROM inventory i JOIN sales s ON i.id = s.item_id WHERE i.company_id = 'COMPANY_ID_PLACEHOLDER' AND s.company_id = 'COMPANY_ID_PLACEHOLDER'\`
 
       **DATABASE SCHEMA:**
       (Note: The 'company_id' is handled automatically. DO NOT include it in your queries.)
-      - **inventory**: Contains all product and stock item information. Use this table for questions about "products". Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
-      - **vendors**: Contains all supplier information. Use this table for questions about "suppliers" or "vendors". Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
+      - **inventory**: Contains all product and stock item information. Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
+      - **vendors**: Contains all supplier information. Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
       - **sales**: Records all sales transactions. Columns: \`id, sale_date, customer_name, total_amount, items\`.
       - **purchase_orders**: Tracks orders placed with vendors. Columns: \`id, po_number, vendor, item, quantity, cost, order_date\`.`,
       output: {
         schema: UniversalChatOutputSchema
       },
-      // This is the correct way to pass request-scoped data to tools.
-      // The flow's input becomes the state for this execution.
+      // Pass the entire flow input as state, making companyId available to tools.
       state: input, 
     });
 
     const output = modelResponse.output;
     
-    // This safeguard prevents the schema validation crash if the model returns null.
     if (!output) {
       console.error('[UniversalChat] AI model returned a null or invalid object.', modelResponse);
       throw new Error("The AI model did not return a valid response object. The output was null.");
@@ -203,7 +177,6 @@ export const universalChatFlow = ai.defineFlow({
 
   } catch (error) {
     console.error('[UniversalChat] An error occurred during AI generation:', error);
-    // Re-throw the error to be caught by the calling server action.
     throw error;
   }
 });
