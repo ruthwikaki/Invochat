@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
@@ -33,7 +32,8 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
 
     // The middleware should prevent this function from being called by a user
     // without a company_id. If this error is thrown, it's a bug in the middleware.
-    const companyId = user?.app_metadata?.company_id;
+    // We check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
+    const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
     if (!user || !companyId || typeof companyId !== 'string') {
         throw new Error("Application error: Could not determine company ID. The user may not be properly authenticated or configured.");
     }

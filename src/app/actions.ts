@@ -70,7 +70,8 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
     );
     const { data: { user } } = await supabase.auth.getUser();
 
-    const companyId = user?.app_metadata?.company_id;
+    // We check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
+    const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
     if (!user || !companyId || typeof companyId !== 'string') {
         throw new Error("Application error: Could not determine company ID. The user may not be properly authenticated or configured.");
     }

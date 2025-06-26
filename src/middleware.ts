@@ -76,7 +76,7 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
 
-      const companyId = user.app_metadata?.company_id;
+      const companyId = user.app_metadata?.company_id || user.user_metadata?.company_id;
       const isSetupIncompleteRoute = pathname === '/setup-incomplete';
 
       if (!companyId && !isSetupIncompleteRoute) {
