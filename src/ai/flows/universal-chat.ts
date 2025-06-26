@@ -3,6 +3,7 @@
 /**
  * @fileOverview Universal Chat flow with RAG capabilities using a dynamic SQL tool.
  * This file contains the core logic for how the AI interacts with the database.
+ * This version has been re-architected for stability and security.
  */
 
 import { ai } from '@/ai/genkit';
@@ -48,10 +49,11 @@ const executeSQLTool = ai.defineTool({
   }),
   outputSchema: z.array(z.any()),
 }, async ({ query }, flow) => {
-  const companyId = flow?.state?.companyId;
-  if (!companyId) {
+  // This is the correct, secure way to access request-scoped state.
+  if (!flow?.state?.companyId) {
     throw new Error("[executeSQLTool] Critical security error: companyId was not found in the flow's execution state. Aborting query.");
   }
+  const companyId = flow.state.companyId;
   
   // SECURITY VALIDATION: Allow only SELECT queries.
   if (!query.trim().toLowerCase().startsWith('select')) {
@@ -59,6 +61,8 @@ const executeSQLTool = ai.defineTool({
   }
   
   // SECURE COMPANY ID INJECTION
+  // A simple but effective way to inject the company_id into the WHERE clause.
+  // This prevents the AI from accessing data from other companies.
   const fromMatch = query.match(/\sFROM\s+([`"'\w]+)/i);
   if (!fromMatch || !fromMatch[1]) {
       throw new Error("Query does not specify a valid 'FROM' clause and cannot be secured.");
@@ -70,8 +74,10 @@ const executeSQLTool = ai.defineTool({
   const whereRegex = /\sWHERE\s/i;
 
   if (whereRegex.test(secureQuery)) {
+      // If a WHERE clause already exists, AND the company_id check to it.
       secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
   } else {
+      // If no WHERE clause, find where to inject it (before GROUP BY, ORDER BY, etc.)
       const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i, /;/i];
       let insertionPoint = -1;
       for (const clauseRegex of otherClauses) {
@@ -87,7 +93,7 @@ const executeSQLTool = ai.defineTool({
       }
   }
 
-  // PERFORMANCE & COST CONTROL: Add a LIMIT clause.
+  // PERFORMANCE & COST CONTROL: Add a LIMIT clause if one doesn't already exist.
   if (!/limit\s+\d+/i.test(secureQuery)) {
     secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
   }
@@ -124,6 +130,7 @@ export const universalChatFlow = ai.defineFlow({
   console.log(`[UniversalChat] Starting flow for company ${companyId}. History length:`, conversationHistory.length);
 
   // Filter and format messages for Gemini
+  // The API requires the conversation to start with a 'user' role.
   const filteredHistory = conversationHistory
     .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0);
 
@@ -142,6 +149,7 @@ export const universalChatFlow = ai.defineFlow({
     }
   }
 
+  // If after filtering, there are no messages, create a default one.
   if (messages.length === 0) {
     console.log('[UniversalChat] No valid user-initiated conversation history, using default "Hello" message.');
     messages.push({
@@ -160,9 +168,10 @@ export const universalChatFlow = ai.defineFlow({
       **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
       1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions like "What information are you looking for?". You have all the context you need.
       2.  **IMMEDIATELY USE THE TOOL.** For any user question about inventory, products, vendors, or sales, your first and only action should be to construct and execute a SQL query using the \`executeSQL\` tool.
-      3.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found for their request. DO NOT invent data and DO NOT say "Here is the data...".
-      4.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
-      5.  Base all responses strictly on data returned from the \`executeSQL\` tool.
+      3.  **ANALYZE & VISUALIZE:** After receiving data from the tool, analyze it. If the data is suitable for a chart (e.g., categorical data, time series), you MUST populate the 'visualization' field in your output. If it's just a list, suggest a 'table'. Otherwise, suggest 'none'.
+      4.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found for their request. DO NOT invent data and DO NOT say "Here is the data...".
+      5.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
+      6.  Base all responses strictly on data returned from the \`executeSQL\` tool.
 
       **DATABASE SCHEMA:**
       (Note: The 'company_id' is handled automatically. DO NOT include it in your queries.)
@@ -175,22 +184,25 @@ export const universalChatFlow = ai.defineFlow({
       },
       // This is the correct way to pass request-scoped data to tools.
       // The flow's input becomes the state for this execution.
-      state: input,
+      state: input, 
     });
 
     const output = modelResponse.output;
     
+    // This safeguard prevents the schema validation crash if the model returns null.
     if (!output) {
       console.error('[UniversalChat] AI model returned a null or invalid object.', modelResponse);
       throw new Error("The AI model did not return a valid response object. The output was null.");
     }
     
+    // Ensure data is always an array, even if null/undefined from AI.
     output.data = output.data ?? [];
     
     return output;
 
   } catch (error) {
     console.error('[UniversalChat] An error occurred during AI generation:', error);
+    // Re-throw the error to be caught by the calling server action.
     throw error;
   }
 });

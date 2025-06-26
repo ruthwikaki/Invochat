@@ -31,7 +31,9 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
 
   // Attempt to find the most likely candidates for name and value keys by looking for common substrings.
   const nameKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor')) || keys[0];
-  const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity')) || (keys.length > 1 ? keys.find(k => k !== nameKey) : null);
+  // Find a key that is NOT the name key and is likely a number.
+  const valueKey = keys.find(k => k !== nameKey && (k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity'))) || (keys.length > 1 ? keys.find(k => k !== nameKey) : null);
+
 
   // If we can't determine a distinct value key, we can't create a meaningful chart.
   if (!valueKey) {
@@ -96,7 +98,7 @@ export async function handleUserMessage(
     
     const response = await universalChatFlow({
       companyId,
-      conversationHistory, // Pass the validated history directly
+      conversationHistory,
     });
     
     // Handle visualization suggestions from the AI
@@ -124,9 +126,9 @@ export async function handleUserMessage(
                 title: response.visualization.title || 'Data Visualization',
                 data: transformedData,
                 config: {
-                  dataKey: 'value',
-                  nameKey: 'name',
-                  xAxisKey: 'name'
+                  dataKey: 'value', // Standardized key after transformation
+                  nameKey: 'name',   // Standardized key after transformation
+                  xAxisKey: 'name'  // Standardized key after transformation
                 }
               }
           };
@@ -154,6 +156,7 @@ export async function handleUserMessage(
     console.error('Chat error:', error);
     let errorMessage = `Sorry, I encountered an error while processing your request. Please try again.`;
     
+    // Provide more specific, helpful error messages for common Genkit/GCP issues.
     if (error.message?.includes('Cannot define new actions at runtime')) {
       errorMessage = "A critical configuration error occurred in the AI flow. The application tried to define an AI tool dynamically, which is not allowed. This is a developer error that needs to be fixed in the code.";
     } else if (error.message?.includes('The AI model did not return a valid response object')) {
@@ -164,6 +167,8 @@ export async function handleUserMessage(
         errorMessage = 'It looks like your Google AI API key is invalid. Please make sure the `GOOGLE_API_KEY` in your `.env` file is correct and try again.'
     } else if (error.message?.includes('authenticated or configured')) {
         errorMessage = error.message;
+    } else if (error.message?.includes('companyId was not found')) {
+        errorMessage = 'A critical security error occurred. The AI tool could not access your company ID. Please try signing out and in again.'
     }
 
     return {
