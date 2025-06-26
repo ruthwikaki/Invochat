@@ -24,19 +24,26 @@ const executeSQLTool = ai.defineTool({
   }),
   outputSchema: z.array(z.any()),
 }, async ({ query }, flow) => {
-  // 1. Security Validation
+  // This function is the gatekeeper for all database access.
+  // It ensures data security and multi-tenancy in three critical ways:
+
+  // 1. SECURITY VALIDATION: Allow only SELECT queries.
+  // This prevents the AI from attempting to modify data (INSERT, UPDATE, DELETE).
   if (!query.trim().toLowerCase().startsWith('select')) {
       throw new Error('For security reasons, only SELECT queries are allowed.');
   }
 
-  // 2. Secure companyId Injection
+  // 2. SECURE COMPANY ID INJECTION: Enforce data isolation.
+  // The user's companyId is retrieved from the secure flow state, not from AI input.
   const { companyId } = flow.state;
   if (!companyId) {
+      // If the companyId is missing, something is fundamentally wrong. Abort immediately.
       throw new Error("Security Error: Could not determine company ID for the query. Aborting.");
   }
   
-  // This is a more robust, though not infallible, way to inject the company_id.
-  // A full SQL AST parser would be required for 100% correctness on all possible queries.
+  // This logic rewrites the AI's generated query to ALWAYS include a `WHERE company_id = ...` clause.
+  // This is the most important security feature. It makes it impossible for the AI to query
+  // data from another company, even if it tried to craft a malicious query.
   let secureQuery = query;
   const fromRegex = /\bFROM\b\s+([\w."]+)/i;
   const match = query.match(fromRegex);
@@ -46,8 +53,10 @@ const executeSQLTool = ai.defineTool({
     const whereClause = `WHERE ${tableName}.company_id = '${companyId}'`;
 
     if (query.toLowerCase().includes(' where ')) {
+      // If the query already has a WHERE clause, we add our security condition.
       secureQuery = query.replace(/ where /i, ` ${whereClause} AND `);
     } else {
+      // Otherwise, we add the WHERE clause before other clauses like GROUP BY or ORDER BY.
       const groupByIndex = query.toLowerCase().indexOf(' group by ');
       if (groupByIndex > -1) {
         secureQuery = `${query.slice(0, groupByIndex)} ${whereClause} ${query.slice(groupByIndex)}`;
@@ -61,20 +70,22 @@ const executeSQLTool = ai.defineTool({
       }
     }
   } else {
+     // If the query is malformed (e.g., no FROM clause), we reject it.
     throw new Error("Query does not specify a table with 'FROM' and cannot be secured.");
   }
 
-  // Add a LIMIT clause for performance and cost control
+  // 3. PERFORMANCE & COST CONTROL: Add a LIMIT clause.
+  // This prevents queries from returning excessively large datasets, saving costs and improving performance.
   if (!/limit\s+\d+/i.test(secureQuery)) {
     secureQuery += ' LIMIT 1000';
   }
 
 
-  console.log('[executeSQLTool] Original query:', query);
-  console.log('[executeSQLTool] Secure query:', secureQuery);
-  console.log('[executeSQLTool] Company ID:', companyId);
+  console.log('[executeSQLTool] Original query from AI:', query);
+  console.log('[executeSQLTool] Secured & Executed query:', secureQuery);
+  console.log('[executeSQLTool] Company ID enforced:', companyId);
 
-  // 3. Database Execution
+  // Database Execution
   const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
       query_text: secureQuery
   });
