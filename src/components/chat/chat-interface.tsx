@@ -81,8 +81,8 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Create conversation history for context
-    const conversationHistory = messages
+    // Create conversation history for context, including the new user message
+    const conversationHistory = [...messages, userMessage]
       .filter(m => m.role !== 'system')
       .slice(-10) // Last 10 messages for context
       .map(m => ({
