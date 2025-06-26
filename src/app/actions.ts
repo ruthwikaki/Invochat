@@ -1,3 +1,4 @@
+
 'use server';
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -154,19 +155,21 @@ export async function handleUserMessage(
     
   } catch (error: any) {
     console.error('Chat error:', error);
-    let errorMessage = `Sorry, I encountered an error while processing your request. Please try again.`;
-    
-    // Provide more specific, helpful error messages for common Genkit/GCP issues.
-    if (error.message?.includes('Cannot define new actions at runtime')) {
-      errorMessage = "A critical configuration error occurred in the AI flow. The application tried to define an AI tool dynamically, which is not allowed. This is a developer error that needs to be fixed in the code.";
+    let errorMessage = `An unexpected error occurred. Please try again.`;
+
+    // Provide more specific, helpful error messages for common issues.
+    if (error.message?.includes('Query failed with error')) {
+      errorMessage = "I tried to query the database, but the query failed. The AI may have generated an invalid SQL query. Please try rephrasing your request.";
+    } else if (error.message?.includes('Query is insecure')) {
+      errorMessage = "The AI generated a query that was deemed insecure and was blocked. Please try your request again.";
     } else if (error.message?.includes('The AI model did not return a valid response object')) {
-      errorMessage = "Sorry, the AI returned an unexpected response. This might be a temporary issue. Please try rephrasing your question."
+      errorMessage = "The AI returned an unexpected or empty response. This might be a temporary issue with the model. Please try again."
     } else if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) {
-      errorMessage = 'It seems the AI model is not available. This is likely due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account. Please enable the API and link a billing account, then try again.';
+      errorMessage = 'The configured AI model is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.';
     } else if (error.message?.includes('API key not valid')) {
-        errorMessage = 'It looks like your Google AI API key is invalid. Please make sure the `GOOGLE_API_KEY` in your `.env` file is correct and try again.'
+        errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
     } else if (error.message?.includes('authenticated or configured')) {
-        errorMessage = error.message;
+        errorMessage = error.message; // Pass auth error message directly to user.
     } else if (error.message?.includes('companyId was not found')) {
         errorMessage = 'A critical security error occurred. The AI tool could not access your company ID. Please try signing out and in again.'
     }
