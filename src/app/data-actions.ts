@@ -37,9 +37,11 @@ async function getCompanyIdForCurrentUser(): Promise<string | null> {
             return null;
         }
 
+        // Check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
         const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
         
         if (!user || !companyId || typeof companyId !== 'string') {
+            console.warn('[getCompanyIdForCurrentUser] Could not determine company ID. User may not be fully signed up or session is invalid.');
             return null;
         }
         

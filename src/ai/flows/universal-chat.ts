@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -110,7 +111,7 @@ const executeSQLTool = ai.defineTool({
 });
 
 
-// This schema now accepts the raw history format from the client action.
+// This schema accepts the raw history format from the client action.
 const UniversalChatInputSchema = z.object({
   companyId: z.string(),
   conversationHistory: z.array(z.object({
