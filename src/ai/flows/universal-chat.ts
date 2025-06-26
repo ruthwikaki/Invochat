@@ -153,38 +153,45 @@ export const universalChatFlow = ai.defineFlow({
       content: [{ text: msg.content }] // This is the required format for Genkit's Gemini plugin.
     }));
   
-  const { output } = await ai.generate({
-    model: APP_CONFIG.ai.model,
-    tools: [executeSQLTool],
-    history: messages,
-    system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
+  console.log('[UniversalChat] Formatted messages:', JSON.stringify(messages, null, 2));
 
-    **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
-    1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions like "What information are you looking for?". You have all the context you need.
-    2.  **IMMEDIATELY USE THE TOOL.** For any user question about inventory, products, vendors, or sales, your first and only action should be to construct and execute a SQL query using the \`executeSQL\` tool.
-    3.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found for their request. DO NOT invent data and DO NOT say "Here is the data...".
-    4.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
-    5.  Base all responses strictly on data returned from the \`executeSQL\` tool.
+  try {
+    const { output } = await ai.generate({
+      model: APP_CONFIG.ai.model,
+      tools: [executeSQLTool],
+      messages: messages, // Change from 'history' to 'messages'
+      system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
-    **DATABASE SCHEMA:**
-    (Note: The 'company_id' is handled automatically. DO NOT include it in your queries.)
-    - **inventory**: Contains all product and stock item information. Use this table for questions about "products". Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
-    - **vendors**: Contains all supplier information. Use this table for questions about "suppliers" or "vendors". Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
-    - **sales**: Records all sales transactions. Columns: \`id, sale_date, customer_name, total_amount, items\`.
-    - **purchase_orders**: Tracks orders placed with vendors. Columns: \`id, po_number, vendor, item, quantity, cost, order_date\`.`,
-    output: {
-      schema: UniversalChatOutputSchema
-    },
-    context: { companyId }, // Pass companyId securely to the tool's flow context
-  });
-  
-  console.log('[UniversalChat] AI generation successful.');
+      **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
+      1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions like "What information are you looking for?". You have all the context you need.
+      2.  **IMMEDIATELY USE THE TOOL.** For any user question about inventory, products, vendors, or sales, your first and only action should be to construct and execute a SQL query using the \`executeSQL\` tool.
+      3.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found for their request. DO NOT invent data and DO NOT say "Here is the data...".
+      4.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
+      5.  Base all responses strictly on data returned from the \`executeSQL\` tool.
 
-  if (!output) {
-    throw new Error("The model did not return a valid response.");
+      **DATABASE SCHEMA:**
+      (Note: The 'company_id' is handled automatically. DO NOT include it in your queries.)
+      - **inventory**: Contains all product and stock item information. Use this table for questions about "products". Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
+      - **vendors**: Contains all supplier information. Use this table for questions about "suppliers" or "vendors". Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
+      - **sales**: Records all sales transactions. Columns: \`id, sale_date, customer_name, total_amount, items\`.
+      - **purchase_orders**: Tracks orders placed with vendors. Columns: \`id, po_number, vendor, item, quantity, cost, order_date\`.`,
+      output: {
+        schema: UniversalChatOutputSchema
+      },
+      context: { companyId }, // Pass companyId securely to the tool's flow context
+    });
+    
+    console.log('[UniversalChat] AI generation successful.');
+
+    if (!output) {
+      throw new Error("The model did not return a valid response.");
+    }
+    
+    output.data = output.data ?? []; // Ensure data is always an array
+    
+    return output;
+  } catch (error) {
+    console.error('[UniversalChat] Error in generate:', error);
+    throw error;
   }
-  
-  output.data = output.data ?? []; // Ensure data is always an array
-  
-  return output;
 });
