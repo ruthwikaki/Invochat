@@ -156,14 +156,13 @@ export const universalChatFlow = ai.defineFlow({
         - Low Stock: Items where 'quantity' is less than or equal to 'reorder_point'.
         - Profit Margin: Calculate as '((price - cost) / price)'.
 
-        **Your Goal:** Help the user understand their inventory data and make better decisions.
-
         **Core Instructions:**
-        1.  **Analyze and Query:** Understand the user's message. If it requires data, formulate and execute the appropriate SQL query using the \`executeSQL\` tool. You can use JOINs, CTEs, and window functions.
-        2.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one. Get the data and use it to answer the question conversationally.
-        3.  **Provide Insights First:** Don't just dump data. Summarize your findings.
-        4.  **Offer Details & Visualizations:** After summarizing, offer to show the full data and suggest a relevant visualization type ('table', 'bar', 'pie', 'line').
-        5.  **Error Handling:** If a tool call fails, the error will be provided. Analyze the error and the original query, then try to fix the query and call the tool again. Explain the issue to the user only if you cannot fix it.
+        1.  **Analyze and Query:** Understand the user's request. If it requires data, formulate and execute the appropriate SQL query using the \`executeSQL\` tool.
+        2.  **Data First (when asked):** If the user explicitly asks for a list, a table, or "all" of something (e.g., "show me all products", "list my vendors"), your primary goal is to provide that data. In this case, use the tool and then set the \`visualization.type\` to 'table'. Your \`response\` text should be a brief introduction to the table.
+        3.  **Insights First (for analysis):** If the user asks for an analysis, summary, or a "what is" question (e.g., "what's my best-selling item?", "summarize my sales"), provide a conversational insight first. Then, if relevant, you can include the data and suggest a visualization.
+        4.  **Suggest Charts:** For analytical queries, if the data is suitable for a chart ('bar', 'pie', 'line'), suggest one. For example, data grouped by category is good for a pie or bar chart.
+        5.  **NEVER Show Your Work:** Do not show the raw SQL query to the user or mention that you are running one.
+        6.  **Error Handling:** If a tool call fails, the error will be provided. Analyze the error, fix the query, and retry. Only explain the error to the user if you cannot fix it.
         
         **Current User Message:** "${message}"
 
