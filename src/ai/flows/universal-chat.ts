@@ -10,92 +10,6 @@ import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { APP_CONFIG } from '@/config/app-config';
 
-/**
- * Defines a Genkit Tool that allows the AI to execute SQL SELECT queries.
- * This is the core of the RAG implementation for the database.
- */
-const executeSQLTool = ai.defineTool({
-  name: 'executeSQL',
-  description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
-    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.
-    The 'company_id' is handled automatically by the system. Do NOT include it in your generated query.`,
-  inputSchema: z.object({
-    query: z.string().describe("The SQL SELECT query to execute. It MUST start with 'SELECT'."),
-  }),
-  outputSchema: z.array(z.any()),
-}, async ({ query }, flow) => {
-  // This function is the gatekeeper for all database access.
-  // It ensures data security and multi-tenancy in three critical ways:
-
-  // 1. SECURITY VALIDATION: Allow only SELECT queries.
-  if (!query.trim().toLowerCase().startsWith('select')) {
-      throw new Error('For security reasons, only SELECT queries are allowed.');
-  }
-
-  // 2. SECURE COMPANY ID INJECTION: Enforce data isolation.
-  // The user's companyId is retrieved from the secure flow state, not from AI input.
-  const { companyId } = flow.state;
-  if (!companyId) {
-      throw new Error("Security Error: Could not determine company ID for the query. Aborting.");
-  }
-  
-  // This logic rewrites the AI's generated query to ALWAYS include a `WHERE company_id = ...` clause.
-  // This is the most important security feature. It makes it impossible for the AI to query
-  // data from another company, even if it tried to craft a malicious query.
-  const fromMatch = query.match(/\sFROM\s+([`"'\w]+)/i);
-  if (!fromMatch || !fromMatch[1]) {
-      throw new Error("Query does not specify a valid 'FROM' clause and cannot be secured.");
-  }
-  const tableName = fromMatch[1].replace(/[`"']/g, '');
-  const securityClause = `${tableName}.company_id = '${companyId}'`;
-
-  let secureQuery = query;
-  const whereRegex = /\sWHERE\s/i;
-
-  if (whereRegex.test(secureQuery)) {
-      // If a WHERE clause exists, append our condition with AND
-      secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
-  } else {
-      // If no WHERE clause, find where to insert it (before GROUP BY, ORDER BY, LIMIT, etc.)
-      const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i, /;/i];
-      let insertionPoint = -1;
-      for (const clauseRegex of otherClauses) {
-          const match = secureQuery.match(clauseRegex);
-          if (match?.index !== undefined && (insertionPoint === -1 || match.index < insertionPoint)) {
-              insertionPoint = match.index;
-          }
-      }
-      if (insertionPoint !== -1) {
-          secureQuery = `${secureQuery.slice(0, insertionPoint)} WHERE ${securityClause} ${secureQuery.slice(insertionPoint)}`;
-      } else {
-          secureQuery += ` WHERE ${securityClause}`;
-      }
-  }
-
-  // 3. PERFORMANCE & COST CONTROL: Add a LIMIT clause.
-  if (!/limit\s+\d+/i.test(secureQuery)) {
-    secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
-  }
-
-  console.log('[executeSQLTool] Original query from AI:', query);
-  console.log('[executeSQLTool] Secured & Executed query:', secureQuery);
-  console.log('[executeSQLTool] Company ID enforced:', companyId);
-
-  // Database Execution
-  const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
-      query_text: secureQuery
-  });
-
-  if (error) {
-    console.error('[executeSQLTool] SQL execution error:', error);
-    // Return a specific error to the LLM. This is critical for self-correction.
-    throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
-  }
-
-  return data || [];
-});
-
-
 // This schema accepts the raw history format from the client action.
 const UniversalChatInputSchema = z.object({
   companyId: z.string(),
@@ -121,6 +35,10 @@ export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
 
 /**
  * The main flow for handling universal chat requests.
+ * This has been re-architected to be more robust. The SQL tool is now
+ * dynamically created within the flow's execution context, which securely
+ * captures the companyId for each request, avoiding the fragile 'state'
+ * passing mechanism that was causing crashes.
  */
 export const universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
@@ -129,13 +47,80 @@ export const universalChatFlow = ai.defineFlow({
 }, async (input) => {
   const { companyId, conversationHistory = [] } = input;
   
-  console.log('[UniversalChat] Starting flow. History length:', conversationHistory.length);
+  console.log(`[UniversalChat] Starting flow for company ${companyId}. History length:`, conversationHistory.length);
 
+  // Define the SQL tool within the flow's scope to securely capture the companyId.
+  const executeSQLTool = ai.defineTool({
+    name: 'executeSQL',
+    description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
+      Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.
+      The 'company_id' is handled automatically by the system. Do NOT include it in your generated query.`,
+    inputSchema: z.object({
+      query: z.string().describe("The SQL SELECT query to execute. It MUST start with 'SELECT'."),
+    }),
+    outputSchema: z.array(z.any()),
+  }, async ({ query }) => { // The 'flow' parameter is removed as it was the source of the error.
+    
+    // SECURITY VALIDATION: Allow only SELECT queries.
+    if (!query.trim().toLowerCase().startsWith('select')) {
+        throw new Error('For security reasons, only SELECT queries are allowed.');
+    }
+    
+    // SECURE COMPANY ID INJECTION: companyId is now from the parent scope, not a fragile state object.
+    const fromMatch = query.match(/\sFROM\s+([`"'\w]+)/i);
+    if (!fromMatch || !fromMatch[1]) {
+        throw new Error("Query does not specify a valid 'FROM' clause and cannot be secured.");
+    }
+    const tableName = fromMatch[1].replace(/[`"']/g, '');
+    const securityClause = `${tableName}.company_id = '${companyId}'`;
+
+    let secureQuery = query;
+    const whereRegex = /\sWHERE\s/i;
+
+    if (whereRegex.test(secureQuery)) {
+        secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
+    } else {
+        const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i, /;/i];
+        let insertionPoint = -1;
+        for (const clauseRegex of otherClauses) {
+            const match = secureQuery.match(clauseRegex);
+            if (match?.index !== undefined && (insertionPoint === -1 || match.index < insertionPoint)) {
+                insertionPoint = match.index;
+            }
+        }
+        if (insertionPoint !== -1) {
+            secureQuery = `${secureQuery.slice(0, insertionPoint)} WHERE ${securityClause} ${secureQuery.slice(insertionPoint)}`;
+        } else {
+            secureQuery += ` WHERE ${securityClause}`;
+        }
+    }
+
+    // PERFORMANCE & COST CONTROL: Add a LIMIT clause.
+    if (!/limit\s+\d+/i.test(secureQuery)) {
+      secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
+    }
+
+    console.log('[executeSQLTool] Original query from AI:', query);
+    console.log('[executeSQLTool] Secured & Executed query:', secureQuery);
+    console.log('[executeSQLTool] Company ID enforced:', companyId);
+
+    // Database Execution
+    const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
+        query_text: secureQuery
+    });
+
+    if (error) {
+      console.error('[executeSQLTool] SQL execution error:', error);
+      throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
+    }
+
+    return data || [];
+  });
+  
   // Filter and format messages for Gemini
   const filteredHistory = conversationHistory
     .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0);
 
-  // Ensure the conversation starts with a user message (Gemini requirement)
   const messages: { role: 'user' | 'model'; content: { text: string; }[]; }[] = [];
   let foundFirstUser = false;
   
@@ -151,8 +136,6 @@ export const universalChatFlow = ai.defineFlow({
     }
   }
 
-  // If after filtering, no user message was ever found, the history is invalid for Gemini.
-  // We start a new conversation with a default user message.
   if (messages.length === 0) {
     console.log('[UniversalChat] No valid user-initiated conversation history, using default "Hello" message.');
     messages.push({
@@ -164,7 +147,7 @@ export const universalChatFlow = ai.defineFlow({
   try {
     const modelResponse = await ai.generate({
       model: APP_CONFIG.ai.model,
-      tools: [executeSQLTool],
+      tools: [executeSQLTool], // Use the new, dynamically created tool
       messages: messages,
       system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
@@ -184,7 +167,7 @@ export const universalChatFlow = ai.defineFlow({
       output: {
         schema: UniversalChatOutputSchema
       },
-      state: { companyId }, // Use 'state' to pass secure data to tools.
+      // The `state` parameter is no longer needed because the companyId is baked into the tool's closure.
     });
 
     const output = modelResponse.output;
@@ -194,14 +177,12 @@ export const universalChatFlow = ai.defineFlow({
       throw new Error("The AI model did not return a valid response object. The output was null.");
     }
     
-    // Ensure data is always an array for easier client-side handling.
     output.data = output.data ?? [];
     
     return output;
 
   } catch (error) {
     console.error('[UniversalChat] An error occurred during AI generation:', error);
-    // Re-throw the error to be handled by the calling action.
     throw error;
   }
 });
