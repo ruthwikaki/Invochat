@@ -91,11 +91,11 @@ const _universalChatFlow = ai.defineFlow({
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
-  const { companyId, conversationHistory } = input;
+  console.log(`[UniversalChat] Starting flow for company ${input.companyId}. History length: ${input.conversationHistory.length}`);
   
   // The AI requires the history to be in a specific format.
   // It must alternate between 'user' and 'model' roles.
-  let geminiHistory = conversationHistory
+  let geminiHistory = input.conversationHistory
       .map((msg) => ({
           role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
           content: [{ text: msg.content }], // Wrap content in the required structure.
@@ -124,8 +124,8 @@ const _universalChatFlow = ai.defineFlow({
       1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions. You have all the context you need.
       2.  **IMMEDIATELY USE THE TOOL.** For any user question about inventory, products, vendors, or sales, your first and only action should be to construct and execute a SQL query using the \`executeSQL\` tool.
       3.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
-      4.  **NEVER INVENT DATA:** If the tool returns an empty result (\`[]\`), you MUST state that no data was found for their request. Do not apologize. Do not say "Here is the data...". If the tool returns an error, state that you were unable to retrieve the data.
-      5.  **ANALYZE & VISUALIZE:** After receiving data, analyze it. If the data is a list of items, you MUST suggest a 'table' visualization. If it's suitable for a chart, you MUST suggest the appropriate chart type ('bar', 'pie', 'line'). If no data is returned, suggest 'none' for the visualization type.
+      4.  **NEVER INVENT DATA:** If the tool returns an empty result (\`[]\`), you MUST state that no data was found for their request. Do not apologize. If the tool returns an error, state that you were unable to retrieve the data.
+      5.  **ANALYZE & VISUALIZE:** After receiving data, you MUST populate the 'visualization' object. If the data is a list of items (e.g., product names, supplier lists), set 'visualization.type' to 'table'. If the data represents quantities or values suitable for a chart (e.g., sales totals by category), set 'visualization.type' to the most appropriate chart type ('bar', 'pie', 'line'). If no data is returned or the query fails, you MUST set 'visualization.type' to 'none'. You MUST also provide a descriptive 'visualization.title' for any table or chart you suggest.
       6.  **MANDATORY DATA RETURN:** If the \`executeSQL\` tool returns data, you MUST populate the 'data' field in your output with the exact data returned by the tool. This is not optional.
       
       **CRITICAL QUERYING RULE:**

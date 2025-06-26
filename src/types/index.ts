@@ -14,12 +14,16 @@ export type User = Omit<SupabaseUser, 'app_metadata'> & {
 export type Message = {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  content: string; // Keep this as string only
+  content: string; // This MUST be a string for AI history compatibility
   timestamp: number;
   visualization?: {
     type: 'table' | 'chart' | 'alert';
     data: any;
-    config?: any;
+    config?: {
+        title?: string;
+        // Add other potential config properties here
+        [key: string]: any;
+    };
   };
 };
 

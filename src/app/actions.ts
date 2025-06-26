@@ -24,40 +24,55 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
     if (keys.length < 2) {
         return [];
     }
-    const nameKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor') || k.toLowerCase().includes('item')) || keys[0];
-    const valueKey = keys.find(k => k !== nameKey && (typeof firstItem[k] === 'number' || !isNaN(Number(firstItem[k]))))
+    
+    // Find the most likely "name" and "value" keys based on common patterns.
+    const nameKey = keys.find(k => typeof firstItem[k] === 'string' && (k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor') || k.toLowerCase().includes('item'))) || keys[0];
+    const valueKey = keys.find(k => k !== nameKey && typeof firstItem[k] === 'number') 
                      || keys.find(k => k !== nameKey && (k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('amount')));
 
     if (!valueKey) {
+        console.warn('[transformDataForChart] Could not determine a numeric value key for the chart.');
         return [];
     }
+
     const transformed = data.map((item) => {
-        if (typeof item !== 'object' || item === null) return null;
+        // Validate each item in the array
+        if (typeof item !== 'object' || item === null || !(nameKey in item) || !(valueKey in item)) {
+            return null;
+        }
+        
         const rawValue = item[valueKey];
         const numericValue = parseFloat(rawValue);
+        
+        // Ensure the value is a valid number
         if (isNaN(numericValue)) {
             return null;
         }
+        
         return {
-            name: String(item[nameKey] ?? `Category`),
+            name: String(item[nameKey] ?? 'Unnamed'),
             value: numericValue,
         };
-    }).filter((item): item is { name: string; value: number } => item !== null);
+    }).filter((item): item is { name: string; value: number } => item !== null); // Filter out any nulls
+    
+    // For pie and bar charts, it doesn't make sense to show zero-value items.
     if (chartType === 'pie' || chartType === 'bar') {
         return transformed.filter(item => item.value !== 0);
     }
+    
     return transformed;
 }
 
 const UserMessagePayloadSchema = z.object({
   conversationHistory: z.array(z.object({
-    id: z.string(),
+    id: z.string().optional(), // Make ID optional as it's not needed by AI
     role: z.enum(['user', 'assistant', 'system']),
     content: z.string(),
-    timestamp: z.number(),
+    timestamp: z.number().optional(), // Make timestamp optional
     visualization: z.any().optional(),
   })),
 });
+
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
     const cookieStore = cookies();
@@ -133,7 +148,8 @@ export async function handleUserMessage(
     
     const parsedResponse = UniversalChatOutputSchema.safeParse(flowResponse);
     if (!parsedResponse.success) {
-      throw new Error('The AI returned data in an unexpected format.');
+      console.error("AI response validation error:", parsedResponse.error);
+      throw new Error('The AI returned data in an unexpected format. Please check the console for details.');
     }
     
     const response = parsedResponse.data;
@@ -146,8 +162,8 @@ export async function handleUserMessage(
       timestamp: Date.now(),
     };
     
-    // Add visualization if suggested
-    if (response.visualization && response.visualization.type !== 'none' && response.data && response.data.length > 0) {
+    // Add visualization if suggested by the AI
+    if (response.visualization && response.visualization.type !== 'none' && Array.isArray(response.data) && response.data.length > 0) {
       if (response.visualization.type === 'table') {
         message.visualization = {
           type: 'table',
