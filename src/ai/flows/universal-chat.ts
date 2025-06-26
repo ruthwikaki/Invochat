@@ -34,11 +34,85 @@ export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
 
 
 /**
+ * Defines the SQL tool globally.
+ * This tool is responsible for executing SQL queries against the database.
+ * The `companyId` is passed securely via the flow's state.
+ */
+const executeSQLTool = ai.defineTool({
+  name: 'executeSQL',
+  description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
+    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.
+    The 'company_id' is handled automatically by the system. Do NOT include it in your generated query.`,
+  inputSchema: z.object({
+    query: z.string().describe("The SQL SELECT query to execute. It MUST start with 'SELECT'."),
+  }),
+  outputSchema: z.array(z.any()),
+}, async ({ query }, flow) => {
+  const companyId = flow?.state?.companyId;
+  if (!companyId) {
+    throw new Error("[executeSQLTool] Critical security error: companyId was not found in the flow's execution state. Aborting query.");
+  }
+  
+  // SECURITY VALIDATION: Allow only SELECT queries.
+  if (!query.trim().toLowerCase().startsWith('select')) {
+      throw new Error('For security reasons, only SELECT queries are allowed.');
+  }
+  
+  // SECURE COMPANY ID INJECTION
+  const fromMatch = query.match(/\sFROM\s+([`"'\w]+)/i);
+  if (!fromMatch || !fromMatch[1]) {
+      throw new Error("Query does not specify a valid 'FROM' clause and cannot be secured.");
+  }
+  const tableName = fromMatch[1].replace(/[`"']/g, '');
+  const securityClause = `${tableName}.company_id = '${companyId}'`;
+
+  let secureQuery = query;
+  const whereRegex = /\sWHERE\s/i;
+
+  if (whereRegex.test(secureQuery)) {
+      secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
+  } else {
+      const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i, /;/i];
+      let insertionPoint = -1;
+      for (const clauseRegex of otherClauses) {
+          const match = secureQuery.match(clauseRegex);
+          if (match?.index !== undefined && (insertionPoint === -1 || match.index < insertionPoint)) {
+              insertionPoint = match.index;
+          }
+      }
+      if (insertionPoint !== -1) {
+          secureQuery = `${secureQuery.slice(0, insertionPoint)} WHERE ${securityClause} ${secureQuery.slice(insertionPoint)}`;
+      } else {
+          secureQuery += ` WHERE ${securityClause}`;
+      }
+  }
+
+  // PERFORMANCE & COST CONTROL: Add a LIMIT clause.
+  if (!/limit\s+\d+/i.test(secureQuery)) {
+    secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
+  }
+
+  console.log('[executeSQLTool] Original query from AI:', query);
+  console.log('[executeSQLTool] Secured & Executed query:', secureQuery);
+
+  // Database Execution
+  const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
+      query_text: secureQuery
+  });
+
+  if (error) {
+    console.error('[executeSQLTool] SQL execution error:', error);
+    // Return a descriptive error to the model so it can potentially correct the query.
+    return `Query failed with error: ${error.message}. The attempted query was: ${query}`;
+  }
+
+  return data || [];
+});
+
+/**
  * The main flow for handling universal chat requests.
- * This has been re-architected to be more robust. The SQL tool is now
- * dynamically created within the flow's execution context, which securely
- * captures the companyId for each request, avoiding the fragile 'state'
- * passing mechanism that was causing crashes.
+ * This has been re-architected to be more robust and align with Genkit's design principles.
+ * The SQL tool is defined globally and receives the companyId securely via the flow's state.
  */
 export const universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
@@ -49,74 +123,6 @@ export const universalChatFlow = ai.defineFlow({
   
   console.log(`[UniversalChat] Starting flow for company ${companyId}. History length:`, conversationHistory.length);
 
-  // Define the SQL tool within the flow's scope to securely capture the companyId.
-  const executeSQLTool = ai.defineTool({
-    name: 'executeSQL',
-    description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
-      Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.
-      The 'company_id' is handled automatically by the system. Do NOT include it in your generated query.`,
-    inputSchema: z.object({
-      query: z.string().describe("The SQL SELECT query to execute. It MUST start with 'SELECT'."),
-    }),
-    outputSchema: z.array(z.any()),
-  }, async ({ query }) => { // The 'flow' parameter is removed as it was the source of the error.
-    
-    // SECURITY VALIDATION: Allow only SELECT queries.
-    if (!query.trim().toLowerCase().startsWith('select')) {
-        throw new Error('For security reasons, only SELECT queries are allowed.');
-    }
-    
-    // SECURE COMPANY ID INJECTION: companyId is now from the parent scope, not a fragile state object.
-    const fromMatch = query.match(/\sFROM\s+([`"'\w]+)/i);
-    if (!fromMatch || !fromMatch[1]) {
-        throw new Error("Query does not specify a valid 'FROM' clause and cannot be secured.");
-    }
-    const tableName = fromMatch[1].replace(/[`"']/g, '');
-    const securityClause = `${tableName}.company_id = '${companyId}'`;
-
-    let secureQuery = query;
-    const whereRegex = /\sWHERE\s/i;
-
-    if (whereRegex.test(secureQuery)) {
-        secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
-    } else {
-        const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i, /;/i];
-        let insertionPoint = -1;
-        for (const clauseRegex of otherClauses) {
-            const match = secureQuery.match(clauseRegex);
-            if (match?.index !== undefined && (insertionPoint === -1 || match.index < insertionPoint)) {
-                insertionPoint = match.index;
-            }
-        }
-        if (insertionPoint !== -1) {
-            secureQuery = `${secureQuery.slice(0, insertionPoint)} WHERE ${securityClause} ${secureQuery.slice(insertionPoint)}`;
-        } else {
-            secureQuery += ` WHERE ${securityClause}`;
-        }
-    }
-
-    // PERFORMANCE & COST CONTROL: Add a LIMIT clause.
-    if (!/limit\s+\d+/i.test(secureQuery)) {
-      secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
-    }
-
-    console.log('[executeSQLTool] Original query from AI:', query);
-    console.log('[executeSQLTool] Secured & Executed query:', secureQuery);
-    console.log('[executeSQLTool] Company ID enforced:', companyId);
-
-    // Database Execution
-    const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
-        query_text: secureQuery
-    });
-
-    if (error) {
-      console.error('[executeSQLTool] SQL execution error:', error);
-      throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
-    }
-
-    return data || [];
-  });
-  
   // Filter and format messages for Gemini
   const filteredHistory = conversationHistory
     .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0);
@@ -147,7 +153,7 @@ export const universalChatFlow = ai.defineFlow({
   try {
     const modelResponse = await ai.generate({
       model: APP_CONFIG.ai.model,
-      tools: [executeSQLTool], // Use the new, dynamically created tool
+      tools: [executeSQLTool],
       messages: messages,
       system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
@@ -167,7 +173,9 @@ export const universalChatFlow = ai.defineFlow({
       output: {
         schema: UniversalChatOutputSchema
       },
-      // The `state` parameter is no longer needed because the companyId is baked into the tool's closure.
+      // This is the correct way to pass request-scoped data to tools.
+      // The flow's input becomes the state for this execution.
+      state: input,
     });
 
     const output = modelResponse.output;

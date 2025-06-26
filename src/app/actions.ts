@@ -154,8 +154,9 @@ export async function handleUserMessage(
     console.error('Chat error:', error);
     let errorMessage = `Sorry, I encountered an error while processing your request. Please try again.`;
     
-    // Provide a specific, helpful error message for the most likely root causes.
-    if (error.message?.includes('The model did not return a valid response object')) {
+    if (error.message?.includes('Cannot define new actions at runtime')) {
+      errorMessage = "A critical configuration error occurred in the AI flow. The application tried to define an AI tool dynamically, which is not allowed. This is a developer error that needs to be fixed in the code.";
+    } else if (error.message?.includes('The AI model did not return a valid response object')) {
       errorMessage = "Sorry, the AI returned an unexpected response. This might be a temporary issue. Please try rephrasing your question."
     } else if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) {
       errorMessage = 'It seems the AI model is not available. This is likely due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account. Please enable the API and link a billing account, then try again.';
