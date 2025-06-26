@@ -14,7 +14,6 @@ import { APP_CONFIG } from '@/config/app-config';
 /**
  * Defines a Genkit Tool that allows the AI to execute SQL SELECT queries.
  * This is the core of the RAG implementation for the database.
- * The tool securely injects the company_id to prevent data leakage and handles query validation.
  */
 const executeSQLTool = ai.defineTool({
   name: 'executeSQL',
@@ -30,7 +29,6 @@ const executeSQLTool = ai.defineTool({
   // It ensures data security and multi-tenancy in three critical ways:
 
   // 1. SECURITY VALIDATION: Allow only SELECT queries.
-  // This prevents the AI from attempting to modify data (INSERT, UPDATE, DELETE).
   if (!query.trim().toLowerCase().startsWith('select')) {
       throw new Error('For security reasons, only SELECT queries are allowed.');
   }
@@ -39,53 +37,46 @@ const executeSQLTool = ai.defineTool({
   // The user's companyId is retrieved from the secure flow state, not from AI input.
   const { companyId } = flow.state;
   if (!companyId) {
-      // If the companyId is missing, something is fundamentally wrong. Abort immediately.
       throw new Error("Security Error: Could not determine company ID for the query. Aborting.");
   }
   
   // This logic rewrites the AI's generated query to ALWAYS include a `WHERE company_id = ...` clause.
   // This is the most important security feature. It makes it impossible for the AI to query
   // data from another company, even if it tried to craft a malicious query.
+  const fromMatch = query.match(/\sFROM\s+([`"'\w]+)/i);
+  if (!fromMatch || !fromMatch[1]) {
+      throw new Error("Query does not specify a valid 'FROM' clause and cannot be secured.");
+  }
+  const tableName = fromMatch[1].replace(/[`"']/g, '');
+  const securityClause = `${tableName}.company_id = '${companyId}'`;
+
   let secureQuery = query;
   const whereRegex = /\sWHERE\s/i;
-  const fromRegex = /\sFROM\s[\w."]+\b/i;
-  const fromMatch = secureQuery.match(fromRegex);
 
-  if (fromMatch) {
-    const fromClause = fromMatch[0];
-    const tableName = fromClause.split(/\s/)[2];
-    const securityClause = ` ${tableName}.company_id = '${companyId}' `;
-
-    if (whereRegex.test(secureQuery)) {
+  if (whereRegex.test(secureQuery)) {
       // If a WHERE clause exists, append our condition with AND
       secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
-    } else {
+  } else {
       // If no WHERE clause, find where to insert it (before GROUP BY, ORDER BY, LIMIT, etc.)
-      const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i];
+      const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i, /;/i];
       let insertionPoint = -1;
       for (const clauseRegex of otherClauses) {
-        const match = secureQuery.match(clauseRegex);
-        if (match && (match.index < insertionPoint || insertionPoint === -1)) {
-            insertionPoint = match.index;
-        }
+          const match = secureQuery.match(clauseRegex);
+          if (match?.index !== undefined && (insertionPoint === -1 || match.index < insertionPoint)) {
+              insertionPoint = match.index;
+          }
       }
       if (insertionPoint !== -1) {
           secureQuery = `${secureQuery.slice(0, insertionPoint)} WHERE ${securityClause} ${secureQuery.slice(insertionPoint)}`;
       } else {
           secureQuery += ` WHERE ${securityClause}`;
       }
-    }
-  } else {
-     // If the query is malformed (e.g., no FROM clause), we reject it.
-    throw new Error("Query does not specify a table with 'FROM' and cannot be secured.");
   }
 
   // 3. PERFORMANCE & COST CONTROL: Add a LIMIT clause.
-  // This prevents queries from returning excessively large datasets, saving costs and improving performance.
   if (!/limit\s+\d+/i.test(secureQuery)) {
     secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
   }
-
 
   console.log('[executeSQLTool] Original query from AI:', query);
   console.log('[executeSQLTool] Secured & Executed query:', secureQuery);
@@ -96,17 +87,12 @@ const executeSQLTool = ai.defineTool({
       query_text: secureQuery
   });
 
-  console.log('[executeSQLTool] Result:', { data, error });
-
   if (error) {
     console.error('[executeSQLTool] SQL execution error:', error);
     // Return a specific error to the LLM. This is critical for self-correction.
     throw new Error(`Query failed with error: ${error.message}. The attempted query was: ${query}`);
   }
 
-  // A query that returns no results is a valid state, not an error.
-  // The AI prompt will be instructed on how to handle an empty array.
-  // Return an empty array if data is null or empty.
   return data || [];
 });
 
@@ -151,36 +137,29 @@ export const universalChatFlow = ai.defineFlow({
     .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0);
 
   // Ensure the conversation starts with a user message (Gemini requirement)
-  let messages: { role: 'user' | 'model'; content: { text: string; }[]; }[] = [];
+  const messages: { role: 'user' | 'model'; content: { text: string; }[]; }[] = [];
   let foundFirstUser = false;
   
   for (const msg of filteredHistory) {
-    if (!foundFirstUser) {
-      if (msg.role === 'user') {
-        foundFirstUser = true;
+    if (!foundFirstUser && msg.role === 'user') {
+      foundFirstUser = true;
+    }
+    if (foundFirstUser) {
         messages.push({
-          role: 'user',
+          role: msg.role === 'assistant' ? 'model' : 'user',
           content: [{ text: msg.content }]
         });
-      }
-      // Skip any assistant messages before the first user message
-    } else {
-      messages.push({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        content: [{ text: msg.content }]
-      });
     }
   }
 
-  console.log('[UniversalChat] Formatted messages:', JSON.stringify(messages, null, 2));
-
-  // If no messages or no user message found, provide a default
+  // If after filtering, no user message was ever found, the history is invalid for Gemini.
+  // We start a new conversation with a default user message.
   if (messages.length === 0) {
-    console.log('[UniversalChat] No valid conversation history, using default message');
-    messages = [{
+    console.log('[UniversalChat] No valid user-initiated conversation history, using default "Hello" message.');
+    messages.push({
       role: 'user',
-      content: [{ text: 'Hello' }]
-    }];
+      content: [{ text: conversationHistory.at(-1)?.content || 'Hello' }]
+    });
   }
   
   try {
@@ -206,22 +185,24 @@ export const universalChatFlow = ai.defineFlow({
       output: {
         schema: UniversalChatOutputSchema
       },
-      state: { companyId },
+      state: { companyId }, // Use 'state' to pass secure data to tools.
     });
 
     const output = modelResponse.output;
     
-    console.log('[UniversalChat] AI generation successful.');
-
     if (!output) {
-      throw new Error("The model did not return a valid response object. The output was null.");
+      console.error('[UniversalChat] AI model returned a null or invalid object.', modelResponse);
+      throw new Error("The AI model did not return a valid response object. The output was null.");
     }
     
+    // Ensure data is always an array for easier client-side handling.
     output.data = output.data ?? [];
     
     return output;
+
   } catch (error) {
-    console.error('[UniversalChat] Error in generate:', error);
+    console.error('[UniversalChat] An error occurred during AI generation:', error);
+    // Re-throw the error to be handled by the calling action.
     throw error;
   }
 });

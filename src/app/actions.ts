@@ -24,14 +24,19 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
   }
   
   const keys = Object.keys(firstItem);
+  if (keys.length === 0) {
+    console.warn('[transformDataForChart] Data items have no keys, cannot transform for charting.');
+    return [];
+  }
 
   // Attempt to find the most likely candidates for name and value keys by looking for common substrings.
   const nameKey = keys.find(k => k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor')) || keys[0];
-  const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity')) || keys[1];
+  const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity')) || (keys.length > 1 ? keys.find(k => k !== nameKey) : null);
 
-  if (!nameKey || !valueKey) {
-      console.warn(`[transformDataForChart] Could not determine name/value keys. Found: ${keys.join(', ')}`);
-      return [];
+  // If we can't determine a distinct value key, we can't create a meaningful chart.
+  if (!valueKey) {
+    console.warn(`[transformDataForChart] Could not determine a 'value' key for charting. Found keys: ${keys.join(', ')}`);
+    return [];
   }
 
   console.log(`[transformDataForChart] Using nameKey: '${nameKey}', valueKey: '${valueKey}'`);
@@ -49,6 +54,7 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
 
 
 // This schema defines the raw payload from the client.
+// Note: The AI Flow now expects simple string content, so we pass it through directly.
 const UserMessagePayloadSchema = z.object({
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant', 'system']),
@@ -89,8 +95,7 @@ export async function handleUserMessage(
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
-    // The history is now passed directly to the flow without any formatting.
-    // The flow itself is responsible for ensuring the format is correct for the AI.
+    // The history is passed directly to the flow. The flow is now responsible for all formatting.
     const response = await universalChatFlow({
       companyId,
       conversationHistory,
@@ -129,7 +134,6 @@ export async function handleUserMessage(
           };
       }
       
-      // The AI can suggest a table for any kind of list data.
       if (response.visualization.type === 'table') {
          return {
             id: Date.now().toString(),
@@ -153,7 +157,9 @@ export async function handleUserMessage(
     let errorMessage = `Sorry, I encountered an error while processing your request. Please try again.`;
     
     // Provide a specific, helpful error message for the most likely root causes.
-    if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) {
+    if (error.message?.includes('The model did not return a valid response object')) {
+      errorMessage = "Sorry, the AI returned an unexpected response. This might be a temporary issue. Please try rephrasing your question."
+    } else if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) {
       errorMessage = 'It seems the AI model is not available. This is likely due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account. Please enable the API and link a billing account, then try again.';
     } else if (error.message?.includes('API key not valid')) {
         errorMessage = 'It looks like your Google AI API key is invalid. Please make sure the `GOOGLE_API_KEY` in your `.env` file is correct and try again.'
