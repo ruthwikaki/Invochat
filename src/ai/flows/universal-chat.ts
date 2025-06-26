@@ -47,28 +47,32 @@ const executeSQLTool = ai.defineTool({
   // This is the most important security feature. It makes it impossible for the AI to query
   // data from another company, even if it tried to craft a malicious query.
   let secureQuery = query;
-  const fromRegex = /\bFROM\b\s+([\w."]+)/i;
-  const match = query.match(fromRegex);
+  const whereRegex = /\sWHERE\s/i;
+  const fromRegex = /\sFROM\s[\w."]+\b/i;
+  const fromMatch = secureQuery.match(fromRegex);
 
-  if (match) {
-    const tableName = match[1];
-    const whereClause = `WHERE ${tableName}.company_id = '${companyId}'`;
+  if (fromMatch) {
+    const fromClause = fromMatch[0];
+    const tableName = fromClause.split(/\s/)[2];
+    const securityClause = ` ${tableName}.company_id = '${companyId}' `;
 
-    if (query.toLowerCase().includes(' where ')) {
-      // If the query already has a WHERE clause, we add our security condition.
-      secureQuery = query.replace(/ where /i, ` ${whereClause} AND `);
+    if (whereRegex.test(secureQuery)) {
+      // If a WHERE clause exists, append our condition with AND
+      secureQuery = secureQuery.replace(whereRegex, ` WHERE ${securityClause} AND `);
     } else {
-      // Otherwise, we add the WHERE clause before other clauses like GROUP BY or ORDER BY.
-      const groupByIndex = query.toLowerCase().indexOf(' group by ');
-      if (groupByIndex > -1) {
-        secureQuery = `${query.slice(0, groupByIndex)} ${whereClause} ${query.slice(groupByIndex)}`;
-      } else {
-        const orderByIndex = query.toLowerCase().indexOf(' order by ');
-        if (orderByIndex > -1) {
-            secureQuery = `${query.slice(0, orderByIndex)} ${whereClause} ${query.slice(orderByIndex)}`;
-        } else {
-            secureQuery = `${query} ${whereClause}`;
+      // If no WHERE clause, find where to insert it (before GROUP BY, ORDER BY, LIMIT, etc.)
+      const otherClauses = [/\sGROUP\sBY\s/i, /\sORDER\sBY\s/i, /\sLIMIT\s/i];
+      let insertionPoint = -1;
+      for (const clauseRegex of otherClauses) {
+        const match = secureQuery.match(clauseRegex);
+        if (match && (match.index < insertionPoint || insertionPoint === -1)) {
+            insertionPoint = match.index;
         }
+      }
+      if (insertionPoint !== -1) {
+          secureQuery = `${secureQuery.slice(0, insertionPoint)} WHERE ${securityClause} ${secureQuery.slice(insertionPoint)}`;
+      } else {
+          secureQuery += ` WHERE ${securityClause}`;
       }
     }
   } else {
@@ -102,26 +106,17 @@ const executeSQLTool = ai.defineTool({
 
   // A query that returns no results is a valid state, not an error.
   // The AI prompt will be instructed on how to handle an empty array.
-  if (!data || data.length === 0) {
-    console.log('[executeSQLTool] Query executed successfully but returned no results.');
-    return [];
-  }
-
-  if (data?.length >= APP_CONFIG.database.queryLimit) {
-    console.warn(`[executeSQLTool] Query returned max results (${APP_CONFIG.database.queryLimit}). Results may be truncated.`);
-  }
-
+  // Return an empty array if data is null or empty.
   return data || [];
 });
 
 
 const UniversalChatInputSchema = z.object({
-  message: z.string(),
   companyId: z.string(),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string()
-  })).optional()
+  })),
 });
 export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
 
@@ -146,9 +141,9 @@ export const universalChatFlow = ai.defineFlow({
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
-  const { message, companyId, conversationHistory = [] } = input;
+  const { companyId, conversationHistory = [] } = input;
   
-  console.log('[UniversalChat] Starting flow with input:', { message, companyId });
+  console.log('[UniversalChat] Starting flow. History length:', conversationHistory.length);
 
   // Map the provided history to the format Genkit expects.
   const history = conversationHistory.map(msg => ({
@@ -156,28 +151,25 @@ export const universalChatFlow = ai.defineFlow({
     content: [{text: msg.content}]
   }));
   
-  // Add the current user message to the end of the history array.
-  history.push({ role: 'user', content: [{ text: message }] });
-
   // The retry loop has been removed. The flow will now attempt to generate a response once.
   // If an error occurs, it will be caught by the `handleUserMessage` action, which will display a clean error to the user.
   const { output } = await ai.generate({
     model: APP_CONFIG.ai.model,
     tools: [executeSQLTool],
     history: history,
-    system: `You are InvoChat, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
+    system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
     **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
     1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions like "What information are you looking for?". You have all the context you need.
     2.  **IMMEDIATELY USE THE TOOL.** For any user question about inventory, products, vendors, or sales, your first and only action should be to construct and execute a SQL query using the \`executeSQL\` tool.
-    3.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found. DO NOT invent data and DO NOT say "Here is the data...".
-    4.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database.
+    3.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found for their request. DO NOT invent data and DO NOT say "Here is the data...".
+    4.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database, SQL, or the tool.
     5.  Base all responses strictly on data returned from the \`executeSQL\` tool.
 
     **DATABASE SCHEMA:**
     (Note: The 'company_id' is handled automatically. DO NOT include it in your queries.)
-    - **inventory**: Contains all **product** and stock item information. Use this table for questions about "products". Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
-    - **vendors**: Contains all **supplier** information. Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
+    - **inventory**: Contains all product and stock item information. Use this table for questions about "products". Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
+    - **vendors**: Contains all supplier information. Use this table for questions about "suppliers" or "vendors". Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
     - **sales**: Records all sales transactions. Columns: \`id, sale_date, customer_name, total_amount, items\`.
     - **purchase_orders**: Tracks orders placed with vendors. Columns: \`id, po_number, vendor, item, quantity, cost, order_date\`.`,
     output: {

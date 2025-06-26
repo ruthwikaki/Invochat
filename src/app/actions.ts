@@ -1,3 +1,4 @@
+
 'use server';
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -48,11 +49,10 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
 
 
 const UserMessagePayloadSchema = z.object({
-  message: z.string(),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant', 'system']),
     content: z.string()
-  })).optional()
+  })),
 });
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
@@ -81,7 +81,7 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
 export async function handleUserMessage(
   payload: z.infer<typeof UserMessagePayloadSchema>
 ): Promise<AssistantMessagePayload> {
-  const { message, conversationHistory = [] } = UserMessagePayloadSchema.parse(payload);
+  const { conversationHistory = [] } = UserMessagePayloadSchema.parse(payload);
   
   try {
     const companyId = await getCompanyIdForCurrentUser();
@@ -96,7 +96,6 @@ export async function handleUserMessage(
 
     // Let the new universal AI flow handle everything
     const response = await universalChatFlow({
-      message,
       companyId,
       conversationHistory: mappedHistory
     });

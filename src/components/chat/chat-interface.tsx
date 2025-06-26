@@ -89,7 +89,6 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     startTransition(async () => {
       try {
         const response = await handleUserMessage({ 
-          message: messageText,
           conversationHistory 
         });
         processResponse(response);
