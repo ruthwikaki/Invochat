@@ -93,8 +93,6 @@ const _universalChatFlow = ai.defineFlow({
 }, async (input) => {
   const { companyId, conversationHistory } = input;
   
-  console.log(`[UniversalChat] Starting flow for company ${companyId}. History length:`, conversationHistory.length);
-
   // The AI requires the history to be in a specific format.
   // It must alternate between 'user' and 'model' roles.
   let geminiHistory = conversationHistory
@@ -106,13 +104,12 @@ const _universalChatFlow = ai.defineFlow({
   // The Gemini API requires that the history starts with a 'user' message.
   // Find the first user message and slice the array from that point.
   const firstUserIndex = geminiHistory.findIndex(msg => msg.role === 'user');
-  if (firstUserIndex !== -1) {
+  if (firstUserIndex > 0) {
       geminiHistory = geminiHistory.slice(firstUserIndex);
-  } else {
-      // If no user message is found, which is unlikely but possible, 
-      // we should not send any history to avoid API errors.
-      geminiHistory = [];
-      console.warn("[UniversalChat] No user message found in history, running with empty history.");
+  } else if (firstUserIndex === -1) {
+    // If no user message is found, which is unlikely but possible, 
+    // we should not send any history to avoid API errors.
+    geminiHistory = [];
   }
   
   try {
