@@ -9,7 +9,8 @@ import {
     getInventoryItems, 
     getDeadStockPageData,
     getSuppliersFromDB,
-    getAlertsFromDB
+    getAlertsFromDB,
+    getDatabaseSchemaAndData as getDbSchemaAndData
 } from '@/services/database';
 import type { User } from '@/types';
 
@@ -64,6 +65,11 @@ export async function getSuppliersData() {
 export async function getAlertsData() {
     const companyId = await getCompanyIdForCurrentUser();
     return getAlertsFromDB(companyId);
+}
+
+export async function getDatabaseSchemaAndData() {
+    const companyId = await getCompanyIdForCurrentUser();
+    return getDbSchemaAndData(companyId);
 }
 
 export async function testSupabaseConnection(): Promise<{

@@ -207,3 +207,38 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 export async function getInventoryFromDB(companyId: string) {
     return getInventoryItems(companyId);
 }
+
+// These are the tables we want to expose to the user.
+// We are explicitly listing them to match what the AI has been told it can query.
+const USER_FACING_TABLES = ['inventory', 'vendors', 'sales', 'purchase_orders'];
+
+/**
+ * Fetches the schema and sample data for user-facing tables.
+ * @param companyId The ID of the company to fetch data for.
+ * @returns An array of objects, each containing a table name and sample rows.
+ */
+export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: any[] }[]> {
+  const supabase = getServiceRoleClient();
+  const results: { tableName: string; rows: any[] }[] = [];
+
+  for (const tableName of USER_FACING_TABLES) {
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('*')
+      .eq('company_id', companyId)
+      .limit(10);
+
+    if (error) {
+      console.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not exist or be configured for the current company. Error: ${error.message}`);
+      // Push an empty result so the UI can still render the table name
+      results.push({ tableName, rows: [] });
+    } else {
+      results.push({
+        tableName,
+        rows: data || [],
+      });
+    }
+  }
+
+  return results;
+}

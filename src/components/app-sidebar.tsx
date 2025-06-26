@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -16,6 +17,7 @@ import {
   Truck,
   Upload,
   Beaker,
+  Database,
 } from 'lucide-react';
 import { InvochatLogo } from './invochat-logo';
 import {
@@ -100,6 +102,14 @@ export function AppSidebar() {
           ) : null}
         </div>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/database'}>
+              <Link href="/database" prefetch={false}>
+                <Database />
+                <span>Database Explorer</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/test-supabase'}>
               <Link href="/test-supabase" prefetch={false}>
