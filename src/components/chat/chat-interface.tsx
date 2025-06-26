@@ -15,6 +15,7 @@ import { ArrowRight } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
+import { APP_CONFIG } from '@/config/app-config';
 
 const AiComponentMap = {
   DeadStockTable,
@@ -24,12 +25,7 @@ const AiComponentMap = {
   DataTable,
 };
 
-const quickActions = [
-  "What's not selling?",
-  'Show supplier performance',
-  'Create inventory chart',
-  'What needs reordering?',
-];
+const quickActions = APP_CONFIG.chat.quickActions;
 
 type ChatInterfaceProps = {
     messages: Message[];
@@ -84,7 +80,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     // Create conversation history for context, including the new user message
     const conversationHistory = [...messages, userMessage]
       .filter(m => m.role !== 'system')
-      .slice(-10) // Last 10 messages for context
+      .slice(-APP_CONFIG.ai.historyLimit) // Last X messages for context
       .map(m => ({
         role: m.role as 'user' | 'assistant',
         content: typeof m.content === 'string' ? m.content : 'Visual response'

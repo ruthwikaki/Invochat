@@ -9,6 +9,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { APP_CONFIG } from '@/config/app-config';
 
 /**
  * Defines a Genkit Tool that allows the AI to execute SQL SELECT queries.
@@ -78,7 +79,7 @@ const executeSQLTool = ai.defineTool({
   // 3. PERFORMANCE & COST CONTROL: Add a LIMIT clause.
   // This prevents queries from returning excessively large datasets, saving costs and improving performance.
   if (!/limit\s+\d+/i.test(secureQuery)) {
-    secureQuery += ' LIMIT 1000';
+    secureQuery += ` LIMIT ${APP_CONFIG.database.queryLimit}`;
   }
 
 
@@ -106,8 +107,8 @@ const executeSQLTool = ai.defineTool({
     throw new Error("The query executed successfully but returned no results. Inform the user that no data was found for their request. Do not try to 'fix' the query, simply state that there is no data.");
   }
 
-  if (data?.length >= 1000) {
-    console.warn(`[executeSQLTool] Query returned max results (1000). Results may be truncated.`);
+  if (data?.length >= APP_CONFIG.database.queryLimit) {
+    console.warn(`[executeSQLTool] Query returned max results (${APP_CONFIG.database.queryLimit}). Results may be truncated.`);
   }
 
   return data || [];
@@ -159,11 +160,11 @@ export const universalChatFlow = ai.defineFlow({
   history.push({ role: 'user', content: [{ text: message }] });
 
 
-  const MAX_RETRIES = 2;
+  const MAX_RETRIES = APP_CONFIG.ai.maxRetries;
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       const { output } = await ai.generate({
-        model: 'gemini-1.5-pro',
+        model: APP_CONFIG.ai.model,
         tools: [executeSQLTool],
         history: history,
         prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
@@ -176,7 +177,7 @@ export const universalChatFlow = ai.defineFlow({
         - purchase_orders: id, po_number, vendor, item, quantity, cost, order_date
 
         **Business Logic & Concepts:**
-        - Dead Stock: Items not sold in over 90 days (use 'last_sold_date').
+        - Dead Stock: Items not sold in over ${APP_CONFIG.businessLogic.deadStockDays} days (use 'last_sold_date').
         - Low Stock: Items where 'quantity' is less than or equal to 'reorder_point'.
         - Profit Margin: Calculate as '((price - cost) / price)'.
 
