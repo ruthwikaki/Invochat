@@ -90,12 +90,11 @@ export type Alert = {
     };
 };
 
-// Corrected DashboardMetrics to remove the metric that can't be calculated.
 export type DashboardMetrics = {
     inventoryValue: number;
     deadStockValue: number;
-    predictiveAlert: {
-        item: string;
-        days: number;
-    } | null;
+    lowStockCount: number;
+    totalSKUs: number;
+    totalSuppliers: number;
+    totalSalesValue: number;
 };

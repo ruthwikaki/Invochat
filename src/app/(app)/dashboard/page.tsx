@@ -59,6 +59,14 @@ export default async function DashboardPage() {
                         variant="success"
                     />
                 </Link>
+                <Link href="/analytics">
+                    <MetricCard
+                        title="Total Sales"
+                        value={formatCurrency(data.totalSalesValue)}
+                        icon={BarChart}
+                        label="All-time sales data"
+                    />
+                </Link>
                  <Link href="/dead-stock">
                     <MetricCard
                         title="Dead Stock Value"
@@ -68,23 +76,29 @@ export default async function DashboardPage() {
                     />
                 </Link>
                  <Link href="/alerts">
-                    <Card className={cn('transition-all hover:shadow-md hover:-translate-y-1', "border-warning/50 text-warning")}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Predictive Alert</CardTitle>
-                            <AlertCircle className="h-5 w-5 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            {data.predictiveAlert ? (
-                                <>
-                                    <div className="text-xl font-bold">{data.predictiveAlert.item}</div>
-                                    <p className="text-xs text-muted-foreground">Predicted to run out in ~{data.predictiveAlert.days} days.</p>
-                                </>
-                            ) : (
-                                <div className="text-xl font-bold text-muted-foreground">All Good!</div>
-                            )}
-                        </CardContent>
-                    </Card>
-                 </Link>
+                    <MetricCard
+                        title="Low Stock Items"
+                        value={data.lowStockCount.toString()}
+                        icon={AlertCircle}
+                        variant="warning"
+                        label="Items at or below reorder point"
+                    />
+                </Link>
+                <Link href="/inventory">
+                    <MetricCard
+                        title="Total SKUs"
+                        value={data.totalSKUs.toString()}
+                        icon={Package}
+                        label="Unique products in inventory"
+                    />
+                </Link>
+                <Link href="/suppliers">
+                    <MetricCard
+                        title="Total Suppliers"
+                        value={data.totalSuppliers.toString()}
+                        icon={Truck}
+                    />
+                </Link>
             </div>
         </div>
     );

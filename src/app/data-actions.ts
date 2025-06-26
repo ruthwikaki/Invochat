@@ -56,7 +56,7 @@ async function getCompanyIdForCurrentUser(): Promise<string | null> {
 export async function getDashboardData() {
     const companyId = await getCompanyIdForCurrentUser();
     if (!companyId) {
-        return { inventoryValue: 0, deadStockValue: 0, predictiveAlert: null };
+        return { inventoryValue: 0, deadStockValue: 0, lowStockCount: 0, totalSKUs: 0, totalSuppliers: 0, totalSalesValue: 0 };
     }
     return getDashboardMetrics(companyId);
 }

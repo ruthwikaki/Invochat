@@ -33,22 +33,33 @@ function getServiceRoleClient() {
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
   const supabase = getServiceRoleClient();
   
-  const { data: inventory, error: inventoryError } = await supabase
-    .from('inventory')
-    .select('quantity, cost, last_sold_date, reorder_point, name')
-    .eq('company_id', companyId);
+  const [inventoryRes, vendorsRes, salesRes] = await Promise.all([
+    supabase.from('inventory').select('quantity, cost, last_sold_date, reorder_point, name').eq('company_id', companyId),
+    supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
+    supabase.from('sales').select('total_amount').eq('company_id', companyId)
+  ]);
 
-  if (inventoryError) {
-    console.error('Error fetching inventory for dashboard:', inventoryError);
-    throw new Error(`Failed to load dashboard data: ${inventoryError.message}`);
+  const { data: inventory, error: inventoryError } = inventoryRes;
+  const { count: suppliersCount, error: suppliersError } = vendorsRes;
+  const { data: sales, error: salesError } = salesRes;
+
+  if (inventoryError || suppliersError || salesError) {
+    console.error('Dashboard data fetching errors:', { inventoryError, suppliersError, salesError });
+    const error = inventoryError || suppliersError || salesError;
+    throw new Error(`Failed to load dashboard data: ${error?.message}`);
   }
+
+  const totalSalesValue = (sales || []).reduce((sum, sale) => sum + sale.total_amount, 0);
 
   // If no inventory exists, return zeros but don't throw error
   if (!inventory || inventory.length === 0) {
     return {
       inventoryValue: 0,
       deadStockValue: 0,
-      predictiveAlert: null
+      lowStockCount: 0,
+      totalSKUs: 0,
+      totalSuppliers: suppliersCount || 0,
+      totalSalesValue: Math.round(totalSalesValue),
     };
   }
 
@@ -57,17 +68,16 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const deadStockValue = inventory
       .filter(item => item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo))
       .reduce((sum, item) => sum + (item.quantity * Number(item.cost)), 0);
-
-  const lowStockItem = inventory.find(item => item.quantity <= item.reorder_point);
-  const predictiveAlert = lowStockItem ? {
-      item: lowStockItem.name,
-      days: 7 // Placeholder
-  } : null;
+  
+  const lowStockCount = inventory.filter(item => item.quantity <= item.reorder_point).length;
 
   return {
       inventoryValue: Math.round(inventoryValue),
       deadStockValue: Math.round(deadStockValue),
-      predictiveAlert
+      lowStockCount: lowStockCount,
+      totalSKUs: inventory.length,
+      totalSuppliers: suppliersCount || 0,
+      totalSalesValue: Math.round(totalSalesValue)
   };
 }
 
