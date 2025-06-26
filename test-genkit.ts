@@ -27,39 +27,48 @@ async function runTest() {
     return;
   }
 
-  const modelName = 'googleai/gemini-1.5-flash-latest';
-  try {
-    console.log(`Attempting to generate content with model: ${modelName}...`);
+  const modelsToTest = [
+    'googleai/gemini-1.5-flash-latest',
+    'googleai/gemini-1.0-pro',
+    'googleai/gemini-pro',
+  ];
+  let successfulModel = null;
 
-    const { output } = await ai.generate({
-      model: modelName,
-      prompt: 'Tell me a one-sentence joke about inventory management.',
-    });
+  for (const modelName of modelsToTest) {
+    try {
+        console.log(`\nAttempting to generate content with model: ${modelName}...`);
 
-    console.log('✅✅✅ SUCCESS! ✅✅✅');
-    console.log('AI Response:', output);
-    console.log('\nConclusion: Your API key and project configuration are working correctly with this model.');
-    console.log('If this test passes, we can update the main application to use this model.');
+        const { output } = await ai.generate({
+            model: modelName,
+            prompt: 'Tell me a one-sentence joke about inventory management.',
+        });
+        
+        console.log('✅✅✅ SUCCESS! ✅✅✅');
+        console.log('AI Response:', output);
+        successfulModel = modelName;
+        break; // Stop on first success
 
-
-  } catch (error: any) {
-    console.error('❌❌❌ TEST FAILED ❌❌❌');
-    console.error('Error Details:', error.message);
-    
-    if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) {
-        console.log('\nRoot Cause: The "Model not found" error persists. This strongly confirms the issue is with your Google Cloud Project setup or API Key.');
-        console.log('Possible reasons:');
-        console.log('1. The model is not available in your project\'s region.');
-        console.log('2. Your project is missing a billing account, which is required for this API.');
-        console.log('3. The API key does not have permissions for the Generative Language API.');
-        console.log('\nNext Steps:');
-        console.log('- Verify your GOOGLE_API_KEY in .env belongs to the project where the "Generative Language API" is enabled.');
-        console.log('- Check that a billing account is linked to your Google Cloud project: https://cloud.google.com/billing/docs/how-to/modify-project');
-    } else {
-        console.log('\nAn unexpected error occurred:', error);
+    } catch (error: any) {
+        console.error(`❌ TEST FAILED for model ${modelName}.`);
+        console.error('Error Details:', error.message);
     }
   }
-  console.log('--- Test Complete ---');
+
+  console.log('\n--- Test Complete ---');
+  if (successfulModel) {
+    console.log(`\nConclusion: Success with model '${successfulModel}'!`);
+    console.log('If you ask me to, I can now update the main application to use this working model.');
+  } else {
+    console.log('\nConclusion: All tested models failed.');
+    console.log('This confirms the issue is with your Google Cloud Project setup or API Key.');
+    console.log('Possible reasons:');
+    console.log('1. The tested models are not available in your project\'s region.');
+    console.log('2. Your project is missing a billing account, which is required for this API.');
+    console.log('3. The API key does not have permissions for the "Generative Language API".');
+    console.log('\nNext Steps:');
+    console.log('- Verify your GOOGLE_API_KEY in .env belongs to the project where the "Generative Language API" is enabled.');
+    console.log('- Check that a billing account is linked to your Google Cloud project: https://cloud.google.com/billing/docs/how-to/modify-project');
+  }
 }
 
 runTest();
