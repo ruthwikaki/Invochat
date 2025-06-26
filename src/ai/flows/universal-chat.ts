@@ -7,7 +7,6 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { APP_CONFIG } from '@/config/app-config';
@@ -168,29 +167,21 @@ export const universalChatFlow = ai.defineFlow({
         model: APP_CONFIG.ai.model,
         tools: [executeSQLTool],
         history: history,
-        prompt: `You are InvoChat, an expert AI inventory management analyst. Your primary function is to answer user questions by querying a database using the \`executeSQL\` tool.
+        system: `You are InvoChat, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
-        **CRITICAL INSTRUCTIONS - READ AND FOLLOW CAREFULLY:**
-        1.  **QUERY THE CORRECT TABLE:** Use the schema description below to choose the right table. The \`inventory\` table contains products. The \`vendors\` table contains suppliers. Do not confuse them.
-        2.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention that you are running one.
-        3.  **HANDLE EMPTY RESULTS:** If a query executes but returns no data (\`[]\`), you MUST inform the user directly that no data was found. Do not say "Here is the data..." or introduce a table. Simply state that no data is available (e.g., "I couldn't find any products in your inventory.").
-        4.  **STICK TO THE DATA:** Base all responses strictly on data returned from the \`executeSQL\` tool. Do not invent or hallucinate information.
-        5.  **DATA vs. INSIGHTS:**
-            - If the user asks for a list, table, or "all" of something (e.g., "show me all products", "list my vendors"), your primary goal is to provide that data. Use the tool and set \`visualization.type\` to 'table'. Your \`response\` text should be a brief introduction to the table.
-            - If the user asks for an analysis or summary (e.g., "what's my best-selling item?"), provide a conversational insight first. Then, if relevant, include the data and suggest a chart.
-        6.  **ERROR HANDLING:** If a tool call fails, analyze the error, fix the query, and retry. Only explain the error to the user if you cannot fix it.
+        **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
+        1.  **NEVER ASK FOR MORE INFORMATION.** Do not ask clarifying questions like "What information are you looking for?". You have all the context you need.
+        2.  **IMMEDIATELY USE THE TOOL.** For any user question about inventory, products, vendors, or sales, your first and only action should be to construct and execute a SQL query using the \`executeSQL\` tool.
+        3.  **HANDLE EMPTY RESULTS:** If the tool returns an empty result (\`[]\`), you MUST inform the user that no data was found. DO NOT invent data and DO NOT say "Here is the data...".
+        4.  **NEVER SHOW YOUR WORK:** Do not show the raw SQL query to the user or mention the database.
+        5.  Base all responses strictly on data returned from the \`executeSQL\` tool.
 
         **DATABASE SCHEMA:**
         (Note: The 'company_id' is handled automatically. DO NOT include it in your queries.)
-        - **inventory**: Contains all **product** and stock item information. Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
+        - **inventory**: Contains all **product** and stock item information. Use this table for questions about "products". Columns: \`id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date\`.
         - **vendors**: Contains all **supplier** information. Columns: \`id, vendor_name, contact_info, address, terms, account_number\`.
         - **sales**: Records all sales transactions. Columns: \`id, sale_date, customer_name, total_amount, items\`.
-        - **purchase_orders**: Tracks orders placed with vendors. Columns: \`id, po_number, vendor, item, quantity, cost, order_date\`.
-
-        **BUSINESS LOGIC:**
-        - **Dead Stock**: Items with a \`last_sold_date\` older than ${APP_CONFIG.businessLogic.deadStockDays} days.
-        - **Low Stock**: Items where \`quantity\` is at or below \`reorder_point\`.
-        - **Profit Margin**: Calculated as \`((price - cost) / price)\`.`,
+        - **purchase_orders**: Tracks orders placed with vendors. Columns: \`id, po_number, vendor, item, quantity, cost, order_date\`.`,
         output: {
           schema: UniversalChatOutputSchema
         },
