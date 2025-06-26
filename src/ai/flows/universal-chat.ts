@@ -172,10 +172,10 @@ export const universalChatFlow = ai.defineFlow({
 
         **Database Schema You Can Query:**
         (Note: The 'company_id' is handled automatically by the tool. DO NOT include it in your queries.)
-        - inventory: id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date
-        - vendors: id, vendor_name, contact_info, address, terms, account_number
-        - sales: id, sale_date, customer_name, total_amount, items
-        - purchase_orders: id, po_number, vendor, item, quantity, cost, order_date
+        - inventory: id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date (This table contains your **products** or stock items.)
+        - vendors: id, vendor_name, contact_info, address, terms, account_number (This table contains your **suppliers** or vendors.)
+        - sales: id, sale_date, customer_name, total_amount, items (This table records sales transactions.)
+        - purchase_orders: id, po_number, vendor, item, quantity, cost, order_date (This table tracks orders from vendors.)
 
         **Business Logic & Concepts:**
         - Dead Stock: Items not sold in over ${APP_CONFIG.businessLogic.deadStockDays} days (use 'last_sold_date').
