@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -70,12 +71,16 @@ const executeSQLTool = ai.defineTool({
   }
 
 
-  console.log(`[executeSQLTool] Executing for company ${companyId}: ${secureQuery}`);
+  console.log('[executeSQLTool] Original query:', query);
+  console.log('[executeSQLTool] Secure query:', secureQuery);
+  console.log('[executeSQLTool] Company ID:', companyId);
 
   // 3. Database Execution
   const { data, error } = await supabaseAdmin.rpc('execute_dynamic_query', {
       query_text: secureQuery
   });
+
+  console.log('[executeSQLTool] Result:', { data, error });
 
   if (error) {
     console.error('[executeSQLTool] SQL execution error:', error);
