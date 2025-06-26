@@ -145,21 +145,48 @@ export const universalChatFlow = ai.defineFlow({
   
   console.log('[UniversalChat] Starting flow. History length:', conversationHistory.length);
 
-  // The history is formatted here, right before calling the AI, to ensure it's always correct.
-  const messages = conversationHistory
-    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0)
-    .map(msg => ({
-      role: msg.role === 'assistant' ? 'model' : 'user', // Gemini uses 'model' instead of 'assistant'
-      content: [{ text: msg.content }] // This is the required format for Genkit's Gemini plugin.
-    }));
+  // Filter and format messages for Gemini
+  const filteredHistory = conversationHistory
+    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0);
+
+  // Ensure the conversation starts with a user message (Gemini requirement)
+  let messages: { role: 'user' | 'model'; content: { text: string; }[]; }[] = [];
+  let foundFirstUser = false;
   
+  for (const msg of filteredHistory) {
+    if (!foundFirstUser) {
+      if (msg.role === 'user') {
+        foundFirstUser = true;
+        messages.push({
+          role: 'user',
+          content: [{ text: msg.content }]
+        });
+      }
+      // Skip any assistant messages before the first user message
+    } else {
+      messages.push({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        content: [{ text: msg.content }]
+      });
+    }
+  }
+
   console.log('[UniversalChat] Formatted messages:', JSON.stringify(messages, null, 2));
 
+  // If no messages or no user message found, provide a default
+  if (messages.length === 0) {
+    console.log('[UniversalChat] No valid conversation history, using default message');
+    messages = [{
+      role: 'user',
+      content: [{ text: 'Hello' }]
+    }];
+  }
+  
   try {
     const { output } = await ai.generate({
       model: APP_CONFIG.ai.model,
       tools: [executeSQLTool],
-      messages: messages, // Change from 'history' to 'messages'
+      messages: messages,
       system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions by querying a database using the \`executeSQL\` tool.
 
       **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
@@ -178,7 +205,7 @@ export const universalChatFlow = ai.defineFlow({
       output: {
         schema: UniversalChatOutputSchema
       },
-      context: { companyId }, // Pass companyId securely to the tool's flow context
+      context: { companyId },
     });
     
     console.log('[UniversalChat] AI generation successful.');
@@ -187,7 +214,7 @@ export const universalChatFlow = ai.defineFlow({
       throw new Error("The model did not return a valid response.");
     }
     
-    output.data = output.data ?? []; // Ensure data is always an array
+    output.data = output.data ?? [];
     
     return output;
   } catch (error) {
