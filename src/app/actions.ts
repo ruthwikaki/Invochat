@@ -86,18 +86,10 @@ export async function handleUserMessage(
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
-    const mappedHistory = conversationHistory
-      // Filter out system messages and initial empty messages
-      .filter(m => (m.role === 'user' || m.role === 'assistant') && m.content)
-      .map(m => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content
-      }));
-
-    // Let the new universal AI flow handle everything
+    // Pass the raw history directly to the flow. The flow is now responsible for mapping and validation.
     const response = await universalChatFlow({
       companyId,
-      conversationHistory: mappedHistory
+      conversationHistory
     });
     
     // Handle visualization suggestions from the AI

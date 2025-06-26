@@ -114,7 +114,7 @@ const executeSQLTool = ai.defineTool({
 const UniversalChatInputSchema = z.object({
   companyId: z.string(),
   conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant']),
+    role: z.enum(['user', 'assistant', 'system']),
     content: z.string()
   })),
 });
@@ -145,14 +145,16 @@ export const universalChatFlow = ai.defineFlow({
   
   console.log('[UniversalChat] Starting flow. History length:', conversationHistory.length);
 
-  // Map the provided history to the format Genkit expects.
-  const history = conversationHistory.map(msg => ({
-    role: msg.role,
-    content: [{text: msg.content}]
-  }));
+  // Defensive filtering and mapping to the format Genkit expects.
+  // This is the single source of truth for history formatting to prevent data corruption.
+  const history = conversationHistory
+    .filter(msg => msg && (msg.role === 'user' || msg.role === 'assistant') && typeof msg.content === 'string' && msg.content.length > 0)
+    .map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: [{text: msg.content}]
+    }));
+
   
-  // The retry loop has been removed. The flow will now attempt to generate a response once.
-  // If an error occurs, it will be caught by the `handleUserMessage` action, which will display a clean error to the user.
   const { output } = await ai.generate({
     model: APP_CONFIG.ai.model,
     tools: [executeSQLTool],
