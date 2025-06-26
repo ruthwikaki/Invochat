@@ -83,17 +83,8 @@ const executeSQLTool = ai.defineTool({
 });
 
 /**
- * The exported, callable function that wraps the Genkit flow.
- * This is the only function exported from this file to comply with 'use server' constraints.
- */
-export async function universalChatFlow(input: UniversalChatInput): Promise<UniversalChatOutput> {
-  return _universalChatFlow(input);
-}
-
-
-/**
  * The internal Genkit flow definition.
- * It is not exported directly.
+ * It is NOT exported directly to comply with 'use server' constraints.
  */
 const _universalChatFlow = ai.defineFlow({
   name: 'universalChatFlow',
@@ -116,13 +107,10 @@ const _universalChatFlow = ai.defineFlow({
   if (firstUserIndex > 0) {
     geminiHistory = geminiHistory.slice(firstUserIndex);
   } else if (firstUserIndex === -1 && geminiHistory.length > 0) {
-    // This case should ideally not happen with a loading UI, but as a fallback...
     const lastMessage = conversationHistory.at(-1)?.content || 'Hello';
     console.warn('[UniversalChat] No user message found in history, creating one from last message.');
     geminiHistory = [{ role: 'user', content: [{text: lastMessage}] }];
   } else if (geminiHistory.length === 0) {
-    // It's possible to start a flow with an empty history, which is not an error.
-    // The prompt will just be whatever the user's first message is.
     console.warn("[UniversalChat] Conversation history is empty.");
   }
   
@@ -177,3 +165,12 @@ const _universalChatFlow = ai.defineFlow({
     throw error;
   }
 });
+
+
+/**
+ * This is the single, exported async function that wraps the Genkit flow.
+ * It is the only function exported from this file to comply with 'use server' constraints.
+ */
+export async function universalChatFlow(input: UniversalChatInput): Promise<UniversalChatOutput> {
+  return await _universalChatFlow(input);
+}

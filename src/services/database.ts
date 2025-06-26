@@ -49,7 +49,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     throw new Error(`Failed to load dashboard data: ${error?.message}`);
   }
 
-  const totalSalesValue = (sales || []).reduce((sum, { total_amount }) => sum + total_amount, 0);
+  const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
 
   // If no inventory exists, return zeros but don't throw error
   if (!inventory || inventory.length === 0) {
@@ -64,15 +64,15 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   }
 
   const ninetyDaysAgo = subDays(new Date(), 90);
-  const inventoryValue = inventory.reduce((sum, { quantity, cost }) => sum + (quantity * Number(cost)), 0);
+  const inventoryValue = inventory.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
   
-  const deadStockItems = inventory.filter(({ last_sold_date }) => 
-    last_sold_date && isBefore(parseISO(last_sold_date), ninetyDaysAgo)
+  const deadStockItems = inventory.filter(item => 
+    item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo)
   );
   
-  const deadStockValue = deadStockItems.reduce((sum, { quantity, cost }) => sum + (quantity * Number(cost)), 0);
+  const deadStockValue = deadStockItems.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
   
-  const lowStockCount = inventory.filter(({ quantity, reorder_point }) => quantity <= reorder_point).length;
+  const lowStockCount = inventory.filter(item => (item.quantity || 0) <= (item.reorder_point || 0)).length;
 
   return {
       inventoryValue: Math.round(inventoryValue),
