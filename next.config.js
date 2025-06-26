@@ -17,7 +17,9 @@ const nextConfig = {
   },
   experimental: {
     // This is required to fix a critical warning with server-side Genkit dependencies.
-    serverComponentsExternalPackages: ['@opentelemetry/instrumentation'],
+    // Adding 'handlebars' prevents a webpack error and allows Genkit's context
+    // (including the companyId for tools) to propagate correctly in server actions.
+    serverComponentsExternalPackages: ['@opentelemetry/instrumentation', 'handlebars'],
   },
 };
 
