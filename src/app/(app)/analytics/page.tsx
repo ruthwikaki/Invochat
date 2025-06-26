@@ -1,25 +1,50 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { handleUserMessage } from "@/app/actions";
 import type { ChartConfig } from "@/types";
 import { DynamicChart } from "@/components/ai-response/dynamic-chart";
-import { BarChart as BarChartIcon } from "lucide-react";
+import { BarChart as BarChartIcon, AlertTriangle } from "lucide-react";
+import type { Message, AssistantMessagePayload } from "@/types";
 
+async function generateChart(message: string): Promise<ChartConfig | { error: string, query: string }> {
+    try {
+        const result = await handleUserMessage({ conversationHistory: [{ role: 'user', content: message }] });
+
+        if (result.component === 'DynamicChart' && result.props) {
+            return result.props as ChartConfig;
+        }
+        // If the AI returns a text response, treat it as an error for this context.
+        return { error: `Could not generate chart. AI responded: ${result.content}`, query: message };
+
+    } catch (e: any) {
+        console.error(`Failed to generate chart for query: "${message}"`, e);
+        return { error: e.message || 'An unknown error occurred.', query: message };
+    }
+}
+
+function ErrorCard({ title, description }: { title: string, description: string }) {
+    return (
+        <Card className="border-destructive/50">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="h-5 w-5" />
+                    {title}
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="text-sm text-destructive">{description}</p>
+            </CardContent>
+        </Card>
+    );
+}
 
 export default async function AnalyticsPage() {
     const chartQueries = [
-        { message: "Create a bar chart showing my inventory value by category" },
-        { message: "Visualize my sales velocity by category as a pie chart" }
+        "Create a bar chart showing my inventory value by category",
+        "Visualize my sales velocity by category as a pie chart"
     ];
     
-    // This now awaits all promises. If any of the AI actions fail,
-    // this will throw an error and be caught by the nearest error.tsx boundary.
-    const chartPromises = chartQueries.map(query => handleUserMessage(query));
-    const results = await Promise.all(chartPromises);
-
-    const charts: ChartConfig[] = results
-        .filter(c => c.component === 'DynamicChart' && c.props)
-        .map(c => c.props as ChartConfig);
+    const results = await Promise.all(chartQueries.map(generateChart));
 
     return (
         <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
@@ -31,33 +56,27 @@ export default async function AnalyticsPage() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-                {charts.length > 0 ? (
-                    charts.map((chartProps, i) => (
-                        <div key={i} className="min-w-0">
-                            <DynamicChart {...chartProps} />
-                        </div>
-                    ))
-                ) : (
-                    <Card className="lg:col-span-2">
-                        <CardHeader>
-                            <CardTitle>No Data</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="h-60 flex flex-col items-center justify-center text-muted-foreground text-center">
-                                <BarChartIcon className="h-12 w-12 mb-4" />
-                                Could not generate charts. This can happen if the AI fails or if there is no data. Please ensure your database is populated and your API keys are configured.
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+                {results.map((chart, i) => (
+                    <div key={i} className="min-w-0">
+                        {'error' in chart ? (
+                            <ErrorCard 
+                                title={`Failed to load: "${chart.query}"`}
+                                description={chart.error} 
+                            />
+                        ) : (
+                            <DynamicChart {...chart} />
+                        )}
+                    </div>
+                ))}
             </div>
              <Card>
                 <CardHeader>
                     <CardTitle>Explore Your Data</CardTitle>
+                     <CardDescription>Use the chat interface to ask for custom visualizations!</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="h-40 flex items-center justify-center text-muted-foreground">
-                        Use the chat interface to ask for custom visualizations! For example: "Show me a pie chart of warehouse distribution"
+                    <div className="h-40 flex items-center justify-center text-muted-foreground bg-muted/50 rounded-lg text-center p-4">
+                       Try asking: "Show me a pie chart of warehouse distribution"
                     </div>
                 </CardContent>
             </Card>

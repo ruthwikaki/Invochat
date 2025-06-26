@@ -42,67 +42,49 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setInput(e.target.value);
   };
 
-  const processResponse = (response: AssistantMessagePayload) => {
-    let contentNode: React.ReactNode = response.content;
-
-    if (response.component && response.component in AiComponentMap) {
-      const Component = AiComponentMap[response.component as keyof typeof AiComponentMap];
-      contentNode = (
-        <div className="space-y-2">
-          {response.content && <p>{response.content}</p>}
-          <Component {...response.props} />
-        </div>
-      );
-    }
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: response.id,
-        role: 'assistant',
-        content: contentNode,
-        timestamp: Date.now(),
-      },
-    ]);
-  };
-
-  const submitMessage = (messageText: string) => {
-    if (!messageText.trim()) return;
-
+  const processAndSetMessages = (userMessageText: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: messageText,
+      content: userMessageText,
       timestamp: Date.now(),
     };
     
-    // We can pass the full history now, the AI flow is smart enough to handle it.
-    const fullHistory = [...messages, userMessage];
-    setMessages(fullHistory);
-
+    // Add the user's message and a loading state for the assistant.
+    setMessages(prev => [
+      ...prev,
+      userMessage,
+      {
+        id: 'loading',
+        role: 'assistant',
+        content: '...',
+        timestamp: Date.now(),
+      }
+    ]);
+    
     startTransition(async () => {
       try {
-        const conversationHistoryForAI = fullHistory
+        // Construct the history from the state *before* this message was sent.
+        const historyForAI = messages
             .filter(m => m.role === 'user' || m.role === 'assistant')
             .slice(-APP_CONFIG.ai.historyLimit)
             .map(m => ({
                 role: m.role as 'user' | 'assistant',
-                content: typeof m.content === 'string' ? m.content : 'Here is the data you requested in a chart.',
+                // Ensure content is a string for the AI flow.
+                content: typeof m.content === 'string' ? m.content : '[Previous data displayed]',
             }));
-        
+            
+        // Add the new user message to the history for the current call.
+        historyForAI.push({ role: 'user', content: userMessageText });
+
         const response = await handleUserMessage({ 
-          conversationHistory: conversationHistoryForAI
+          conversationHistory: historyForAI
         });
         
-        // Update the last message (the user's) and add the assistant's response.
-        // This is a more robust way to handle state updates with multiple components.
         setMessages(prev => {
-            const newMessages = [...prev];
-            // Replace the loading/placeholder assistant message with the real one.
-            const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage.role === 'assistant' && lastMessage.id === 'loading') {
-                newMessages.pop();
-            }
-            
+            // Find the loading message and replace it with the actual response.
+            const newMessages = prev.filter(m => m.id !== 'loading');
+
             let contentNode: React.ReactNode = response.content;
             if (response.component && response.component in AiComponentMap) {
               const Component = AiComponentMap[response.component as keyof typeof AiComponentMap];
@@ -124,25 +106,28 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
             return newMessages;
         });
 
-      } catch (e) {
+      } catch (e: any) {
         toast({ 
           variant: 'destructive', 
           title: 'Error', 
-          description: 'Could not get response from InvoChat.'
+          description: e.message || 'Could not get response from InvoChat.'
         });
+        // Remove loading indicator on error
+        setMessages(prev => prev.filter(m => m.id !== 'loading'));
       }
     });
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    submitMessage(input);
-    setInput('');
+    if (input.trim()) {
+      processAndSetMessages(input);
+      setInput('');
+    }
   };
 
   const handleQuickAction = (action: string) => {
-    setInput(action);
-    submitMessage(action);
+    processAndSetMessages(action);
     setInput('');
   };
 
@@ -150,7 +135,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         if (input.trim() && !isPending) {
-            submitMessage(input);
+            processAndSetMessages(input);
             setInput('');
         }
     }
@@ -174,19 +159,12 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
         <div className="mx-auto max-w-4xl space-y-6 p-4">
           {messages.map((m) => (
-            <ChatMessage key={m.id} message={m} />
+             m.id === 'loading' ? (
+                <ChatMessage key={m.id} message={m} isLoading />
+             ) : (
+                <ChatMessage key={m.id} message={m} />
+             )
           ))}
-          {isPending && (
-            <ChatMessage
-              message={{
-                id: 'loading',
-                role: 'assistant',
-                content: '...',
-                timestamp: Date.now(),
-              }}
-              isLoading
-            />
-          )}
         </div>
       </ScrollArea>
       <div className="mx-auto w-full max-w-4xl p-4 border-t bg-background">

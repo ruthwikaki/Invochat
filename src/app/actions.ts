@@ -1,10 +1,11 @@
 'use server';
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { AssistantMessagePayload } from '@/types';
+import type { AssistantMessagePayload, Message } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
+import { APP_CONFIG } from '@/config/app-config';
 
 /**
  * Transforms raw data from the AI/database into a format that our charting library can understand.
@@ -52,9 +53,12 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
 }
 
 
-// This schema defines the raw payload from the client.
+// This schema now defines the full conversation history.
 const UserMessagePayloadSchema = z.object({
-  message: z.string(),
+  conversationHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string(),
+  })),
 });
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
@@ -85,14 +89,14 @@ export async function handleUserMessage(
   payload: z.infer<typeof UserMessagePayloadSchema>
 ): Promise<AssistantMessagePayload> {
   // Validate the raw payload from the client.
-  const { message } = UserMessagePayloadSchema.parse(payload);
+  const { conversationHistory } = UserMessagePayloadSchema.parse(payload);
   
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
     const response = await universalChatFlow({
       companyId,
-      conversationHistory: [{ role: 'user', content: message }],
+      conversationHistory, // Pass the validated history directly
     });
     
     // Handle visualization suggestions from the AI

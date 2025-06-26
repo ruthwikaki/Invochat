@@ -17,6 +17,7 @@ import type { User } from '@/types';
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It returns null if any issue occurs.
 async function getCompanyIdForCurrentUser(): Promise<string | null> {
+    console.log('[getCompanyIdForCurrentUser] Attempting to determine Company ID...');
     try {
         const cookieStore = cookies();
         const supabase = createServerClient(
@@ -41,10 +42,11 @@ async function getCompanyIdForCurrentUser(): Promise<string | null> {
         const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
         
         if (!user || !companyId || typeof companyId !== 'string') {
-            console.warn('[getCompanyIdForCurrentUser] Could not determine company ID. User may not be fully signed up or session is invalid.');
+            console.warn('[getCompanyIdForCurrentUser] Could not determine Company ID. User may not be fully signed up or session is invalid.');
             return null;
         }
         
+        console.log(`[getCompanyIdForCurrentUser] Success. Company ID: ${companyId}`);
         return companyId;
     } catch (e: any) {
         console.error('[getCompanyIdForCurrentUser] Caught exception:', e.message);
@@ -56,6 +58,7 @@ async function getCompanyIdForCurrentUser(): Promise<string | null> {
 export async function getDashboardData() {
     const companyId = await getCompanyIdForCurrentUser();
     if (!companyId) {
+        // Return a default object that won't crash the UI.
         return { inventoryValue: 0, deadStockValue: 0, lowStockCount: 0, totalSKUs: 0, totalSuppliers: 0, totalSalesValue: 0 };
     }
     return getDashboardMetrics(companyId);

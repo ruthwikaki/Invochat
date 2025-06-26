@@ -100,7 +100,7 @@ export default function InventoryPage() {
               disabled={loading || !!error}
             />
           </div>
-          <Select>
+          <Select disabled>
             <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
