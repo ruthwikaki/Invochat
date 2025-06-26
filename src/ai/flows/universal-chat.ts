@@ -7,6 +7,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { APP_CONFIG } from '@/config/app-config';
@@ -164,7 +165,7 @@ export const universalChatFlow = ai.defineFlow({
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       const { output } = await ai.generate({
-        model: APP_CONFIG.ai.model,
+        model: googleAI.model(APP_CONFIG.ai.model),
         tools: [executeSQLTool],
         history: history,
         prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
