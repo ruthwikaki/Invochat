@@ -16,6 +16,10 @@ const nextConfig = {
       },
     ],
   },
+  experimental: {
+    // This is required to fix a critical warning with server-side Genkit dependencies.
+    serverComponentsExternalPackages: ['@opentelemetry/instrumentation'],
+  },
 };
 
 module.exports = nextConfig;

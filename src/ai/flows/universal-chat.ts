@@ -139,7 +139,7 @@ export const universalChatFlow = ai.defineFlow({
   for (let i = 0; i < MAX_RETRIES; i++) {
     try {
       const { output } = await ai.generate({
-        model: 'googleai/gemini-1.5-flash-latest',
+        model: 'googleai/gemini-1.5-pro-latest',
         tools: [executeSQLTool],
         history: history,
         prompt: `You are InvoChat, a world-class conversational AI for inventory management. Your personality is helpful, proactive, and knowledgeable. You are an analyst that provides insights, not a simple database interface.
