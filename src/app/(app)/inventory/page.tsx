@@ -1,4 +1,3 @@
-
 'use client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,7 +82,7 @@ export default function InventoryPage() {
           <SidebarTrigger className="md:hidden" />
           <h1 className="text-2xl font-semibold">Inventory</h1>
         </div>
-        <Button disabled>
+        <Button>
           <Download className="mr-2 h-4 w-4" />
           Export to CSV
         </Button>
@@ -101,7 +100,7 @@ export default function InventoryPage() {
               disabled={loading || !!error}
             />
           </div>
-          <Select disabled>
+          <Select>
             <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>

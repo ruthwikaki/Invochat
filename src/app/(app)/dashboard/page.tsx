@@ -1,4 +1,3 @@
-
 import { AlertCircle, Package, TrendingDown, DollarSign, Truck, BarChart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -51,7 +50,7 @@ export default async function DashboardPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Link href="/inventory">
+                <Link href="/inventory" className="transition-all hover:shadow-md hover:-translate-y-1">
                     <MetricCard
                         title="Total Inventory Value"
                         value={formatCurrency(data.inventoryValue)}
@@ -59,7 +58,7 @@ export default async function DashboardPage() {
                         variant="success"
                     />
                 </Link>
-                <Link href="/analytics">
+                <Link href="/analytics" className="transition-all hover:shadow-md hover:-translate-y-1">
                     <MetricCard
                         title="Total Sales"
                         value={formatCurrency(data.totalSalesValue)}
@@ -67,7 +66,7 @@ export default async function DashboardPage() {
                         label="All-time sales data"
                     />
                 </Link>
-                 <Link href="/dead-stock">
+                 <Link href="/dead-stock" className="transition-all hover:shadow-md hover:-translate-y-1">
                     <MetricCard
                         title="Dead Stock Value"
                         value={formatCurrency(data.deadStockValue)}
@@ -75,7 +74,7 @@ export default async function DashboardPage() {
                         variant="destructive"
                     />
                 </Link>
-                 <Link href="/alerts">
+                 <Link href="/alerts" className="transition-all hover:shadow-md hover:-translate-y-1">
                     <MetricCard
                         title="Low Stock Items"
                         value={data.lowStockCount.toString()}
@@ -84,7 +83,7 @@ export default async function DashboardPage() {
                         label="Items at or below reorder point"
                     />
                 </Link>
-                <Link href="/inventory">
+                <Link href="/inventory" className="transition-all hover:shadow-md hover:-translate-y-1">
                     <MetricCard
                         title="Total SKUs"
                         value={data.totalSKUs.toString()}
@@ -92,7 +91,7 @@ export default async function DashboardPage() {
                         label="Unique products in inventory"
                     />
                 </Link>
-                <Link href="/suppliers">
+                <Link href="/suppliers" className="transition-all hover:shadow-md hover:-translate-y-1">
                     <MetricCard
                         title="Total Suppliers"
                         value={data.totalSuppliers.toString()}

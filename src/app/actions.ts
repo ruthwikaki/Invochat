@@ -1,4 +1,3 @@
-
 'use server';
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -54,12 +53,8 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
 
 
 // This schema defines the raw payload from the client.
-// Note: The AI Flow now expects simple string content, so we pass it through directly.
 const UserMessagePayloadSchema = z.object({
-  conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
-    content: z.string()
-  })),
+  message: z.string(),
 });
 
 async function getCompanyIdForCurrentUser(): Promise<string> {
@@ -90,15 +85,14 @@ export async function handleUserMessage(
   payload: z.infer<typeof UserMessagePayloadSchema>
 ): Promise<AssistantMessagePayload> {
   // Validate the raw payload from the client.
-  const { conversationHistory = [] } = UserMessagePayloadSchema.parse(payload);
+  const { message } = UserMessagePayloadSchema.parse(payload);
   
   try {
     const companyId = await getCompanyIdForCurrentUser();
     
-    // The history is passed directly to the flow. The flow is now responsible for all formatting.
     const response = await universalChatFlow({
       companyId,
-      conversationHistory,
+      conversationHistory: [{ role: 'user', content: message }],
     });
     
     // Handle visualization suggestions from the AI

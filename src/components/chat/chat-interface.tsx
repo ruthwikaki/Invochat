@@ -1,4 +1,3 @@
-
 'use client';
 
 import { handleUserMessage } from '@/app/actions';
@@ -75,23 +74,56 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
       content: messageText,
       timestamp: Date.now(),
     };
-    setMessages((prev) => [...prev, userMessage]);
-
-    // Create conversation history for context, including the new user message
-    const conversationHistory = [...messages, userMessage]
-      .filter(m => m.role !== 'system')
-      .slice(-APP_CONFIG.ai.historyLimit) // Last X messages for context
-      .map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: typeof m.content === 'string' ? m.content : 'Visual response'
-      }));
+    
+    // We can pass the full history now, the AI flow is smart enough to handle it.
+    const fullHistory = [...messages, userMessage];
+    setMessages(fullHistory);
 
     startTransition(async () => {
       try {
+        const conversationHistoryForAI = fullHistory
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .slice(-APP_CONFIG.ai.historyLimit)
+            .map(m => ({
+                role: m.role as 'user' | 'assistant',
+                content: typeof m.content === 'string' ? m.content : 'Here is the data you requested in a chart.',
+            }));
+        
         const response = await handleUserMessage({ 
-          conversationHistory 
+          conversationHistory: conversationHistoryForAI
         });
-        processResponse(response);
+        
+        // Update the last message (the user's) and add the assistant's response.
+        // This is a more robust way to handle state updates with multiple components.
+        setMessages(prev => {
+            const newMessages = [...prev];
+            // Replace the loading/placeholder assistant message with the real one.
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage.role === 'assistant' && lastMessage.id === 'loading') {
+                newMessages.pop();
+            }
+            
+            let contentNode: React.ReactNode = response.content;
+            if (response.component && response.component in AiComponentMap) {
+              const Component = AiComponentMap[response.component as keyof typeof AiComponentMap];
+              contentNode = (
+                <div className="space-y-2">
+                  {response.content && <p>{response.content}</p>}
+                  <Component {...response.props} />
+                </div>
+              );
+            }
+
+            newMessages.push({
+                id: response.id,
+                role: 'assistant',
+                content: contentNode,
+                timestamp: Date.now(),
+            });
+
+            return newMessages;
+        });
+
       } catch (e) {
         toast({ 
           variant: 'destructive', 
@@ -109,7 +141,9 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   };
 
   const handleQuickAction = (action: string) => {
+    setInput(action);
     submitMessage(action);
+    setInput('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -133,7 +167,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
         });
       }
     }
-  }, [messages]);
+  }, [messages, isPending]);
 
   return (
     <div className="flex h-full flex-grow flex-col justify-between bg-background">

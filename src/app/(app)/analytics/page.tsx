@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { handleUserMessage } from "@/app/actions";
@@ -9,13 +8,13 @@ import { BarChart as BarChartIcon } from "lucide-react";
 
 export default async function AnalyticsPage() {
     const chartQueries = [
-        "Create a bar chart showing my inventory value by category",
-        "Visualize my sales velocity by category as a pie chart"
+        { message: "Create a bar chart showing my inventory value by category" },
+        { message: "Visualize my sales velocity by category as a pie chart" }
     ];
     
     // This now awaits all promises. If any of the AI actions fail,
     // this will throw an error and be caught by the nearest error.tsx boundary.
-    const chartPromises = chartQueries.map(query => handleUserMessage({ message: query }));
+    const chartPromises = chartQueries.map(query => handleUserMessage(query));
     const results = await Promise.all(chartPromises);
 
     const charts: ChartConfig[] = results
