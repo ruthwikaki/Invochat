@@ -5,6 +5,8 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { getDashboardData } from '@/app/data-actions';
 import Link from 'next/link';
+import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
+import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';
 
 function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000_000) {
@@ -132,6 +134,13 @@ export default async function DashboardPage() {
                     </>
                 ) : null}
             </div>
+            
+            {data && !fetchError && (
+              <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
+                  <SalesTrendChart data={data.salesTrendData} />
+                  <InventoryCategoryChart data={data.inventoryByCategoryData} />
+              </div>
+            )}
         </div>
     );
 }

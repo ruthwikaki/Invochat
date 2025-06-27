@@ -98,4 +98,6 @@ export type DashboardMetrics = {
     totalSKUs: number;
     totalSuppliers: number;
     totalSalesValue: number;
+    salesTrendData: { date: string; Sales: number }[];
+    inventoryByCategoryData: { name: string; value: number }[];
 };

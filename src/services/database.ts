@@ -29,24 +29,62 @@ function getServiceRoleClient() {
 }
 
 
-// Corrected to remove onTimeDeliveryRate calculation which was based on a non-existent column.
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
   const supabase = getServiceRoleClient();
   
-  const [inventoryRes, vendorsRes, salesRes] = await Promise.all([
-    supabase.from('inventory').select('quantity, cost, last_sold_date, reorder_point, name').eq('company_id', companyId),
-    supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId),
-    supabase.from('sales').select('total_amount').eq('company_id', companyId)
+  const inventoryPromise = supabase.from('inventory').select('quantity, cost, last_sold_date, reorder_point, name, category').eq('company_id', companyId);
+  const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
+  const salesPromise = supabase.from('sales').select('total_amount').eq('company_id', companyId);
+
+  // Queries for charts, executed via a secure RPC function
+  const salesTrendQuery = `
+    SELECT
+      TO_CHAR(sale_date, 'YYYY-MM-DD') as date,
+      SUM(total_amount) as "Sales"
+    FROM sales
+    WHERE company_id = '${companyId}'
+    GROUP BY 1
+    ORDER BY 1 ASC
+    LIMIT 30;
+  `;
+  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery });
+  
+  const inventoryByCategoryQuery = `
+    SELECT
+      COALESCE(category, 'Uncategorized') as name,
+      SUM(quantity * cost) as value
+    FROM inventory
+    WHERE company_id = '${companyId}'
+    GROUP BY 1
+    HAVING SUM(quantity * cost) > 0
+    ORDER BY 2 DESC;
+  `;
+  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery });
+
+  const [
+    inventoryRes,
+    vendorsRes,
+    salesRes,
+    salesTrendRes,
+    inventoryByCategoryRes
+  ] = await Promise.all([
+    inventoryPromise,
+    vendorsPromise,
+    salesPromise,
+    salesTrendPromise,
+    inventoryByCategoryPromise
   ]);
 
   const { data: inventory, error: inventoryError } = inventoryRes;
   const { count: suppliersCount, error: suppliersError } = vendorsRes;
   const { data: sales, error: salesError } = salesRes;
+  const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
+  const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
 
-  if (inventoryError || suppliersError || salesError) {
-    console.error('Dashboard data fetching errors:', { inventoryError, suppliersError, salesError });
-    const error = inventoryError || suppliersError || salesError;
-    throw new Error(`Failed to load dashboard data: ${error?.message}`);
+  const firstError = inventoryError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
+  if (firstError) {
+    console.error('Dashboard data fetching error:', firstError);
+    throw new Error(`Failed to load dashboard data: ${firstError?.message}`);
   }
 
   const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
@@ -60,6 +98,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
       totalSKUs: 0,
       totalSuppliers: suppliersCount || 0,
       totalSalesValue: Math.round(totalSalesValue),
+      salesTrendData: salesTrendData || [],
+      inventoryByCategoryData: inventoryByCategoryData || [],
     };
   }
 
@@ -80,7 +120,9 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
       lowStockCount: lowStockCount,
       totalSKUs: inventory.length,
       totalSuppliers: suppliersCount || 0,
-      totalSalesValue: Math.round(totalSalesValue)
+      totalSalesValue: Math.round(totalSalesValue),
+      salesTrendData: salesTrendData || [],
+      inventoryByCategoryData: inventoryByCategoryData || [],
   };
 }
 
