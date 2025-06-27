@@ -69,11 +69,17 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        'indigo-start': '#1e1b4b',
+        'purple-mid': '#4c1d95',
+        'violet-end': '#7c3aed',
       },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      boxShadow: {
+        'primary-glow': '0 0 25px hsl(var(--primary) / 0.4)',
       },
       keyframes: {
         'accordion-down': {

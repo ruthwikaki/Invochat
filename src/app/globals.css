@@ -9,82 +9,82 @@ body {
 
 @layer base {
   :root {
-    --background: 240 5% 96%; /* off-white (#FAFAFA) */
-    --foreground: 224 71% 4%; /* gray-900 (#111827) */
-    --card: 0 0% 100%; /* pure white */
-    --card-foreground: 224 71% 4%;
+    --background: 0 0% 98%; /* #fafafa */
+    --foreground: 0 0% 9%; /* #171717 */
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 262 84% 59%; /* NEW: vibrant violet (#7C3AED) */
+    --popover-foreground: 0 0% 9%;
+    --primary: 262 84% 59%; /* #7c3aed */
     --primary-foreground: 0 0% 98%;
-    --secondary: 215 28% 47%; /* slate (#475569) */
+    --secondary: 217 91% 60%; /* #3b82f6 */
     --secondary-foreground: 0 0% 98%;
-    --muted: 220 13% 91%;
-    --muted-foreground: 220 9% 46%; /* gray-600 (#4B5563) */
-    --accent: 215 28% 47%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 349 86% 59%; /* rose (#F43F5E) */
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 45%; /* #737373 */
+    --accent: 0 0% 90%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84% 60%; /* #ef4444 */
     --destructive-foreground: 0 0% 98%;
-    --warning: 39 92% 53%; /* amber (#F59E0B) */
-    --warning-foreground: 0 0% 98%;
-    --success: 158 64% 52%; /* emerald (#10B981) */
+    --warning: 38 92% 50%; /* #f59e0b */
+    --warning-foreground: 0 0% 9%;
+    --success: 160 84% 39%; /* #10b981 */
     --success-foreground: 0 0% 98%;
-    --border: 220 13% 84%;
-    --input: 220 13% 84%;
-    --ring: 262 84% 59%; /* NEW: vibrant violet */
-    --chart-1: 262 84% 59%; /* NEW: vibrant violet */
-    --chart-2: 215 28% 47%;
-    --chart-3: 158 64% 52%;
-    --chart-4: 39 92% 53%;
-    --chart-5: 349 86% 59%;
+    --border: 0 0% 90%; /* #e5e5e5 */
+    --input: 0 0% 90%;
+    --ring: 262 84% 59%;
+    --chart-1: 262 84% 59%;
+    --chart-2: 217 91% 60%;
+    --chart-3: 160 84% 39%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 84% 60%;
     --radius: 0.5rem;
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 224 71% 4%;
-    --sidebar-primary: 262 84% 59%; /* NEW: vibrant violet */
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 262 84% 59%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 5% 96%;
-    --sidebar-accent-foreground: 224 71% 4%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 262 84% 59%; /* NEW: vibrant violet */
+    --sidebar-accent: 0 0% 98%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 95%;
+    --sidebar-ring: 262 84% 59%;
   }
 
   .dark {
-    --background: 224 71% 4%; /* text primary */
-    --foreground: 215 20% 65%;
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 224 71% 4%;
-    --popover-foreground: 215 20% 65%;
-    --primary: 262 90% 75%; /* NEW: Lighter, neon-like violet for dark mode */
-    --primary-foreground: 262 84% 15%; /* NEW: Dark violet for text on primary bg */
-    --secondary: 215 28% 57%; /* Lighter slate */
-    --secondary-foreground: 0 0% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20% 55%;
-    --accent: 217.2 32.6% 17.5%;
+    --background: 0 0% 0%; /* #000000 */
+    --foreground: 0 0% 64%; /* #a3a3a3 */
+    --card: 0 0% 4%; /* #0a0a0a */
+    --card-foreground: 0 0% 64%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 64%;
+    --primary: 276 95% 76%; /* #c084fc */
+    --primary-foreground: 243 49% 20%; /* #1e1b4b */
+    --secondary: 217 94% 67%; /* #60a5fa */
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 15%; /* #262626 */
+    --muted-foreground: 0 0% 45%; /* #737373 */
+    --accent: 0 0% 15%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 349 90% 75%; /* More vibrant rose */
+    --destructive: 0 91% 71%; /* #f87171 */
     --destructive-foreground: 0 0% 98%;
-    --warning: 39 100% 65%; /* More vibrant amber */
-    --warning-foreground: 224 71% 4%;
-    --success: 158 70% 65%; /* More vibrant emerald */
-    --success-foreground: 224 71% 4%;
-    --border: 217.2 32.6% 22.5%;
-    --input: 217.2 32.6% 22.5%;
-    --ring: 262 90% 75%; /* NEW: Lighter violet for dark mode ring */
-    --chart-1: 262 90% 75%; /* NEW: Lighter violet for dark mode chart */
-    --chart-2: 215 28% 57%;
-    --chart-3: 158 70% 65%;
-    --chart-4: 39 100% 65%;
-    --chart-5: 349 90% 75%;
-    --sidebar-background: 224 71% 4%;
-    --sidebar-foreground: 215 20% 65%;
+    --warning: 45 96% 56%; /* #fbbf24 */
+    --warning-foreground: 0 0% 9%;
+    --success: 158 64% 52%; /* #34d399 */
+    --success-foreground: 0 0% 9%;
+    --border: 0 0% 15%; /* #262626 */
+    --input: 0 0% 15%;
+    --ring: 276 95% 76%;
+    --chart-1: 276 95% 76%;
+    --chart-2: 217 94% 67%;
+    --chart-3: 158 64% 52%;
+    --chart-4: 45 96% 56%;
+    --chart-5: 0 91% 71%;
+    --sidebar-background: 0 0% 0%;
+    --sidebar-foreground: 0 0% 64%;
     --sidebar-primary: 0 0% 98%;
-    --sidebar-primary-foreground: 224 71% 4%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-primary-foreground: 0 0% 9%;
+    --sidebar-accent: 0 0% 15%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 217.2 32.6% 22.5%;
-    --sidebar-ring: 262 90% 75%; /* NEW: vibrant violet */
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 276 95% 76%;
   }
 }
 
