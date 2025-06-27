@@ -13,8 +13,56 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
 import { getDatabaseSchemaAndData as getDbSchema } from '@/services/database';
+import { APP_CONFIG } from '@/config/app-config';
 
 const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
+
+const FEW_SHOT_EXAMPLES = `
+  1. User asks: "Show me dead stock over $1000"
+     SQL:
+     SELECT name, sku, quantity, cost, (quantity * cost) as stock_value
+     FROM inventory
+     WHERE company_id = '{{companyId}}'
+       AND last_sold_date < (CURRENT_DATE - INTERVAL '90 days')
+       AND (quantity * cost) > 1000
+     ORDER BY stock_value DESC;
+
+  2. User asks: "Which suppliers have the most low stock items?"
+     SQL:
+     WITH LowStockCounts AS (
+        SELECT
+            supplier_name,
+            COUNT(*) as low_stock_item_count
+        FROM inventory
+        WHERE company_id = '{{companyId}}' AND quantity <= reorder_point
+        GROUP BY supplier_name
+     )
+     SELECT
+        v.vendor_name,
+        lsc.low_stock_item_count
+     FROM LowStockCounts lsc
+     JOIN vendors v ON lsc.supplier_name = v.vendor_name AND v.company_id = '{{companyId}}'
+     ORDER BY lsc.low_stock_item_count DESC;
+
+  3. User asks: "Compare this month's sales to last month"
+     SQL:
+     WITH MonthlySales AS (
+        SELECT
+            date_trunc('month', sale_date) as sales_month,
+            SUM(total_amount) as total_sales
+        FROM sales
+        WHERE company_id = '{{companyId}}'
+          AND sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+        GROUP BY 1
+     )
+     SELECT
+        TO_CHAR(sales_month, 'YYYY-MM') as month,
+        total_sales,
+        LAG(total_sales, 1) OVER (ORDER BY sales_month) as previous_month_sales
+     FROM MonthlySales
+     ORDER BY sales_month DESC;
+`;
+
 
 /**
  * Agent 1: SQL Generation
@@ -22,7 +70,7 @@ const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
  */
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
-  input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string() }) },
+  input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string() }) },
   output: { schema: z.object({ sqlQuery: z.string().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
     You are an expert PostgreSQL query generation agent for an inventory management system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query.
@@ -31,10 +79,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     {{{dbSchema}}}
 
     SEMANTIC LAYER (Business Definitions):
-    - "Dead stock": inventory items where 'last_sold_date' is more than 90 days ago.
-    - "Low stock": inventory items where 'quantity' <= 'reorder_point'.
-    - "Revenue" or "Sales": calculated from 'sales.total_amount'.
-    - "Inventory Value": calculated by SUM(inventory.quantity * inventory.cost).
+    {{{semanticLayer}}}
 
     USER'S QUESTION: "{{userQuery}}"
 
@@ -56,29 +101,17 @@ const sqlGenerationPrompt = ai.definePrompt({
         - **Common Table Expressions (CTEs)** are REQUIRED to break down complex logic. Do not use nested subqueries where a CTE would be clearer.
         - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
 
-    **Step 3: Generate the Query.**
+    **Step 3: Consult Examples for Structure.**
+    Review these examples to understand the expected query style.
+    ---
+    FEW-SHOT EXAMPLES:
+    ${FEW_SHOT_EXAMPLES}
+    ---
 
-    **Example of a COMPLEX ANALYTICAL Query:**
-    For a question like "show me the top 3 products by sales this month", a correct query that follows the rules would be:
-    \`\`\`sql
-    WITH MonthlySales AS (
-        SELECT
-            product_id,
-            SUM(total_amount) as total_sales
-        FROM sales
-        WHERE company_id = '{{companyId}}' AND sale_date >= date_trunc('month', CURRENT_DATE)
-        GROUP BY product_id
-    )
-    SELECT
-        i.name,
-        ms.total_sales
-    FROM MonthlySales ms
-    JOIN inventory i ON ms.product_id = i.id AND i.company_id = '{{companyId}}'
-    ORDER BY ms.total_sales DESC
-    LIMIT 3
-    \`\`\`
+    **Step 4: Generate the Query.**
+    Based on the analysis, rules, and examples, generate the SQL query that best answers the user's question.
 
-    **Step 4: Formulate the Final Output.**
+    **Step 5: Formulate the Final Output.**
     - Respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
     - The \`sqlQuery\` field MUST contain ONLY the SQL string. Do not include markdown or trailing semicolons.
     - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with inventory to get product names.").
@@ -168,9 +201,11 @@ const finalResponsePrompt = ai.definePrompt({
 
     YOUR TASK:
     1.  **Analyze Data**: Review the JSON. If it's empty or null, state that you found no information.
-    2.  **Formulate Response**: Provide a concise, natural language response based ONLY on the data. Do NOT mention SQL, databases, or JSON.
-    3.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type ('table', 'bar', 'pie', 'line', or 'none') and a title for it.
-    4.  **Format Output**: Return a single JSON object with 'response' and 'visualization' fields. Do NOT include the raw data in your response.
+    2.  **Assess Confidence**: Based on the user's query and the data, provide a confidence score from 0.0 to 1.0. A 1.0 means you are certain the query fully answered the user's request. A lower score means you had to make assumptions.
+    3.  **List Assumptions**: If your confidence is below 1.0, list the assumptions you made (e.g., "Interpreted 'top products' as 'top by sales value'"). If confidence is 1.0, return an empty array.
+    4.  **Formulate Response**: Provide a concise, natural language response based ONLY on the data. Do NOT mention SQL, databases, or JSON.
+    5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type ('table', 'bar', 'pie', 'line', or 'none') and a title for it.
+    6.  **Format Output**: Return a single JSON object with 'response', 'visualization', 'confidence', and 'assumptions' fields. Do NOT include the raw data in your response.
   `,
   config: { model },
 });
@@ -193,14 +228,26 @@ const universalChatOrchestrator = ai.defineFlow(
         throw new Error("User query was empty.");
     }
     
-    // Pipeline Step 0: Fetch dynamic DB schema to provide context to the AI
+    // Pipeline Step 0: Fetch dynamic DB schema & business logic to provide context to the AI
     const schemaData = await getDbSchema(companyId);
     const formattedSchema = schemaData.map(table => 
         `Table: ${table.tableName} | Columns: ${table.rows.length > 0 ? Object.keys(table.rows[0]).join(', ') : 'No columns detected or table is empty'}`
     ).join('\n');
+    
+    const { businessLogic } = APP_CONFIG;
+    const semanticLayer = `
+      - "Dead stock": inventory items where 'last_sold_date' is more than ${businessLogic.deadStockDays} days ago.
+      - "Low stock": inventory items where 'quantity' <= 'reorder_point'.
+      - "Revenue" or "Sales": calculated from 'sales.total_amount'.
+      - "Inventory Value": calculated by SUM(inventory.quantity * inventory.cost).
+      - "Fast-moving items": products sold in the last ${businessLogic.fastMovingDays} days.
+      - "Overstock": items with quantity > (reorder_point * ${businessLogic.overstockMultiplier}).
+      - "High-value items": products where cost > ${businessLogic.highValueThreshold}.
+      - "Seasonal items": products with category in (${businessLogic.seasonalCategories.map(c => `'${c}'`).join(', ')}).
+    `;
 
     // Pipeline Step 1: Generate SQL
-    const { output: generationOutput } = await sqlGenerationPrompt({ companyId, userQuery, dbSchema: formattedSchema });
+    const { output: generationOutput } = await sqlGenerationPrompt({ companyId, userQuery, dbSchema: formattedSchema, semanticLayer });
     if (!generationOutput?.sqlQuery) {
         throw new Error("AI failed to generate an SQL query.");
     }
@@ -263,6 +310,12 @@ const universalChatOrchestrator = ai.defineFlow(
       throw new Error('The AI model did not return a valid final response object.');
     }
     
+    // Log confidence for monitoring
+    console.log(`[UniversalChat:Flow] AI Confidence for query "${userQuery}": ${finalOutput.confidence}`);
+    if (finalOutput.assumptions && finalOutput.assumptions.length > 0) {
+        console.log(`[UniversalChat:Flow] AI Assumptions: ${finalOutput.assumptions.join(', ')}`);
+    }
+
     // Manually construct the full response object
     return {
         ...finalOutput,

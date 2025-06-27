@@ -72,6 +72,8 @@ const UserMessagePayloadSchema = z.object({
     content: z.string(),
     timestamp: z.number().optional(), // Make timestamp optional
     visualization: z.any().optional(),
+    confidence: z.number().optional(),
+    assumptions: z.array(z.string()).optional(),
   })),
 });
 
@@ -184,6 +186,8 @@ export async function handleUserMessage(
       role: 'assistant',
       content: response.response,
       timestamp: Date.now(),
+      confidence: response.confidence,
+      assumptions: response.assumptions,
     };
     
     // Add visualization if suggested by the AI

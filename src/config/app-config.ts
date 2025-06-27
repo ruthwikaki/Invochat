@@ -16,6 +16,10 @@ export const APP_CONFIG = {
   },
   businessLogic: {
     deadStockDays: 90,
+    fastMovingDays: 30,
+    overstockMultiplier: 3,
+    highValueThreshold: 1000,
+    seasonalCategories: ['Holiday', 'Seasonal'],
   },
   chat: {
     quickActions: [

@@ -25,6 +25,8 @@ export type Message = {
         [key: string]: any;
     };
   };
+  confidence?: number;
+  assumptions?: string[];
 };
 
 // Represents the configuration for a dynamically generated chart.
