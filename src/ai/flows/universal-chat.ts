@@ -15,8 +15,6 @@ import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-
 import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getCompanySettings } from '@/services/database';
 import { APP_CONFIG } from '@/config/app-config';
 
-const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
-
 const FEW_SHOT_EXAMPLES = `
   1. User asks: "Show me dead stock over $1000"
      SQL:
@@ -120,7 +118,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     - The \`sqlQuery\` field MUST contain ONLY the SQL string. Do not include markdown or trailing semicolons.
     - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with inventory to get product names.").
   `,
-  config: { model },
+  config: { model: APP_CONFIG.ai.model },
 });
 
 /**
@@ -148,7 +146,7 @@ const queryValidationPrompt = ai.definePrompt({
     - If valid, return \`{"isValid": true}\`.
     - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely."}\`.
   `,
-  config: { model },
+  config: { model: APP_CONFIG.ai.model },
 });
 
 /**
@@ -184,7 +182,7 @@ const errorRecoveryPrompt = ai.definePrompt({
         6.  **If Unfixable**: If the error is ambiguous or you cannot confidently fix it, do not provide a \`correctedQuery\`. Explain why in the \`reasoning\` field instead.
         7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter.
     `,
-    config: { model },
+    config: { model: APP_CONFIG.ai.model },
 });
 
 
@@ -211,7 +209,7 @@ const finalResponsePrompt = ai.definePrompt({
     5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type ('table', 'bar', 'pie', 'line', or 'none') and a title for it.
     6.  **Format Output**: Return a single JSON object with 'response', 'visualization', 'confidence', and 'assumptions' fields. Do NOT include the raw data in your response.
   `,
-  config: { model },
+  config: { model: APP_CONFIG.ai.model },
 });
 
 

@@ -210,7 +210,7 @@ export async function testGenkitConnection(): Promise<{
 
     try {
         // Use the model from the app config for an accurate test
-        const model = APP_CONFIG.ai.model.split('/').pop() || 'gemini-1.5-pro';
+        const model = APP_CONFIG.ai.model;
         
         await ai.generate({
             model: model,
@@ -231,5 +231,3 @@ export async function testGenkitConnection(): Promise<{
         return { success: false, error: errorMessage, isConfigured };
     }
 }
-
-    
