@@ -17,12 +17,13 @@ const nextConfig = {
   },
   experimental: {
     // This is required to fix critical warnings with server-side dependencies.
-    // Adding 'handlebars' and '@supabase/supabase-js' prevents webpack errors
-    // and allows Genkit and Supabase to function correctly in server actions.
+    // Adding these prevents webpack errors and allows Genkit and Supabase
+    // to function correctly in server actions and server components.
     serverComponentsExternalPackages: [
       '@opentelemetry/instrumentation',
       'handlebars',
       '@supabase/supabase-js',
+      '@supabase/realtime-js',
     ],
   },
 };

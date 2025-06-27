@@ -153,14 +153,15 @@ export async function handleUserMessage(
   }
   
   const { content: userQuery, source } = parsedPayload.data;
-  let { conversationId } = parsedPayload.data;
+  const initialConversationId = parsedPayload.data.conversationId;
   const supabase = getServiceRoleClient();
 
   try {
     const { userId, companyId } = await getAuthContext();
+    let currentConversationId = initialConversationId;
 
     // Step 1: Find or Create Conversation
-    if (!conversationId) {
+    if (!currentConversationId) {
         const title = source === 'analytics_page' 
             ? `Report: ${userQuery.substring(0, 40)}...`
             : userQuery.substring(0, 50);
@@ -172,12 +173,16 @@ export async function handleUserMessage(
             .single();
         
         if (convoError) throw new Error(`Could not create conversation: ${convoError.message}`);
-        conversationId = newConvo.id;
+        currentConversationId = newConvo.id;
+    }
+
+    if (!currentConversationId) {
+        throw new Error("Failed to create or identify a conversation.");
     }
 
     // Step 2: Save the user's message
     await supabase.from('messages').insert({
-        conversation_id: conversationId,
+        conversation_id: currentConversationId,
         company_id: companyId,
         role: 'user',
         content: userQuery,
@@ -187,7 +192,7 @@ export async function handleUserMessage(
     const { data: history, error: historyError } = await supabase
         .from('messages')
         .select('role, content')
-        .eq('conversation_id', conversationId)
+        .eq('conversation_id', currentConversationId)
         .order('created_at', { ascending: false })
         .limit(APP_CONFIG.ai.historyLimit);
 
@@ -234,7 +239,7 @@ export async function handleUserMessage(
     
     // Step 5: Construct and save the assistant's message
     const assistantMessage: Omit<Message, 'id' | 'created_at'> = {
-      conversation_id: conversationId,
+      conversation_id: currentConversationId,
       role: 'assistant',
       content: responseData.response,
       confidence: responseData.confidence,
@@ -276,7 +281,7 @@ export async function handleUserMessage(
       revalidatePath('/analytics');
     }
 
-    return { conversationId: conversationId, newMessage: savedAssistantMessage as Message };
+    return { conversationId: currentConversationId, newMessage: savedAssistantMessage as Message };
     
   } catch (error: any) {
     console.error('Chat error:', error);
