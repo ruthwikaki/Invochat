@@ -55,28 +55,28 @@ body {
     --card-foreground: 210 40% 98%;
     --popover: 224 71% 4%;
     --popover-foreground: 215 20% 65%;
-    --primary: 259 52% 61%; /* Lighter purple */
-    --primary-foreground: 0 0% 98%;
+    --primary: 259 90% 70%; /* More vibrant purple */
+    --primary-foreground: 224 71% 4%;
     --secondary: 215 28% 57%; /* Lighter slate */
     --secondary-foreground: 0 0% 98%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20% 55%;
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 349 76% 69%; /* Lighter rose */
+    --destructive: 349 90% 75%; /* More vibrant rose */
     --destructive-foreground: 0 0% 98%;
-    --warning: 39 92% 63%; /* Lighter amber */
+    --warning: 39 100% 65%; /* More vibrant amber */
     --warning-foreground: 224 71% 4%;
-    --success: 158 54% 62%; /* Lighter emerald */
+    --success: 158 70% 65%; /* More vibrant emerald */
     --success-foreground: 224 71% 4%;
     --border: 217.2 32.6% 22.5%;
     --input: 217.2 32.6% 22.5%;
-    --ring: 259 52% 61%;
-    --chart-1: 259 52% 61%;
+    --ring: 259 90% 70%;
+    --chart-1: 259 90% 70%;
     --chart-2: 215 28% 57%;
-    --chart-3: 158 54% 62%;
-    --chart-4: 39 92% 63%;
-    --chart-5: 349 76% 69%;
+    --chart-3: 158 70% 65%;
+    --chart-4: 39 100% 65%;
+    --chart-5: 349 90% 75%;
     --sidebar-background: 224 71% 4%;
     --sidebar-foreground: 215 20% 65%;
     --sidebar-primary: 0 0% 98%;

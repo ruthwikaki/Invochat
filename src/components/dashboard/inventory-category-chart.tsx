@@ -52,6 +52,7 @@ export function InventoryCategoryChart({ data, className }: InventoryCategoryCha
                     outerRadius="80%"
                     labelLine={false}
                     label={renderCustomizedLabel}
+                    animationDuration={900}
                     >
                     {data.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke={COLORS[index % COLORS.length]} />

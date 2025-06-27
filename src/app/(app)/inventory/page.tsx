@@ -158,15 +158,17 @@ export default function InventoryPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7}>
-                    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-                        <Package className="h-16 w-16 text-muted-foreground" />
-                        <h3 className="text-xl font-semibold">Your Inventory is Empty</h3>
-                        <p className="text-muted-foreground">You can start by importing your product list.</p>
-                        <Button asChild>
-                            <Link href="/import">Import Data</Link>
-                        </Button>
-                    </div>
+                  <TableCell colSpan={7} className="p-0">
+                      <div className="flex flex-col items-center justify-center gap-4 text-center rounded-lg border-2 border-dashed bg-card/50 py-24">
+                          <div className="rounded-full bg-primary/10 p-4">
+                            <Package className="h-16 w-16 text-primary" />
+                          </div>
+                          <h3 className="mt-2 text-2xl font-semibold tracking-tight">No Products Found</h3>
+                          <p className="max-w-xs text-muted-foreground">Your inventory is currently empty. Get started by importing your product data.</p>
+                          <Button asChild className="mt-4">
+                              <Link href="/import">Import Data</Link>
+                          </Button>
+                      </div>
                   </TableCell>
                 </TableRow>
               )}

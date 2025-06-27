@@ -81,8 +81,9 @@ export default async function DashboardPage() {
     }
 
     return (
-        <div className="min-h-full bg-gradient-to-br from-background via-background to-muted/30">
-            <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
+        <div className="relative min-h-full overflow-hidden">
+            <div className="animate-background-pan absolute inset-0 z-0 bg-[length:200%_200%] bg-gradient-to-br from-primary/5 via-background to-background dark:from-primary/10" />
+            <div className="relative z-10 animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <SidebarTrigger className="md:hidden" />

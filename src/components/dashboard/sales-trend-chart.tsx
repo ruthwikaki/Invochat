@@ -57,7 +57,14 @@ export function SalesTrendChart({ data, className }: SalesTrendChartProps) {
                   }}
                   formatter={(value: number) => [value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), 'Sales']}
                 />
-                <Line type="monotone" dataKey="Sales" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                <Line 
+                  type="monotone" 
+                  dataKey="Sales" 
+                  stroke="hsl(var(--primary))" 
+                  strokeWidth={2} 
+                  dot={false}
+                  animationDuration={900}
+                />
               </LineChart>
             </ResponsiveContainer>
           ) : (
