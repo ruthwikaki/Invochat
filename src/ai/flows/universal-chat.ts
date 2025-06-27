@@ -51,10 +51,7 @@ export async function universalChatFlow(input: UniversalChatInput): Promise<Univ
   
   // STEP 1: Generate SQL from user query
   const sqlGenerationPrompt = `
-    Based on the user's question, generate a single, read-only SQL SELECT query to retrieve the necessary data from the database.
-
-    USER QUESTION:
-    "${userQuery}"
+    Generate a single, read-only PostgreSQL SQL SELECT query to answer this question: "${userQuery}"
 
     DATABASE SCHEMA:
     - **inventory**: id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date, company_id
@@ -65,7 +62,8 @@ export async function universalChatFlow(input: UniversalChatInput): Promise<Univ
     CRITICAL RULES:
     1. Your response MUST be ONLY the SQL query. Do not include any other text, explanations, or markdown formatting like \`\`\`sql.
     2. Every query MUST contain a WHERE clause to filter by the user's company. Use this exact clause: company_id = '${companyId}'
-    3. If a user asks for a chart (e.g., "pie chart of..."), generate a query that produces aggregated data suitable for that chart (e.g., using GROUP BY and COUNT or SUM).
+    3. You must use PostgreSQL syntax. For example, for date calculations, use constructs like (CURRENT_DATE - INTERVAL '90 days') instead of functions like DATE('now', '-90 days').
+    4. If a user asks for a chart (e.g., "pie chart of..."), generate a query that produces aggregated data suitable for that chart (e.g., using GROUP BY and COUNT or SUM).
   `;
 
   let sqlQuery = '';
@@ -92,7 +90,15 @@ export async function universalChatFlow(input: UniversalChatInput): Promise<Univ
       query_text: sqlQuery
     });
 
-    if (queryError) throw queryError;
+    if (queryError) {
+      console.error('[UniversalChat:Direct] Database query failed:', queryError);
+      return {
+        response: `I encountered an issue with the database query: ${queryError.message}. Please try rephrasing your question.`,
+        data: [], // Always return an array on error
+        visualization: { type: 'none' }
+      };
+    }
+    
     console.log('[UniversalChat:Direct] Query Result Data:', queryData);
 
     const finalResponsePrompt = `
@@ -131,9 +137,9 @@ export async function universalChatFlow(input: UniversalChatInput): Promise<Univ
     };
 
   } catch (error: any) {
-    console.error('[UniversalChat:Direct] Error executing query or generating final response:', error);
+    console.error('[UniversalChat:Direct] Error during final response generation:', error);
     return {
-      response: `I tried to query the database, but ran into an error. The generated query might have been invalid. The error was: ${error.message}`,
+      response: `I successfully queried the database, but ran into an error while analyzing the results. The error was: ${error.message}`,
       data: [],
       visualization: { type: 'none' }
     };
