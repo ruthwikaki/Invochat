@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -135,7 +136,7 @@ function AiAnalyst() {
                     ) : error ? (
                         <ErrorState error={error} />
                     ) : aiResponse ? (
-                         <Card className="animate-fade-in mt-4">
+                         <Card className="mt-4">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Sparkles className="h-5 w-5 text-primary" />
@@ -221,7 +222,7 @@ function KeyMetricsReport() {
 
 export default function AnalyticsPage() {
     return (
-        <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6 flex flex-col h-full">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6 flex flex-col h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="md:hidden" />

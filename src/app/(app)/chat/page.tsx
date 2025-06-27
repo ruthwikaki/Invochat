@@ -1,3 +1,4 @@
+
 'use client';
 
 import { ChatInterface } from '@/components/chat/chat-interface';
@@ -29,7 +30,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-full animate-fade-in">
+    <div className="flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b shrink-0">
             <div className="flex items-center gap-2">
                 <SidebarTrigger className="md:hidden" />
