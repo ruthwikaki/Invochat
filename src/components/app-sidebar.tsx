@@ -18,6 +18,7 @@ import {
   Upload,
   Beaker,
   Database,
+  ShieldCheck,
 } from 'lucide-react';
 import { InvochatLogo } from './invochat-logo';
 import {
@@ -113,8 +114,8 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/test-supabase'}>
               <Link href="/test-supabase" prefetch={false}>
-                <Beaker />
-                <span>Connection Test</span>
+                <ShieldCheck />
+                <span>System Health</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

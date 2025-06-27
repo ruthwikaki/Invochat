@@ -13,6 +13,8 @@ import {
     getDatabaseSchemaAndData as getDbSchemaAndData
 } from '@/services/database';
 import type { User } from '@/types';
+import { ai } from '@/ai/genkit';
+import { APP_CONFIG } from '@/config/app-config';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
@@ -172,4 +174,44 @@ export async function testDatabaseQuery(): Promise<{
     }
     return { success: false, count: null, error: errorMessage };
   }
+}
+
+
+export async function testGenkitConnection(): Promise<{
+    success: boolean;
+    error: string | null;
+    isConfigured: boolean;
+}> {
+    const isConfigured = !!process.env.GOOGLE_API_KEY;
+
+    if (!isConfigured) {
+        return {
+            success: false,
+            error: 'Genkit is not configured. GOOGLE_API_KEY environment variable is not set.',
+            isConfigured,
+        };
+    }
+
+    try {
+        // Use the model from the app config for an accurate test
+        const model = APP_CONFIG.ai.model.split('/').pop() || 'gemini-1.5-pro';
+        
+        await ai.generate({
+            model: model,
+            prompt: 'Test prompt: say "hello".',
+            config: {
+                temperature: 0.1,
+            }
+        });
+
+        return { success: true, error: null, isConfigured };
+    } catch (e: any) {
+        let errorMessage = e.message || 'An unknown error occurred.';
+        if (e.status === 'NOT_FOUND' || e.message?.includes('NOT_FOUND') || e.message?.includes('Model not found')) {
+            errorMessage = `The configured AI model ('${APP_CONFIG.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
+        } else if (e.message?.includes('API key not valid')) {
+            errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
+        }
+        return { success: false, error: errorMessage, isConfigured };
+    }
 }
