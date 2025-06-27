@@ -30,7 +30,7 @@ export default async function ChatPage({
   const messages: Message[] = conversationId ? await getMessages(conversationId) : [];
 
   return (
-    <div className="flex h-dvh">
+    <div className="flex h-full">
       <ConversationSidebar
         conversations={conversations}
         activeConversationId={conversationId}

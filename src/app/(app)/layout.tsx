@@ -11,7 +11,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isChatPage = pathname === '/chat';
+  const isChatPage = pathname.startsWith('/chat');
 
   return (
     <SidebarProvider>
