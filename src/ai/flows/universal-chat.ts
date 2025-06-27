@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -11,6 +12,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
+import { getDatabaseSchemaAndData as getDbSchema } from '@/services/database';
 
 const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
 
@@ -20,17 +22,15 @@ const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
  */
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
-  input: { schema: z.object({ companyId: z.string(), userQuery: z.string() }) },
+  input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string() }) },
   output: { schema: z.object({ sqlQuery: z.string().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
     You are an expert SQL generation agent. Your task is to convert a user's question into a secure, read-only PostgreSQL query.
     
-    DATABASE SCHEMA:
-    - **inventory**: id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date, company_id
-    - **vendors**: id, vendor_name, contact_info, address, terms, account_number, company_id
-    - **sales**: id, sale_date, customer_name, total_amount, items, company_id
-    - **purchase_orders**: id, po_number, vendor, item, quantity, cost, order_date, company_id
-
+    DATABASE SCHEMA OVERVIEW:
+    Here are the tables and columns you can query. Use this as your primary source of truth for the database structure.
+    {{{dbSchema}}}
+    
     SEMANTIC LAYER (Business Definitions):
     - "Dead stock": inventory items where 'last_sold_date' is more than 90 days ago.
     - "Low stock": inventory items where 'quantity' <= 'reorder_point'.
@@ -115,9 +115,15 @@ const universalChatOrchestrator = ai.defineFlow(
     if (!userQuery) {
         throw new Error("User query was empty.");
     }
+    
+    // Pipeline Step 0: Fetch dynamic DB schema to provide context to the AI
+    const schemaData = await getDbSchema(companyId);
+    const formattedSchema = schemaData.map(table => 
+        `Table: ${table.tableName} | Columns: ${table.rows.length > 0 ? Object.keys(table.rows[0]).join(', ') : 'No columns detected or table is empty'}`
+    ).join('\n');
 
     // Pipeline Step 1: Generate SQL
-    const { output: generationOutput } = await sqlGenerationPrompt({ companyId, userQuery });
+    const { output: generationOutput } = await sqlGenerationPrompt({ companyId, userQuery, dbSchema: formattedSchema });
     if (!generationOutput?.sqlQuery) {
         throw new Error("AI failed to generate an SQL query.");
     }

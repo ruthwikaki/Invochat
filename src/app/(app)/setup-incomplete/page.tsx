@@ -82,6 +82,37 @@ begin
   return result_json;
 end;
 $$;
+
+-- ========= Part 3: Performance Optimization (Optional, but Recommended) =========
+-- This creates a "materialized view", which is like a pre-calculated snapshot
+-- of your key inventory metrics. Querying this view is much faster than
+-- calculating the metrics from the raw inventory table every time the dashboard loads.
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
+SELECT
+  company_id,
+  COUNT(DISTINCT sku) as total_skus,
+  SUM(quantity * cost) as inventory_value,
+  COUNT(CASE WHEN quantity <= reorder_point THEN 1 END) as low_stock_count
+FROM inventory
+GROUP BY company_id
+WITH DATA;
+
+-- Create an index to make lookups on the view lightning-fast.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_company_dashboard_metrics_company_id
+ON public.company_dashboard_metrics(company_id);
+
+-- This function is used to refresh the view with the latest data.
+-- You can set up a schedule to run this periodically (e.g., every 5 minutes)
+-- using Supabase's pg_cron extension.
+-- Example cron job: SELECT cron.schedule('5_minute_refresh', '*/5 * * * *', 'REFRESH MATERIALIZED VIEW public.company_dashboard_metrics');
+
+CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics()
+RETURNS void
+LANGUAGE sql
+AS $$
+  REFRESH MATERIALIZED VIEW public.company_dashboard_metrics;
+$$;
 `;
 
 
@@ -116,11 +147,11 @@ export default function SetupIncompletePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        This application requires two components in your database to function correctly: a trigger to handle new user signups, and a special function to allow the AI to securely query your data.
+                        This application requires components in your database to function correctly. Please run the following SQL code **once** in your Supabase project's SQL Editor to set them up.
                     </p>
                     <h3 className="font-semibold pt-4">How to Fix</h3>
                     <p className="text-sm text-muted-foreground">
-                        Please run the following SQL code **once** in your Supabase project's SQL Editor. This will create both required components.
+                        Click the button to copy the setup SQL, then paste and run it in the Supabase SQL Editor.
                     </p>
                     <div className="relative bg-background border rounded-md font-mono text-xs max-h-72 overflow-y-auto">
                         <Button
@@ -129,7 +160,7 @@ export default function SetupIncompletePage() {
                             className="absolute top-2 right-2 z-10"
                             onClick={copyToClipboard}
                         >
-                            Copy
+                            Copy SQL
                         </Button>
                         <pre className="p-4 overflow-x-auto">
                             <code>{sqlCode}</code>

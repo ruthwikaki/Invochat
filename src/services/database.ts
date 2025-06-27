@@ -6,8 +6,7 @@
  * This file contains server-side functions for querying the Supabase database.
  *
  * It uses the Supabase Admin client (service_role) to bypass Row Level Security (RLS)
- * policies, which are causing infinite recursion errors. This is a deliberate
- * choice to work around flawed RLS policies in the database.
+ * policies. This is a deliberate choice for this application context.
  *
  * SECURITY: All functions in this file MUST manually filter queries by `companyId`
  * to ensure users can only access their own data.
@@ -19,7 +18,6 @@ import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
- * The service role key is required for the app to function due to broken RLS policies.
  */
 function getServiceRoleClient() {
     if (!supabaseAdmin) {
@@ -32,10 +30,22 @@ function getServiceRoleClient() {
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
   const supabase = getServiceRoleClient();
   
-  const inventoryPromise = supabase.from('inventory').select('quantity, cost, last_sold_date, reorder_point, name, category').eq('company_id', companyId);
+  // Use the materialized view for core inventory metrics where possible
+  const metricsPromise = supabase
+    .from('company_dashboard_metrics')
+    .select('total_skus, inventory_value, low_stock_count')
+    .eq('company_id', companyId)
+    .single();
+
+  // Run other queries in parallel
   const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
   const salesPromise = supabase.from('sales').select('total_amount').eq('company_id', companyId);
-
+  const deadStockItemsPromise = supabase
+    .from('inventory')
+    .select('quantity, cost')
+    .eq('company_id', companyId)
+    .lt('last_sold_date', subDays(new Date(), 90).toISOString());
+  
   // Queries for charts, executed via a secure RPC function
   const salesTrendQuery = `
     SELECT
@@ -62,69 +72,107 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
 
   const [
-    inventoryRes,
+    metricsRes,
     vendorsRes,
     salesRes,
+    deadStockItemsRes,
     salesTrendRes,
     inventoryByCategoryRes
   ] = await Promise.all([
-    inventoryPromise,
+    metricsPromise,
     vendorsPromise,
     salesPromise,
+    deadStockItemsPromise,
     salesTrendPromise,
     inventoryByCategoryPromise
   ]);
 
-  const { data: inventory, error: inventoryError } = inventoryRes;
+  const { data: metricsData, error: metricsError } = metricsRes;
   const { count: suppliersCount, error: suppliersError } = vendorsRes;
   const { data: sales, error: salesError } = salesRes;
+  const { data: deadStockItems, error: deadStockError } = deadStockItemsRes;
   const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
   const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
+  
+  // Check for an error from the materialized view query specifically
+  if (metricsError && metricsError.code === '42P01') { // 42P01: undefined_table
+      console.warn('[Dashboard] Materialized view `company_dashboard_metrics` not found. Falling back to full query. Run the setup SQL for better performance.');
+      // If the view doesn't exist, we must fall back to the full query.
+      // This is a simplified fallback for demonstration. A production app might handle this more robustly.
+      return getDashboardMetricsWithFullQuery(companyId);
+  }
 
-  const firstError = inventoryError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
+  const firstError = suppliersError || salesError || deadStockError || salesTrendError || inventoryByCategoryError;
   if (firstError) {
     console.error('Dashboard data fetching error:', firstError);
     throw new Error(firstError.message);
   }
 
   const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
-
-  // If no inventory exists, return zeros but don't throw error
-  if (!inventory || inventory.length === 0) {
-    return {
-      inventoryValue: 0,
-      deadStockValue: 0,
-      lowStockCount: 0,
-      totalSKUs: 0,
-      totalSuppliers: suppliersCount || 0,
-      totalSalesValue: Math.round(totalSalesValue),
-      salesTrendData: salesTrendData || [],
-      inventoryByCategoryData: inventoryByCategoryData || [],
-    };
-  }
-
-  const ninetyDaysAgo = subDays(new Date(), 90);
-  const inventoryValue = inventory.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
-  
-  const deadStockItems = inventory.filter(item => 
-    item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo)
-  );
-  
-  const deadStockValue = deadStockItems.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
-  
-  const lowStockCount = inventory.filter(item => (item.quantity || 0) <= (item.reorder_point || 0)).length;
+  const deadStockValue = (deadStockItems || []).reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
 
   return {
-      inventoryValue: Math.round(inventoryValue),
+      inventoryValue: Math.round(metricsData?.inventory_value || 0),
       deadStockValue: Math.round(deadStockValue),
-      lowStockCount: lowStockCount,
-      totalSKUs: inventory.length,
+      lowStockCount: metricsData?.low_stock_count || 0,
+      totalSKUs: metricsData?.total_skus || 0,
       totalSuppliers: suppliersCount || 0,
       totalSalesValue: Math.round(totalSalesValue),
       salesTrendData: salesTrendData || [],
       inventoryByCategoryData: inventoryByCategoryData || [],
   };
 }
+
+
+// Fallback function if materialized view does not exist.
+async function getDashboardMetricsWithFullQuery(companyId: string): Promise<DashboardMetrics> {
+  const supabase = getServiceRoleClient();
+  
+  const inventoryPromise = supabase.from('inventory').select('quantity, cost, last_sold_date, reorder_point, name, category').eq('company_id', companyId);
+  const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
+  const salesPromise = supabase.from('sales').select('total_amount').eq('company_id', companyId);
+
+  const salesTrendQuery = `SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales" FROM sales WHERE company_id = '${companyId}' GROUP BY 1 ORDER BY 1 ASC LIMIT 30`;
+  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
+  
+  const inventoryByCategoryQuery = `SELECT COALESCE(category, 'Uncategorized') as name, SUM(quantity * cost) as value FROM inventory WHERE company_id = '${companyId}' GROUP BY 1 HAVING SUM(quantity * cost) > 0 ORDER BY 2 DESC`;
+  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
+
+  const [
+    inventoryRes,
+    vendorsRes,
+    salesRes,
+    salesTrendRes,
+    inventoryByCategoryRes
+  ] = await Promise.all([inventoryPromise, vendorsRes, salesPromise, salesTrendPromise, inventoryByCategoryPromise]);
+
+  const { data: inventory, error: inventoryError } = inventoryRes;
+  // ... (rest of the original function logic)
+    const { count: suppliersCount, error: suppliersError } = vendorsRes;
+    const { data: sales, error: salesError } = salesRes;
+    const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
+    const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
+
+    const firstError = inventoryError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
+    if (firstError) {
+        console.error('Dashboard data fetching error:', firstError);
+        throw new Error(firstError.message);
+    }
+     const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
+
+    if (!inventory || inventory.length === 0) {
+        return { inventoryValue: 0, deadStockValue: 0, lowStockCount: 0, totalSKUs: 0, totalSuppliers: suppliersCount || 0, totalSalesValue: Math.round(totalSalesValue), salesTrendData: salesTrendData || [], inventoryByCategoryData: inventoryByCategoryData || [] };
+    }
+
+    const ninetyDaysAgo = subDays(new Date(), 90);
+    const inventoryValue = inventory.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
+    const deadStockItems = inventory.filter(item => item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo));
+    const deadStockValue = deadStockItems.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
+    const lowStockCount = inventory.filter(item => (item.quantity || 0) <= (item.reorder_point || 0)).length;
+
+    return { inventoryValue: Math.round(inventoryValue), deadStockValue: Math.round(deadStockValue), lowStockCount: lowStockCount, totalSKUs: inventory.length, totalSuppliers: suppliersCount || 0, totalSalesValue: Math.round(totalSalesValue), salesTrendData: salesTrendData || [], inventoryByCategoryData: inventoryByCategoryData || [] };
+}
+
 
 export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
   const supabase = getServiceRoleClient();

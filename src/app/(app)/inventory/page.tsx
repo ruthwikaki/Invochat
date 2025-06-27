@@ -27,6 +27,8 @@ import { getInventoryData } from '@/app/data-actions';
 import { format, parseISO } from 'date-fns';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { useAuth } from '@/context/auth-context';
 
 function InventorySkeleton() {
   return Array.from({ length: 8 }).map((_, i) => (
@@ -101,6 +103,7 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -121,6 +124,61 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Realtime subscription effect
+  useEffect(() => {
+    const companyId = user?.app_metadata?.company_id;
+    if (!companyId) return;
+
+    // NOTE: For this to work, you must enable Realtime for the 'inventory' table
+    // in your Supabase project settings (Database > Replication).
+    const supabase = createBrowserSupabaseClient();
+    const channel = supabase
+      .channel(`inventory-changes-for-${companyId}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'inventory',
+          filter: `company_id=eq.${companyId}`
+        },
+        (payload) => {
+          const { eventType, new: newItem, old: oldItem } = payload;
+          
+          setAllInventory(currentInventory => {
+              if (eventType === 'INSERT') {
+                  return [...currentInventory, newItem as InventoryItem];
+              }
+              if (eventType === 'UPDATE') {
+                  return currentInventory.map(item => item.id === newItem.id ? newItem as InventoryItem : item);
+              }
+              if (eventType === 'DELETE') {
+                  return currentInventory.filter(item => item.id !== oldItem.id);
+              }
+              return currentInventory;
+          });
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to real-time inventory updates!');
+        }
+        if (err) {
+            console.error('Realtime subscription error:', err);
+            toast({
+                variant: 'destructive',
+                title: 'Real-time Error',
+                description: 'Could not connect to live updates. Changes may not appear automatically.',
+            });
+        }
+      });
+
+    // Cleanup subscription on component unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, toast]);
 
   const filteredInventory = useMemo(() => {
     if (!search) return allInventory;
