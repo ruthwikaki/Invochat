@@ -58,7 +58,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     
     const { data: newData, error: insertError } = await supabase
         .from('company_settings')
-        .insert(defaultSettingsData)
+        .upsert(defaultSettingsData)
         .select()
         .single();
     
