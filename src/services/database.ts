@@ -172,7 +172,7 @@ async function getDashboardMetricsWithFullQuery(companyId: string): Promise<Dash
     salesRes,
     salesTrendRes,
     inventoryByCategoryRes
-  ] = await Promise.all([inventoryPromise, vendorsRes, salesPromise, salesTrendPromise, inventoryByCategoryPromise]);
+  ] = await Promise.all([inventoryPromise, vendorsPromise, salesPromise, salesTrendPromise, inventoryByCategoryPromise]);
 
   const { data: inventory, error: inventoryError } = inventoryRes;
   // ... (rest of the original function logic)
@@ -418,4 +418,61 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
   }
 
   return results;
+}
+
+/**
+ * Retrieves the most relevant query patterns for a company to provide as examples to the AI.
+ * @param companyId The ID of the company.
+ * @param limit The maximum number of patterns to retrieve.
+ * @returns A promise that resolves to an array of query patterns.
+ */
+export async function getQueryPatternsForCompany(
+  companyId: string,
+  limit = 3
+): Promise<{ user_question: string; successful_sql_query: string }[]> {
+  const supabase = getServiceRoleClient();
+  const { data, error } = await supabase
+    .from('query_patterns')
+    .select('user_question, successful_sql_query')
+    .eq('company_id', companyId)
+    .order('usage_count', { ascending: false })
+    .order('last_used_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    // This is not a critical error; the system can proceed without these examples.
+    console.warn(`[DB Service] Could not fetch query patterns for company ${companyId}: ${error.message}`);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Saves a successful query pattern to the database to be used for future learning.
+ * This function performs an "upsert" by calling a database function.
+ * @param companyId The ID of the company.
+ * @param userQuestion The user's original question.
+ * @param sqlQuery The successful SQL query that was executed.
+ */
+export async function saveSuccessfulQuery(
+  companyId: string,
+  userQuestion: string,
+  sqlQuery: string
+): Promise<void> {
+    const supabase = getServiceRoleClient();
+
+    // This RPC function encapsulates the upsert logic in the database for atomicity.
+    const { error } = await supabase.rpc('upsert_query_pattern', {
+        p_company_id: companyId,
+        p_user_question: userQuestion,
+        p_sql_query: sqlQuery
+    });
+
+    if (error) {
+        // Not a critical error that should stop the user flow. Log it.
+        console.warn(`[DB Service] Could not save query pattern: ${error.message}`);
+    } else {
+        console.log(`[DB Service] Successfully saved or updated query pattern for question: "${userQuestion}"`);
+    }
 }

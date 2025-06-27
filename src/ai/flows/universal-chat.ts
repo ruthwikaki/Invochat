@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
-import { getDatabaseSchemaAndData as getDbSchema } from '@/services/database';
+import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery } from '@/services/database';
 import { APP_CONFIG } from '@/config/app-config';
 
 const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
@@ -70,7 +70,7 @@ const FEW_SHOT_EXAMPLES = `
  */
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
-  input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string() }) },
+  input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
   output: { schema: z.object({ sqlQuery: z.string().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
     You are an expert PostgreSQL query generation agent for an inventory management system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query.
@@ -104,8 +104,12 @@ const sqlGenerationPrompt = ai.definePrompt({
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style.
     ---
-    FEW-SHOT EXAMPLES:
+    FEW-SHOT EXAMPLES (General):
     ${FEW_SHOT_EXAMPLES}
+    ---
+    ---
+    COMPANY-SPECIFIC EXAMPLES (Queries that have worked for this company before):
+    {{{dynamicExamples}}}
     ---
 
     **Step 4: Generate the Query.**
@@ -228,7 +232,7 @@ const universalChatOrchestrator = ai.defineFlow(
         throw new Error("User query was empty.");
     }
     
-    // Pipeline Step 0: Fetch dynamic DB schema & business logic to provide context to the AI
+    // Pipeline Step 0a: Fetch dynamic DB schema & business logic
     const schemaData = await getDbSchema(companyId);
     const formattedSchema = schemaData.map(table => 
         `Table: ${table.tableName} | Columns: ${table.rows.length > 0 ? Object.keys(table.rows[0]).join(', ') : 'No columns detected or table is empty'}`
@@ -246,8 +250,21 @@ const universalChatOrchestrator = ai.defineFlow(
       - "Seasonal items": products with category in (${businessLogic.seasonalCategories.map(c => `'${c}'`).join(', ')}).
     `;
 
+    // Pipeline Step 0b: Fetch dynamic, company-specific query patterns for learning
+    const dynamicPatterns = await getQueryPatternsForCompany(companyId);
+    const formattedDynamicPatterns = dynamicPatterns.map((p, i) => 
+        // Continue numbering from the static examples
+        `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`
+    ).join('\n\n');
+
     // Pipeline Step 1: Generate SQL
-    const { output: generationOutput } = await sqlGenerationPrompt({ companyId, userQuery, dbSchema: formattedSchema, semanticLayer });
+    const { output: generationOutput } = await sqlGenerationPrompt({ 
+        companyId, 
+        userQuery, 
+        dbSchema: formattedSchema, 
+        semanticLayer,
+        dynamicExamples: formattedDynamicPatterns
+    });
     if (!generationOutput?.sqlQuery) {
         throw new Error("AI failed to generate an SQL query.");
     }
@@ -290,18 +307,20 @@ const universalChatOrchestrator = ai.defineFlow(
 
             if (queryError) {
                 console.error('[UniversalChat:Flow] Corrected query also failed:', queryError.message);
-                // Throw a more user-friendly error if the retry fails
                 throw new Error(`I tried to automatically fix a query error, but the correction also failed. The original error was: ${queryError.message}`);
             } else {
                 console.log('[UniversalChat:Flow] Corrected query executed successfully.');
             }
         } else {
-            // If AI can't fix it, throw the original error
             console.error('[UniversalChat:Flow] AI could not recover from the query error.');
             throw new Error(`The database query failed: ${queryError.message}.`);
         }
     }
 
+    // NEW STEP: If query execution was successful, save the pattern for future learning.
+    if (!queryError) {
+        await saveSuccessfulQuery(companyId, userQuery, sqlQuery);
+    }
 
     // Pipeline Step 4: Interpret Results and Generate Final Response
     const queryDataJson = JSON.stringify(queryData || []);
@@ -310,13 +329,11 @@ const universalChatOrchestrator = ai.defineFlow(
       throw new Error('The AI model did not return a valid final response object.');
     }
     
-    // Log confidence for monitoring
     console.log(`[UniversalChat:Flow] AI Confidence for query "${userQuery}": ${finalOutput.confidence}`);
     if (finalOutput.assumptions && finalOutput.assumptions.length > 0) {
         console.log(`[UniversalChat:Flow] AI Assumptions: ${finalOutput.assumptions.join(', ')}`);
     }
 
-    // Manually construct the full response object
     return {
         ...finalOutput,
         data: queryData || [],
@@ -324,5 +341,4 @@ const universalChatOrchestrator = ai.defineFlow(
   }
 );
 
-// The exported function that server actions will call. It's now the robust, orchestrated flow.
 export const universalChatFlow = universalChatOrchestrator;
