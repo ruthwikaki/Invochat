@@ -154,14 +154,13 @@ export default function InventoryPage() {
     }
   }, [toast]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Realtime subscription effect
+  // Combined effect for initial fetch and real-time subscription
   useEffect(() => {
     const companyId = user?.app_metadata?.company_id;
-    if (!companyId) return;
+    if (!companyId) {
+      setLoading(false);
+      return;
+    }
 
     const supabase = createBrowserSupabaseClient();
     const channel = supabase
@@ -185,7 +184,7 @@ export default function InventoryPage() {
                   return currentInventory.map(item => item.id === newItem.id ? newItem as InventoryItem : item);
               }
               if (eventType === 'DELETE') {
-                  return currentInventory.filter(item => item.id !== (oldItem as InventoryItem).id);
+                  return currentInventory.filter(item => item.id !== (oldItem as any).id);
               }
               return currentInventory;
           });
@@ -193,22 +192,26 @@ export default function InventoryPage() {
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-            console.log('Successfully subscribed to real-time inventory updates!');
+            console.log('[Real-time] Successfully subscribed to inventory updates. Fetching initial data...');
+            // Fetch initial data only after subscription is confirmed to avoid race conditions.
+            fetchData();
         }
-        if (err) {
-            console.error('Realtime subscription error:', err);
+        if (status === 'CHANNEL_ERROR' || err) {
+            console.error('[Real-time] Subscription error:', err);
             toast({
                 variant: 'destructive',
                 title: 'Real-time Error',
-                description: 'Could not connect to live updates. Changes may not appear automatically.',
+                description: 'Could not connect to live updates. The page may not update automatically.',
             });
+            // Still fetch data even if subscription fails
+            fetchData();
         }
       });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, toast]);
+  }, [user, toast, fetchData]);
 
   const categories = useMemo(() => {
     const uniqueCategories = [...new Set(allInventory.map(item => item.category).filter(Boolean) as string[])];
@@ -338,5 +341,7 @@ export default function InventoryPage() {
     </div>
   );
 }
+
+    
 
     
