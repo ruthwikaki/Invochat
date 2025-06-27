@@ -75,7 +75,44 @@ const queryValidationPrompt = ai.definePrompt({
 });
 
 /**
- * Agent 3: Result Interpretation & Response Generation
+ * Agent 3: Error Recovery
+ * Analyzes a failed query and its error message to suggest a correction.
+ */
+const errorRecoveryPrompt = ai.definePrompt({
+    name: 'errorRecoveryPrompt',
+    input: { schema: z.object({ userQuery: z.string(), failedQuery: z.string(), errorMessage: z.string(), dbSchema: z.string() }) },
+    output: { schema: z.object({ correctedQuery: z.string().optional().describe('The corrected SQL query, if fixable.'), reasoning: z.string().describe('Explanation of the error and the fix.') }) },
+    prompt: `
+        You are an expert SQL debugging agent. Your task is to analyze a failed PostgreSQL query and its error message, then provide a corrected query.
+
+        DATABASE SCHEMA FOR REFERENCE:
+        {{{dbSchema}}}
+
+        USER'S ORIGINAL QUESTION: "{{userQuery}}"
+
+        FAILED SQL QUERY:
+        \`\`\`sql
+        {{failedQuery}}
+        \`\`\`
+
+        DATABASE ERROR MESSAGE:
+        "{{errorMessage}}"
+
+        ANALYSIS & CORRECTION RULES:
+        1.  **Analyze the Error**: Carefully read the error message. Common errors include non-existent columns (e.g., 'column "X" does not exist'), syntax errors, or type mismatches.
+        2.  **Refer to the Schema**: Use the provided database schema to verify table and column names.
+        3.  **Propose a Fix**: Generate a \`correctedQuery\`. The goal is to fix the error while still answering the user's original question.
+        4.  **Do Not Change Intent**: The corrected query must not alter the original intent of the user's question.
+        5.  **Explain Your Reasoning**: Briefly explain what was wrong and how you fixed it in the \`reasoning\` field.
+        6.  **If Unfixable**: If the error is ambiguous or you cannot confidently fix it, do not provide a \`correctedQuery\`. Explain why in the \`reasoning\` field instead.
+        7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter.
+    `,
+    config: { model },
+});
+
+
+/**
+ * Agent 4: Result Interpretation & Response Generation
  * Analyzes the query result and formulates the final user-facing message.
  */
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true });
@@ -136,15 +173,47 @@ const universalChatOrchestrator = ai.defineFlow(
         throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
     }
 
-    // Pipeline Step 3: Execute Query
-    const { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
+    // Pipeline Step 3: Execute Query with Error Recovery
+    let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
       query_text: sqlQuery.replace(/;/g, '')
     });
-
+    
+    // Pipeline Step 3b: Error Recovery (if needed)
     if (queryError) {
-      console.error('[UniversalChat:Flow] Database query failed:', queryError);
-      throw new Error(`The database query failed: ${queryError.message}.`);
+        console.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
+        
+        const { output: recoveryOutput } = await errorRecoveryPrompt({
+            userQuery,
+            failedQuery: sqlQuery,
+            errorMessage: queryError.message,
+            dbSchema: formattedSchema,
+        });
+
+        if (recoveryOutput?.correctedQuery) {
+            console.log(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
+            
+            // Retry with the new query
+            const retryResult = await supabaseAdmin.rpc('execute_dynamic_query', {
+                query_text: recoveryOutput.correctedQuery.replace(/;/g, '')
+            });
+            
+            queryData = retryResult.data;
+            queryError = retryResult.error;
+
+            if (queryError) {
+                console.error('[UniversalChat:Flow] Corrected query also failed:', queryError.message);
+                // Throw a more user-friendly error if the retry fails
+                throw new Error(`I tried to automatically fix a query error, but the correction also failed. The original error was: ${queryError.message}`);
+            } else {
+                console.log('[UniversalChat:Flow] Corrected query executed successfully.');
+            }
+        } else {
+            // If AI can't fix it, throw the original error
+            console.error('[UniversalChat:Flow] AI could not recover from the query error.');
+            throw new Error(`The database query failed: ${queryError.message}.`);
+        }
     }
+
 
     // Pipeline Step 4: Interpret Results and Generate Final Response
     const queryDataJson = JSON.stringify(queryData || []);
