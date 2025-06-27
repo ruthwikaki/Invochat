@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Checkbox } from '@/components/ui/checkbox';
 import { InvochatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 
@@ -72,7 +71,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
               <p className="text-muted-foreground">Inventory Intelligence Made Simple</p>
           </div>
 
-          <form action={login} className="space-y-4">
+          <form action={login} className="space-y-6">
             {searchParams?.error && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
@@ -91,13 +90,6 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
               <PasswordInput id="password" name="password" required />
             </div>
             
-            <div className="flex items-center">
-              <Checkbox id="remember-me" name="remember-me" />
-              <Label htmlFor="remember-me" className="ml-2 font-normal leading-none text-card-foreground">
-                Remember me
-              </Label>
-            </div>
-
             <SubmitButton />
           </form>
           
