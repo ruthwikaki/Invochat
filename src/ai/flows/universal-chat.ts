@@ -1,4 +1,3 @@
-
 'use server';
 
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
@@ -72,8 +71,14 @@ export async function universalChatFlow(input: UniversalChatInput): Promise<Univ
     sqlQuery = result.response.text().trim().replace(/;/g, ''); // Clean trailing semicolon
     console.log('[UniversalChat:Direct] Generated SQL:', sqlQuery);
     
-    if (!sqlQuery.toLowerCase().startsWith('select')) {
-      throw new Error("AI did not generate a valid SELECT query.");
+    // Validate the SQL query
+    const normalizedQuery = sqlQuery.trim().toLowerCase();
+    const isValidQuery = normalizedQuery.startsWith('select') || 
+                        normalizedQuery.startsWith('with');
+
+    if (!isValidQuery) {
+        console.error('[UniversalChat:Direct] Invalid query generated:', sqlQuery);
+        throw new Error('AI did not generate a valid SELECT or WITH query.');
     }
   } catch (error: any) {
     console.error('[UniversalChat:Direct] Error generating SQL:', error);
