@@ -54,36 +54,36 @@ function EmptyState() {
         >
             <div className="w-32 h-32">
                  <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M40 40H88C92.4183 40 96 43.5817 96 48V96C96 100.418 92.4183 104 88 104H40C35.5817 104 32 100.418 32 96V48C32 43.5817 35.5817 40 40 40Z" stroke="hsl(var(--primary))" stroke-opacity="0.2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M40 40H88C92.4183 40 96 43.5817 96 48V96C96 100.418 92.4183 104 88 104H40C35.5817 104 32 100.418 32 96V48C32 43.5817 35.5817 40 40 40Z" stroke="hsl(var(--primary))" strokeOpacity="0.2" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
                     <motion.path
                         initial={{ pathLength: 0 }}
                         animate={{ pathLength: 1 }}
                         transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                        d="M64 24V40" stroke="hsl(var(--primary))" stroke-opacity="0.4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                        d="M64 24V40" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
                     <motion.path
                         initial={{ pathLength: 0 }}
                         animate={{ pathLength: 1 }}
                         transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                        d="M104 64H88" stroke="hsl(var(--primary))" stroke-opacity="0.4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                        d="M104 64H88" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
                     <motion.path
                         initial={{ pathLength: 0 }}
                         animate={{ pathLength: 1 }}
                         transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                        d="M64 104V88" stroke="hsl(var(--primary))" stroke-opacity="0.4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                        d="M64 104V88" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
                     <motion.path
                         initial={{ pathLength: 0 }}
                         animate={{ pathLength: 1 }}
                         transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                        d="M24 64H40" stroke="hsl(var(--primary))" stroke-opacity="0.4" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                        d="M24 64H40" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
                     <motion.g
                          initial={{ opacity: 0, scale: 0.5 }}
                          animate={{ opacity: 1, scale: 1 }}
                          transition={{ type: 'spring', stiffness: 200, damping: 10, delay: 0.8 }}
                     >
-                        <path d="M76 52H52C50.8954 52 50 52.8954 50 54V78C50 79.1046 50.8954 80 52 80H76C77.1046 80 78 79.1046 78 78V54C78 52.8954 77.1046 52 76 52Z" fill="hsl(var(--primary))" fill-opacity="0.1"/>
-                        <path d="M76 52H52C50.8954 52 50 52.8954 50 54V78C50 79.1046 50.8954 80 52 80H76C77.1046 80 78 79.1046 78 78V54C78 52.8954 77.1046 52 76 52Z" stroke="hsl(var(--primary))" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M64 60V72" stroke="hsl(var(--primary-foreground))" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M58 66H70" stroke="hsl(var(--primary-foreground))" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M76 52H52C50.8954 52 50 52.8954 50 54V78C50 79.1046 50.8954 80 52 80H76C77.1046 80 78 79.1046 78 78V54C78 52.8954 77.1046 52 76 52Z" fill="hsl(var(--primary))" fillOpacity="0.1"/>
+                        <path d="M76 52H52C50.8954 52 50 52.8954 50 54V78C50 79.1046 50.8954 80 52 80H76C77.1046 80 78 79.1046 78 78V54C78 52.8954 77.1046 52 76 52Z" stroke="hsl(var(--primary))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M64 60V72" stroke="hsl(var(--primary-foreground))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M58 66H70" stroke="hsl(var(--primary-foreground))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
                     </motion.g>
                 </svg>
             </div>
@@ -91,6 +91,24 @@ function EmptyState() {
             <p className="max-w-xs text-muted-foreground">Get started by importing your products. It's fast and easy!</p>
             <Button asChild className="mt-4">
                 <Link href="/import">Import Data</Link>
+            </Button>
+        </motion.div>
+    );
+}
+
+function NoResultsState({ setSearch }: { setSearch: (search: string) => void }) {
+    return (
+        <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="flex flex-col items-center justify-center gap-4 text-center rounded-lg border-2 border-dashed bg-card/50 py-24"
+        >
+            <Search className="h-16 w-16 text-muted-foreground" />
+            <h3 className="mt-2 text-2xl font-semibold tracking-tight">No Products Found</h3>
+            <p className="max-w-xs text-muted-foreground">Your search did not match any products. Please try a different search term.</p>
+            <Button onClick={() => setSearch('')} variant="outline" className="mt-4">
+                Clear Search
             </Button>
         </motion.div>
     );
@@ -270,6 +288,12 @@ export default function InventoryPage() {
                     <TableCell>{item.warehouse_name || 'N/A'}</TableCell>
                   </TableRow>
                 ))
+              ) : search ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="p-0">
+                      <NoResultsState setSearch={setSearch} />
+                  </TableCell>
+                </TableRow>
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="p-0">
