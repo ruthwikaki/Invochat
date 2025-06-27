@@ -1,152 +1,159 @@
 'use server';
+/**
+ * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
+ * This system uses a Chain-of-Thought approach with distinct steps for planning,
+ * generation, validation, and response formulation to provide more accurate and
+ * context-aware answers.
+ */
 
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
+import { ai } from '@/ai/genkit';
+import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
+import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
 
-// Ensure the GOOGLE_API_KEY is set, otherwise throw a startup error.
-if (!process.env.GOOGLE_API_KEY) {
-  throw new Error('FATAL: GOOGLE_API_KEY environment variable is not set.');
-}
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-
-const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-pro", // Using a reliable model that supports this direct approach well
-  safetySettings: [ // Set safety settings to be less restrictive for SQL generation
-      {
-        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-      },
-  ],
-});
-
+const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
 
 /**
- * This is the new, direct implementation that bypasses Genkit tools for reliability.
- * It uses a two-step process:
- * 1. Generate a SQL query from the user's prompt.
- * 2. Execute the query and use the results to generate a natural language response.
+ * Agent 1: SQL Generation
+ * Takes the user query and generates a safe, advanced PostgreSQL query.
  */
-export async function universalChatFlow(input: UniversalChatInput): Promise<UniversalChatOutput> {
-  const { companyId, conversationHistory } = input;
-  console.log('[UniversalChat:Direct] Starting flow for company', companyId);
-
-  const userQuery = conversationHistory[conversationHistory.length - 1]?.content || '';
-  if (!userQuery) {
-    return { response: "Please provide a question.", data: [], visualization: { type: 'none' } };
-  }
-  
-  // STEP 1: Generate SQL from user query
-  const sqlGenerationPrompt = `
-    Generate a single, read-only PostgreSQL SQL SELECT query to answer this question: "${userQuery}"
-
+const sqlGenerationPrompt = ai.definePrompt({
+  name: 'sqlGenerationPrompt',
+  input: { schema: z.object({ companyId: z.string(), userQuery: z.string() }) },
+  output: { schema: z.object({ sqlQuery: z.string().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
+  prompt: `
+    You are an expert SQL generation agent. Your task is to convert a user's question into a secure, read-only PostgreSQL query.
+    
     DATABASE SCHEMA:
     - **inventory**: id, sku, name, description, category, quantity, cost, price, reorder_point, reorder_qty, supplier_name, warehouse_name, last_sold_date, company_id
     - **vendors**: id, vendor_name, contact_info, address, terms, account_number, company_id
     - **sales**: id, sale_date, customer_name, total_amount, items, company_id
     - **purchase_orders**: id, po_number, vendor, item, quantity, cost, order_date, company_id
 
-    CRITICAL RULES:
-    1. Your response MUST be ONLY the SQL query. Do not include any other text, explanations, or markdown formatting like \`\`\`sql.
-    2. Every query MUST contain a WHERE clause to filter by the user's company. Use this exact clause: company_id = '${companyId}'
-    3. You must use PostgreSQL syntax. For example, for date calculations, use constructs like (CURRENT_DATE - INTERVAL '90 days') instead of functions like DATE('now', '-90 days').
-    4. If a user asks for a chart (e.g., "pie chart of..."), generate a query that produces aggregated data suitable for that chart (e.g., using GROUP BY and COUNT or SUM).
-  `;
+    SEMANTIC LAYER (Business Definitions):
+    - "Dead stock": inventory items where 'last_sold_date' is more than 90 days ago.
+    - "Low stock": inventory items where 'quantity' <= 'reorder_point'.
+    - "Revenue" or "Sales Value": calculated from 'sales.total_amount'.
+    - "Inventory Value": calculated by SUM(inventory.quantity * inventory.cost).
 
-  let sqlQuery = '';
-  try {
-    const result = await model.generateContent(sqlGenerationPrompt);
-    sqlQuery = result.response.text().trim().replace(/;/g, ''); // Clean trailing semicolon
-    console.log('[UniversalChat:Direct] Generated SQL:', sqlQuery);
+    USER'S QUESTION: "{{userQuery}}"
+
+    CRITICAL GENERATION RULES:
+    1.  **Security First**: The query MUST be a read-only SELECT statement. It MUST include a WHERE clause to filter by the user's company: \`company_id = '{{companyId}}'\`.
+    2.  **Advanced SQL**: For complex requests (e.g., trends, comparisons), use Common Table Expressions (CTEs) or window functions.
+    3.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
+    4.  **Output**: Respond with a JSON object containing 'sqlQuery' and 'reasoning'. The 'sqlQuery' must be ONLY the SQL string, without any markdown or trailing semicolons.
+  `,
+  config: { model },
+});
+
+/**
+ * Agent 2: Query Validation
+ * Reviews the generated SQL for security, correctness, and business sense.
+ */
+const queryValidationPrompt = ai.definePrompt({
+  name: 'queryValidationPrompt',
+  input: { schema: z.object({ userQuery: z.string(), sqlQuery: z.string() }) },
+  output: { schema: z.object({ isValid: z.boolean(), correction: z.string().optional().describe('Reason if invalid.') }) },
+  prompt: `
+    You are a SQL validation agent. Review the generated SQL query.
+
+    USER'S QUESTION: "{{userQuery}}"
+    GENERATED SQL: \`\`\`sql\n{{sqlQuery}}\n\`\`\`
+
+    VALIDATION CHECKLIST:
+    1.  **Security**: Is it a read-only SELECT query? Does it contain a 'company_id' filter?
+    2.  **Correctness**: Is the syntax valid PostgreSQL? Does it logically answer the user's question?
+    3.  **Business Sense**: Does it use the correct columns/tables based on the question and business context?
+
+    OUTPUT:
+    - If valid, return \`{"isValid": true}\`.
+    - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely."}\`.
+  `,
+  config: { model },
+});
+
+/**
+ * Agent 3: Result Interpretation & Response Generation
+ * Analyzes the query result and formulates the final user-facing message.
+ */
+const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true });
+const finalResponsePrompt = ai.definePrompt({
+  name: 'finalResponsePrompt',
+  input: { schema: z.object({ userQuery: z.string(), queryDataJson: z.string() }) },
+  output: { schema: FinalResponseObjectSchema },
+  prompt: `
+    You are ARVO, an expert AI inventory analyst.
+    The user asked: "{{userQuery}}"
+    You have executed a database query and received this JSON data:
+    {{{queryDataJson}}}
+
+    YOUR TASK:
+    1.  **Analyze Data**: Review the JSON. If it's empty or null, state that you found no information.
+    2.  **Formulate Response**: Provide a concise, natural language response based ONLY on the data. Do NOT mention SQL, databases, or JSON.
+    3.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type ('table', 'bar', 'pie', 'line', or 'none') and a title for it.
+    4.  **Format Output**: Return a single JSON object with 'response' and 'visualization' fields. Do NOT include the raw data in your response.
+  `,
+  config: { model },
+});
+
+
+/**
+ * The main orchestrator flow that simulates the multi-agent pipeline.
+ */
+const universalChatOrchestrator = ai.defineFlow(
+  {
+    name: 'universalChatOrchestrator',
+    inputSchema: UniversalChatInputSchema,
+    outputSchema: UniversalChatOutputSchema,
+  },
+  async (input) => {
+    const { companyId, conversationHistory } = input;
+    const userQuery = conversationHistory[conversationHistory.length - 1]?.content || '';
     
-    // Validate the SQL query
-    const normalizedQuery = sqlQuery.trim().toLowerCase();
-    const isValidQuery = normalizedQuery.startsWith('select') || 
-                        normalizedQuery.startsWith('with');
-
-    if (!isValidQuery) {
-        console.error('[UniversalChat:Direct] Invalid query generated:', sqlQuery);
-        throw new Error('AI did not generate a valid SELECT or WITH query.');
+    if (!userQuery) {
+        throw new Error("User query was empty.");
     }
-  } catch (error: any) {
-    console.error('[UniversalChat:Direct] Error generating SQL:', error);
-    return {
-      response: "I had trouble creating a database query for your request. Please try rephrasing it.",
-      data: [],
-      visualization: { type: 'none' }
-    };
-  }
-  
-  // STEP 2: Execute query and generate final response
-  try {
+
+    // Pipeline Step 1: Generate SQL
+    const { output: generationOutput } = await sqlGenerationPrompt({ companyId, userQuery });
+    if (!generationOutput?.sqlQuery) {
+        throw new Error("AI failed to generate an SQL query.");
+    }
+    const { sqlQuery } = generationOutput;
+
+    // Pipeline Step 2: Validate SQL
+    const { output: validationOutput } = await queryValidationPrompt({ userQuery, sqlQuery });
+    if (!validationOutput?.isValid) {
+        console.error("Generated SQL failed validation:", validationOutput.correction);
+        throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
+    }
+
+    // Pipeline Step 3: Execute Query
     const { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
-      query_text: sqlQuery
+      query_text: sqlQuery.replace(/;/g, '')
     });
 
     if (queryError) {
-      console.error('[UniversalChat:Direct] Database query failed:', queryError);
-      return {
-        response: `I encountered an issue with the database query: ${queryError.message}. Please try rephrasing your question.`,
-        data: [], // Always return an array on error
-        visualization: { type: 'none' }
-      };
+      console.error('[UniversalChat:Flow] Database query failed:', queryError);
+      throw new Error(`The database query failed: ${queryError.message}.`);
+    }
+
+    // Pipeline Step 4: Interpret Results and Generate Final Response
+    const queryDataJson = JSON.stringify(queryData || []);
+    const { output: finalOutput } = await finalResponsePrompt({ userQuery, queryDataJson });
+    if (!finalOutput) {
+      throw new Error('The AI model did not return a valid final response object.');
     }
     
-    console.log('[UniversalChat:Direct] Query Result Data:', queryData);
-
-    const finalResponsePrompt = `
-      You are ARVO, an expert AI inventory management analyst.
-      The user asked: "${userQuery}"
-      You have already executed a database query and retrieved the following data as a JSON object:
-      ${JSON.stringify(queryData, null, 2)}
-
-      Your task is to provide a concise, natural language response based *only* on this data.
-      - If the data is empty or null, state that you couldn't find any information for the request.
-      - Do not mention SQL, databases, or JSON.
-      - If the data looks like it's for a chart (e.g., categories and counts), briefly summarize it.
-      - If the data is a list of items, state what the list contains.
-    `;
-
-    const result = await model.generateContent(finalResponsePrompt);
-    const finalResponse = result.response.text();
-
-    // Basic visualization suggestion
-    let vizType: 'table' | 'bar' | 'pie' | 'line' | 'none' = 'none';
-    if (queryData && queryData.length > 0) {
-      vizType = 'table'; // Default to table if there's data
-      const lowerQuery = userQuery.toLowerCase();
-      if (lowerQuery.includes('pie chart')) vizType = 'pie';
-      else if (lowerQuery.includes('bar chart') || lowerQuery.includes('barchart')) vizType = 'bar';
-      else if (lowerQuery.includes('line chart')) vizType = 'line';
-    }
-
+    // Manually construct the full response object
     return {
-      response: finalResponse,
-      data: queryData || [],
-      visualization: {
-        type: vizType,
-        title: userQuery
-      }
-    };
-
-  } catch (error: any) {
-    console.error('[UniversalChat:Direct] Error during final response generation:', error);
-    return {
-      response: `I successfully queried the database, but ran into an error while analyzing the results. The error was: ${error.message}`,
-      data: [],
-      visualization: { type: 'none' }
+        ...finalOutput,
+        data: queryData || [],
     };
   }
-}
+);
+
+// The exported function that server actions will call. It's now the robust, orchestrated flow.
+export const universalChatFlow = universalChatOrchestrator;
