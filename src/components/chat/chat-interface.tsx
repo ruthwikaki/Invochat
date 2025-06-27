@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Message } from '@/types';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Bot } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
@@ -16,8 +16,20 @@ import { useRouter } from 'next/navigation';
 const quickActions = APP_CONFIG.chat.quickActions;
 
 type ChatInterfaceProps = {
-    conversationId: string;
+    conversationId?: string;
     initialMessages: Message[];
+}
+
+function ChatWelcomePanel() {
+    return (
+      <div className="flex h-full flex-col items-center justify-center text-center p-4">
+        <Bot className="h-20 w-20 text-muted-foreground" />
+        <h2 className="mt-6 text-2xl font-semibold">Start a new conversation</h2>
+        <p className="mt-2 text-muted-foreground">
+          Ask me anything about your inventory, sales, or suppliers.
+        </p>
+      </div>
+    );
 }
 
 export function ChatInterface({ conversationId, initialMessages }: ChatInterfaceProps) {
@@ -28,39 +40,46 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
   const router = useRouter();
   const { toast } = useToast();
 
+  const isNewChat = !conversationId;
+
   const processAndSetMessages = (userMessageText: string) => {
-    // Optimistically add the user's message to the UI
     const tempId = `temp_${Date.now()}`;
     const optimisticUserMessage: Message = {
       id: tempId,
       role: 'user',
       content: userMessageText,
       created_at: new Date().toISOString(),
-      conversation_id: conversationId,
+      conversation_id: conversationId || tempId,
     };
     
     setMessages(prev => [...prev, optimisticUserMessage]);
     
-    // Add a loading indicator
     const loadingMessage: Message = {
       id: 'loading',
       role: 'assistant',
       content: '...',
       created_at: new Date().toISOString(),
-      conversation_id: conversationId,
+      conversation_id: conversationId || tempId,
     };
     setMessages(prev => [...prev, loadingMessage]);
 
     startTransition(async () => {
       try {
-        await handleUserMessage({
+        const response = await handleUserMessage({
           content: userMessageText,
-          conversationId: conversationId,
+          conversationId: conversationId || null,
         });
-        // The revalidatePath in the action will cause the page to get
-        // the new, real messages from the database, including the final AI response.
-        // We don't need to manually update state here.
-        router.refresh();
+
+        if (response.error) {
+            toast({ variant: 'destructive', title: 'Error', description: response.error });
+            setMessages(prev => prev.filter(m => m.id !== tempId && m.id !== 'loading'));
+        } else if (response.conversationId && isNewChat) {
+            // New conversation created, redirect to its URL
+            router.push(`/chat?id=${response.conversationId}`);
+        } else {
+            // Existing conversation, just refresh data
+            router.refresh();
+        }
 
       } catch (error: any) {
         toast({
@@ -68,7 +87,6 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
           title: 'Error',
           description: error.message || 'Could not get response from InvoChat.',
         });
-        // On error, remove optimistic user message and loading indicator
         setMessages(prev => prev.filter(m => m.id !== tempId && m.id !== 'loading'));
       }
     });
@@ -87,7 +105,6 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
     processAndSetMessages(action);
   };
   
-  // Update messages state if initialMessages prop changes (e.g., on navigation)
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
@@ -107,15 +124,19 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
   return (
     <div className="flex h-full flex-grow flex-col justify-between bg-muted/30">
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="mx-auto w-full max-w-4xl space-y-6 p-4">
-          {messages.map((m) => (
-             <ChatMessage 
-                key={m.id} 
-                message={m} 
-                isLoading={m.id === 'loading'} 
-             />
-          ))}
-        </div>
+        {messages.length > 0 ? (
+            <div className="mx-auto w-full max-w-4xl space-y-6 p-4">
+                {messages.map((m) => (
+                    <ChatMessage 
+                        key={m.id} 
+                        message={m} 
+                        isLoading={m.id === 'loading'} 
+                    />
+                ))}
+            </div>
+        ) : (
+            <ChatWelcomePanel />
+        )}
       </ScrollArea>
       <div className="mx-auto w-full max-w-4xl p-4 border-t bg-background">
         <div className="mb-2 flex flex-wrap gap-2">
