@@ -87,12 +87,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             </div>
 
             <div className="space-y-2">
-               <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-card-foreground">Password</Label>
-                  <Link href="#" className="text-sm font-medium text-primary hover:underline">
-                      Forgot password?
-                  </Link>
-               </div>
+              <Label htmlFor="password" className="text-card-foreground">Password</Label>
               <PasswordInput id="password" name="password" required />
             </div>
             
