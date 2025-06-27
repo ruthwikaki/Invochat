@@ -15,6 +15,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { DashboardMetrics, InventoryItem, Supplier, Alert } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
+import { redisClient, isRedisEnabled } from '@/lib/redis';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
@@ -28,6 +29,21 @@ function getServiceRoleClient() {
 
 
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
+  const cacheKey = `company:${companyId}:dashboard`;
+
+  if (isRedisEnabled) {
+    try {
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) {
+            console.log(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+            return JSON.parse(cachedData);
+        }
+        console.log(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+    } catch (error) {
+        console.error(`[Redis] Error getting cache for ${cacheKey}:`, error);
+    }
+  }
+
   const supabase = getServiceRoleClient();
   
   // Use the materialized view for core inventory metrics where possible
@@ -111,7 +127,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
   const deadStockValue = (deadStockItems || []).reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
 
-  return {
+  const finalMetrics: DashboardMetrics = {
       inventoryValue: Math.round(metricsData?.inventory_value || 0),
       deadStockValue: Math.round(deadStockValue),
       lowStockCount: metricsData?.low_stock_count || 0,
@@ -121,6 +137,18 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
       salesTrendData: salesTrendData || [],
       inventoryByCategoryData: inventoryByCategoryData || [],
   };
+
+  if (isRedisEnabled) {
+      try {
+          // Cache the result for 5 minutes (300 seconds)
+          await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', 300);
+          console.log(`[Cache] SET for dashboard metrics: ${cacheKey}`);
+      } catch (error) {
+          console.error(`[Redis] Error setting cache for ${cacheKey}:`, error);
+      }
+  }
+
+  return finalMetrics;
 }
 
 
