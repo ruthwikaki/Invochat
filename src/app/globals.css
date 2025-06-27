@@ -15,7 +15,7 @@ body {
     --card-foreground: 224 71% 4%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 71% 4%;
-    --primary: 259 52% 51%; /* deep purple (#6B46C1) */
+    --primary: 262 84% 59%; /* NEW: vibrant violet (#7C3AED) */
     --primary-foreground: 0 0% 98%;
     --secondary: 215 28% 47%; /* slate (#475569) */
     --secondary-foreground: 0 0% 98%;
@@ -31,8 +31,8 @@ body {
     --success-foreground: 0 0% 98%;
     --border: 220 13% 84%;
     --input: 220 13% 84%;
-    --ring: 259 52% 51%;
-    --chart-1: 259 52% 51%;
+    --ring: 262 84% 59%; /* NEW: vibrant violet */
+    --chart-1: 262 84% 59%; /* NEW: vibrant violet */
     --chart-2: 215 28% 47%;
     --chart-3: 158 64% 52%;
     --chart-4: 39 92% 53%;
@@ -40,12 +40,12 @@ body {
     --radius: 0.5rem;
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 224 71% 4%;
-    --sidebar-primary: 259 52% 51%;
+    --sidebar-primary: 262 84% 59%; /* NEW: vibrant violet */
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 240 5% 96%;
     --sidebar-accent-foreground: 224 71% 4%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 259 52% 51%;
+    --sidebar-ring: 262 84% 59%; /* NEW: vibrant violet */
   }
 
   .dark {
@@ -55,8 +55,8 @@ body {
     --card-foreground: 210 40% 98%;
     --popover: 224 71% 4%;
     --popover-foreground: 215 20% 65%;
-    --primary: 259 90% 70%; /* More vibrant purple */
-    --primary-foreground: 224 71% 4%;
+    --primary: 262 90% 75%; /* NEW: Lighter, neon-like violet for dark mode */
+    --primary-foreground: 262 84% 15%; /* NEW: Dark violet for text on primary bg */
     --secondary: 215 28% 57%; /* Lighter slate */
     --secondary-foreground: 0 0% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -71,8 +71,8 @@ body {
     --success-foreground: 224 71% 4%;
     --border: 217.2 32.6% 22.5%;
     --input: 217.2 32.6% 22.5%;
-    --ring: 259 90% 70%;
-    --chart-1: 259 90% 70%;
+    --ring: 262 90% 75%; /* NEW: Lighter violet for dark mode ring */
+    --chart-1: 262 90% 75%; /* NEW: Lighter violet for dark mode chart */
     --chart-2: 215 28% 57%;
     --chart-3: 158 70% 65%;
     --chart-4: 39 100% 65%;
@@ -84,7 +84,7 @@ body {
     --sidebar-accent: 217.2 32.6% 17.5%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 217.2 32.6% 22.5%;
-    --sidebar-ring: 212.7 26.8% 83.9%;
+    --sidebar-ring: 262 90% 75%; /* NEW: vibrant violet */
   }
 }
 

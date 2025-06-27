@@ -20,7 +20,7 @@ function SubmitButton() {
     <Button
       type="submit"
       disabled={pending}
-      className="w-full bg-[#7C3AED] hover:bg-[#6B46C1]"
+      className="w-full"
     >
       {pending ? 'Signing in...' : 'Sign In'}
     </Button>
@@ -37,7 +37,7 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
         type={showPassword ? 'text' : 'password'}
         placeholder="••••••••"
         required={required}
-        className="pr-10 focus:border-[#7C3AED]"
+        className="pr-10"
         autoComplete="current-password"
       />
       <Button
@@ -84,7 +84,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             
             <div className="space-y-2">
               <Label htmlFor="email" className="text-card-foreground">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="you@company.com" required autoComplete="email" className="focus:border-[#7C3AED]"/>
+              <Input id="email" name="email" type="email" placeholder="you@company.com" required autoComplete="email" />
             </div>
 
             <div className="space-y-2">
