@@ -25,45 +25,63 @@ const sqlGenerationPrompt = ai.definePrompt({
   input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string() }) },
   output: { schema: z.object({ sqlQuery: z.string().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
-    You are an expert SQL generation agent. Your task is to convert a user's question into a secure, read-only PostgreSQL query.
-    
+    You are an expert PostgreSQL query generation agent for an inventory management system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query.
+
     DATABASE SCHEMA OVERVIEW:
-    Here are the tables and columns you can query. Use this as your primary source of truth for the database structure.
     {{{dbSchema}}}
-    
+
     SEMANTIC LAYER (Business Definitions):
     - "Dead stock": inventory items where 'last_sold_date' is more than 90 days ago.
     - "Low stock": inventory items where 'quantity' <= 'reorder_point'.
-    - "Revenue" or "Sales Value": calculated from 'sales.total_amount'.
+    - "Revenue" or "Sales": calculated from 'sales.total_amount'.
     - "Inventory Value": calculated by SUM(inventory.quantity * inventory.cost).
 
     USER'S QUESTION: "{{userQuery}}"
 
-    CRITICAL GENERATION RULES:
-    1.  **Security First**: The query MUST be a read-only SELECT statement. It MUST include a WHERE clause to filter by the user's company: \`company_id = '{{companyId}}'\`. Every table join must also filter by company_id.
-    2.  **Use Advanced SQL for Analytics**: For any queries that involve trends, comparisons, rankings, or multi-step calculations (e.g., "top 5 products by sales growth", "compare this month's sales to last month"), you MUST use advanced SQL features.
-        - **Common Table Expressions (CTEs)** are required to break down complex logic into readable steps.
-        - **Window Functions** (like \`RANK()\`, \`LEAD()\`, \`LAG()\`) should be used for rankings and trend analysis.
-    3.  **Example of Advanced SQL**: For a question like "show me the top 3 products by sales this month", a good query would use a CTE like this:
-        \`\`\`sql
-        WITH MonthlySales AS (
-            SELECT
-                product_id,
-                SUM(total_amount) as total_sales
-            FROM sales
-            WHERE company_id = '{{companyId}}' AND sale_date >= date_trunc('month', CURRENT_DATE)
-            GROUP BY product_id
-        )
+    **QUERY GENERATION PROCESS (You MUST follow these steps):**
+
+    **Step 1: Analyze Query Complexity.**
+    - Is the user asking for a simple list (e.g., "list all suppliers")? This is a **SIMPLE** query.
+    - Is the user asking for trends, comparisons, rankings, growth, or multi-step calculations (e.g., "top 5 products by sales growth", "compare this month's sales to last month", "suppliers with the most dead stock")? This is a **COMPLEX ANALYTICAL** query.
+
+    **Step 2: Apply Generation Rules based on Complexity.**
+
+    **A) For ALL Queries:**
+    1.  **Security is paramount**: The query MUST be a read-only \`SELECT\` statement.
+    2.  **Mandatory Filtering**: Every table referenced (including in joins) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement.
+    3.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
+
+    **B) For COMPLEX ANALYTICAL Queries:**
+    4.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
+        - **Common Table Expressions (CTEs)** are REQUIRED to break down complex logic. Do not use nested subqueries where a CTE would be clearer.
+        - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
+
+    **Step 3: Generate the Query.**
+
+    **Example of a COMPLEX ANALYTICAL Query:**
+    For a question like "show me the top 3 products by sales this month", a correct query that follows the rules would be:
+    \`\`\`sql
+    WITH MonthlySales AS (
         SELECT
-            i.name,
-            ms.total_sales
-        FROM MonthlySales ms
-        JOIN inventory i ON ms.product_id = i.id AND i.company_id = '{{companyId}}'
-        ORDER BY ms.total_sales DESC
-        LIMIT 3
-        \`\`\`
-    4.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    5.  **Output**: Respond with a JSON object containing 'sqlQuery' and 'reasoning'. The 'sqlQuery' must be ONLY the SQL string, without any markdown or trailing semicolons.
+            product_id,
+            SUM(total_amount) as total_sales
+        FROM sales
+        WHERE company_id = '{{companyId}}' AND sale_date >= date_trunc('month', CURRENT_DATE)
+        GROUP BY product_id
+    )
+    SELECT
+        i.name,
+        ms.total_sales
+    FROM MonthlySales ms
+    JOIN inventory i ON ms.product_id = i.id AND i.company_id = '{{companyId}}'
+    ORDER BY ms.total_sales DESC
+    LIMIT 3
+    \`\`\`
+
+    **Step 4: Formulate the Final Output.**
+    - Respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
+    - The \`sqlQuery\` field MUST contain ONLY the SQL string. Do not include markdown or trailing semicolons.
+    - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with inventory to get product names.").
   `,
   config: { model },
 });
@@ -80,7 +98,9 @@ const queryValidationPrompt = ai.definePrompt({
     You are a SQL validation agent. Review the generated SQL query.
 
     USER'S QUESTION: "{{userQuery}}"
-    GENERATED SQL: \`\`\`sql\n{{sqlQuery}}\n\`\`\`
+    GENERATED SQL: \`\`\`sql
+{{sqlQuery}}
+\`\`\`
 
     VALIDATION CHECKLIST:
     1.  **Security**: Is it a read-only SELECT query? Does it contain a 'company_id' filter?
@@ -184,7 +204,7 @@ const universalChatOrchestrator = ai.defineFlow(
     if (!generationOutput?.sqlQuery) {
         throw new Error("AI failed to generate an SQL query.");
     }
-    const { sqlQuery } = generationOutput;
+    let sqlQuery = generationOutput.sqlQuery;
 
     // Pipeline Step 2: Validate SQL
     const { output: validationOutput } = await queryValidationPrompt({ userQuery, sqlQuery });
@@ -213,8 +233,9 @@ const universalChatOrchestrator = ai.defineFlow(
             console.log(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
             
             // Retry with the new query
+            sqlQuery = recoveryOutput.correctedQuery; // Update the query to the corrected one
             const retryResult = await supabaseAdmin.rpc('execute_dynamic_query', {
-                query_text: recoveryOutput.correctedQuery.replace(/;/g, '')
+                query_text: sqlQuery.replace(/;/g, '')
             });
             
             queryData = retryResult.data;
