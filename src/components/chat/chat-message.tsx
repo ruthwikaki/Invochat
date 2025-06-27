@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
 import { useAuth } from '@/context/auth-context';
 import { DataVisualization } from './data-visualization';
-import { BrainCircuit, Info } from 'lucide-react';
+import { BrainCircuit } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -25,8 +25,8 @@ function TypingIndicator() {
   );
 }
 
-function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number, assumptions?: string[] }) {
-    if (confidence === undefined) return null;
+function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | null, assumptions?: string[] | null }) {
+    if (confidence === undefined || confidence === null) return null;
 
     const confidencePercentage = (confidence * 100).toFixed(0);
     let confidenceColor = 'text-success';
@@ -83,7 +83,7 @@ export function ChatMessage({
               : 'rounded-bl-none bg-card text-card-foreground'
           )}
         >
-          <div className="text-base">
+          <div className="text-base whitespace-pre-wrap">
             {isLoading ? <TypingIndicator /> : message.content}
           </div>
           {!isUserMessage && !isLoading && (

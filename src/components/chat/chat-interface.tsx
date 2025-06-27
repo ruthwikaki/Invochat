@@ -11,63 +11,65 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
 import { APP_CONFIG } from '@/config/app-config';
+import { useRouter } from 'next/navigation';
 
 const quickActions = APP_CONFIG.chat.quickActions;
 
 type ChatInterfaceProps = {
-    messages: Message[];
-    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    conversationId: string;
+    initialMessages: Message[];
 }
 
-export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
+export function ChatInterface({ conversationId, initialMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const { toast } = useToast();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-  };
-
   const processAndSetMessages = (userMessageText: string) => {
-    const userMessage: Message = {
-      id: Date.now().toString(),
+    // Optimistically add the user's message to the UI
+    const tempId = `temp_${Date.now()}`;
+    const optimisticUserMessage: Message = {
+      id: tempId,
       role: 'user',
       content: userMessageText,
-      timestamp: Date.now(),
+      created_at: new Date().toISOString(),
+      conversation_id: conversationId,
     };
     
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, optimisticUserMessage]);
     
+    // Add a loading indicator
+    const loadingMessage: Message = {
+      id: 'loading',
+      role: 'assistant',
+      content: '...',
+      created_at: new Date().toISOString(),
+      conversation_id: conversationId,
+    };
+    setMessages(prev => [...prev, loadingMessage]);
+
     startTransition(async () => {
-      // Add loading message
-      const loadingMessage: Message = {
-        id: 'loading',
-        role: 'assistant',
-        content: '...',
-        timestamp: Date.now(),
-      };
-      setMessages(prev => [...prev, loadingMessage]);
-      
       try {
-        const response = await handleUserMessage({
-          // Pass the history *with* the new user message
-          conversationHistory: [...messages, userMessage].slice(-APP_CONFIG.ai.historyLimit),
+        await handleUserMessage({
+          content: userMessageText,
+          conversationId: conversationId,
         });
-        
-        // Replace loading message with actual response
-        setMessages(prev => {
-          const filtered = prev.filter(m => m.id !== 'loading');
-          return [...filtered, response];
-        });
+        // The revalidatePath in the action will cause the page to get
+        // the new, real messages from the database, including the final AI response.
+        // We don't need to manually update state here.
+        router.refresh();
+
       } catch (error: any) {
         toast({
           variant: 'destructive',
           title: 'Error',
           description: error.message || 'Could not get response from InvoChat.',
         });
-        // Remove loading message on error
-        setMessages(prev => prev.filter(m => m.id !== 'loading'));
+        // On error, remove optimistic user message and loading indicator
+        setMessages(prev => prev.filter(m => m.id !== tempId && m.id !== 'loading'));
       }
     });
   };
@@ -81,20 +83,14 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   };
 
   const handleQuickAction = (action: string) => {
-    processAndSetMessages(action);
     setInput('');
+    processAndSetMessages(action);
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        if (input.trim() && !isPending) {
-            processAndSetMessages(input);
-            setInput('');
-        }
-    }
-  };
-
+  
+  // Update messages state if initialMessages prop changes (e.g., on navigation)
+  useEffect(() => {
+    setMessages(initialMessages);
+  }, [initialMessages]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -109,15 +105,15 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   }, [messages, isPending]);
 
   return (
-    <div className="flex h-full flex-grow flex-col justify-between bg-background">
+    <div className="flex h-full flex-grow flex-col justify-between bg-muted/30">
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
-        <div className="mx-auto max-w-4xl space-y-6 p-4">
+        <div className="mx-auto w-full max-w-4xl space-y-6 p-4">
           {messages.map((m) => (
-             m.id === 'loading' ? (
-                <ChatMessage key={m.id} message={m} isLoading />
-             ) : (
-                <ChatMessage key={m.id} message={m} />
-             )
+             <ChatMessage 
+                key={m.id} 
+                message={m} 
+                isLoading={m.id === 'loading'} 
+             />
           ))}
         </div>
       </ScrollArea>
@@ -140,8 +136,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
           <Input
             type="text"
             value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
+            onChange={(e) => setInput(e.target.value)}
             placeholder="Ask anything about your inventory..."
             className="h-12 flex-1 rounded-full pr-14 text-base"
             disabled={isPending}

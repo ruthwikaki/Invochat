@@ -11,22 +11,32 @@ export type User = Omit<SupabaseUser, 'app_metadata'> & {
   };
 };
 
+export type Conversation = {
+  id: string; // UUID
+  user_id: string; // UUID
+  company_id: string; // UUID
+  title: string;
+  created_at: string; // ISO String
+  last_accessed_at: string; // ISO String
+  is_starred: boolean;
+};
+
 export type Message = {
   id: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string; // This MUST be a string for AI history compatibility
-  timestamp: number;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
   visualization?: {
     type: 'table' | 'chart' | 'alert';
     data: any;
     config?: {
         title?: string;
-        // Add other potential config properties here
         [key: string]: any;
     };
-  };
-  confidence?: number;
-  assumptions?: string[];
+  } | null;
+  confidence?: number | null;
+  assumptions?: string[] | null;
+  created_at: string;
 };
 
 // Represents the configuration for a dynamically generated chart.

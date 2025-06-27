@@ -74,6 +74,7 @@ function AiAnalyst() {
     const [isPending, startTransition] = useTransition();
     const [aiResponse, setAiResponse] = useState<Message | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [conversationId, setConversationId] = useState<string | null>(null);
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -84,15 +85,23 @@ function AiAnalyst() {
         
         startTransition(async () => {
             try {
+                // The handleUserMessage action now manages history internally
                 const response = await handleUserMessage({
-                    conversationHistory: [{ role: 'user', content: query }],
+                    content: query,
+                    conversationId: conversationId,
+                    // We can add a source to distinguish these from main chat
+                    source: 'analytics_page', 
                 });
                 
-                if (response.content?.toLowerCase().includes('error')) {
-                    setError(response.content)
+                if (response.error) {
+                    setError(response.error);
                     setAiResponse(null);
-                } else {
-                    setAiResponse(response);
+                } else if (response.newMessage) {
+                    setAiResponse(response.newMessage);
+                    // If a new conversation was created, store its ID
+                    if (response.conversationId && !conversationId) {
+                        setConversationId(response.conversationId);
+                    }
                     setError(null);
                 }
             } catch (e: any) {
@@ -107,7 +116,7 @@ function AiAnalyst() {
             <CardHeader>
                 <CardTitle>Custom Report Generator</CardTitle>
                 <CardDescription>
-                    Use natural language to ask for specific data reports and visualizations.
+                    Use natural language to ask for specific data reports and visualizations. The AI will create a dedicated conversation for this report.
                 </CardDescription>
             </CardHeader>
             <CardContent>
