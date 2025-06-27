@@ -142,9 +142,11 @@ export function AppSidebar() {
             </DropdownMenu>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Settings />
-              <span>Settings</span>
+            <SidebarMenuButton asChild isActive={pathname === '/settings'}>
+              <Link href="/settings" prefetch={false}>
+                <Settings />
+                <span>Settings</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

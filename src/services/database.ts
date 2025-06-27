@@ -13,10 +13,11 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import type { DashboardMetrics, InventoryItem, Supplier, Alert } from '@/types';
+import type { DashboardMetrics, InventoryItem, Supplier, Alert, CompanySettings } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
-import { redisClient, isRedisEnabled } from '@/lib/redis';
+import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
+import { APP_CONFIG } from '@/config/app-config';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
@@ -28,6 +29,67 @@ function getServiceRoleClient() {
     return supabaseAdmin;
 }
 
+export async function getCompanySettings(companyId: string): Promise<CompanySettings> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('company_settings')
+        .select('*')
+        .eq('company_id', companyId)
+        .single();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 = 'no rows returned'
+        console.error(`[DB Service] Error fetching company settings for ${companyId}:`, error);
+        throw error;
+    }
+
+    if (data) {
+        return data as CompanySettings;
+    }
+
+    // No settings found, so create and return default settings.
+    console.log(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
+    const defaultSettingsData = {
+        company_id: companyId,
+        dead_stock_days: APP_CONFIG.businessLogic.deadStockDays,
+        overstock_multiplier: APP_CONFIG.businessLogic.overstockMultiplier,
+        high_value_threshold: APP_CONFIG.businessLogic.highValueThreshold,
+        fast_moving_days: APP_CONFIG.businessLogic.fastMovingDays,
+    };
+    
+    const { data: newData, error: insertError } = await supabase
+        .from('company_settings')
+        .insert(defaultSettingsData)
+        .select()
+        .single();
+    
+    if (insertError) {
+        console.error(`[DB Service] Failed to insert default settings for company ${companyId}:`, insertError);
+        throw insertError;
+    }
+
+    return newData as CompanySettings;
+}
+
+export async function updateCompanySettings(companyId: string, settings: Partial<Omit<CompanySettings, 'company_id'>>): Promise<CompanySettings> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('company_settings')
+        .update({ ...settings, updated_at: new Date().toISOString() })
+        .eq('company_id', companyId)
+        .select()
+        .single();
+        
+    if (error) {
+        console.error(`[DB Service] Error updating settings for ${companyId}:`, error);
+        throw error;
+    }
+    
+    // Invalidate cache since business logic has changed
+    console.log(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
+    await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+    
+    return data as CompanySettings;
+}
 
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
   const cacheKey = `company:${companyId}:dashboard`;
@@ -48,8 +110,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   }
 
   const startTime = performance.now();
-
   const supabase = getServiceRoleClient();
+  const settings = await getCompanySettings(companyId);
   
   // Use the materialized view for core inventory metrics where possible
   const metricsPromise = supabase
@@ -65,7 +127,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     .from('inventory')
     .select('quantity, cost')
     .eq('company_id', companyId)
-    .lt('last_sold_date', subDays(new Date(), 90).toISOString());
+    .lt('last_sold_date', subDays(new Date(), settings.dead_stock_days).toISOString());
   
   // Queries for charts, executed via a secure RPC function
   const salesTrendQuery = `
@@ -163,6 +225,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 // Fallback function if materialized view does not exist.
 async function getDashboardMetricsWithFullQuery(companyId: string): Promise<DashboardMetrics> {
   const supabase = getServiceRoleClient();
+  const settings = await getCompanySettings(companyId);
   
   const inventoryPromise = supabase.from('inventory').select('quantity, cost, last_sold_date, reorder_point, name, category').eq('company_id', companyId);
   const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
@@ -183,7 +246,6 @@ async function getDashboardMetricsWithFullQuery(companyId: string): Promise<Dash
   ] = await Promise.all([inventoryPromise, vendorsPromise, salesPromise, salesTrendPromise, inventoryByCategoryPromise]);
 
   const { data: inventory, error: inventoryError } = inventoryRes;
-  // ... (rest of the original function logic)
     const { count: suppliersCount, error: suppliersError } = vendorsRes;
     const { data: sales, error: salesError } = salesRes;
     const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
@@ -200,9 +262,9 @@ async function getDashboardMetricsWithFullQuery(companyId: string): Promise<Dash
         return { inventoryValue: 0, deadStockValue: 0, lowStockCount: 0, totalSKUs: 0, totalSuppliers: suppliersCount || 0, totalSalesValue: Math.round(totalSalesValue), salesTrendData: salesTrendData || [], inventoryByCategoryData: inventoryByCategoryData || [] };
     }
 
-    const ninetyDaysAgo = subDays(new Date(), 90);
+    const deadStockDaysAgo = subDays(new Date(), settings.dead_stock_days);
     const inventoryValue = inventory.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
-    const deadStockItems = inventory.filter(item => item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo));
+    const deadStockItems = inventory.filter(item => item.last_sold_date && isBefore(parseISO(item.last_sold_date), deadStockDaysAgo));
     const deadStockValue = deadStockItems.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
     const lowStockCount = inventory.filter(item => (item.quantity || 0) <= (item.reorder_point || 0)).length;
 
@@ -227,12 +289,13 @@ export async function getInventoryItems(companyId: string): Promise<InventoryIte
 
 export async function getDeadStockFromDB(companyId: string): Promise<InventoryItem[]> {
     const supabase = getServiceRoleClient();
-    const ninetyDaysAgo = subDays(new Date(), 90).toISOString();
+    const settings = await getCompanySettings(companyId);
+    const deadStockDaysAgo = subDays(new Date(), settings.dead_stock_days).toISOString();
     const { data, error } = await supabase
         .from('inventory')
         .select('*')
         .eq('company_id', companyId)
-        .lt('last_sold_date', ninetyDaysAgo);
+        .lt('last_sold_date', deadStockDaysAgo);
 
     if (error) {
         console.error('Error fetching dead stock:', error);
@@ -357,12 +420,15 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     
     const startTime = performance.now();
     // Alerts are derived data, so we fetch the source of truth first.
-    const inventory = await getInventoryItems(companyId);
+    const [settings, inventory] = await Promise.all([
+        getCompanySettings(companyId),
+        getInventoryItems(companyId)
+    ]);
     const endTime = performance.now();
     await trackDbQueryPerformance('getAlertsFromDB', endTime - startTime);
 
     const alerts: Alert[] = [];
-    const ninetyDaysAgo = subDays(new Date(), 90);
+    const deadStockDaysAgo = subDays(new Date(), settings.dead_stock_days);
 
     inventory.forEach(item => {
         // Low Stock Alert
@@ -385,12 +451,12 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         }
 
         // Dead Stock Alert
-        if (item.last_sold_date && isBefore(parseISO(item.last_sold_date), ninetyDaysAgo)) {
+        if (item.last_sold_date && isBefore(parseISO(item.last_sold_date), deadStockDaysAgo)) {
              alerts.push({
                 id: `dead-${item.id}`,
                 type: 'dead_stock',
                 title: 'Dead Stock',
-                message: `${item.name} has not sold in over 90 days.`,
+                message: `${item.name} has not sold in over ${settings.dead_stock_days} days.`,
                 severity: 'info',
                 timestamp: new Date().toISOString(),
                 metadata: {

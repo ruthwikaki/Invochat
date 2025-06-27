@@ -1,4 +1,5 @@
 
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -112,4 +113,15 @@ export type DashboardMetrics = {
     totalSalesValue: number;
     salesTrendData: { date: string; Sales: number }[];
     inventoryByCategoryData: { name: string; value: number }[];
+};
+
+export type CompanySettings = {
+  company_id: string;
+  dead_stock_days: number;
+  overstock_multiplier: number;
+  high_value_threshold: number;
+  fast_moving_days: number;
+  custom_rules: Record<string, any> | null;
+  created_at?: string;
+  updated_at?: string;
 };

@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
-import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery } from '@/services/database';
+import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getCompanySettings } from '@/services/database';
 import { APP_CONFIG } from '@/config/app-config';
 
 const model = 'gemini-1.5-pro'; // Use a powerful model for better reasoning
@@ -238,15 +238,17 @@ const universalChatOrchestrator = ai.defineFlow(
         `Table: ${table.tableName} | Columns: ${table.rows.length > 0 ? Object.keys(table.rows[0]).join(', ') : 'No columns detected or table is empty'}`
     ).join('\n');
     
-    const { businessLogic } = APP_CONFIG;
+    const settings = await getCompanySettings(companyId);
+    const { businessLogic } = APP_CONFIG; // For seasonalCategories, which aren't in settings yet
+    
     const semanticLayer = `
-      - "Dead stock": inventory items where 'last_sold_date' is more than ${businessLogic.deadStockDays} days ago.
+      - "Dead stock": inventory items where 'last_sold_date' is more than ${settings.dead_stock_days} days ago.
       - "Low stock": inventory items where 'quantity' <= 'reorder_point'.
       - "Revenue" or "Sales": calculated from 'sales.total_amount'.
       - "Inventory Value": calculated by SUM(inventory.quantity * inventory.cost).
-      - "Fast-moving items": products sold in the last ${businessLogic.fastMovingDays} days.
-      - "Overstock": items with quantity > (reorder_point * ${businessLogic.overstockMultiplier}).
-      - "High-value items": products where cost > ${businessLogic.highValueThreshold}.
+      - "Fast-moving items": products sold in the last ${settings.fast_moving_days} days.
+      - "Overstock": items with quantity > (reorder_point * ${settings.overstock_multiplier}).
+      - "High-value items": products where cost > ${settings.high_value_threshold}.
       - "Seasonal items": products with category in (${businessLogic.seasonalCategories.map(c => `'${c}'`).join(', ')}).
     `;
 

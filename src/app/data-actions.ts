@@ -10,9 +10,11 @@ import {
     getDeadStockPageData,
     getSuppliersFromDB,
     getAlertsFromDB,
-    getDatabaseSchemaAndData as getDbSchemaAndData
+    getDatabaseSchemaAndData as getDbSchemaAndData,
+    getCompanySettings as getSettings,
+    updateCompanySettings as updateSettings,
 } from '@/services/database';
-import type { User } from '@/types';
+import type { User, CompanySettings } from '@/types';
 import { ai } from '@/ai/genkit';
 import { APP_CONFIG } from '@/config/app-config';
 
@@ -88,6 +90,16 @@ export async function getAlertsData() {
 export async function getDatabaseSchemaAndData() {
     const companyId = await getCompanyIdForCurrentUser();
     return getDbSchemaAndData(companyId);
+}
+
+export async function getCompanySettings(): Promise<CompanySettings> {
+    const companyId = await getCompanyIdForCurrentUser();
+    return getSettings(companyId);
+}
+
+export async function updateCompanySettings(settings: Partial<Omit<CompanySettings, 'company_id'>>): Promise<CompanySettings> {
+    const companyId = await getCompanyIdForCurrentUser();
+    return updateSettings(companyId, settings);
 }
 
 export async function testSupabaseConnection(): Promise<{
