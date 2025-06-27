@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { AlertCircle, CheckCircle, UploadCloud } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
+import Confetti from 'react-confetti';
 
 type Step = 1 | 2 | 3;
 type ParsedRow = Record<string, string | number>;
@@ -23,6 +24,20 @@ const INVOCHAT_FIELDS = {
   cost: 'Unit Cost',
 };
 type InvochatFieldKey = keyof typeof INVOCHAT_FIELDS;
+
+// Simple hook to get window size
+function useWindowSize() {
+  const [size, setSize] = useState([0, 0]);
+  useEffect(() => {
+    function updateSize() {
+      setSize([window.innerWidth, window.innerHeight]);
+    }
+    window.addEventListener('resize', updateSize);
+    updateSize();
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+  return { width: size[0], height: size[1] };
+}
 
 export default function ImportPage() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
@@ -37,6 +52,8 @@ export default function ImportPage() {
   });
   const [isParsing, setIsParsing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const { width, height } = useWindowSize();
   const { toast } = useToast();
 
   const handleFileDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -169,6 +186,9 @@ export default function ImportPage() {
         description: `${result.count} products have been imported.`
       });
       
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 6000); // Hide confetti after 6 seconds
+
       // Reset state for another import
       setCurrentStep(1);
       setFile(null);
@@ -342,6 +362,7 @@ export default function ImportPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+      {showConfetti && <Confetti width={width} height={height} recycle={false} numberOfPieces={500} />}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SidebarTrigger className="md:hidden" />

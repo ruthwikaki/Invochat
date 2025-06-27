@@ -5,6 +5,8 @@ import { Pie, PieChart, ResponsiveContainer, Tooltip, Cell, Legend } from 'recha
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PieChart as PieChartIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion, useInView } from 'framer-motion';
+import { useRef } from 'react';
 
 type InventoryCategoryChartProps = {
   data: { name: string; value: number }[];
@@ -29,52 +31,63 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
 
 
 export function InventoryCategoryChart({ data, className }: InventoryCategoryChartProps) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, amount: 0.3 });
+
   return (
-    <Card className={cn(className)}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-            <PieChartIcon className="h-5 w-5 text-primary" />
-            Inventory Value by Category
-        </CardTitle>
-        <CardDescription>Distribution of inventory value across categories</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="h-80 w-full">
-            {data && data.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                    <Pie
-                    data={data}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius="80%"
-                    labelLine={false}
-                    label={renderCustomizedLabel}
-                    animationDuration={900}
-                    >
-                    {data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke={COLORS[index % COLORS.length]} />
-                    ))}
-                    </Pie>
-                    <Tooltip
-                        contentStyle={{
-                            backgroundColor: 'hsl(var(--background))',
-                            borderColor: 'hsl(var(--border))',
-                        }}
-                        formatter={(value: number, name: string) => [value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), name]}
-                    />
-                    <Legend iconSize={10} />
-                </PieChart>
-                </ResponsiveContainer>
-            ) : (
-                <div className="flex h-full items-center justify-center text-muted-foreground">
-                    No inventory data with categories found.
-                </div>
-            )}
-        </div>
-      </CardContent>
-    </Card>
+    <motion.div
+        ref={ref}
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: isInView ? 1 : 0, y: isInView ? 0 : 50 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className={cn(className)}
+    >
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+                <PieChartIcon className="h-5 w-5 text-primary" />
+                Inventory Value by Category
+            </CardTitle>
+            <CardDescription>Distribution of inventory value across categories</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80 w-full">
+                {data && data.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie
+                        data={data}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius="80%"
+                        labelLine={false}
+                        label={renderCustomizedLabel}
+                        animationDuration={isInView ? 900 : 0}
+                        >
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke={COLORS[index % COLORS.length]} />
+                        ))}
+                        </Pie>
+                        <Tooltip
+                            contentStyle={{
+                                backgroundColor: 'hsl(var(--background))',
+                                borderColor: 'hsl(var(--border))',
+                            }}
+                            formatter={(value: number, name: string) => [value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), name]}
+                        />
+                        <Legend iconSize={10} />
+                    </PieChart>
+                    </ResponsiveContainer>
+                ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                        No inventory data with categories found.
+                    </div>
+                )}
+            </div>
+          </CardContent>
+        </Card>
+    </motion.div>
   );
 }
