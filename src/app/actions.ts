@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { cookies } from 'next/headers';
 import { redisClient, isRedisEnabled } from '@/lib/redis';
 import crypto from 'crypto';
+import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss } from '@/services/monitoring';
 
 /**
  * Transforms raw data from the AI/database into a format that our charting library can understand.
@@ -146,6 +147,7 @@ export async function handleUserMessage(
             const cachedResponse = await redisClient.get(cacheKey);
             if (cachedResponse) {
                 console.log(`[Cache] HIT for AI query: ${cacheKey}`);
+                await incrementCacheHit('ai_query');
                 const parsedResult: Omit<Message, 'id' | 'timestamp'> = JSON.parse(cachedResponse);
                 // Rehydrate with a fresh ID and timestamp
                 return {
@@ -156,6 +158,7 @@ export async function handleUserMessage(
                 };
             }
             console.log(`[Cache] MISS for AI query: ${cacheKey}`);
+            await incrementCacheMiss('ai_query');
         } catch (e) {
             console.error(`[Redis] Error getting cached query for ${cacheKey}:`, e);
         }
@@ -167,10 +170,13 @@ export async function handleUserMessage(
       content: msg.content
     }));
     
+    const startTime = performance.now();
     const flowResponse = await universalChatFlow({
       companyId,
       conversationHistory: historyForAI,
     });
+    const endTime = performance.now();
+    await trackAiQueryPerformance(userQuery, endTime - startTime);
     
     const parsedResponse = UniversalChatOutputSchema.safeParse(flowResponse);
     if (!parsedResponse.success) {

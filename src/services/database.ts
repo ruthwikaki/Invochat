@@ -16,6 +16,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { DashboardMetrics, InventoryItem, Supplier, Alert } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled } from '@/lib/redis';
+import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
@@ -36,13 +37,17 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
         const cachedData = await redisClient.get(cacheKey);
         if (cachedData) {
             console.log(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+            await incrementCacheHit('dashboard');
             return JSON.parse(cachedData);
         }
         console.log(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+        await incrementCacheMiss('dashboard');
     } catch (error) {
         console.error(`[Redis] Error getting cache for ${cacheKey}:`, error);
     }
   }
+
+  const startTime = performance.now();
 
   const supabase = getServiceRoleClient();
   
@@ -102,6 +107,9 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     salesTrendPromise,
     inventoryByCategoryPromise
   ]);
+
+  const endTime = performance.now();
+  await trackDbQueryPerformance('getDashboardMetrics', endTime - startTime);
 
   const { data: metricsData, error: metricsError } = metricsRes;
   const { count: suppliersCount, error: suppliersError } = vendorsRes;
@@ -238,11 +246,17 @@ export async function getDeadStockPageData(companyId: string) {
     if (isRedisEnabled) {
         try {
             const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) return JSON.parse(cachedData);
+            if (cachedData) {
+                await incrementCacheHit('deadstock');
+                return JSON.parse(cachedData);
+            }
+            await incrementCacheMiss('deadstock');
         } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
     }
 
+    const startTime = performance.now();
     const deadStock = await getDeadStockFromDB(companyId);
+    
     if (deadStock.length === 0) {
         return { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
     }
@@ -257,6 +271,9 @@ export async function getDeadStockPageData(companyId: string) {
         return sum;
     }, 0);
     const averageAge = deadStock.length > 0 ? totalAgeInDays / deadStock.length : 0;
+    
+    const endTime = performance.now();
+    await trackDbQueryPerformance('getDeadStockPageData', endTime - startTime);
 
     const result = {
         deadStock,
@@ -283,15 +300,23 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
     if (isRedisEnabled) {
         try {
             const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) return JSON.parse(cachedData);
+            if (cachedData) {
+                await incrementCacheHit('suppliers');
+                return JSON.parse(cachedData);
+            }
+            await incrementCacheMiss('suppliers');
         } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
     }
 
+    const startTime = performance.now();
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('vendors')
         .select('id, vendor_name, contact_info, address, terms, account_number')
         .eq('company_id', companyId);
+    
+    const endTime = performance.now();
+    await trackDbQueryPerformance('getSuppliersFromDB', endTime - startTime);
 
     if (error) {
         console.error('Error fetching suppliers from DB', error);
@@ -322,12 +347,19 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     if (isRedisEnabled) {
         try {
             const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) return JSON.parse(cachedData);
+            if (cachedData) {
+                await incrementCacheHit('alerts');
+                return JSON.parse(cachedData);
+            }
+            await incrementCacheMiss('alerts');
         } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
     }
     
+    const startTime = performance.now();
     // Alerts are derived data, so we fetch the source of truth first.
     const inventory = await getInventoryItems(companyId);
+    const endTime = performance.now();
+    await trackDbQueryPerformance('getAlertsFromDB', endTime - startTime);
 
     const alerts: Alert[] = [];
     const ninetyDaysAgo = subDays(new Date(), 90);
