@@ -7,6 +7,8 @@ import type { Message } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
+import { redisClient, isRedisEnabled } from '@/lib/redis';
+import crypto from 'crypto';
 
 /**
  * Transforms raw data from the AI/database into a format that our charting library can understand.
@@ -129,14 +131,38 @@ export async function handleUserMessage(
   }
   
   const { conversationHistory } = parsedPayload.data;
+  const userQuery = conversationHistory[conversationHistory.length - 1]?.content || '';
   
   try {
     const companyId = await getCompanyIdForCurrentUser();
+
+    // Check cache for previous response to this query
+    if (isRedisEnabled && userQuery) {
+        const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
+        const cacheKey = `company:${companyId}:query:${queryHash}`;
+        try {
+            const cachedResponse = await redisClient.get(cacheKey);
+            if (cachedResponse) {
+                console.log(`[Cache] HIT for AI query: ${cacheKey}`);
+                const parsedResult: Omit<Message, 'id' | 'timestamp'> = JSON.parse(cachedResponse);
+                // Rehydrate with a fresh ID and timestamp
+                return {
+                    ...parsedResult,
+                    id: Date.now().toString(),
+                    timestamp: Date.now(),
+                    role: 'assistant', // ensure role is set
+                };
+            }
+            console.log(`[Cache] MISS for AI query: ${cacheKey}`);
+        } catch (e) {
+            console.error(`[Redis] Error getting cached query for ${cacheKey}:`, e);
+        }
+    }
     
     // Convert Message[] to the format needed by AI
     const historyForAI = conversationHistory.map(msg => ({
       role: msg.role as 'user' | 'assistant',
-      content: msg.content // This is always a string now
+      content: msg.content
     }));
     
     const flowResponse = await universalChatFlow({
@@ -186,6 +212,20 @@ export async function handleUserMessage(
           };
         }
       }
+    }
+
+    // Cache the successful result in Redis
+    if (isRedisEnabled && userQuery && message.content && !message.content.toLowerCase().includes('error')) {
+        const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
+        const cacheKey = `company:${companyId}:query:${queryHash}`;
+        try {
+            // Remove fields that should be dynamic on retrieval
+            const { id, timestamp, ...cacheableMessage } = message;
+            await redisClient.set(cacheKey, JSON.stringify(cacheableMessage), 'EX', 3600); // Cache for 1 hour
+            console.log(`[Cache] SET for AI query: ${cacheKey}`);
+        } catch (e) {
+            console.error(`[Redis] Error setting cached query for ${cacheKey}:`, e);
+        }
     }
     
     return message;
