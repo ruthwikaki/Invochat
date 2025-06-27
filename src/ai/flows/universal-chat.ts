@@ -116,6 +116,10 @@ const _universalChatFlow = ai.defineFlow({
   
   try {
     console.log('[UniversalChat] Calling AI.generate...');
+    console.log('[UniversalChat] Model:', APP_CONFIG.ai.model);
+    console.log('[UniversalChat] Tools passed:', [executeSQLTool].map(t => t.name));
+    console.log('[UniversalChat] Last user message:', conversationHistory[conversationHistory.length - 1]?.content);
+
     const modelResponse = await ai.generate({
       model: APP_CONFIG.ai.model,
       tools: [executeSQLTool],
@@ -148,7 +152,14 @@ const _universalChatFlow = ai.defineFlow({
       state: input, 
     });
 
-    console.log('[UniversalChat] AI response received:', JSON.stringify(modelResponse.output, null, 2));
+    console.log('[UniversalChat] Model response structure:', {
+      hasOutput: !!modelResponse.output,
+      outputKeys: modelResponse.output ? Object.keys(modelResponse.output) : [],
+      hasToolCalls: !!modelResponse.toolCalls && modelResponse.toolCalls.length > 0,
+      toolCalls: modelResponse.toolCalls,
+    });
+    console.log('[UniversalChat] AI output object:', JSON.stringify(modelResponse.output, null, 2));
+
 
     const output = modelResponse.output;
     
