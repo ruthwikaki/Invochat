@@ -58,7 +58,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     
     const { data: newData, error: insertError } = await supabase
         .from('company_settings')
-        .upsert(defaultSettingsData)
+        .upsert(defaultSettingsData) // Use upsert to avoid race conditions
         .select()
         .single();
     
@@ -182,9 +182,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   
   // Check for an error from the materialized view query specifically
   if (metricsError && metricsError.code === '42P01') { // 42P01: undefined_table
-      console.warn('[Dashboard] Materialized view `company_dashboard_metrics` not found. Falling back to full query. Run the setup SQL for better performance.');
+      console.warn('[Dashboard] Materialized view `company_dashboard_metrics` not found. Falling back to a slower, full query. Run the setup SQL for better performance.');
       // If the view doesn't exist, we must fall back to the full query.
-      // This is a simplified fallback for demonstration. A production app might handle this more robustly.
       return getDashboardMetricsWithFullQuery(companyId);
   }
 
@@ -224,6 +223,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
 // Fallback function if materialized view does not exist.
 async function getDashboardMetricsWithFullQuery(companyId: string): Promise<DashboardMetrics> {
+  console.log('[Dashboard] Executing getDashboardMetricsWithFullQuery fallback.');
   const supabase = getServiceRoleClient();
   const settings = await getCompanySettings(companyId);
   
@@ -245,7 +245,7 @@ async function getDashboardMetricsWithFullQuery(companyId: string): Promise<Dash
     inventoryByCategoryRes
   ] = await Promise.all([inventoryPromise, vendorsPromise, salesPromise, salesTrendPromise, inventoryByCategoryPromise]);
 
-  const { data: inventory, error: inventoryError } = inventoryRes;
+    const { data: inventory, error: inventoryError } = inventoryRes;
     const { count: suppliersCount, error: suppliersError } = vendorsRes;
     const { data: sales, error: salesError } = salesRes;
     const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
@@ -253,7 +253,7 @@ async function getDashboardMetricsWithFullQuery(companyId: string): Promise<Dash
 
     const firstError = inventoryError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
     if (firstError) {
-        console.error('Dashboard data fetching error:', firstError);
+        console.error('Dashboard data fetching error (fallback):', firstError);
         throw new Error(firstError.message);
     }
      const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
@@ -548,7 +548,7 @@ export async function getQueryPatternsForCompany(
 
 /**
  * Saves a successful query pattern to the database to be used for future learning.
- * This function performs an "upsert" by calling a database function.
+ * This function performs an "upsert" by first checking if a pattern exists.
  * @param companyId The ID of the company.
  * @param userQuestion The user's original question.
  * @param sqlQuery The successful SQL query that was executed.
@@ -560,17 +560,51 @@ export async function saveSuccessfulQuery(
 ): Promise<void> {
     const supabase = getServiceRoleClient();
 
-    // This RPC function encapsulates the upsert logic in the database for atomicity.
-    const { error } = await supabase.rpc('upsert_query_pattern', {
-        p_company_id: companyId,
-        p_user_question: userQuestion,
-        p_sql_query: sqlQuery
-    });
+    // Check if a pattern for this question already exists for this company
+    const { data: existingPattern, error: selectError } = await supabase
+        .from('query_patterns')
+        .select('id, usage_count')
+        .eq('company_id', companyId)
+        .eq('user_question', userQuestion)
+        .single();
 
-    if (error) {
-        // Not a critical error that should stop the user flow. Log it.
-        console.warn(`[DB Service] Could not save query pattern: ${error.message}`);
+    if (selectError && selectError.code !== 'PGRST116') { // Ignore 'no rows' error
+        console.warn(`[DB Service] Could not check for existing query pattern: ${selectError.message}`);
+        return;
+    }
+
+    if (existingPattern) {
+        // If it exists, update the usage count and last used timestamp
+        const { error: updateError } = await supabase
+            .from('query_patterns')
+            .update({
+                usage_count: (existingPattern.usage_count || 0) + 1,
+                last_used_at: new Date().toISOString(),
+                successful_sql_query: sqlQuery // Also update the query in case the AI improved it
+            })
+            .eq('id', existingPattern.id);
+
+        if (updateError) {
+            console.warn(`[DB Service] Could not update query pattern: ${updateError.message}`);
+        } else {
+            console.log(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
+        }
     } else {
-        console.log(`[DB Service] Successfully saved or updated query pattern for question: "${userQuestion}"`);
+        // If it doesn't exist, insert a new record
+        const { error: insertError } = await supabase
+            .from('query_patterns')
+            .insert({
+                company_id: companyId,
+                user_question: userQuestion,
+                successful_sql_query: sqlQuery,
+                usage_count: 1,
+                last_used_at: new Date().toISOString()
+            });
+
+        if (insertError) {
+            console.warn(`[DB Service] Could not insert new query pattern: ${insertError.message}`);
+        } else {
+            console.log(`[DB Service] Inserted new query pattern for question: "${userQuestion}"`);
+        }
     }
 }
