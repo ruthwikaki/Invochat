@@ -154,7 +154,8 @@ export default function InventoryPage() {
                   return currentInventory.map(item => item.id === newItem.id ? newItem as InventoryItem : item);
               }
               if (eventType === 'DELETE') {
-                  return currentInventory.filter(item => item.id !== oldItem.id);
+                  // In Supabase, the `id` for a deleted record is in `old.id`.
+                  return currentInventory.filter(item => item.id !== (oldItem as InventoryItem).id);
               }
               return currentInventory;
           });

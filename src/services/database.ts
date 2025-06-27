@@ -234,6 +234,14 @@ export async function getDeadStockFromDB(companyId: string): Promise<InventoryIt
 }
 
 export async function getDeadStockPageData(companyId: string) {
+    const cacheKey = `company:${companyId}:deadstock`;
+    if (isRedisEnabled) {
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) return JSON.parse(cachedData);
+        } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
+    }
+
     const deadStock = await getDeadStockFromDB(companyId);
     if (deadStock.length === 0) {
         return { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
@@ -250,12 +258,20 @@ export async function getDeadStockPageData(companyId: string) {
     }, 0);
     const averageAge = deadStock.length > 0 ? totalAgeInDays / deadStock.length : 0;
 
-    return {
+    const result = {
         deadStock,
         totalValue: Math.round(totalValue),
         totalUnits,
         averageAge: Math.round(averageAge)
     };
+
+    if (isRedisEnabled) {
+      try {
+        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 300); // 5 min TTL
+      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+    }
+    
+    return result;
 }
 
 /**
@@ -263,6 +279,14 @@ export async function getDeadStockPageData(companyId: string) {
  * for a given company, ensuring a single, consistent method for data retrieval.
  */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
+    const cacheKey = `company:${companyId}:suppliers`;
+    if (isRedisEnabled) {
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) return JSON.parse(cachedData);
+        } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
+    }
+
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('vendors')
@@ -274,8 +298,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
         throw new Error(`Could not load supplier data: ${error.message}`);
     }
     
-    // Map the database fields to the consistent 'Supplier' type
-    return data?.map(v => ({
+    const result = data?.map(v => ({
         id: v.id,
         name: v.vendor_name,
         contact_info: v.contact_info,
@@ -283,10 +306,27 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
         terms: v.terms,
         account_number: v.account_number,
     })) || [];
+
+     if (isRedisEnabled) {
+      try {
+        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600); // 10 min TTL
+      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+    }
+
+    return result;
 }
 
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
+    const cacheKey = `company:${companyId}:alerts`;
+    if (isRedisEnabled) {
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) return JSON.parse(cachedData);
+        } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
+    }
+    
+    // Alerts are derived data, so we fetch the source of truth first.
     const inventory = await getInventoryItems(companyId);
 
     const alerts: Alert[] = [];
@@ -331,6 +371,12 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             });
         }
     });
+
+    if (isRedisEnabled) {
+      try {
+        await redisClient.set(cacheKey, JSON.stringify(alerts), 'EX', 60); // 1 min TTL
+      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+    }
 
     return alerts;
 }
