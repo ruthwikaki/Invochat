@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { InvochatLogo } from '../invochat-logo';
-import { MessageSquarePlus, MessageSquareText, Star, Trash2 } from 'lucide-react';
+import { MessageSquarePlus, MessageSquareText, Star } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 type ConversationSidebarProps = {
@@ -62,11 +62,15 @@ export function ConversationSidebar({
         </nav>
       </ScrollArea>
        <div className="p-2 border-t">
+          {/* Future feature:
           <Button variant="ghost" className="w-full justify-start text-muted-foreground" disabled>
             <Trash2 className="mr-2 h-4 w-4"/>
             Clear all conversations
           </Button>
+          */}
        </div>
     </aside>
   );
 }
+
+    

@@ -61,10 +61,14 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
 
 
 export async function getDashboardData() {
-    const companyId = await getCompanyIdForCurrentUser();
-    // No `if` check needed here. If getCompanyId fails, it will throw and be caught
-    // by the error boundary on the page calling this action.
-    return getDashboardMetrics(companyId);
+    try {
+        const companyId = await getCompanyIdForCurrentUser();
+        return getDashboardMetrics(companyId);
+    } catch (error) {
+        console.error('[Data Action Error] Failed to get dashboard data:', error);
+        // Re-throw the error so the calling page's error boundary can catch it.
+        throw error;
+    }
 }
 
 export async function getInventoryData() {
@@ -227,3 +231,5 @@ export async function testGenkitConnection(): Promise<{
         return { success: false, error: errorMessage, isConfigured };
     }
 }
+
+    

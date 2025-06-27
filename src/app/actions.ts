@@ -49,7 +49,7 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
 export async function getConversations(): Promise<Conversation[]> {
     try {
         const { userId, companyId } = await getAuthContext();
-        const supabase = getServiceRoleClient();
+        const supabase = getServiceRole-client();
         const { data, error } = await supabase
             .from('conversations')
             .select('*')
@@ -159,6 +159,7 @@ export async function handleUserMessage(
   try {
     const { userId, companyId } = await getAuthContext();
     let currentConversationId = initialConversationId;
+    let historyForAI: { role: 'user' | 'assistant'; content: string }[] = [];
 
     // Step 1: Find or Create Conversation
     if (!currentConversationId) {
@@ -174,6 +175,20 @@ export async function handleUserMessage(
         
         if (convoError) throw new Error(`Could not create conversation: ${convoError.message}`);
         currentConversationId = newConvo.id;
+    } else {
+        // If conversation exists, fetch its history for AI context
+        const { data: history, error: historyError } = await supabase
+            .from('messages')
+            .select('role, content')
+            .eq('conversation_id', currentConversationId)
+            .order('created_at', { ascending: false })
+            .limit(APP_CONFIG.ai.historyLimit);
+
+        if (historyError) throw new Error("Could not fetch conversation history.");
+        historyForAI = (history || []).reverse().map(msg => ({
+            role: msg.role as 'user' | 'assistant',
+            content: msg.content
+        }));
     }
 
     if (!currentConversationId) {
@@ -188,22 +203,10 @@ export async function handleUserMessage(
         content: userQuery,
     });
     
-    // Step 3: Fetch history for AI context
-    const { data: history, error: historyError } = await supabase
-        .from('messages')
-        .select('role, content')
-        .eq('conversation_id', currentConversationId)
-        .order('created_at', { ascending: false })
-        .limit(APP_CONFIG.ai.historyLimit);
-
-    if (historyError) throw new Error("Could not fetch conversation history.");
-
-    const historyForAI = (history || []).reverse().map(msg => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content
-    }));
-
-    // Step 4: Call the AI flow (check cache first)
+    // Add the new user message to the history for the AI call
+    historyForAI.push({ role: 'user', content: userQuery });
+    
+    // Step 3: Call the AI flow (check cache first)
     let flowResponse;
     const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
     const cacheKey = `company:${companyId}:query:${queryHash}`;
@@ -237,7 +240,7 @@ export async function handleUserMessage(
     }
     const responseData = parsedResponse.data;
     
-    // Step 5: Construct and save the assistant's message
+    // Step 4: Construct and save the assistant's message
     const assistantMessage: Omit<Message, 'id' | 'created_at'> = {
       conversation_id: currentConversationId,
       role: 'assistant',
@@ -265,7 +268,7 @@ export async function handleUserMessage(
     
     if (saveMsgError) throw new Error(`Could not save assistant message: ${saveMsgError.message}`);
     
-    // Step 6: Cache the successful result in Redis if it wasn't a cache hit
+    // Step 5: Cache the successful result in Redis if it wasn't a cache hit
     if (isRedisEnabled && !redisClient.get(cacheKey) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
         try {
             await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', 3600); // Cache for 1 hour
@@ -288,3 +291,5 @@ export async function handleUserMessage(
     return { error: getErrorMessage(error) };
   }
 }
+
+    

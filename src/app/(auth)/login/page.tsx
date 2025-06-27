@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -98,12 +97,6 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             <Link href="/signup" className="font-semibold text-primary hover:underline">
               Sign up
             </Link>
-          </div>
-
-           <div className="mt-8 text-center text-xs text-muted-foreground">
-              <Link href="#" className="hover:underline">Terms of Service</Link>
-              <span className="mx-2">·</span>
-              <Link href="#" className="hover:underline">Privacy Policy</Link>
           </div>
       </div>
     </main>
