@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { InvochatLogo } from '../invochat-logo';
 import { MessageSquarePlus, MessageSquareText, Star } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { Sidebar } from '@/components/ui/sidebar';
 
 type ConversationSidebarProps = {
   conversations: Conversation[];
@@ -20,7 +21,8 @@ export function ConversationSidebar({
   activeConversationId,
 }: ConversationSidebarProps) {
   return (
-    <aside className="hidden md:flex flex-col w-80 h-full border-r bg-background">
+    // Use the responsive Sidebar component which handles mobile (Sheet) and desktop layouts
+    <Sidebar className="w-80 flex-col border-r bg-background">
       <div className="p-4 border-b flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
             <InvochatLogo className="h-7 w-7" />
@@ -69,8 +71,6 @@ export function ConversationSidebar({
           </Button>
           */}
        </div>
-    </aside>
+    </Sidebar>
   );
 }
-
-    

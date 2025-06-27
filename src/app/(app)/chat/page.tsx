@@ -18,11 +18,13 @@ export default async function ChatPage({
 
   return (
     <div className="flex h-full">
+      {/* This component now contains the responsive Sidebar that works on mobile */}
       <ConversationSidebar
         conversations={conversations}
         activeConversationId={conversationId}
       />
       <main className="flex-1 flex flex-col h-full">
+        {/* The mobile header with a now-functional trigger */}
         <div className="flex md:hidden items-center p-4 border-b shrink-0">
           <SidebarTrigger />
           <h1 className="text-xl font-semibold ml-2">Conversations</h1>
