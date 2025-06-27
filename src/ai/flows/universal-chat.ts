@@ -25,8 +25,7 @@ import {
  */
 const executeSQLTool = ai.defineTool({
   name: 'executeSQL',
-  description: `Executes a read-only SQL SELECT query against the company's database and returns the result as a JSON array.
-    Use this tool to answer any question about inventory, suppliers, sales, or business data by constructing a valid SQL query.`,
+  description: `Executes a read-only SQL SELECT query to answer questions about inventory, suppliers, and sales data.`,
   inputSchema: z.object({
     query: z.string().describe("The SQL SELECT query to execute. It MUST contain the `company_id = 'COMPANY_ID_PLACEHOLDER'` clause."),
   }),
@@ -147,6 +146,9 @@ const _universalChatFlow = ai.defineFlow({
       - **purchase_orders**: Tracks orders placed with vendors. Columns: \`id, po_number, vendor, item, quantity, cost, order_date\`.`,
       output: {
         schema: UniversalChatOutputSchema
+      },
+      config: {
+        toolChoice: 'auto'
       },
       // This is the correct way to pass request-scoped context to tools.
       state: input, 
