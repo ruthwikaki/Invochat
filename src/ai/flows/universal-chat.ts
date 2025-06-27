@@ -41,7 +41,9 @@ const sqlGenerationPrompt = ai.definePrompt({
 
     CRITICAL GENERATION RULES:
     1.  **Security First**: The query MUST be a read-only SELECT statement. It MUST include a WHERE clause to filter by the user's company: \`company_id = '{{companyId}}'\`.
-    2.  **Advanced SQL**: For complex requests (e.g., trends, comparisons), use Common Table Expressions (CTEs) or window functions.
+    2.  **Use Advanced SQL for Analytics**: For any queries that involve trends, comparisons, rankings, or multi-step calculations (e.g., "top 5 products by sales growth", "compare this month's sales to last month"), you MUST use advanced SQL features.
+        - **Common Table Expressions (CTEs)** are required to break down complex logic into readable steps.
+        - **Window Functions** (like \`RANK()\`, \`LEAD()\`, \`LAG()\`) should be used for rankings and trend analysis.
     3.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
     4.  **Output**: Respond with a JSON object containing 'sqlQuery' and 'reasoning'. The 'sqlQuery' must be ONLY the SQL string, without any markdown or trailing semicolons.
   `,
