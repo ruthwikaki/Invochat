@@ -4,14 +4,16 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type SalesTrendChartProps = {
   data: { date: string; Sales: number }[];
+  className?: string;
 };
 
-export function SalesTrendChart({ data }: SalesTrendChartProps) {
+export function SalesTrendChart({ data, className }: SalesTrendChartProps) {
   return (
-    <Card>
+    <Card className={cn(className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5 text-primary" />

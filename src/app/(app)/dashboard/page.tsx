@@ -18,42 +18,53 @@ function formatCurrency(value: number) {
     return `$${value.toFixed(0)}`;
 }
 
-function MetricCard({ title, value, icon: Icon, variant = 'default', label }: { title: string; value: string; icon: React.ElementType; variant?: 'default' | 'destructive' | 'success' | 'warning'; label?: string; }) {
-  const variantClasses = {
-      default: '',
-      destructive: 'border-destructive/50 text-destructive',
-      success: 'border-success/50 text-success',
-      warning: 'border-warning/50 text-warning',
-  }
-
+function MetricCard({
+    title,
+    value,
+    icon: Icon,
+    label,
+    href,
+    className
+}: {
+    title: string;
+    value: string;
+    icon: React.ElementType;
+    label?: string;
+    href: string;
+    className?: string;
+}) {
   return (
-    <Card className={cn('transition-all hover:shadow-md hover:-translate-y-1', variantClasses[variant])}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-5 w-5 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {label && <p className="text-xs text-muted-foreground">{label}</p>}
-      </CardContent>
-    </Card>
+    <Link href={href} className={cn("group relative block overflow-hidden rounded-xl", className)}>
+        <div className="absolute inset-0 z-0 bg-gradient-to-br from-card/80 to-muted/50 backdrop-blur-sm transition-all duration-300 group-hover:opacity-50" />
+        <div className="absolute -right-12 -bottom-12 z-0 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-all duration-500 group-hover:h-36 group-hover:w-36 group-hover:bg-primary/20" />
+        <Card className="relative z-10 h-full border-white/10 bg-white/5 backdrop-blur-sm transition-all duration-300 group-hover:bg-card/30 group-hover:shadow-2xl group-hover:shadow-primary/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+            <Icon className="h-5 w-5 text-muted-foreground transition-transform group-hover:scale-125 group-hover:text-primary" />
+            </CardHeader>
+            <CardContent>
+            <div className="text-3xl font-bold text-foreground">{value}</div>
+            {label && <p className="text-xs text-muted-foreground">{label}</p>}
+            </CardContent>
+        </Card>
+    </Link>
   );
 }
 
 function ErrorDisplay({ error }: { error: Error }) {
     return (
-        <Card className="col-span-1 md:col-span-2 lg:col-span-3 border-destructive/50">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-destructive/50 bg-destructive/10">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="h-5 w-5" />
                     Could Not Load Dashboard Data
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-destructive/80">
                     There was an issue fetching the dashboard metrics. This might be a temporary problem or an issue with your account configuration.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <p className="text-sm font-mono bg-muted p-2 rounded-md">{error.message}</p>
+                <p className="text-sm font-mono bg-destructive/20 p-2 rounded-md">{error.message}</p>
             </CardContent>
         </Card>
     )
@@ -70,77 +81,67 @@ export default async function DashboardPage() {
     }
 
     return (
-        <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <SidebarTrigger className="md:hidden" />
-                    <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <div className="min-h-full bg-gradient-to-br from-background via-background to-muted/30">
+            <div className="animate-fade-in p-4 sm:p-6 lg:p-8 space-y-6">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <SidebarTrigger className="md:hidden" />
+                        <h1 className="text-2xl font-semibold">Dashboard</h1>
+                    </div>
                 </div>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {fetchError ? (
-                    <ErrorDisplay error={fetchError} />
-                ) : data ? (
-                    <>
-                        <Link href="/inventory" className="transition-all hover:shadow-md hover:-translate-y-1">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {fetchError ? (
+                        <ErrorDisplay error={fetchError} />
+                    ) : data ? (
+                        <>
                             <MetricCard
+                                href="/inventory"
                                 title="Total Inventory Value"
                                 value={formatCurrency(data.inventoryValue)}
                                 icon={DollarSign}
-                                variant="success"
+                                className="sm:col-span-2"
                             />
-                        </Link>
-                        <Link href="/analytics" className="transition-all hover:shadow-md hover:-translate-y-1">
                             <MetricCard
+                                href="/analytics"
                                 title="Total Sales"
                                 value={formatCurrency(data.totalSalesValue)}
                                 icon={BarChart}
                                 label="All-time sales data"
+                                className="sm:col-span-2"
                             />
-                        </Link>
-                         <Link href="/dead-stock" className="transition-all hover:shadow-md hover:-translate-y-1">
                             <MetricCard
+                                href="/dead-stock"
                                 title="Dead Stock Value"
                                 value={formatCurrency(data.deadStockValue)}
                                 icon={TrendingDown}
-                                variant="destructive"
                             />
-                        </Link>
-                         <Link href="/alerts" className="transition-all hover:shadow-md hover:-translate-y-1">
                             <MetricCard
+                                href="/alerts"
                                 title="Low Stock Items"
                                 value={data.lowStockCount.toString()}
                                 icon={AlertCircle}
-                                variant="warning"
-                                label="Items at or below reorder point"
+                                label="Items below reorder point"
                             />
-                        </Link>
-                        <Link href="/inventory" className="transition-all hover:shadow-md hover:-translate-y-1">
                             <MetricCard
+                                href="/inventory"
                                 title="Total SKUs"
                                 value={data.totalSKUs.toString()}
                                 icon={Package}
-                                label="Unique products in inventory"
                             />
-                        </Link>
-                        <Link href="/suppliers" className="transition-all hover:shadow-md hover:-translate-y-1">
                             <MetricCard
+                                href="/suppliers"
                                 title="Total Suppliers"
                                 value={data.totalSuppliers.toString()}
                                 icon={Truck}
                             />
-                        </Link>
-                    </>
-                ) : null}
+                            
+                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-4" />
+                            <InventoryCategoryChart data={data.inventoryByCategoryData} className="sm:col-span-2 lg:col-span-4" />
+                        </>
+                    ) : null}
+                </div>
             </div>
-            
-            {data && !fetchError && (
-              <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-                  <SalesTrendChart data={data.salesTrendData} />
-                  <InventoryCategoryChart data={data.inventoryByCategoryData} />
-              </div>
-            )}
         </div>
     );
 }

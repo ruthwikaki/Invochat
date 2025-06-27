@@ -4,9 +4,11 @@
 import { Pie, PieChart, ResponsiveContainer, Tooltip, Cell, Legend } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PieChart as PieChartIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type InventoryCategoryChartProps = {
   data: { name: string; value: number }[];
+  className?: string;
 };
 
 const COLORS = ['#6B46C1', '#475569', '#10B981', '#F59E0B', '#F43F5E', '#3B82F6'];
@@ -26,9 +28,9 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
 };
 
 
-export function InventoryCategoryChart({ data }: InventoryCategoryChartProps) {
+export function InventoryCategoryChart({ data, className }: InventoryCategoryChartProps) {
   return (
-    <Card>
+    <Card className={cn(className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
             <PieChartIcon className="h-5 w-5 text-primary" />
