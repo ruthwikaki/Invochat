@@ -45,7 +45,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     WHERE company_id = '${companyId}'
     GROUP BY 1
     ORDER BY 1 ASC
-    LIMIT 30;
+    LIMIT 30
   `;
   const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery });
   
@@ -57,7 +57,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     WHERE company_id = '${companyId}'
     GROUP BY 1
     HAVING SUM(quantity * cost) > 0
-    ORDER BY 2 DESC;
+    ORDER BY 2 DESC
   `;
   const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery });
 
