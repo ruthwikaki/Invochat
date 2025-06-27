@@ -91,11 +91,13 @@ const _universalChatFlow = ai.defineFlow({
   inputSchema: UniversalChatInputSchema,
   outputSchema: UniversalChatOutputSchema,
 }, async (input) => {
-  console.log(`[UniversalChat] Starting flow for company ${input.companyId}. History length: ${input.conversationHistory.length}`);
+  const { companyId, conversationHistory } = input;
+  console.log(`[UniversalChat] Starting flow for company ${companyId}. History length: ${conversationHistory.length}`);
+  console.log('[UniversalChat] Google API Key exists:', !!process.env.GOOGLE_API_KEY);
   
   // The AI requires the history to be in a specific format.
   // It must alternate between 'user' and 'model' roles.
-  let geminiHistory = input.conversationHistory
+  let geminiHistory = conversationHistory
       .map((msg) => ({
           role: msg.role === 'assistant' ? ('model' as const) : ('user' as const),
           content: [{ text: msg.content }], // Wrap content in the required structure.
@@ -113,11 +115,12 @@ const _universalChatFlow = ai.defineFlow({
   }
   
   try {
+    console.log('[UniversalChat] Calling AI.generate...');
     const modelResponse = await ai.generate({
       model: APP_CONFIG.ai.model,
       tools: [executeSQLTool],
       history: geminiHistory,
-      prompt: "You MUST use the executeSQL tool to respond to the user's last message.",
+      prompt: `User asked: "${conversationHistory[conversationHistory.length - 1]?.content}". You MUST use the executeSQL tool to query the database and answer this question. Do not respond without using the tool first.`,
       system: `You are ARVO, an expert AI inventory management analyst. Your ONLY function is to answer user questions about business data by generating and executing SQL queries. You must base ALL responses strictly on data returned from the 'executeSQL' tool.
 
       **CRITICAL INSTRUCTIONS - YOU MUST FOLLOW THESE:**
@@ -144,6 +147,8 @@ const _universalChatFlow = ai.defineFlow({
       // This is the correct way to pass request-scoped context to tools.
       state: input, 
     });
+
+    console.log('[UniversalChat] AI response received:', JSON.stringify(modelResponse.output, null, 2));
 
     const output = modelResponse.output;
     
