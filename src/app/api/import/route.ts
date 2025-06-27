@@ -2,6 +2,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
+import { invalidateCompanyCache } from '@/lib/redis';
 
 export async function POST(request: NextRequest) {
   const cookieStore = cookies();
@@ -82,6 +83,10 @@ export async function POST(request: NextRequest) {
         error: `Import failed: ${insertError.message}` 
       }, { status: 400 });
     }
+    
+    // NEW: Invalidate relevant caches on successful import
+    // This is a "fire-and-forget" operation; we don't want a cache failure to break the import.
+    await invalidateCompanyCache(userRecord.company_id, ['dashboard', 'alerts', 'deadstock']);
     
     // Return success with count
     return NextResponse.json({ 
