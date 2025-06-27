@@ -29,7 +29,7 @@ export default function AppLayout({
                 y: { type: 'spring', stiffness: 300, damping: 30 },
                 opacity: { duration: 0.2 },
               }}
-              className={isChatPage ? 'h-full' : ''}
+              className="h-full"
             >
               {children}
             </motion.div>

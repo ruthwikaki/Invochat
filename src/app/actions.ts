@@ -49,7 +49,7 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
 export async function getConversations(): Promise<Conversation[]> {
     try {
         const { userId, companyId } = await getAuthContext();
-        const supabase = getServiceRole-client();
+        const supabase = getServiceRoleClient();
         const { data, error } = await supabase
             .from('conversations')
             .select('*')
@@ -175,6 +175,8 @@ export async function handleUserMessage(
         
         if (convoError) throw new Error(`Could not create conversation: ${convoError.message}`);
         currentConversationId = newConvo.id;
+        // For a new chat, the history for the AI starts with just the user's message.
+        historyForAI.push({ role: 'user', content: userQuery });
     } else {
         // If conversation exists, fetch its history for AI context
         const { data: history, error: historyError } = await supabase
@@ -189,6 +191,8 @@ export async function handleUserMessage(
             role: msg.role as 'user' | 'assistant',
             content: msg.content
         }));
+         // Add the new user message to the history for the AI call
+        historyForAI.push({ role: 'user', content: userQuery });
     }
 
     if (!currentConversationId) {
@@ -202,9 +206,6 @@ export async function handleUserMessage(
         role: 'user',
         content: userQuery,
     });
-    
-    // Add the new user message to the history for the AI call
-    historyForAI.push({ role: 'user', content: userQuery });
     
     // Step 3: Call the AI flow (check cache first)
     let flowResponse;
@@ -291,5 +292,3 @@ export async function handleUserMessage(
     return { error: getErrorMessage(error) };
   }
 }
-
-    

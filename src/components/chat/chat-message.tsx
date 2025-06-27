@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
 import { useAuth } from '@/context/auth-context';
 import { DataVisualization } from './data-visualization';
-import { BrainCircuit } from 'lucide-react';
+import { BrainCircuit, AlertTriangle } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -73,20 +73,27 @@ export function ChatMessage({
     <div className={cn("flex flex-col gap-2", isUserMessage && "items-end")}>
       <div className={cn("flex items-start gap-3 w-full", isUserMessage ? "justify-end" : "justify-start")}>
         {!isUserMessage && (
-          <InvochatLogo className="h-8 w-8 shrink-0 text-primary" />
+          message.isError ? (
+            <div className="h-8 w-8 flex items-center justify-center rounded-full bg-destructive/20 shrink-0">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+          ) : (
+            <InvochatLogo className="h-8 w-8 shrink-0 text-primary" />
+          )
         )}
         <div
           className={cn(
             'relative max-w-xl rounded-2xl px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-2',
             isUserMessage
               ? 'rounded-br-none bg-primary text-primary-foreground'
-              : 'rounded-bl-none bg-card text-card-foreground'
+              : 'rounded-bl-none bg-card text-card-foreground',
+            message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
           )}
         >
           <div className="text-base whitespace-pre-wrap">
             {isLoading ? <TypingIndicator /> : message.content}
           </div>
-          {!isUserMessage && !isLoading && (
+          {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
           )}
         </div>

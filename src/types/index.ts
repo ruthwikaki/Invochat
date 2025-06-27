@@ -38,6 +38,7 @@ export type Message = {
   confidence?: number | null;
   assumptions?: string[] | null;
   created_at: string;
+  isError?: boolean;
 };
 
 // Represents the configuration for a dynamically generated chart.

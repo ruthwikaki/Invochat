@@ -71,23 +71,32 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
         });
 
         if (response.error) {
-            toast({ variant: 'destructive', title: 'Error', description: response.error });
-            setMessages(prev => prev.filter(m => m.id !== tempId && m.id !== 'loading'));
+            const errorMessage: Message = {
+                id: `error_${Date.now()}`,
+                role: 'assistant',
+                content: response.error,
+                created_at: new Date().toISOString(),
+                conversation_id: conversationId || tempId,
+                isError: true,
+            };
+            setMessages(prev => [...prev.filter(m => m.id !== 'loading' && m.id !== tempId), errorMessage]);
+
         } else if (response.conversationId && isNewChat) {
-            // New conversation created, redirect to its URL
             router.push(`/chat?id=${response.conversationId}`);
         } else {
-            // Existing conversation, just refresh data
             router.refresh();
         }
 
       } catch (error: any) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: error.message || 'Could not get response from InvoChat.',
-        });
-        setMessages(prev => prev.filter(m => m.id !== tempId && m.id !== 'loading'));
+        const errorMessage: Message = {
+            id: `error_${Date.now()}`,
+            role: 'assistant',
+            content: error.message || 'Could not get response from InvoChat.',
+            created_at: new Date().toISOString(),
+            conversation_id: conversationId || tempId,
+            isError: true,
+        };
+        setMessages(prev => [...prev.filter(m => m.id !== 'loading' && m.id !== tempId), errorMessage]);
       }
     });
   };
