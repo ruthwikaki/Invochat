@@ -47,7 +47,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     ORDER BY 1 ASC
     LIMIT 30
   `;
-  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery });
+  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
   
   const inventoryByCategoryQuery = `
     SELECT
@@ -59,7 +59,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     HAVING SUM(quantity * cost) > 0
     ORDER BY 2 DESC
   `;
-  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery });
+  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
 
   const [
     inventoryRes,
@@ -84,7 +84,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const firstError = inventoryError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
   if (firstError) {
     console.error('Dashboard data fetching error:', firstError);
-    throw new Error(`Failed to load dashboard data: ${firstError?.message}`);
+    throw new Error(firstError.message);
   }
 
   const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
