@@ -19,7 +19,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
 import { AlertCircle, CheckCircle, Info } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAlertsData } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -48,7 +48,7 @@ function AlertCard({ alert }: { alert: Alert }) {
               Triggered {formattedDate}
             </CardDescription>
           </div>
-          <Badge variant={badgeVariant}>{alert.type.replace('_', ' ')}</Badge>
+          <Badge variant={badgeVariant}>{alert.type.replace(/_/g, ' ')}</Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -69,6 +69,7 @@ function AlertCard({ alert }: { alert: Alert }) {
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -86,6 +87,13 @@ export default function AlertsPage() {
     };
     fetchData();
   }, [toast]);
+  
+  const filteredAlerts = useMemo(() => {
+    if (filter === 'all') {
+      return alerts;
+    }
+    return alerts.filter(alert => alert.type === filter);
+  }, [alerts, filter]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -94,7 +102,7 @@ export default function AlertsPage() {
           <SidebarTrigger className="md:hidden" />
           <h1 className="text-2xl font-semibold">Alerts</h1>
         </div>
-        <Select disabled>
+        <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-full md:w-[180px]">
             <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
@@ -117,8 +125,8 @@ export default function AlertsPage() {
                     </CardContent>
                 </Card>
             ))
-        ) : alerts.length > 0 ? (
-          alerts.map((alert) => (
+        ) : filteredAlerts.length > 0 ? (
+          filteredAlerts.map((alert) => (
             <AlertCard key={alert.id} alert={alert} />
           ))
         ) : (

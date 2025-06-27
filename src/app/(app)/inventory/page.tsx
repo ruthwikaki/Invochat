@@ -29,6 +29,8 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useAuth } from '@/context/auth-context';
+import Papa from 'papaparse';
+
 
 function InventorySkeleton() {
   return Array.from({ length: 8 }).map((_, i) => (
@@ -96,7 +98,11 @@ function EmptyState() {
     );
 }
 
-function NoResultsState({ setSearch }: { setSearch: (search: string) => void }) {
+function NoResultsState({ setSearch, setCategory }: { setSearch: (search: string) => void, setCategory: (category: string) => void }) {
+    const handleClear = () => {
+        setSearch('');
+        setCategory('all');
+    };
     return (
         <motion.div 
             initial={{ opacity: 0, y: 10 }}
@@ -106,9 +112,9 @@ function NoResultsState({ setSearch }: { setSearch: (search: string) => void }) 
         >
             <Search className="h-16 w-16 text-muted-foreground" />
             <h3 className="mt-2 text-2xl font-semibold tracking-tight">No Products Found</h3>
-            <p className="max-w-xs text-muted-foreground">Your search did not match any products. Please try a different search term.</p>
-            <Button onClick={() => setSearch('')} variant="outline" className="mt-4">
-                Clear Search
+            <p className="max-w-xs text-muted-foreground">Your search and filter combination did not match any products.</p>
+            <Button onClick={handleClear} variant="outline" className="mt-4">
+                Clear Filters
             </Button>
         </motion.div>
     );
@@ -117,6 +123,7 @@ function NoResultsState({ setSearch }: { setSearch: (search: string) => void }) 
 
 export default function InventoryPage() {
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
   const [allInventory, setAllInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -148,8 +155,6 @@ export default function InventoryPage() {
     const companyId = user?.app_metadata?.company_id;
     if (!companyId) return;
 
-    // NOTE: For this to work, you must enable Realtime for the 'inventory' table
-    // in your Supabase project settings (Database > Replication).
     const supabase = createBrowserSupabaseClient();
     const channel = supabase
       .channel(`inventory-changes-for-${companyId}`)
@@ -172,7 +177,6 @@ export default function InventoryPage() {
                   return currentInventory.map(item => item.id === newItem.id ? newItem as InventoryItem : item);
               }
               if (eventType === 'DELETE') {
-                  // In Supabase, the `id` for a deleted record is in `old.id`.
                   return currentInventory.filter(item => item.id !== (oldItem as InventoryItem).id);
               }
               return currentInventory;
@@ -193,18 +197,44 @@ export default function InventoryPage() {
         }
       });
 
-    // Cleanup subscription on component unmount
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user, toast]);
 
+  const categories = useMemo(() => {
+    const uniqueCategories = [...new Set(allInventory.map(item => item.category).filter(Boolean) as string[])];
+    return ['all', ...uniqueCategories.sort()];
+  }, [allInventory]);
+
   const filteredInventory = useMemo(() => {
-    if (!search) return allInventory;
-    return allInventory.filter((item) =>
-      item.name.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [allInventory, search]);
+    return allInventory.filter((item) => {
+        const matchesCategory = category === 'all' || item.category === category;
+        const matchesSearch = !search || item.name.toLowerCase().includes(search.toLowerCase());
+        return matchesCategory && matchesSearch;
+    });
+  }, [allInventory, search, category]);
+  
+  const handleExport = () => {
+    if (filteredInventory.length === 0) {
+        toast({
+            variant: 'destructive',
+            title: 'No Data to Export',
+            description: 'There are no items in the current view to export.',
+        });
+        return;
+    }
+    const csv = Papa.unparse(filteredInventory);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'inventory_export.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
 
   return (
@@ -214,7 +244,7 @@ export default function InventoryPage() {
           <SidebarTrigger className="md:hidden" />
           <h1 className="text-2xl font-semibold">Inventory</h1>
         </div>
-        <Button>
+        <Button onClick={handleExport} disabled={loading || !!error}>
           <Download className="mr-2 h-4 w-4" />
           Export to CSV
         </Button>
@@ -232,14 +262,14 @@ export default function InventoryPage() {
               disabled={loading || !!error}
             />
           </div>
-          <Select disabled>
+          <Select value={category} onValueChange={setCategory} disabled={loading || !!error || categories.length <= 1}>
             <SelectTrigger className="w-full md:w-[180px]">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="electronics">Electronics</SelectItem>
-              <SelectItem value="furniture">Furniture</SelectItem>
-               <SelectItem value="office-supplies">Office Supplies</SelectItem>
+                {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat} className="capitalize">{cat === 'all' ? 'All Categories' : cat}</SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -277,7 +307,7 @@ export default function InventoryPage() {
                       {item.sku}
                     </TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.category}</TableCell>
+                    <TableCell className="capitalize">{item.category}</TableCell>
                     <TableCell className="text-right">
                       {item.quantity}
                     </TableCell>
@@ -288,16 +318,16 @@ export default function InventoryPage() {
                     <TableCell>{item.warehouse_name || 'N/A'}</TableCell>
                   </TableRow>
                 ))
-              ) : search ? (
-                <TableRow>
+              ) : allInventory.length === 0 ? (
+                 <TableRow>
                   <TableCell colSpan={7} className="p-0">
-                      <NoResultsState setSearch={setSearch} />
+                      <EmptyState />
                   </TableCell>
                 </TableRow>
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="p-0">
-                      <EmptyState />
+                      <NoResultsState setSearch={setSearch} setCategory={setCategory} />
                   </TableCell>
                 </TableRow>
               )}
