@@ -40,12 +40,30 @@ const sqlGenerationPrompt = ai.definePrompt({
     USER'S QUESTION: "{{userQuery}}"
 
     CRITICAL GENERATION RULES:
-    1.  **Security First**: The query MUST be a read-only SELECT statement. It MUST include a WHERE clause to filter by the user's company: \`company_id = '{{companyId}}'\`.
+    1.  **Security First**: The query MUST be a read-only SELECT statement. It MUST include a WHERE clause to filter by the user's company: \`company_id = '{{companyId}}'\`. Every table join must also filter by company_id.
     2.  **Use Advanced SQL for Analytics**: For any queries that involve trends, comparisons, rankings, or multi-step calculations (e.g., "top 5 products by sales growth", "compare this month's sales to last month"), you MUST use advanced SQL features.
         - **Common Table Expressions (CTEs)** are required to break down complex logic into readable steps.
         - **Window Functions** (like \`RANK()\`, \`LEAD()\`, \`LAG()\`) should be used for rankings and trend analysis.
-    3.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    4.  **Output**: Respond with a JSON object containing 'sqlQuery' and 'reasoning'. The 'sqlQuery' must be ONLY the SQL string, without any markdown or trailing semicolons.
+    3.  **Example of Advanced SQL**: For a question like "show me the top 3 products by sales this month", a good query would use a CTE like this:
+        \`\`\`sql
+        WITH MonthlySales AS (
+            SELECT
+                product_id,
+                SUM(total_amount) as total_sales
+            FROM sales
+            WHERE company_id = '{{companyId}}' AND sale_date >= date_trunc('month', CURRENT_DATE)
+            GROUP BY product_id
+        )
+        SELECT
+            i.name,
+            ms.total_sales
+        FROM MonthlySales ms
+        JOIN inventory i ON ms.product_id = i.id AND i.company_id = '{{companyId}}'
+        ORDER BY ms.total_sales DESC
+        LIMIT 3
+        \`\`\`
+    4.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
+    5.  **Output**: Respond with a JSON object containing 'sqlQuery' and 'reasoning'. The 'sqlQuery' must be ONLY the SQL string, without any markdown or trailing semicolons.
   `,
   config: { model },
 });
