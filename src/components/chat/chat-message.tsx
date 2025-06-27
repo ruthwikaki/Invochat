@@ -37,9 +37,7 @@ export function ChatMessage({
     <div className={cn("flex flex-col gap-2", isUserMessage && "items-end")}>
       <div className={cn("flex items-start gap-3 w-full", isUserMessage ? "justify-end" : "justify-start")}>
         {!isUserMessage && (
-          <Avatar className="h-8 w-8 shrink-0">
-            <InvochatLogo className="h-8 w-8" />
-          </Avatar>
+          <InvochatLogo className="h-8 w-8 shrink-0 text-primary" />
         )}
         <div
           className={cn(
