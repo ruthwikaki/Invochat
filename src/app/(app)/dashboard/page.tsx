@@ -34,13 +34,11 @@ function MetricCard({
     className?: string;
 }) {
   return (
-    <Link href={href} className={cn("group relative block overflow-hidden rounded-xl transition-shadow hover:shadow-primary-glow", className)}>
-        <div className="absolute inset-0 z-0 bg-gradient-to-br from-card/80 to-muted/50 backdrop-blur-md transition-all duration-300 group-hover:opacity-50" />
-        <div className="absolute -right-12 -bottom-12 z-0 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-all duration-500 group-hover:h-36 group-hover:w-36 group-hover:bg-primary/20" />
-        <Card className="relative z-10 h-full border-white/10 dark:bg-indigo-start/50 bg-white/60 backdrop-blur-md transition-all duration-300 group-hover:bg-card/30 group-hover:shadow-2xl group-hover:shadow-primary/10">
+    <Link href={href} className={cn("group block", className)}>
+        <Card className="relative h-full transition-all duration-300 group-hover:bg-card/95 group-hover:shadow-lg group-hover:-translate-y-1">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-            <Icon className="h-5 w-5 text-muted-foreground transition-transform group-hover:scale-125 group-hover:text-primary" />
+            <Icon className="h-5 w-5 text-muted-foreground transition-transform group-hover:scale-110 group-hover:text-primary" />
             </CardHeader>
             <CardContent>
             <div className="text-3xl font-bold text-foreground">{value}</div>
@@ -82,7 +80,7 @@ export default async function DashboardPage() {
 
     return (
         <div className="relative min-h-full overflow-hidden">
-            <div className="animate-background-pan absolute inset-0 z-0 bg-[length:200%_200%] bg-gradient-to-br from-primary/5 via-background to-background dark:from-indigo-start/10" />
+            <div className="animate-background-pan absolute inset-0 z-0 bg-[length:200%_200%] bg-gradient-to-br from-primary/5 via-background to-background" />
             <div className="relative z-10 p-4 sm:p-6 lg:p-8 space-y-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">

@@ -57,14 +57,13 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
   return (
-    <main className="relative flex min-h-dvh w-full items-center justify-center p-4">
+    <main className="relative flex min-h-dvh w-full items-center justify-center bg-muted/40 p-4">
        <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-center opacity-30"
           style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
           data-ai-hint="warehouse logistics"
        />
-       <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
-      <div className="relative z-10 w-full max-w-sm rounded-xl border bg-card/70 p-6 shadow-2xl backdrop-blur-lg sm:p-8">
+      <div className="relative z-10 w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm sm:p-8">
           <div className="mb-8 flex flex-col items-center text-center">
               <Link href="/" className="mb-4 flex items-center gap-3 text-2xl font-bold">
                   <InvochatLogo className="h-8 w-8" />
@@ -99,7 +98,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             
             <div className="flex items-center">
               <Checkbox id="remember-me" name="remember-me" />
-              <Label htmlFor="remember-me" className="ml-2 font-normal leading-none text-muted-foreground">
+              <Label htmlFor="remember-me" className="ml-2 font-normal leading-none text-card-foreground">
                 Remember me
               </Label>
             </div>
