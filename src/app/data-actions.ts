@@ -12,12 +12,13 @@ import {
     getAlertsFromDB,
     getDatabaseSchemaAndData as getDbSchemaAndData,
     getCompanySettings as getSettings,
-    updateCompanySettings as updateSettings,
+    updateCompanySettings as updateSettingsInDb,
 } from '@/services/database';
 import type { User, CompanySettings } from '@/types';
 import { ai } from '@/ai/genkit';
 import { APP_CONFIG } from '@/config/app-config';
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
@@ -102,9 +103,26 @@ export async function getCompanySettings(): Promise<CompanySettings> {
     return getSettings(companyId);
 }
 
+
+// Zod schema for validating company settings updates.
+const CompanySettingsUpdateSchema = z.object({
+    dead_stock_days: z.number().int().positive('Dead stock days must be a positive number.'),
+    fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.'),
+    overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.'),
+    high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.'),
+}).partial();
+
+
 export async function updateCompanySettings(settings: Partial<Omit<CompanySettings, 'company_id'>>): Promise<CompanySettings> {
+    const parsedSettings = CompanySettingsUpdateSchema.safeParse(settings);
+    
+    if (!parsedSettings.success) {
+        const errorMessages = parsedSettings.error.issues.map(issue => issue.message).join(' ');
+        throw new Error(`Invalid settings format: ${errorMessages}`);
+    }
+
     const companyId = await getCompanyIdForCurrentUser();
-    return updateSettings(companyId, settings);
+    return updateSettingsInDb(companyId, parsedSettings.data);
 }
 
 export async function testSupabaseConnection(): Promise<{
@@ -266,3 +284,5 @@ export async function testGenkitConnection(): Promise<{
         return { success: false, error: errorMessage, isConfigured };
     }
 }
+
+    

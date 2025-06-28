@@ -187,7 +187,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     salesPromise,
     customersPromise,
     profitPromise,
-    inventoryValuePromise,
+    inventoryValueResult,
     lowStockPromise,
     salesTrendPromise,
     topCustomersPromise,
@@ -638,3 +638,5 @@ export async function saveSuccessfulQuery(
         }
     });
 }
+
+    
