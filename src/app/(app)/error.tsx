@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
+import { captureError } from '@/lib/sentry';
 
 export default function Error({
   error,
@@ -13,8 +14,8 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log the error to an error reporting service
-    console.error(error);
+    // Log the error to Sentry
+    captureError(error, { source: 'global-error-boundary' });
   }, [error]);
 
   return (

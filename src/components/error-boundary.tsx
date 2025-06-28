@@ -4,6 +4,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
+import { captureError } from '@/lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -26,8 +27,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // In a real app, you'd log this to Sentry, DataDog, etc.
-    console.error("Uncaught error:", error, errorInfo);
+    captureError(error, { source: 'react-error-boundary', errorInfo });
   }
 
   public render() {

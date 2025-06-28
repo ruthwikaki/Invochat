@@ -59,6 +59,30 @@ export async function trackDbQueryPerformance(functionName: string, durationMs: 
     }
 }
 
+/**
+ * Tracks the execution time of a server action or API endpoint.
+ * @param endpointName The name of the endpoint being tracked.
+ * @param durationMs The execution time in milliseconds.
+ */
+export async function trackEndpointPerformance(endpointName: string, durationMs: number): Promise<void> {
+    if (!isRedisEnabled) return;
+
+    try {
+        const pipeline = redisClient.pipeline();
+        const endpointIdentifier = `${new Date().toISOString()}|${endpointName}`;
+
+        pipeline.zadd('perf:endpoint_slow_log', durationMs, endpointIdentifier);
+        pipeline.zremrangebyrank('perf:endpoint_slow_log', 0, -101);
+
+        pipeline.incrbyfloat(`perf:endpoint:${endpointName}:total_duration`, durationMs);
+        pipeline.incr(`perf:endpoint:${endpointName}:total_count`);
+
+        await pipeline.exec();
+    } catch (e) {
+        logger.error(`[Monitoring] Failed to track endpoint performance for ${endpointName}:`, e);
+    }
+}
+
 
 /**
  * Increments the cache hit counter for a given cache type.

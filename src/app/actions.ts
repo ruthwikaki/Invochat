@@ -9,12 +9,13 @@ import { z } from 'zod';
 import { cookies } from 'next/headers';
 import { redisClient, isRedisEnabled } from '@/lib/redis';
 import crypto from 'crypto';
-import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss } from '@/services/monitoring';
+import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss, trackEndpointPerformance } from '@/services/monitoring';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { APP_CONFIG } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { getEstimatedTimeForQuery } from '@/ai/flows/estimate-time-flow';
 import { logger } from '@/lib/logger';
+import { captureError } from '@/lib/sentry';
 
 function getServiceRoleClient() {
     if (!supabaseAdmin) {
@@ -170,16 +171,18 @@ const UserMessagePayloadSchema = z.object({
 export async function handleUserMessage(
   payload: z.infer<typeof UserMessagePayloadSchema>
 ): Promise<{ conversationId?: string; newMessage?: Message; error?: string }> {
-  const parsedPayload = UserMessagePayloadSchema.safeParse(payload);
-  if (!parsedPayload.success) {
-    return { error: "Invalid message payload." };
-  }
+  const startTime = performance.now();
+  let currentConversationId: string | null = null;
   
-  const { content: userQuery, source } = parsedPayload.data;
-  let currentConversationId = parsedPayload.data.conversationId;
-  const supabase = getServiceRoleClient();
-
   try {
+    const parsedPayload = UserMessagePayloadSchema.safeParse(payload);
+    if (!parsedPayload.success) {
+      return { error: "Invalid message payload." };
+    }
+    
+    const { content: userQuery, source } = parsedPayload.data;
+    currentConversationId = parsedPayload.data.conversationId;
+    const supabase = getServiceRoleClient();
     const { userId, companyId } = await getAuthContext();
     let historyForAI: { role: 'user' | 'assistant'; content: string }[] = [];
 
@@ -240,13 +243,13 @@ export async function handleUserMessage(
     }
 
     if (!flowResponse) {
-        const startTime = performance.now();
+        const aiStartTime = performance.now();
         flowResponse = await universalChatFlow({
           companyId,
           conversationHistory: historyForAI,
         });
-        const endTime = performance.now();
-        await trackAiQueryPerformance(userQuery, endTime - startTime);
+        const aiEndTime = performance.now();
+        await trackAiQueryPerformance(userQuery, aiEndTime - aiStartTime);
     }
     
     const parsedResponse = UniversalChatOutputSchema.safeParse(flowResponse);
@@ -312,7 +315,14 @@ export async function handleUserMessage(
     return { conversationId: currentConversationId, newMessage: savedAssistantMessage as Message };
     
   } catch (error: any) {
-    logger.error('Chat error:', error);
+    captureError(error, {
+      source: 'handleUserMessage',
+      payload,
+      conversationId: currentConversationId,
+    });
     return { error: getErrorMessage(error) };
+  } finally {
+      const endTime = performance.now();
+      await trackEndpointPerformance('handleUserMessage', endTime - startTime);
   }
 }

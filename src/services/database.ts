@@ -31,66 +31,89 @@ function getServiceRoleClient() {
     return supabaseAdmin;
 }
 
+/**
+ * A higher-order function to wrap database operations with performance tracking.
+ * @param functionName The name of the function to track.
+ * @param fn The async function to execute and track.
+ * @returns The result of the wrapped function.
+ */
+async function withPerformanceTracking<T>(
+    functionName: string,
+    fn: () => Promise<T>
+): Promise<T> {
+    const startTime = performance.now();
+    try {
+        return await fn();
+    } finally {
+        const endTime = performance.now();
+        trackDbQueryPerformance(functionName, endTime - startTime);
+    }
+}
+
 export async function getCompanySettings(companyId: string): Promise<CompanySettings> {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase
-        .from('company_settings')
-        .select('*')
-        .eq('company_id', companyId)
-        .single();
-    
-    if (error && error.code !== 'PGRST116') { // PGRST116 = 'no rows returned'
-        logger.error(`[DB Service] Error fetching company settings for ${companyId}:`, error);
-        throw error;
-    }
+    return withPerformanceTracking('getCompanySettings', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('company_settings')
+            .select('*')
+            .eq('company_id', companyId)
+            .single();
+        
+        if (error && error.code !== 'PGRST116') { // PGRST116 = 'no rows returned'
+            logger.error(`[DB Service] Error fetching company settings for ${companyId}:`, error);
+            throw error;
+        }
 
-    if (data) {
-        return data as CompanySettings;
-    }
+        if (data) {
+            return data as CompanySettings;
+        }
 
-    // No settings found, so create and return default settings.
-    logger.info(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
-    const defaultSettingsData = {
-        company_id: companyId,
-        dead_stock_days: APP_CONFIG.businessLogic.deadStockDays,
-        overstock_multiplier: APP_CONFIG.businessLogic.overstockMultiplier,
-        high_value_threshold: APP_CONFIG.businessLogic.highValueThreshold,
-        fast_moving_days: APP_CONFIG.businessLogic.fastMovingDays,
-    };
-    
-    const { data: newData, error: insertError } = await supabase
-        .from('company_settings')
-        .upsert(defaultSettingsData) // Use upsert to avoid race conditions
-        .select()
-        .single();
-    
-    if (insertError) {
-        logger.error(`[DB Service] Failed to insert default settings for company ${companyId}:`, insertError);
-        throw insertError;
-    }
+        // No settings found, so create and return default settings.
+        logger.info(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
+        const defaultSettingsData = {
+            company_id: companyId,
+            dead_stock_days: APP_CONFIG.businessLogic.deadStockDays,
+            overstock_multiplier: APP_CONFIG.businessLogic.overstockMultiplier,
+            high_value_threshold: APP_CONFIG.businessLogic.highValueThreshold,
+            fast_moving_days: APP_CONFIG.businessLogic.fastMovingDays,
+        };
+        
+        const { data: newData, error: insertError } = await supabase
+            .from('company_settings')
+            .upsert(defaultSettingsData) // Use upsert to avoid race conditions
+            .select()
+            .single();
+        
+        if (insertError) {
+            logger.error(`[DB Service] Failed to insert default settings for company ${companyId}:`, insertError);
+            throw insertError;
+        }
 
-    return newData as CompanySettings;
+        return newData as CompanySettings;
+    });
 }
 
 export async function updateCompanySettings(companyId: string, settings: Partial<Omit<CompanySettings, 'company_id'>>): Promise<CompanySettings> {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase
-        .from('company_settings')
-        .update({ ...settings, updated_at: new Date().toISOString() })
-        .eq('company_id', companyId)
-        .select()
-        .single();
+    return withPerformanceTracking('updateCompanySettings', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('company_settings')
+            .update({ ...settings, updated_at: new Date().toISOString() })
+            .eq('company_id', companyId)
+            .select()
+            .single();
+            
+        if (error) {
+            logger.error(`[DB Service] Error updating settings for ${companyId}:`, error);
+            throw error;
+        }
         
-    if (error) {
-        logger.error(`[DB Service] Error updating settings for ${companyId}:`, error);
-        throw error;
-    }
-    
-    // Invalidate cache since business logic has changed
-    logger.info(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
-    await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
-    
-    return data as CompanySettings;
+        // Invalidate cache since business logic has changed
+        logger.info(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
+        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+        
+        return data as CompanySettings;
+    });
 }
 
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
@@ -172,18 +195,6 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     returnRatePromise,
   ]);
   
-  const [
-    salesResult,
-    customersResult,
-    profitResult,
-    inventoryValueResult,
-    lowStockResult,
-    salesTrendResult,
-    topCustomersResult,
-    inventoryByCategoryResult,
-    returnRateResult,
-  ] = results;
-
   const endTime = performance.now();
   await trackDbQueryPerformance('getDashboardMetrics', endTime - startTime);
   
@@ -209,6 +220,18 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   }
   
   // --- Process results ---
+  const [
+    salesResult,
+    customersResult,
+    profitResult,
+    inventoryValueResult,
+    lowStockResult,
+    salesTrendResult,
+    topCustomersResult,
+    inventoryByCategoryResult,
+    returnRateResult,
+  ] = results;
+
   const sales = extractData(salesResult, []);
   const customersCount = extractCount(customersResult);
   const profitData = extractData(profitResult, []);
@@ -303,40 +326,39 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
 }
 
 export async function getDeadStockPageData(companyId: string) {
-    const cacheKey = `company:${companyId}:deadstock`;
-    if (isRedisEnabled) {
+    return withPerformanceTracking('getDeadStockPageData', async () => {
+        const cacheKey = `company:${companyId}:deadstock`;
+        if (isRedisEnabled) {
+            try {
+                const cachedData = await redisClient.get(cacheKey);
+                if (cachedData) {
+                    await incrementCacheHit('deadstock');
+                    return JSON.parse(cachedData);
+                }
+                await incrementCacheMiss('deadstock');
+            } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
+        }
+
+        const settings = await getCompanySettings(companyId);
+        const deadStockItems = await getRawDeadStockData(companyId, settings);
+        
+        const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
+        const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
+
+        const result = {
+            deadStockItems,
+            totalValue,
+            totalUnits,
+        };
+
+        if (isRedisEnabled) {
         try {
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) {
-                await incrementCacheHit('deadstock');
-                return JSON.parse(cachedData);
-            }
-            await incrementCacheMiss('deadstock');
-        } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
-    }
+            await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600); // 1-hour TTL
+        } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+        }
 
-    const startTime = performance.now();
-    const settings = await getCompanySettings(companyId);
-    const deadStockItems = await getRawDeadStockData(companyId, settings);
-    const endTime = performance.now();
-    await trackDbQueryPerformance('getDeadStockPageData', endTime - startTime);
-    
-    const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
-    const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
-
-    const result = {
-        deadStockItems,
-        totalValue,
-        totalUnits,
-    };
-
-    if (isRedisEnabled) {
-      try {
-        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600); // 1-hour TTL
-      } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
-    }
-
-    return result;
+        return result;
+    });
 }
 
 
@@ -345,129 +367,129 @@ export async function getDeadStockPageData(companyId: string) {
  * for a given company, ensuring a single, consistent method for data retrieval.
  */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
-    const cacheKey = `company:${companyId}:suppliers`;
-    if (isRedisEnabled) {
+    return withPerformanceTracking('getSuppliersFromDB', async () => {
+        const cacheKey = `company:${companyId}:suppliers`;
+        if (isRedisEnabled) {
+            try {
+                const cachedData = await redisClient.get(cacheKey);
+                if (cachedData) {
+                    await incrementCacheHit('suppliers');
+                    return JSON.parse(cachedData);
+                }
+                await incrementCacheMiss('suppliers');
+            } catch (e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
+        }
+
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('vendors')
+            .select('id, vendor_name, contact_info, address, terms, account_number')
+            .eq('company_id', companyId);
+        
+        if (error) {
+            logger.error('Error fetching suppliers from DB', error);
+            throw new Error(`Could not load supplier data: ${error.message}`);
+        }
+        
+        const result = data?.map(v => ({
+            id: v.id,
+            name: v.vendor_name,
+            contact_info: v.contact_info,
+            address: v.address,
+            terms: v.terms,
+            account_number: v.account_number,
+        })) || [];
+
+        if (isRedisEnabled) {
         try {
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) {
-                await incrementCacheHit('suppliers');
-                return JSON.parse(cachedData);
-            }
-            await incrementCacheMiss('suppliers');
-        } catch (e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
-    }
+            await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600); // 10 min TTL
+        } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+        }
 
-    const startTime = performance.now();
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase
-        .from('vendors')
-        .select('id, vendor_name, contact_info, address, terms, account_number')
-        .eq('company_id', companyId);
-    
-    const endTime = performance.now();
-    await trackDbQueryPerformance('getSuppliersFromDB', endTime - startTime);
-
-    if (error) {
-        logger.error('Error fetching suppliers from DB', error);
-        throw new Error(`Could not load supplier data: ${error.message}`);
-    }
-    
-    const result = data?.map(v => ({
-        id: v.id,
-        name: v.vendor_name,
-        contact_info: v.contact_info,
-        address: v.address,
-        terms: v.terms,
-        account_number: v.account_number,
-    })) || [];
-
-     if (isRedisEnabled) {
-      try {
-        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600); // 10 min TTL
-      } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
-    }
-
-    return result;
+        return result;
+    });
 }
 
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
-    const cacheKey = `company:${companyId}:alerts`;
-     if (isRedisEnabled) {
-        try {
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) {
-                await incrementCacheHit('alerts');
-                return JSON.parse(cachedData);
-            }
-            await incrementCacheMiss('alerts');
-        } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
-    }
-    
-    const supabase = getServiceRoleClient();
-    const settings = await getCompanySettings(companyId);
-    const alerts: Alert[] = [];
-    
-    // --- Low Stock Alerts ---
-    // This is a simplified example. A real implementation would be more robust.
-    const { data: lowStockItems, error: lowStockError } = await supabase
-        .from('fba_inventory') // Assuming reorder point is on this table.
-        .select('sku, quantity, product_name')
-        .eq('company_id', companyId)
-        .lt('quantity', 20); // Using a static 20 for reorder point as an example.
+    return withPerformanceTracking('getAlertsFromDB', async () => {
+        const cacheKey = `company:${companyId}:alerts`;
+        if (isRedisEnabled) {
+            try {
+                const cachedData = await redisClient.get(cacheKey);
+                if (cachedData) {
+                    await incrementCacheHit('alerts');
+                    return JSON.parse(cachedData);
+                }
+                await incrementCacheMiss('alerts');
+            } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
+        }
+        
+        const supabase = getServiceRoleClient();
+        const settings = await getCompanySettings(companyId);
+        const alerts: Alert[] = [];
+        
+        // --- Low Stock Alerts ---
+        // This is a simplified example. A real implementation would be more robust.
+        const { data: lowStockItems, error: lowStockError } = await supabase
+            .from('fba_inventory') // Assuming reorder point is on this table.
+            .select('sku, quantity, product_name')
+            .eq('company_id', companyId)
+            .lt('quantity', 20); // Using a static 20 for reorder point as an example.
 
-    if (lowStockError) {
-        logger.warn('[DB Service] Could not check for low stock items:', lowStockError.message);
-    } else if (lowStockItems) {
-        for (const item of lowStockItems) {
+        if (lowStockError) {
+            logger.warn('[DB Service] Could not check for low stock items:', lowStockError.message);
+        } else if (lowStockItems) {
+            for (const item of lowStockItems) {
+                const alert: Alert = {
+                    id: `low-stock-${item.sku}`,
+                    type: 'low_stock',
+                    title: `Low Stock Warning`,
+                    message: `Item "${item.product_name || item.sku}" is running low on stock.`,
+                    severity: 'warning',
+                    timestamp: new Date().toISOString(),
+                    metadata: {
+                        productId: item.sku,
+                        productName: item.product_name || item.sku,
+                        currentStock: item.quantity,
+                        reorderPoint: 20 // Example reorder point
+                    },
+                };
+                alerts.push(alert);
+                // await sendEmailAlert(alert);
+            }
+        }
+        
+        // --- Dead Stock Alerts ---
+        const deadStockItems = await getRawDeadStockData(companyId, settings);
+        for (const item of deadStockItems) {
             const alert: Alert = {
-                id: `low-stock-${item.sku}`,
-                type: 'low_stock',
-                title: `Low Stock Warning`,
-                message: `Item "${item.product_name || item.sku}" is running low on stock.`,
-                severity: 'warning',
+                id: `dead-stock-${item.sku}`,
+                type: 'dead_stock',
+                title: `Dead Stock Alert`,
+                message: `Item "${item.product_name || item.sku}" is now considered dead stock.`,
+                severity: 'info',
                 timestamp: new Date().toISOString(),
                 metadata: {
                     productId: item.sku,
                     productName: item.product_name || item.sku,
                     currentStock: item.quantity,
-                    reorderPoint: 20 // Example reorder point
+                    lastSoldDate: item.last_sale_date,
+                    value: item.total_value,
                 },
             };
             alerts.push(alert);
             // await sendEmailAlert(alert);
         }
-    }
-    
-    // --- Dead Stock Alerts ---
-    const deadStockItems = await getRawDeadStockData(companyId, settings);
-    for (const item of deadStockItems) {
-        const alert: Alert = {
-            id: `dead-stock-${item.sku}`,
-            type: 'dead_stock',
-            title: `Dead Stock Alert`,
-            message: `Item "${item.product_name || item.sku}" is now considered dead stock.`,
-            severity: 'info',
-            timestamp: new Date().toISOString(),
-            metadata: {
-                productId: item.sku,
-                productName: item.product_name || item.sku,
-                currentStock: item.quantity,
-                lastSoldDate: item.last_sale_date,
-                value: item.total_value,
-            },
-        };
-        alerts.push(alert);
-        // await sendEmailAlert(alert);
-    }
-    
-    if (isRedisEnabled) {
-        try {
-            await redisClient.set(cacheKey, JSON.stringify(alerts), 'EX', 3600);
-        } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e); }
-    }
+        
+        if (isRedisEnabled) {
+            try {
+                await redisClient.set(cacheKey, JSON.stringify(alerts), 'EX', 3600);
+            } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e); }
+        }
 
-    return alerts;
+        return alerts;
+    });
 }
 
 // These are the tables we want to expose to the user for querying.
@@ -495,29 +517,31 @@ const USER_FACING_TABLES = [
  * @returns An array of objects, each containing a table name and sample rows.
  */
 export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: any[] }[]> {
-  const supabase = getServiceRoleClient();
-  const results: { tableName: string; rows: any[] }[] = [];
+    return withPerformanceTracking('getDatabaseSchemaAndData', async () => {
+        const supabase = getServiceRoleClient();
+        const results: { tableName: string; rows: any[] }[] = [];
 
-  for (const tableName of USER_FACING_TABLES) {
-    const { data, error } = await supabase
-      .from(tableName)
-      .select('*')
-      .eq('company_id', companyId)
-      .limit(10);
+        for (const tableName of USER_FACING_TABLES) {
+            const { data, error } = await supabase
+            .from(tableName)
+            .select('*')
+            .eq('company_id', companyId)
+            .limit(10);
 
-    if (error) {
-      logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not exist or be configured for the current company. Error: ${error.message}`);
-      // Push an empty result so the UI can still render the table name
-      results.push({ tableName, rows: [] });
-    } else {
-      results.push({
-        tableName,
-        rows: data || [],
-      });
-    }
-  }
+            if (error) {
+            logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not exist or be configured for the current company. Error: ${error.message}`);
+            // Push an empty result so the UI can still render the table name
+            results.push({ tableName, rows: [] });
+            } else {
+            results.push({
+                tableName,
+                rows: data || [],
+            });
+            }
+        }
 
-  return results;
+        return results;
+    });
 }
 
 /**
@@ -530,22 +554,24 @@ export async function getQueryPatternsForCompany(
   companyId: string,
   limit = 3
 ): Promise<{ user_question: string; successful_sql_query: string }[]> {
-  const supabase = getServiceRoleClient();
-  const { data, error } = await supabase
-    .from('query_patterns')
-    .select('user_question, successful_sql_query')
-    .eq('company_id', companyId)
-    .order('usage_count', { ascending: false })
-    .order('last_used_at', { ascending: false })
-    .limit(limit);
+    return withPerformanceTracking('getQueryPatternsForCompany', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('query_patterns')
+            .select('user_question, successful_sql_query')
+            .eq('company_id', companyId)
+            .order('usage_count', { ascending: false })
+            .order('last_used_at', { ascending: false })
+            .limit(limit);
 
-  if (error) {
-    // This is not a critical error; the system can proceed without these examples.
-    logger.warn(`[DB Service] Could not fetch query patterns for company ${companyId}: ${error.message}`);
-    return [];
-  }
+        if (error) {
+            // This is not a critical error; the system can proceed without these examples.
+            logger.warn(`[DB Service] Could not fetch query patterns for company ${companyId}: ${error.message}`);
+            return [];
+        }
 
-  return data || [];
+        return data || [];
+    });
 }
 
 /**
@@ -560,53 +586,55 @@ export async function saveSuccessfulQuery(
   userQuestion: string,
   sqlQuery: string
 ): Promise<void> {
-    const supabase = getServiceRoleClient();
+    return withPerformanceTracking('saveSuccessfulQuery', async () => {
+        const supabase = getServiceRoleClient();
 
-    // Check if a pattern for this question already exists for this company
-    const { data: existingPattern, error: selectError } = await supabase
-        .from('query_patterns')
-        .select('id, usage_count')
-        .eq('company_id', companyId)
-        .eq('user_question', userQuestion)
-        .single();
-
-    if (selectError && selectError.code !== 'PGRST116') { // Ignore 'no rows' error
-        logger.warn(`[DB Service] Could not check for existing query pattern: ${selectError.message}`);
-        return;
-    }
-
-    if (existingPattern) {
-        // If it exists, update the usage count and last used timestamp
-        const { error: updateError } = await supabase
+        // Check if a pattern for this question already exists for this company
+        const { data: existingPattern, error: selectError } = await supabase
             .from('query_patterns')
-            .update({
-                usage_count: (existingPattern.usage_count || 0) + 1,
-                last_used_at: new Date().toISOString(),
-                successful_sql_query: sqlQuery // Also update the query in case the AI improved it
-            })
-            .eq('id', existingPattern.id);
+            .select('id, usage_count')
+            .eq('company_id', companyId)
+            .eq('user_question', userQuestion)
+            .single();
 
-        if (updateError) {
-            logger.warn(`[DB Service] Could not update query pattern: ${updateError.message}`);
-        } else {
-            logger.debug(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
+        if (selectError && selectError.code !== 'PGRST116') { // Ignore 'no rows' error
+            logger.warn(`[DB Service] Could not check for existing query pattern: ${selectError.message}`);
+            return;
         }
-    } else {
-        // If it doesn't exist, insert a new record
-        const { error: insertError } = await supabase
-            .from('query_patterns')
-            .insert({
-                company_id: companyId,
-                user_question: userQuestion,
-                successful_sql_query: sqlQuery,
-                usage_count: 1,
-                last_used_at: new Date().toISOString()
-            });
 
-        if (insertError) {
-            logger.warn(`[DB Service] Could not insert new query pattern: ${insertError.message}`);
+        if (existingPattern) {
+            // If it exists, update the usage count and last used timestamp
+            const { error: updateError } = await supabase
+                .from('query_patterns')
+                .update({
+                    usage_count: (existingPattern.usage_count || 0) + 1,
+                    last_used_at: new Date().toISOString(),
+                    successful_sql_query: sqlQuery // Also update the query in case the AI improved it
+                })
+                .eq('id', existingPattern.id);
+
+            if (updateError) {
+                logger.warn(`[DB Service] Could not update query pattern: ${updateError.message}`);
+            } else {
+                logger.debug(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
+            }
         } else {
-            logger.info(`[DB Service] Inserted new query pattern for question: "${userQuestion}"`);
+            // If it doesn't exist, insert a new record
+            const { error: insertError } = await supabase
+                .from('query_patterns')
+                .insert({
+                    company_id: companyId,
+                    user_question: userQuestion,
+                    successful_sql_query: sqlQuery,
+                    usage_count: 1,
+                    last_used_at: new Date().toISOString()
+                });
+
+            if (insertError) {
+                logger.warn(`[DB Service] Could not insert new query pattern: ${insertError.message}`);
+            } else {
+                logger.info(`[DB Service] Inserted new query pattern for question: "${userQuestion}"`);
+            }
         }
-    }
+    });
 }
