@@ -15,6 +15,7 @@ import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-
 import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getCompanySettings } from '@/services/database';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
+import { getEconomicIndicators } from './economic-tool';
 
 const ENHANCED_SEMANTIC_LAYER = `
   BUSINESS METRICS:
@@ -183,15 +184,15 @@ const FEW_SHOT_EXAMPLES = `
 
 
 /**
- * Agent 1: SQL Generation
- * Takes the user query and generates a safe, advanced PostgreSQL query.
+ * Agent 1: Planner & SQL Generation Agent
+ * Takes the user query and either generates a PostgreSQL query or decides to use a tool.
  */
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
   input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
-  output: { schema: z.object({ sqlQuery: z.string().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
+  output: { schema: z.object({ sqlQuery: z.string().optional().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
-    You are an expert PostgreSQL query generation agent for an e-commerce analytics system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query.
+    You are an expert PostgreSQL query generation agent for an e-commerce analytics system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query. You also have access to tools for questions that cannot be answered from the database.
 
     DATABASE SCHEMA OVERVIEW:
     {{{dbSchema}}}
@@ -217,6 +218,9 @@ const sqlGenerationPrompt = ai.definePrompt({
         - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
     8.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
 
+    **C) For ECONOMIC Questions:**
+    9.  **Use Tools**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
+    
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style.
     ---
@@ -228,13 +232,14 @@ const sqlGenerationPrompt = ai.definePrompt({
     {{{dynamicExamples}}}
     ---
 
-    **Step 4: Generate the Query.**
-    Based on the analysis, rules, and examples, generate the SQL query that best answers the user's question.
+    **Step 4: Generate the Response.**
+    Based on the analysis, rules, and examples, decide the best course of action.
+    - If the question can be answered with SQL, generate the query.
+    - If the question requires economic data, call the \`getEconomicIndicators\` tool.
 
     **Step 5: Formulate the Final Output.**
-    - Respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
-    - The \`sqlQuery\` field MUST contain ONLY the SQL string. Do not include markdown or trailing semicolons.
-    - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with customers to get customer names.").
+    - If you are generating a query, respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
+    - If you are using a tool, the system will handle the tool call. You do not need to generate a JSON response in that case.
   `,
 });
 
@@ -388,97 +393,137 @@ const universalChatOrchestrator = ai.defineFlow(
 
     const aiModel = config.ai.model;
 
-    // Pipeline Step 1: Generate SQL
-    const { output: generationOutput } = await sqlGenerationPrompt(
-      { companyId, userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
-      { model: aiModel }
-    );
-    if (!generationOutput?.sqlQuery) {
-        throw new Error("AI failed to generate an SQL query.");
-    }
-    let sqlQuery = generationOutput.sqlQuery;
-
-    // Pipeline Step 2: Validate SQL
-    const { output: validationOutput } = await queryValidationPrompt(
-        { userQuery, sqlQuery },
-        { model: aiModel }
-    );
-    if (!validationOutput?.isValid) {
-        logger.error("Generated SQL failed validation:", validationOutput.correction);
-        throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
-    }
-
-    // Pipeline Step 3: Execute Query with Error Recovery
-    logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${sqlQuery}"`);
-    let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
-      query_text: sqlQuery.replace(/;/g, '')
+    // Pipeline Step 1: Generate SQL or decide to use a tool
+    const { output: generationOutput, toolCalls } = await ai.generate({
+      model: aiModel,
+      prompt: sqlGenerationPrompt, // The prompt object itself
+      input: { companyId, userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
+      tools: [getEconomicIndicators], // Make the tool available to the model
     });
     
-    // Pipeline Step 3b: Error Recovery (if needed)
-    if (queryError) {
-        logger.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
+    // Branch 1: The model chose to use a tool
+    if (toolCalls && toolCalls.length > 0) {
+        logger.info('[UniversalChat:Flow] AI chose to use the economic indicator tool.');
+        const toolCall = toolCalls[0];
+        const toolResult = await ai.runTool(toolCall);
         
-        const { output: recoveryOutput } = await errorRecoveryPrompt(
-            { userQuery, failedQuery: sqlQuery, errorMessage: queryError.message, dbSchema: formattedSchema },
+        // The tool result is an object like { indicator: '...', value: '...' }
+        // We can use the finalResponsePrompt to format this into a user-friendly message.
+        const queryDataJson = JSON.stringify([toolResult]);
+        
+        const { output: finalOutput } = await finalResponsePrompt(
+            { userQuery, queryDataJson },
             { model: aiModel }
         );
 
-        if (recoveryOutput?.correctedQuery) {
-            logger.info(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
-            
-            // Retry with the new query
-            sqlQuery = recoveryOutput.correctedQuery; // Update the query to the corrected one
-            
-            // Re-validate the corrected query before executing
-            const { output: revalidationOutput } = await queryValidationPrompt({ userQuery, sqlQuery }, { model: aiModel });
-            if (!revalidationOutput?.isValid) {
-                logger.error("Corrected SQL failed re-validation:", revalidationOutput.correction);
-                throw new Error(`The AI's attempt to fix the query was also invalid. Reason: ${revalidationOutput.correction}`);
-            }
-
-            logger.info(`[Audit Trail] Executing re-validated SQL for company ${companyId}: "${sqlQuery}"`);
-            const retryResult = await supabaseAdmin.rpc('execute_dynamic_query', {
-                query_text: sqlQuery.replace(/;/g, '')
-            });
-            
-            queryData = retryResult.data;
-            queryError = retryResult.error;
-
-            if (queryError) {
-                logger.error('[UniversalChat:Flow] Corrected query also failed:', queryError.message);
-                throw new Error(`I tried to automatically fix a query error, but the correction also failed. The original error was: ${queryError.message}`);
-            } else {
-                logger.info('[UniversalChat:Flow] Corrected query executed successfully.');
-            }
-        } else {
-            logger.error('[UniversalChat:Flow] AI could not recover from the query error.');
-            throw new Error(`The database query failed: ${queryError.message}.`);
+        if (!finalOutput) {
+            throw new Error('The AI model did not return a valid final response object after tool use.');
         }
+        
+        // Return a response formatted for the UI, including the tool's data.
+        return {
+            ...finalOutput,
+            data: [toolResult],
+        };
     }
 
-    // NEW STEP: If query execution was successful, save the pattern for future learning.
-    if (!queryError) {
-        await saveSuccessfulQuery(companyId, userQuery, sqlQuery);
+    // Branch 2: The model generated an SQL query
+    if (generationOutput?.sqlQuery) {
+        let sqlQuery = generationOutput.sqlQuery;
+
+        // Pipeline Step 2: Validate SQL
+        const { output: validationOutput } = await queryValidationPrompt(
+            { userQuery, sqlQuery },
+            { model: aiModel }
+        );
+        if (!validationOutput?.isValid) {
+            logger.error("Generated SQL failed validation:", validationOutput.correction);
+            throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
+        }
+
+        // Pipeline Step 3: Execute Query with Error Recovery
+        logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${sqlQuery}"`);
+        let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
+          query_text: sqlQuery.replace(/;/g, '')
+        });
+        
+        // Pipeline Step 3b: Error Recovery (if needed)
+        if (queryError) {
+            logger.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
+            
+            const { output: recoveryOutput } = await errorRecoveryPrompt(
+                { userQuery, failedQuery: sqlQuery, errorMessage: queryError.message, dbSchema: formattedSchema },
+                { model: aiModel }
+            );
+
+            if (recoveryOutput?.correctedQuery) {
+                logger.info(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
+                
+                sqlQuery = recoveryOutput.correctedQuery;
+                
+                const { output: revalidationOutput } = await queryValidationPrompt({ userQuery, sqlQuery }, { model: aiModel });
+                if (!revalidationOutput?.isValid) {
+                    logger.error("Corrected SQL failed re-validation:", revalidationOutput.correction);
+                    throw new Error(`The AI's attempt to fix the query was also invalid. Reason: ${revalidationOutput.correction}`);
+                }
+
+                logger.info(`[Audit Trail] Executing re-validated SQL for company ${companyId}: "${sqlQuery}"`);
+                const retryResult = await supabaseAdmin.rpc('execute_dynamic_query', {
+                    query_text: sqlQuery.replace(/;/g, '')
+                });
+                
+                queryData = retryResult.data;
+                queryError = retryResult.error;
+
+                if (queryError) {
+                    logger.error('[UniversalChat:Flow] Corrected query also failed:', queryError.message);
+                    throw new Error(`I tried to automatically fix a query error, but the correction also failed. The original error was: ${queryError.message}`);
+                } else {
+                    logger.info('[UniversalChat:Flow] Corrected query executed successfully.');
+                }
+            } else {
+                logger.error('[UniversalChat:Flow] AI could not recover from the query error.');
+                throw new Error(`The database query failed: ${queryError.message}.`);
+            }
+        }
+
+        if (!queryError) {
+            await saveSuccessfulQuery(companyId, userQuery, sqlQuery);
+        }
+
+        // Pipeline Step 4: Interpret Results and Generate Final Response
+        const queryDataJson = JSON.stringify(queryData || []);
+        const { output: finalOutput } = await finalResponsePrompt(
+            { userQuery, queryDataJson },
+            { model: aiModel }
+        );
+        if (!finalOutput) {
+          throw new Error('The AI model did not return a valid final response object.');
+        }
+        
+        logger.info(`[UniversalChat:Flow] AI Confidence for query "${userQuery}": ${finalOutput.confidence}`);
+        if (finalOutput.assumptions && finalOutput.assumptions.length > 0) {
+            logger.info(`[UniversalChat:Flow] AI Assumptions: ${finalOutput.assumptions.join(', ')}`);
+        }
+
+        return {
+            ...finalOutput,
+            data: queryData || [],
+        };
     }
 
-    // Pipeline Step 4: Interpret Results and Generate Final Response
-    const queryDataJson = JSON.stringify(queryData || []);
-    const { output: finalOutput } = await finalResponsePrompt(
-        { userQuery, queryDataJson },
-        { model: aiModel }
-    );
-    if (!finalOutput) {
-      throw new Error('The AI model did not return a valid final response object.');
-    }
-    
-    logger.info(`[UniversalChat:Flow] AI Confidence for query "${userQuery}": ${finalOutput.confidence}`);
-    if (finalOutput.assumptions && finalOutput.assumptions.length > 0) {
-        logger.info(`[UniversalChat:Flow] AI Assumptions: ${finalOutput.assumptions.join(', ')}`);
-    }
-
+    // Branch 3: Fallback for general questions
+    logger.warn("[UniversalChat:Flow] AI did not generate SQL or call a tool. Trying a direct answer.");
+    const { text } = await ai.generate({
+        model: aiModel,
+        prompt: userQuery,
+    });
     return {
-        ...finalOutput,
-        data: queryData || [],
+        response: text,
+        data: [],
+        visualization: { type: 'none' },
+        confidence: 0.5,
+        assumptions: ['I was unable to answer this from your database and answered from general knowledge.'],
     };
   }
 );
