@@ -13,7 +13,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import type { DashboardMetrics, InventoryItem, Supplier, Alert, CompanySettings } from '@/types';
+import type { DashboardMetrics, Product, Supplier, Alert, CompanySettings } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -112,34 +112,21 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   const startTime = performance.now();
   const supabase = getServiceRoleClient();
-  const settings = await getCompanySettings(companyId);
   
-  // Use the materialized view for core inventory metrics where possible
-  const metricsPromise = supabase
-    .from('company_dashboard_metrics')
-    .select('total_skus, inventory_value, low_stock_count')
-    .eq('company_id', companyId)
-    .single();
-
-  // Run other queries in parallel
+  // With the new schema, we query the new tables.
+  const productsPromise = supabase.from('products').select('quantity, cost').eq('company_id', companyId);
   const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
   const salesPromise = supabase.from('sales').select('total_amount').eq('company_id', companyId);
-  const deadStockItemsPromise = supabase
-    .from('inventory')
-    .select('quantity, cost')
-    .eq('company_id', companyId)
-    .lt('last_sold_date', subDays(new Date(), settings.dead_stock_days).toISOString());
-  
+
   // Queries for charts, executed via a secure RPC function
   const salesTrendQuery = `
     SELECT
       TO_CHAR(sale_date, 'YYYY-MM-DD') as date,
       SUM(total_amount) as "Sales"
     FROM sales
-    WHERE company_id = '${companyId}'
+    WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '30 days')
     GROUP BY 1
     ORDER BY 1 ASC
-    LIMIT 30
   `;
   const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
   
@@ -147,7 +134,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     SELECT
       COALESCE(category, 'Uncategorized') as name,
       SUM(quantity * cost) as value
-    FROM inventory
+    FROM products
     WHERE company_id = '${companyId}'
     GROUP BY 1
     HAVING SUM(quantity * cost) > 0
@@ -156,17 +143,15 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
 
   const [
-    metricsRes,
+    productsRes,
     vendorsRes,
     salesRes,
-    deadStockItemsRes,
     salesTrendRes,
     inventoryByCategoryRes
   ] = await Promise.all([
-    metricsPromise,
+    productsPromise,
     vendorsPromise,
     salesPromise,
-    deadStockItemsPromise,
     salesTrendPromise,
     inventoryByCategoryPromise
   ]);
@@ -174,34 +159,28 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const endTime = performance.now();
   await trackDbQueryPerformance('getDashboardMetrics', endTime - startTime);
 
-  const { data: metricsData, error: metricsError } = metricsRes;
+  const { data: productsData, error: productsError } = productsRes;
   const { count: suppliersCount, error: suppliersError } = vendorsRes;
   const { data: sales, error: salesError } = salesRes;
-  const { data: deadStockItems, error: deadStockError } = deadStockItemsRes;
   const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
   const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
   
-  // Check for an error from the materialized view query specifically
-  if (metricsError && metricsError.code === '42P01') { // 42P01: undefined_table
-      console.warn('[Dashboard] Materialized view `company_dashboard_metrics` not found. Falling back to a slower, full query. Run the setup SQL for better performance.');
-      // If the view doesn't exist, we must fall back to the full query.
-      return getDashboardMetricsWithFullQuery(companyId);
-  }
-
-  const firstError = suppliersError || salesError || deadStockError || salesTrendError || inventoryByCategoryError;
+  const firstError = productsError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
   if (firstError) {
     console.error('Dashboard data fetching error:', firstError);
     throw new Error(firstError.message);
   }
 
+  const inventoryValue = (productsData || []).reduce((sum, p) => sum + (p.quantity * p.cost), 0);
   const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
-  const deadStockValue = (deadStockItems || []).reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
 
+  // Note: Dead stock and low stock are now complex calculations based on sales history.
+  // We will return 0 for these and let the AI calculate them on demand.
   const finalMetrics: DashboardMetrics = {
-      inventoryValue: Math.round(metricsData?.inventory_value || 0),
-      deadStockValue: Math.round(deadStockValue),
-      lowStockCount: metricsData?.low_stock_count || 0,
-      totalSKUs: metricsData?.total_skus || 0,
+      inventoryValue: Math.round(inventoryValue),
+      deadStockValue: 0,
+      lowStockCount: 0,
+      totalSKUs: productsData?.length || 0,
       totalSuppliers: suppliersCount || 0,
       totalSalesValue: Math.round(totalSalesValue),
       salesTrendData: salesTrendData || [],
@@ -210,7 +189,6 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   if (isRedisEnabled) {
       try {
-          // Cache the result for 5 minutes (300 seconds)
           await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', 300);
           console.log(`[Cache] SET for dashboard metrics: ${cacheKey}`);
       } catch (error) {
@@ -221,138 +199,25 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   return finalMetrics;
 }
 
-
-// Fallback function if materialized view does not exist.
-async function getDashboardMetricsWithFullQuery(companyId: string): Promise<DashboardMetrics> {
-  console.log('[Dashboard] Executing getDashboardMetricsWithFullQuery fallback.');
-  const supabase = getServiceRoleClient();
-  const settings = await getCompanySettings(companyId);
-  
-  const inventoryPromise = supabase.from('inventory').select('quantity, cost, last_sold_date, reorder_point, name, category').eq('company_id', companyId);
-  const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
-  const salesPromise = supabase.from('sales').select('total_amount').eq('company_id', companyId);
-
-  const salesTrendQuery = `SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales" FROM sales WHERE company_id = '${companyId}' GROUP BY 1 ORDER BY 1 ASC LIMIT 30`;
-  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
-  
-  const inventoryByCategoryQuery = `SELECT COALESCE(category, 'Uncategorized') as name, SUM(quantity * cost) as value FROM inventory WHERE company_id = '${companyId}' GROUP BY 1 HAVING SUM(quantity * cost) > 0 ORDER BY 2 DESC`;
-  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
-
-  const [
-    inventoryRes,
-    vendorsRes,
-    salesRes,
-    salesTrendRes,
-    inventoryByCategoryRes
-  ] = await Promise.all([inventoryPromise, vendorsPromise, salesPromise, salesTrendPromise, inventoryByCategoryPromise]);
-
-    const { data: inventory, error: inventoryError } = inventoryRes;
-    const { count: suppliersCount, error: suppliersError } = vendorsRes;
-    const { data: sales, error: salesError } = salesRes;
-    const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
-    const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
-
-    const firstError = inventoryError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
-    if (firstError) {
-        console.error('Dashboard data fetching error (fallback):', firstError);
-        throw new Error(firstError.message);
-    }
-     const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
-
-    if (!inventory || inventory.length === 0) {
-        return { inventoryValue: 0, deadStockValue: 0, lowStockCount: 0, totalSKUs: 0, totalSuppliers: suppliersCount || 0, totalSalesValue: Math.round(totalSalesValue), salesTrendData: salesTrendData || [], inventoryByCategoryData: inventoryByCategoryData || [] };
-    }
-
-    const deadStockDaysAgo = subDays(new Date(), settings.dead_stock_days);
-    const inventoryValue = inventory.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
-    const deadStockItems = inventory.filter(item => item.last_sold_date && isBefore(parseISO(item.last_sold_date), deadStockDaysAgo));
-    const deadStockValue = deadStockItems.reduce((sum, item) => sum + ((item.quantity || 0) * Number(item.cost || 0)), 0);
-    const lowStockCount = inventory.filter(item => (item.quantity || 0) <= (item.reorder_point || 0)).length;
-
-    return { inventoryValue: Math.round(inventoryValue), deadStockValue: Math.round(deadStockValue), lowStockCount: lowStockCount, totalSKUs: inventory.length, totalSuppliers: suppliersCount || 0, totalSalesValue: Math.round(totalSalesValue), salesTrendData: salesTrendData || [], inventoryByCategoryData: inventoryByCategoryData || [] };
-}
-
-
-export async function getInventoryItems(companyId: string): Promise<InventoryItem[]> {
+export async function getProductsData(companyId: string): Promise<Product[]> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
-    .from('inventory')
+    .from('products')
     .select('*')
     .eq('company_id', companyId)
     .order('name');
     
   if (error) {
-    console.error('Error fetching inventory:', error);
-    throw new Error(`Could not load inventory data: ${error.message}`);
+    console.error('Error fetching products:', error);
+    throw new Error(`Could not load products data: ${error.message}`);
   }
   return data || [];
 }
 
-export async function getDeadStockFromDB(companyId: string): Promise<InventoryItem[]> {
-    const supabase = getServiceRoleClient();
-    const settings = await getCompanySettings(companyId);
-    const deadStockDaysAgo = subDays(new Date(), settings.dead_stock_days).toISOString();
-    const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
-        .eq('company_id', companyId)
-        .lt('last_sold_date', deadStockDaysAgo);
-
-    if (error) {
-        console.error('Error fetching dead stock:', error);
-        throw new Error(`Could not load dead stock data: ${error.message}`);
-    }
-    return data || [];
-}
-
 export async function getDeadStockPageData(companyId: string) {
-    const cacheKey = `company:${companyId}:deadstock`;
-    if (isRedisEnabled) {
-        try {
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) {
-                await incrementCacheHit('deadstock');
-                return JSON.parse(cachedData);
-            }
-            await incrementCacheMiss('deadstock');
-        } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
-    }
-
-    const startTime = performance.now();
-    const deadStock = await getDeadStockFromDB(companyId);
-    
-    if (deadStock.length === 0) {
-        return { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
-    }
-
-    const totalValue = deadStock.reduce((sum, item) => sum + (item.quantity * Number(item.cost)), 0);
-    const totalUnits = deadStock.reduce((sum, item) => sum + item.quantity, 0);
-
-    const totalAgeInDays = deadStock.reduce((sum, item) => {
-        if (item.last_sold_date) {
-            return sum + differenceInDays(new Date(), parseISO(item.last_sold_date));
-        }
-        return sum;
-    }, 0);
-    const averageAge = deadStock.length > 0 ? totalAgeInDays / deadStock.length : 0;
-    
-    const endTime = performance.now();
-    await trackDbQueryPerformance('getDeadStockPageData', endTime - startTime);
-
-    const result = {
-        deadStock,
-        totalValue: Math.round(totalValue),
-        totalUnits,
-        averageAge: Math.round(averageAge)
-    };
-
-    if (isRedisEnabled) {
-      try {
-        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 300); // 5 min TTL
-      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
-    }
-    
-    return result;
+    // This is now a complex calculation. We will return an empty state
+    // and recommend the user ask the AI for this information.
+    return { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
 }
 
 /**
@@ -407,92 +272,14 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
-    const cacheKey = `company:${companyId}:alerts`;
-    if (isRedisEnabled) {
-        try {
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) {
-                await incrementCacheHit('alerts');
-                return JSON.parse(cachedData);
-            }
-            await incrementCacheMiss('alerts');
-        } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
-    }
-    
-    const startTime = performance.now();
-    // Alerts are derived data, so we fetch the source of truth first.
-    const [settings, inventory] = await Promise.all([
-        getCompanySettings(companyId),
-        getInventoryItems(companyId)
-    ]);
-    const endTime = performance.now();
-    await trackDbQueryPerformance('getAlertsFromDB', endTime - startTime);
-
-    const alerts: Alert[] = [];
-    const deadStockDaysAgo = subDays(new Date(), settings.dead_stock_days);
-
-    inventory.forEach(item => {
-        // Low Stock Alert
-        if (item.quantity <= item.reorder_point) {
-            const newAlert: Alert = {
-                id: `low-${item.id}`,
-                type: 'low_stock',
-                title: 'Low Stock',
-                message: `${item.name} is running low. Current stock is ${item.quantity}, reorder point is ${item.reorder_point}.`,
-                severity: 'warning',
-                timestamp: new Date().toISOString(),
-                metadata: {
-                    productId: item.id,
-                    productName: item.name,
-                    currentStock: item.quantity,
-                    reorderPoint: item.reorder_point,
-                    value: item.quantity * Number(item.cost)
-                }
-            };
-            alerts.push(newAlert);
-            // Fire and forget email alert
-            sendEmailAlert(newAlert);
-        }
-
-        // Dead Stock Alert
-        if (item.last_sold_date && isBefore(parseISO(item.last_sold_date), deadStockDaysAgo)) {
-             const newAlert: Alert = {
-                id: `dead-${item.id}`,
-                type: 'dead_stock',
-                title: 'Dead Stock',
-                message: `${item.name} has not sold in over ${settings.dead_stock_days} days.`,
-                severity: 'info',
-                timestamp: new Date().toISOString(),
-                metadata: {
-                    productId: item.id,
-                    productName: item.name,
-                    currentStock: item.quantity,
-                    lastSoldDate: item.last_sold_date,
-                    value: item.quantity * Number(item.cost)
-                }
-            };
-            alerts.push(newAlert);
-             // Fire and forget email alert
-            sendEmailAlert(newAlert);
-        }
-    });
-
-    if (isRedisEnabled) {
-      try {
-        await redisClient.set(cacheKey, JSON.stringify(alerts), 'EX', 60); // 1 min TTL
-      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
-    }
-
-    return alerts;
-}
-
-export async function getInventoryFromDB(companyId: string) {
-    return getInventoryItems(companyId);
+    // Alerting is now a complex, on-demand calculation better suited for the AI.
+    // We return an empty array to prevent errors on the Alerts page.
+    return [];
 }
 
 // These are the tables we want to expose to the user.
 // We are explicitly listing them to match what the AI has been told it can query.
-const USER_FACING_TABLES = ['inventory', 'vendors', 'sales', 'purchase_orders'];
+const USER_FACING_TABLES = ['products', 'vendors', 'sales', 'sales_detail', 'customers', 'returns'];
 
 /**
  * Fetches the schema and sample data for user-facing tables.

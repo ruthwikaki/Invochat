@@ -205,8 +205,6 @@ export default function ImportPage() {
         title: "Import Failed", 
         description: error.message 
       });
-      // Also reset on failure so the user can try again
-      resetState();
     } finally {
       setIsImporting(false);
     }
@@ -361,7 +359,7 @@ export default function ImportPage() {
   };
 
   const stepDescriptions = [
-      { step: 1, title: 'Upload File', description: 'Select your inventory file' },
+      { step: 1, title: 'Upload File', description: 'Select your product file' },
       { step: 2, title: 'Map Columns', description: 'Match your data to our fields' },
       { step: 3, title: 'Review & Import', description: 'Finalize and start the import' }
   ]
@@ -372,7 +370,7 @@ export default function ImportPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SidebarTrigger className="md:hidden" />
-          <h1 className="text-2xl font-semibold">Import Inventory</h1>
+          <h1 className="text-2xl font-semibold">Import Products</h1>
         </div>
       </div>
       

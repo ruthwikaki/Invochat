@@ -6,7 +6,7 @@ import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
-    getInventoryItems, 
+    getProductsData, 
     getDeadStockPageData,
     getSuppliersFromDB,
     getAlertsFromDB,
@@ -73,7 +73,7 @@ export async function getDashboardData() {
 
 export async function getInventoryData() {
     const companyId = await getCompanyIdForCurrentUser();
-    return getInventoryItems(companyId);
+    return getProductsData(companyId);
 }
 
 export async function getDeadStockData() {
@@ -175,7 +175,7 @@ export async function testDatabaseQuery(): Promise<{
     });
 
     const { error, count } = await serviceSupabase
-      .from('inventory')
+      .from('products') // Test the new 'products' table
       .select('*', { count: 'exact', head: true })
       .eq('company_id', companyId);
 

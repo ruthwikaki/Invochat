@@ -73,7 +73,8 @@ export type Supplier = {
     account_number: string | null;
 }
 
-export type InventoryItem = {
+// This type represents a single product, replacing the old InventoryItem
+export type Product = {
     id: string; // UUID
     company_id: string; // UUID
     sku: string;
@@ -87,7 +88,6 @@ export type InventoryItem = {
     reorder_qty: number;
     supplier_name: string | null;
     warehouse_name: string | null;
-    last_sold_date: string | null; // ISO String
 }
 
 export type Alert = {

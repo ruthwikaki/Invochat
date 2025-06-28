@@ -96,7 +96,7 @@ export default async function DashboardPage() {
                         <>
                             <MetricCard
                                 href="/inventory"
-                                title="Total Inventory Value"
+                                title="Total Product Value"
                                 value={formatCurrency(data.inventoryValue)}
                                 icon={DollarSign}
                                 className="sm:col-span-2"
@@ -114,13 +114,14 @@ export default async function DashboardPage() {
                                 title="Dead Stock Value"
                                 value={formatCurrency(data.deadStockValue)}
                                 icon={TrendingDown}
+                                label="Ask the AI for details"
                             />
                             <MetricCard
                                 href="/alerts"
                                 title="Low Stock Items"
                                 value={data.lowStockCount.toString()}
                                 icon={AlertCircle}
-                                label="Items below reorder point"
+                                label="Ask the AI for a list"
                             />
                             <MetricCard
                                 href="/inventory"

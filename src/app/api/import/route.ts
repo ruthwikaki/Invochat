@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    // Prepare items for bulk insertion
-    const inventoryItems = items.map((item: any) => ({
+    // Prepare items for bulk insertion into the 'products' table
+    const productItems = items.map((item: any) => ({
       company_id: companyId,
       sku: item.sku || `SKU-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: item.name || 'Unnamed Item',
@@ -61,13 +61,12 @@ export async function POST(request: NextRequest) {
       reorder_qty: parseInt(item.reorder_qty) || 50,
       supplier_name: item.supplier_name || null,
       warehouse_name: item.warehouse_name || 'Main Warehouse',
-      last_sold_date: item.last_sold_date || null,
     }));
     
     // Perform bulk insert using the admin client to bypass RLS for this trusted server operation
     const { data, error: insertError } = await supabase
-      .from('inventory')
-      .insert(inventoryItems)
+      .from('products')
+      .insert(productItems)
       .select();
       
     if (insertError) {
@@ -83,7 +82,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       count: data?.length || 0,
-      message: `Successfully imported ${data?.length || 0} items` 
+      message: `Successfully imported ${data?.length || 0} products` 
     });
     
   } catch (error: any) {

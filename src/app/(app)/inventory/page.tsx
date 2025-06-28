@@ -19,12 +19,12 @@ import {
 } from '@/components/ui/select';
 import { Download, Search, AlertTriangle } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { InventoryItem } from '@/types';
+import type { Product } from '@/types';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getInventoryData } from '@/app/data-actions';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
@@ -32,14 +32,13 @@ import { useAuth } from '@/context/auth-context';
 import Papa from 'papaparse';
 
 
-function InventorySkeleton() {
+function ProductsSkeleton() {
   return Array.from({ length: 8 }).map((_, i) => (
     <TableRow key={i}>
       <TableCell><Skeleton className="h-4 w-20" /></TableCell>
       <TableCell><Skeleton className="h-4 w-48" /></TableCell>
       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
       <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
     </TableRow>
@@ -49,7 +48,7 @@ function InventorySkeleton() {
 function EmptyState() {
     return (
         <TableRow>
-            <TableCell colSpan={7}>
+            <TableCell colSpan={6}>
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -91,7 +90,7 @@ function EmptyState() {
                             </motion.g>
                         </svg>
                     </div>
-                    <h3 className="mt-2 text-2xl font-semibold tracking-tight">Your inventory is empty</h3>
+                    <h3 className="mt-2 text-2xl font-semibold tracking-tight">Your product list is empty</h3>
                     <p className="max-w-xs text-muted-foreground">Get started by importing your products. It's fast and easy!</p>
                     <Button asChild className="mt-4">
                         <Link href="/import">Import Data</Link>
@@ -109,7 +108,7 @@ function NoResultsState({ setSearch, setCategory }: { setSearch: (search: string
     };
     return (
         <TableRow>
-            <TableCell colSpan={7}>
+            <TableCell colSpan={6}>
                 <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -129,10 +128,10 @@ function NoResultsState({ setSearch, setCategory }: { setSearch: (search: string
 }
 
 
-export default function InventoryPage() {
+export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
-  const [allInventory, setAllInventory] = useState<InventoryItem[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -142,11 +141,11 @@ export default function InventoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getInventoryData();
-      setAllInventory(data);
+      const data = await getInventoryData(); // This now gets products
+      setAllProducts(data as Product[]);
     } catch (err: any) {
-      console.error("Failed to fetch inventory", err);
-      const errorMessage = err.message || 'Could not load inventory data.';
+      console.error("Failed to fetch products", err);
+      const errorMessage = err.message || 'Could not load products data.';
       setError(errorMessage);
       toast({ variant: 'destructive', title: 'Error', description: errorMessage });
     } finally {
@@ -164,36 +163,35 @@ export default function InventoryPage() {
 
     const supabase = createBrowserSupabaseClient();
     const channel = supabase
-      .channel(`inventory-changes-for-${companyId}`)
+      .channel(`products-changes-for-${companyId}`)
       .on(
         'postgres_changes',
         { 
           event: '*', 
           schema: 'public', 
-          table: 'inventory',
+          table: 'products', // Listen to the new products table
           filter: `company_id=eq.${companyId}`
         },
         (payload) => {
           const { eventType, new: newItem, old: oldItem } = payload;
           
-          setAllInventory(currentInventory => {
+          setAllProducts(currentProducts => {
               if (eventType === 'INSERT') {
-                  return [...currentInventory, newItem as InventoryItem];
+                  return [...currentProducts, newItem as Product];
               }
               if (eventType === 'UPDATE') {
-                  return currentInventory.map(item => item.id === newItem.id ? newItem as InventoryItem : item);
+                  return currentProducts.map(item => item.id === newItem.id ? newItem as Product : item);
               }
               if (eventType === 'DELETE') {
-                  return currentInventory.filter(item => item.id !== (oldItem as any).id);
+                  return currentProducts.filter(item => item.id !== (oldItem as any).id);
               }
-              return currentInventory;
+              return currentProducts;
           });
         }
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-            console.log('[Real-time] Successfully subscribed to inventory updates. Fetching initial data...');
-            // Fetch initial data only after subscription is confirmed to avoid race conditions.
+            console.log('[Real-time] Successfully subscribed to products updates. Fetching initial data...');
             fetchData();
         }
         if (status === 'CHANNEL_ERROR' || err) {
@@ -203,7 +201,6 @@ export default function InventoryPage() {
                 title: 'Real-time Error',
                 description: 'Could not connect to live updates. The page may not update automatically.',
             });
-            // Still fetch data even if subscription fails
             fetchData();
         }
       });
@@ -214,20 +211,20 @@ export default function InventoryPage() {
   }, [user, toast, fetchData]);
 
   const categories = useMemo(() => {
-    const uniqueCategories = [...new Set(allInventory.map(item => item.category).filter(Boolean) as string[])];
+    const uniqueCategories = [...new Set(allProducts.map(item => item.category).filter(Boolean) as string[])];
     return ['all', ...uniqueCategories.sort()];
-  }, [allInventory]);
+  }, [allProducts]);
 
-  const filteredInventory = useMemo(() => {
-    return allInventory.filter((item) => {
+  const filteredProducts = useMemo(() => {
+    return allProducts.filter((item) => {
         const matchesCategory = category === 'all' || item.category === category;
         const matchesSearch = !search || item.name.toLowerCase().includes(search.toLowerCase());
         return matchesCategory && matchesSearch;
     });
-  }, [allInventory, search, category]);
+  }, [allProducts, search, category]);
   
   const handleExport = () => {
-    if (filteredInventory.length === 0) {
+    if (filteredProducts.length === 0) {
         toast({
             variant: 'destructive',
             title: 'No Data to Export',
@@ -235,12 +232,12 @@ export default function InventoryPage() {
         });
         return;
     }
-    const csv = Papa.unparse(filteredInventory);
+    const csv = Papa.unparse(filteredProducts);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', 'inventory_export.csv');
+    link.setAttribute('download', 'products_export.csv');
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -253,7 +250,7 @@ export default function InventoryPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <SidebarTrigger className="md:hidden" />
-          <h1 className="text-2xl font-semibold">Inventory</h1>
+          <h1 className="text-2xl font-semibold">Products</h1>
         </div>
         <Button onClick={handleExport} disabled={loading || !!error}>
           <Download className="mr-2 h-4 w-4" />
@@ -293,16 +290,15 @@ export default function InventoryPage() {
                 <TableHead>Category</TableHead>
                 <TableHead className="text-right">Quantity</TableHead>
                 <TableHead className="text-right">Unit Cost</TableHead>
-                <TableHead>Last Sold</TableHead>
                 <TableHead>Warehouse</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <InventorySkeleton />
+                <ProductsSkeleton />
               ) : error ? (
                 <TableRow>
-                    <TableCell colSpan={7}>
+                    <TableCell colSpan={6}>
                         <div className="flex flex-col items-center justify-center gap-4 py-12 text-center text-destructive">
                             <AlertTriangle className="h-16 w-16" />
                             <h3 className="text-xl font-semibold">An Error Occurred</h3>
@@ -311,12 +307,12 @@ export default function InventoryPage() {
                         </div>
                     </TableCell>
                 </TableRow>
-              ) : allInventory.length === 0 ? (
+              ) : allProducts.length === 0 ? (
                 <EmptyState />
-              ) : filteredInventory.length === 0 ? (
+              ) : filteredProducts.length === 0 ? (
                 <NoResultsState setSearch={setSearch} setCategory={setCategory} />
               ) : (
-                filteredInventory.map((item) => (
+                filteredProducts.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-mono text-xs">
                       {item.sku}
@@ -329,7 +325,6 @@ export default function InventoryPage() {
                     <TableCell className="text-right">
                       ${Number(item.cost).toLocaleString()}
                     </TableCell>
-                    <TableCell>{item.last_sold_date ? format(parseISO(item.last_sold_date), 'yyyy-MM-dd') : 'N/A'}</TableCell>
                     <TableCell>{item.warehouse_name || 'N/A'}</TableCell>
                   </TableRow>
                 ))
@@ -341,7 +336,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-
-    
-
-    

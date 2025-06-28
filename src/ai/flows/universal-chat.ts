@@ -15,50 +15,59 @@ import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-
 import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getCompanySettings } from '@/services/database';
 import { APP_CONFIG } from '@/config/app-config';
 
+// Updated few-shot examples to reflect the new, richer schema
 const FEW_SHOT_EXAMPLES = `
-  1. User asks: "Show me dead stock over $1000"
+  1. User asks: "Show me products that haven't sold in 90 days"
      SQL:
-     SELECT name, sku, quantity, cost, (quantity * cost) as stock_value
-     FROM inventory
-     WHERE company_id = '{{companyId}}'
-       AND last_sold_date < (CURRENT_DATE - INTERVAL '90 days')
-       AND (quantity * cost) > 1000
-     ORDER BY stock_value DESC;
+     SELECT p.name, p.sku, p.quantity
+     FROM products p
+     WHERE p.company_id = '{{companyId}}'
+       AND NOT EXISTS (
+         SELECT 1
+         FROM sales_detail sd
+         JOIN sales s ON sd.sale_id = s.id
+         WHERE sd.product_id = p.id
+           AND s.sale_date >= (CURRENT_DATE - INTERVAL '90 days')
+       )
+     ORDER BY p.name;
 
-  2. User asks: "Which suppliers have the most low stock items?"
+  2. User asks: "Which suppliers have the most products that are low on stock?"
      SQL:
      WITH LowStockCounts AS (
         SELECT
-            supplier_name,
-            COUNT(*) as low_stock_item_count
-        FROM inventory
-        WHERE company_id = '{{companyId}}' AND quantity <= reorder_point
-        GROUP BY supplier_name
+            p.supplier_name,
+            COUNT(p.id) as low_stock_product_count
+        FROM products p
+        WHERE p.company_id = '{{companyId}}' AND p.quantity <= p.reorder_point
+        GROUP BY p.supplier_name
      )
      SELECT
         v.vendor_name,
-        lsc.low_stock_item_count
+        lsc.low_stock_product_count
      FROM LowStockCounts lsc
      JOIN vendors v ON lsc.supplier_name = v.vendor_name AND v.company_id = '{{companyId}}'
-     ORDER BY lsc.low_stock_item_count DESC;
+     ORDER BY lsc.low_stock_product_count DESC;
 
-  3. User asks: "Compare this month's sales to last month"
+  3. User asks: "Compare sales this month to last month for each product category"
      SQL:
      WITH MonthlySales AS (
         SELECT
-            date_trunc('month', sale_date) as sales_month,
-            SUM(total_amount) as total_sales
-        FROM sales
-        WHERE company_id = '{{companyId}}'
-          AND sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-        GROUP BY 1
+            p.category,
+            date_trunc('month', s.sale_date) as sales_month,
+            SUM(sd.quantity * sd.price) as total_sales
+        FROM sales_detail sd
+        JOIN sales s ON sd.sale_id = s.id
+        JOIN products p ON sd.product_id = p.id
+        WHERE s.company_id = '{{companyId}}'
+          AND s.sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+        GROUP BY 1, 2
      )
      SELECT
-        TO_CHAR(sales_month, 'YYYY-MM') as month,
+        category,
         total_sales,
-        LAG(total_sales, 1) OVER (ORDER BY sales_month) as previous_month_sales
+        LAG(total_sales, 1) OVER (PARTITION BY category ORDER BY sales_month) as previous_month_sales
      FROM MonthlySales
-     ORDER BY sales_month DESC;
+     ORDER BY category, sales_month DESC;
 `;
 
 
@@ -71,7 +80,7 @@ const sqlGenerationPrompt = ai.definePrompt({
   input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
   output: { schema: z.object({ sqlQuery: z.string().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
-    You are an expert PostgreSQL query generation agent for an inventory management system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query.
+    You are an expert PostgreSQL query generation agent for an e-commerce analytics system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query.
 
     DATABASE SCHEMA OVERVIEW:
     {{{dbSchema}}}
@@ -88,7 +97,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement.
     3.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
     4.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    5.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM table1 JOIN table2 ON table1.id = table2.table1_id\`).
+    5.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM products JOIN vendors ON products.supplier_id = vendors.id\`).
 
     **B) For COMPLEX ANALYTICAL Queries:**
     6.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
@@ -113,7 +122,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     **Step 5: Formulate the Final Output.**
     - Respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
     - The \`sqlQuery\` field MUST contain ONLY the SQL string. Do not include markdown or trailing semicolons.
-    - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with inventory to get product names.").
+    - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with products to get product names.").
   `,
 });
 
@@ -140,7 +149,7 @@ const queryValidationPrompt = ai.definePrompt({
 
     OUTPUT:
     - If valid, return \`{"isValid": true}\`.
-    - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely and technically."}\`. For example: "The query uses a cross join between vendors and inventory, which is invalid. It should use an explicit JOIN ON a shared key." or "The query is missing the calculation for inventory turnover rate."
+    - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely and technically."}\`. For example: "The query uses a cross join between vendors and products, which is invalid. It should use an explicit JOIN ON a shared key." or "The query is missing the calculation for inventory turnover rate."
   `,
 });
 
@@ -242,11 +251,12 @@ const universalChatOrchestrator = ai.defineFlow(
     
     const { businessLogic } = APP_CONFIG; // For seasonalCategories, which aren't in settings yet
     
+    // Updated Semantic Layer for the new schema
     const semanticLayer = `
-      - "Dead stock": inventory items where 'last_sold_date' is more than ${settings.dead_stock_days} days ago.
-      - "Low stock": inventory items where 'quantity' <= 'reorder_point'.
-      - "Revenue" or "Sales": calculated from 'sales.total_amount'.
-      - "Inventory Value": calculated by SUM(inventory.quantity * inventory.cost).
+      - "Dead stock": products that have not appeared in a 'sales_detail' record where the 'sales.sale_date' is more recent than ${settings.dead_stock_days} days ago.
+      - "Low stock": products where 'quantity' <= 'reorder_point'.
+      - "Revenue" or "Sales": calculated from 'sales.total_amount' or by summing 'sales_detail.price * sales_detail.quantity'.
+      - "Inventory Value": calculated by SUM(products.quantity * products.cost).
       - "Fast-moving items": products sold in the last ${settings.fast_moving_days} days.
       - "Overstock": items with quantity > (reorder_point * ${settings.overstock_multiplier}).
       - "High-value items": products where cost > ${settings.high_value_threshold}.
