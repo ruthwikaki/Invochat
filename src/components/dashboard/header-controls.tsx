@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RefreshCw } from 'lucide-react';
 import { useCallback, useTransition } from 'react';
+import { cn } from '@/lib/utils';
 
 export function DashboardHeaderControls() {
   const router = useRouter();
