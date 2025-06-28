@@ -19,6 +19,7 @@ import {
   Beaker,
   Database,
   ShieldCheck,
+  Upload,
 } from 'lucide-react';
 import { InvochatLogo } from './invochat-logo';
 import {
@@ -103,6 +104,14 @@ export function AppSidebar() {
           ) : null}
         </div>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/import'}>
+              <Link href="/import" prefetch={false}>
+                <Upload />
+                <span>Data Importer</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/database'}>
               <Link href="/database" prefetch={false}>
