@@ -128,7 +128,13 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
         const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
         const profitPromise = supabase.from('sales_detail').select('profit').eq('company_id', companyId);
         const inventoryValuePromise = supabase.from('inventory_valuation').select('quantity, cost').eq('company_id', companyId);
-        const lowStockPromise = supabase.from('fba_inventory').select('*', { count: 'exact', head: true }).eq('company_id', companyId).lt('quantity', 20);
+
+        const lowStockCountQuery = `
+            SELECT COUNT(*) as count
+            FROM fba_inventory
+            WHERE company_id = '${companyId}' AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
+        `;
+        const lowStockPromise = supabase.rpc('execute_dynamic_query', { query_text: lowStockCountQuery.trim().replace(/;/g, '') });
 
         const salesTrendQuery = `
             SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
@@ -216,7 +222,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
         const customersCount = extractCount(customersResult);
         const profitData = extractData(profitResult, []);
         const inventoryValueData = extractData(inventoryValueResult, []);
-        const lowStockItemsCount = extractCount(lowStockResult);
+        const lowStockCountData = extractData(lowStockResult, [{count: 0}]);
+        const lowStockItemsCount = lowStockCountData[0]?.count || 0;
 
         const salesTrendData = extractData(salesTrendResult, []);
         const topCustomersData = extractData(topCustomersResult, []);
@@ -436,12 +443,13 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         const alerts: Alert[] = [];
         
         // --- Low Stock Alerts ---
-        // This is a simplified example. A real implementation would be more robust.
+        const lowStockQuery = `
+            SELECT sku, quantity, product_name, reorder_point
+            FROM fba_inventory
+            WHERE company_id = '${companyId}' AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
+        `;
         const { data: lowStockItems, error: lowStockError } = await supabase
-            .from('fba_inventory') // Assuming reorder point is on this table.
-            .select('sku, quantity, product_name')
-            .eq('company_id', companyId)
-            .lt('quantity', 20); // Using a static 20 for reorder point as an example.
+            .rpc('execute_dynamic_query', { query_text: lowStockQuery.trim().replace(/;/g, '') });
 
         if (lowStockError) {
             logger.warn('[DB Service] Could not check for low stock items:', lowStockError.message);
@@ -458,7 +466,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                         productId: item.sku,
                         productName: item.product_name || item.sku,
                         currentStock: item.quantity,
-                        reorderPoint: 20 // Example reorder point
+                        reorderPoint: item.reorder_point
                     },
                 };
                 alerts.push(alert);

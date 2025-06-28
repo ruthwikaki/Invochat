@@ -43,7 +43,7 @@ export function ConversationSidebar({
     const mainMenuItems = [
         { href: '/dashboard', label: 'Dashboard', icon: Home },
         { href: '/inventory', label: 'Inventory', icon: Package },
-        { href: '/import', label: 'Insights', icon: Lightbulb },
+        { href: '/insights', label: 'Insights', icon: Lightbulb },
         { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
         { href: '/suppliers', label: 'Suppliers', icon: Truck },
         { href: '/analytics', label: 'Analytics', icon: BarChart },
