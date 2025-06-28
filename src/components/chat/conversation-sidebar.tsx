@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { InvochatLogo } from '../invochat-logo';
-import { MessageSquarePlus, MessageSquareText, Star, Home, Package, Upload, TrendingDown, Truck, BarChart, AlertCircle, LogOut, Moon, Settings, Sun, Database, ShieldCheck } from 'lucide-react';
+import { MessageSquarePlus, MessageSquareText, Star, Home, Package, Link as LinkIcon, TrendingDown, Truck, BarChart, AlertCircle, LogOut, Moon, Settings, Sun, Database, ShieldCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Sidebar, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
@@ -43,7 +43,7 @@ export function ConversationSidebar({
     const mainMenuItems = [
         { href: '/dashboard', label: 'Dashboard', icon: Home },
         { href: '/inventory', label: 'Inventory', icon: Package },
-        { href: '/import', label: 'Import Data', icon: Upload },
+        { href: '/import', label: 'Connections', icon: LinkIcon },
         { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
         { href: '/suppliers', label: 'Suppliers', icon: Truck },
         { href: '/analytics', label: 'Analytics', icon: BarChart },
