@@ -123,10 +123,12 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
     const keys = Object.keys(firstItem);
     if (keys.length < 2) return [];
     
-    const nameKey = keys.find(k => typeof firstItem[k] === 'string' && (k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor') || k.toLowerCase().includes('item'))) || keys[0];
-    const valueKey = keys.find(k => k !== nameKey && typeof firstItem[k] === 'number') || keys.find(k => k !== nameKey && (k.toLowerCase().includes('value') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('amount')));
+    // For treemaps, the size key is important. Often called 'value' or 'size'.
+    const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('size') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('amount')) || keys.find(k => typeof firstItem[k] === 'number');
+    const nameKey = keys.find(k => k !== valueKey && typeof firstItem[k] === 'string' && (k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor') || k.toLowerCase().includes('item'))) || keys.find(k => k !== valueKey);
 
-    if (!valueKey) return [];
+
+    if (!valueKey || !nameKey) return [];
 
     const transformed = data.map((item) => {
         if (typeof item !== 'object' || item === null || !(nameKey in item) || !(valueKey in item)) return null;
@@ -137,8 +139,9 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
         return { name: String(item[nameKey] ?? 'Unnamed'), value: numericValue };
     }).filter((item): item is { name: string; value: number } => item !== null);
     
-    if (chartType === 'pie' || chartType === 'bar') {
-        return transformed.filter(item => item.value !== 0);
+    // For visualizations where zero or negative values don't make sense (like pie or treemap proportions)
+    if (['pie', 'bar', 'treemap'].includes(chartType)) {
+        return transformed.filter(item => item.value > 0);
     }
     
     return transformed;
@@ -265,10 +268,10 @@ export async function handleUserMessage(
     if (responseData.visualization && responseData.visualization.type !== 'none' && Array.isArray(responseData.data) && responseData.data.length > 0) {
       if (responseData.visualization.type === 'table') {
         assistantMessage.visualization = { type: 'table', data: responseData.data, config: { title: responseData.visualization.title || 'Data Table' }};
-      } else if (['bar', 'pie', 'line'].includes(responseData.visualization.type)) {
+      } else if (['bar', 'pie', 'line', 'treemap'].includes(responseData.visualization.type)) {
         const transformedData = transformDataForChart(responseData.data, responseData.visualization.type);
         if (transformedData.length > 0) {
-          assistantMessage.visualization = { type: 'chart', data: transformedData, config: { chartType: responseData.visualization.type as 'bar' | 'pie' | 'line', title: responseData.visualization.title || 'Data Visualization', dataKey: 'value', nameKey: 'name', xAxisKey: 'name' }};
+          assistantMessage.visualization = { type: 'chart', data: transformedData, config: { chartType: responseData.visualization.type as 'bar' | 'pie' | 'line' | 'treemap', title: responseData.visualization.title || 'Data Visualization', dataKey: 'value', nameKey: 'name' }};
         }
       }
     }

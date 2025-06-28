@@ -200,7 +200,13 @@ const finalResponsePrompt = ai.definePrompt({
     2.  **Assess Confidence**: Based on the user's query and the data, provide a confidence score from 0.0 to 1.0. A 1.0 means you are certain the query fully answered the user's request. A lower score means you had to make assumptions.
     3.  **List Assumptions**: If your confidence is below 1.0, list the assumptions you made (e.g., "Interpreted 'top products' as 'top by sales value'"). If confidence is 1.0, return an empty array.
     4.  **Formulate Response**: Provide a concise, natural language response based ONLY on the data. Do NOT mention SQL, databases, or JSON.
-    5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type ('table', 'bar', 'pie', 'line', or 'none') and a title for it.
+    5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type and a title for it. Available types are:
+        - 'table': For detailed, row-based data.
+        - 'bar': For comparing distinct items.
+        - 'pie': For showing proportions of a whole.
+        - 'line': For showing trends over time.
+        - 'treemap': For hierarchical data or showing parts of a whole with nested rectangles. Good for inventory value by category and then by product.
+        - 'none': If no visualization is appropriate.
     6.  **Format Output**: Return a single JSON object with 'response', 'visualization', 'confidence', and 'assumptions' fields. Do NOT include the raw data in your response.
   `,
 });

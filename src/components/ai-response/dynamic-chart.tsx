@@ -1,4 +1,6 @@
 
+'use client';
+
 import type { ChartConfig } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,10 +17,40 @@ import {
   XAxis,
   YAxis,
   Cell,
-  Legend
+  Legend,
+  Treemap,
 } from 'recharts';
 
 type DynamicChartProps = ChartConfig & { isExpanded?: boolean };
+
+// A new component to render the content of each treemap rectangle
+// This provides better visual styling than the default.
+const TreemapContent = (props: any) => {
+  const { depth, x, y, width, height, index, name } = props;
+
+  return (
+    <g>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        style={{
+          fill: `hsl(var(--chart-${(index % 5) + 1}))`,
+          stroke: 'hsl(var(--background))',
+          strokeWidth: 2 / (depth + 1e-10),
+          strokeOpacity: 1 / (depth + 1e-10),
+        }}
+      />
+      {depth === 1 && width > 60 && height > 25 ? (
+        <text x={x + 4} y={y + 18} fill="#fff" fontSize={14} fillOpacity={0.9}>
+          {name}
+        </text>
+      ) : null}
+    </g>
+  );
+};
+
 
 function renderChart(props: DynamicChartProps) {
     const { chartType, data, config } = props;
@@ -83,6 +115,25 @@ function renderChart(props: DynamicChartProps) {
                     />
                     <Line type="monotone" dataKey={config.dataKey} stroke="hsl(var(--primary))" />
                 </LineChart>
+            );
+        case 'treemap':
+            return (
+                <Treemap
+                    data={data}
+                    dataKey={config.dataKey}
+                    nameKey={config.nameKey}
+                    aspectRatio={4 / 3}
+                    isAnimationActive={false} // Important for custom content
+                    content={<TreemapContent />}
+                >
+                    <Tooltip
+                        contentStyle={{
+                            backgroundColor: 'hsl(var(--background))',
+                            borderColor: 'hsl(var(--border))'
+                        }}
+                         formatter={(value: number, name: string) => [value.toLocaleString(), name]}
+                    />
+                </Treemap>
             );
         default:
             return <p>Unsupported chart type.</p>;
