@@ -16,6 +16,120 @@ import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, sa
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 
+const ENHANCED_SEMANTIC_LAYER = `
+  BUSINESS METRICS:
+  - "Inventory turnover rate": COGS / Average Inventory Value (industry standard: 5-10x/year)
+  - "Sell-through rate": (Units Sold / Units Received) * 100
+  - "GMROI" (Gross Margin Return on Investment): Gross Margin $ / Average Inventory Cost
+  - "Stock to sales ratio": Average Inventory / Daily Sales Rate
+  - "Carrying cost": Storage + Insurance + Taxes + Depreciation + Opportunity Cost
+  - "Economic order quantity (EOQ)": sqrt((2 * Annual Demand * Order Cost) / Holding Cost)
+  - "Days sales of inventory (DSI)": (Average Inventory / COGS) * 365
+  - "Customer lifetime value (CLV)": Average Order Value * Purchase Frequency * Customer Lifespan
+  - "ABC Analysis": A items (80% revenue), B items (15% revenue), C items (5% revenue)
+  - "XYZ Analysis": X (steady demand), Y (variable demand), Z (irregular demand)
+  
+  TIME INTELLIGENCE:
+  - "YoY" (Year over Year): Compare to same period last year
+  - "MoM" (Month over Month): Compare to previous month
+  - "QoQ" (Quarter over Quarter): Compare to previous quarter
+  - "YTD" (Year to Date): From Jan 1 to current date
+  - "MTD" (Month to Date): From month start to current date
+  - "Rolling 12 months": Last 365 days
+  - "Same period last year": date - INTERVAL '1 year'
+  - "Seasonality": Identify patterns that repeat annually
+  
+  ADVANCED ANALYTICS:
+  - "Trend analysis": Linear regression over time periods
+  - "Outliers": Values beyond 2 standard deviations
+  - "Correlation": Relationship between two metrics
+  - "Price elasticity": Change in demand relative to price changes
+  - "Basket analysis": Products frequently bought together
+  - "Cohort analysis": Group customers by shared characteristics
+  - "RFM analysis": Recency, Frequency, Monetary value segmentation
+  
+  SUPPLY CHAIN METRICS:
+  - "Lead time": Days between order and receipt
+  - "Safety stock": Buffer inventory for demand variability
+  - "Reorder point": (Average Daily Usage * Lead Time) + Safety Stock
+  - "Service level": Probability of not stocking out
+  - "Fill rate": Orders fulfilled from stock / Total orders
+  - "Perfect order rate": Orders delivered complete, on time, damage-free
+  
+  FINANCIAL METRICS:
+  - "Gross margin": (Revenue - COGS) / Revenue
+  - "Operating margin": Operating Income / Revenue
+  - "Cash conversion cycle": DSI + Days Sales Outstanding - Days Payable Outstanding
+  - "Working capital": Current Assets - Current Liabilities
+  - "Return on assets (ROA)": Net Income / Total Assets
+`;
+
+const BUSINESS_QUERY_EXAMPLES = `
+  4. Forecasting Query:
+     User: "Forecast next month's demand for my top 10 products"
+     SQL: WITH historical_sales AS (
+       SELECT sku, 
+              DATE_TRUNC('month', sale_date) as month,
+              SUM(quantity) as monthly_quantity
+       FROM sales_detail
+       WHERE company_id = '{{companyId}}'
+         AND sale_date >= CURRENT_DATE - INTERVAL '12 months'
+       GROUP BY sku, month
+     ),
+     trend_analysis AS (
+       SELECT sku,
+              REGR_SLOPE(monthly_quantity, EXTRACT(epoch FROM month)) as trend,
+              REGR_INTERCEPT(monthly_quantity, EXTRACT(epoch FROM month)) as base,
+              AVG(monthly_quantity) as avg_monthly,
+              STDDEV(monthly_quantity) as stddev_monthly
+       FROM historical_sales
+       GROUP BY sku
+     )
+     SELECT t.sku, 
+            iv.product_name,
+            ROUND(t.base + t.trend * EXTRACT(epoch FROM DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')))) as forecasted_quantity,
+            t.avg_monthly as historical_average,
+            ROUND(t.stddev_monthly) as demand_variability
+     FROM trend_analysis t
+     JOIN inventory_valuation iv ON t.sku = iv.sku AND iv.company_id = '{{companyId}}'
+     ORDER BY t.avg_monthly DESC
+     LIMIT 10;
+
+  5. ABC Analysis Query:
+     User: "Perform ABC analysis on my inventory"
+     SQL: WITH product_revenue AS (
+       SELECT iv.sku,
+              iv.product_name,
+              SUM(sd.quantity * sd.unit_price) as total_revenue,
+              SUM(sd.quantity) as total_units
+       FROM inventory_valuation iv
+       JOIN sales_detail sd ON iv.sku = sd.sku
+       WHERE iv.company_id = '{{companyId}}' AND sd.company_id = '{{companyId}}'
+         AND sd.sale_date >= CURRENT_DATE - INTERVAL '12 months'
+       GROUP BY iv.sku, iv.product_name
+     ),
+     revenue_ranking AS (
+       SELECT *,
+              SUM(total_revenue) OVER (ORDER BY total_revenue DESC) as cumulative_revenue,
+              SUM(total_revenue) OVER () as grand_total_revenue,
+              ROW_NUMBER() OVER (ORDER BY total_revenue DESC) as rank
+       FROM product_revenue
+     )
+     SELECT sku, 
+            product_name,
+            total_revenue,
+            total_units,
+            ROUND((cumulative_revenue / grand_total_revenue) * 100, 2) as cumulative_percentage,
+            CASE 
+              WHEN cumulative_revenue / grand_total_revenue <= 0.8 THEN 'A'
+              WHEN cumulative_revenue / grand_total_revenue <= 0.95 THEN 'B'
+              ELSE 'C'
+            END as abc_category
+     FROM revenue_ranking
+     ORDER BY rank;
+`;
+
+
 // Updated few-shot examples to reflect the new, richer schema
 const FEW_SHOT_EXAMPLES = `
   1. User asks: "Who were my top 5 customers last month?"
@@ -63,6 +177,8 @@ const FEW_SHOT_EXAMPLES = `
      WHERE iv.company_id = '{{companyId}}'
        AND wl.company_id = '{{companyId}}'
        AND wl.warehouse_name = 'Main Warehouse';
+
+  ${BUSINESS_QUERY_EXAMPLES}
 `;
 
 
@@ -259,16 +375,7 @@ const universalChatOrchestrator = ai.defineFlow(
         `Table: ${table.tableName} | Columns: ${table.rows.length > 0 ? Object.keys(table.rows[0]).join(', ') : 'No columns detected or table is empty'}`
     ).join('\n');
     
-    // Updated Semantic Layer for the new schema, providing more explicit guidance.
-    const semanticLayer = `
-      - "Dead stock": items with no sales in 'sales' or 'sales_detail' tables within the 'dead_stock_days' setting (${settings.dead_stock_days} days).
-      - "Low stock": items in 'fba_inventory' where quantity is near or below a reorder point (if available).
-      - "Revenue" or "Sales": MUST be calculated from 'sales.total_amount'.
-      - "Profit" or "Margin": MUST be calculated from 'sales_detail.profit'.
-      - "Returns": MUST be calculated using the 'returns' and 'return_items' tables.
-      - "Inventory Value": MUST be calculated by multiplying quantity and cost from a table like 'inventory_valuation' or 'fba_inventory'.
-      - "Product": Refers to an item, identified by 'sku' or a product name column.
-    `;
+    const semanticLayer = ENHANCED_SEMANTIC_LAYER;
 
     const formattedDynamicPatterns = dynamicPatterns.map((p, i) => 
         `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`
