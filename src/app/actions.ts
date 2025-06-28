@@ -7,7 +7,7 @@ import type { Message, Conversation } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
-import { redisClient, isRedisEnabled } from '@/lib/redis';
+import { redisClient, isRedisEnabled, rateLimit } from '@/lib/redis';
 import crypto from 'crypto';
 import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss, trackEndpointPerformance } from '@/services/monitoring';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -159,6 +159,7 @@ function getErrorMessage(error: any): string {
     else if (error.message?.includes('API key not valid')) errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
     else if (error.message?.includes('authenticated or configured')) errorMessage = error.message;
     else if (error.message?.includes('violates not-null constraint')) errorMessage = 'A critical database error occurred while trying to save a message. This usually points to an issue with application logic or database setup.';
+    else if (error.message?.includes('Rate limited')) errorMessage = 'You are sending messages too quickly. Please wait a moment before trying again.';
     return errorMessage;
 }
 
@@ -184,6 +185,14 @@ export async function handleUserMessage(
     currentConversationId = parsedPayload.data.conversationId;
     const supabase = getServiceRoleClient();
     const { userId, companyId } = await getAuthContext();
+
+    // Step 0: Apply Rate Limiting
+    const { limited } = await rateLimit(userId, 'ai_chat', 30, 60); // 30 requests per minute
+    if (limited) {
+      logger.warn(`[Rate Limit] User ${userId} exceeded AI chat limit.`);
+      throw new Error('Rate limited');
+    }
+
     let historyForAI: { role: 'user' | 'assistant'; content: string }[] = [];
 
     // Step 1: Find or Create Conversation

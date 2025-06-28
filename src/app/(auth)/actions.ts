@@ -2,11 +2,13 @@
 'use server';
 
 import { z } from 'zod';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import crypto from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { rateLimit } from '@/lib/redis';
+import { logger } from '@/lib/logger';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -14,6 +16,13 @@ const loginSchema = z.object({
 });
 
 export async function login(formData: FormData) {
+  const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+  const { limited } = await rateLimit(ip, 'auth', 5, 60); // 5 requests per minute per IP
+  if (limited) {
+    logger.warn(`[Rate Limit] Blocked login attempt from IP: ${ip}`);
+    redirect(`/login?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
+  }
+
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) {
     redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
@@ -67,6 +76,13 @@ const signupSchema = z.object({
 
 
 export async function signup(formData: FormData) {
+    const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+    const { limited } = await rateLimit(ip, 'auth', 5, 60); // 5 requests per minute per IP
+    if (limited) {
+      logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
+      redirect(`/signup?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
+    }
+
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {

@@ -1,3 +1,4 @@
+
 import Redis from 'ioredis';
 import { logger } from './logger';
 
@@ -9,6 +10,11 @@ const mockRedisClient = {
     get: async (key: string) => null,
     set: async (key: string, value: string, ...args: any[]) => 'OK' as const,
     del: async (...keys: string[]) => 1 as const,
+    pipeline: () => mockRedisClient, // Return self for pipeline chaining
+    zremrangebyscore: () => mockRedisClient,
+    zadd: () => mockRedisClient,
+    expire: () => mockRedisClient,
+    exec: async () => [[null, 0], [null, 0], [null, 0]], // Mock exec response
 };
 
 if (process.env.REDIS_URL) {
@@ -35,7 +41,7 @@ if (process.env.REDIS_URL) {
         logger.error(`[Redis] Failed to initialize client: ${e.message}`);
     }
 } else {
-    logger.warn('[Redis] REDIS_URL is not set. Caching is disabled.');
+    logger.warn('[Redis] REDIS_URL is not set. Caching and rate limiting are disabled.');
 }
 
 // If connection failed or was not configured, use the mock client.
@@ -64,5 +70,61 @@ export async function invalidateCompanyCache(companyId: string, types: ('dashboa
         } catch (e) {
             logger.error(`[Redis] Cache invalidation failed for company ${companyId}:`, e);
         }
+    }
+}
+
+/**
+ * Applies a rate limit for a given identifier and action using a sliding window log algorithm.
+ * @param identifier A unique string for the user/IP being rate-limited.
+ * @param action A descriptor for the action being limited (e.g., 'auth', 'ai_chat').
+ * @param limit The maximum number of requests allowed in the window.
+ * @param windowSeconds The duration of the window in seconds.
+ * @returns A promise resolving to an object with `limited` (boolean) and `remaining` (number) properties.
+ */
+export async function rateLimit(
+    identifier: string,
+    action: string,
+    limit: number,
+    windowSeconds: number
+): Promise<{ limited: boolean; remaining: number }> {
+    if (!isRedisEnabled || !redis) {
+        return { limited: false, remaining: limit };
+    }
+
+    try {
+        const key = `rate_limit:${action}:${identifier}`;
+        const now = Date.now();
+        const windowStart = now - windowSeconds * 1000;
+
+        const pipeline = redis.pipeline();
+        // Remove timestamps that are older than the window
+        pipeline.zremrangebyscore(key, 0, windowStart);
+        // Add the current request's timestamp
+        pipeline.zadd(key, now, now.toString());
+        // Get the count of all requests within the window
+        pipeline.zcard(key);
+        // Set an expiry on the key to clean up old data automatically
+        pipeline.expire(key, windowSeconds);
+
+        const results = await pipeline.exec();
+        
+        // results will be an array of tuples, e.g., [[null, 1], [null, 1], [null, 5], [null, 1]]
+        // We need the result from zcard, which is the 3rd command (index 2)
+        const requestCountResult = results ? results[2] : null;
+
+        if (!requestCountResult || requestCountResult[0]) { // Check for error in the tuple
+            throw new Error('Failed to get request count from Redis pipeline.');
+        }
+
+        const requestCount = requestCountResult[1] as number;
+        
+        const isLimited = requestCount > limit;
+        const remaining = isLimited ? 0 : limit - requestCount;
+
+        return { limited: isLimited, remaining };
+    } catch (error) {
+        logger.error(`[Redis] Rate limiting failed for action "${action}"`, error);
+        // Fail open: If Redis fails, don't block the request.
+        return { limited: false, remaining: limit };
     }
 }
