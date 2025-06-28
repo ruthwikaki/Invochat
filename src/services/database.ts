@@ -158,19 +158,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   `;
   const returnRatePromise = supabase.rpc('execute_dynamic_query', { query_text: returnRateQuery.trim().replace(/;/g, '') });
 
-
   // --- Execute all queries in parallel ---
-  const [
-    salesResult,
-    customersResult,
-    profitResult,
-    inventoryValueResult,
-    lowStockResult,
-    salesTrendResult,
-    topCustomersResult,
-    inventoryByCategoryResult,
-    returnRateResult,
-  ] = await Promise.allSettled([
+  const results = await Promise.allSettled([
     salesPromise,
     customersPromise,
     profitPromise,
@@ -181,6 +170,18 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     inventoryByCategoryPromise,
     returnRatePromise,
   ]);
+  
+  const [
+    salesResult,
+    customersResult,
+    profitResult,
+    inventoryValueResult,
+    lowStockResult,
+    salesTrendResult,
+    topCustomersResult,
+    inventoryByCategoryResult,
+    returnRateResult,
+  ] = results;
 
   const endTime = performance.now();
   await trackDbQueryPerformance('getDashboardMetrics', endTime - startTime);
