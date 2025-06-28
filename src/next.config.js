@@ -16,14 +16,15 @@ const nextConfig = {
     ],
   },
   experimental: {
-    // This is required to fix critical warnings with server-side dependencies.
-    // Adding these prevents webpack errors and allows Genkit and Supabase
+    // This is required to fix critical dependency warnings/errors with server-side packages.
+    // Adding these prevents webpack errors and allows Genkit, Supabase, and Redis
     // to function correctly in server actions and server components.
     serverComponentsExternalPackages: [
       '@opentelemetry/instrumentation',
       'handlebars',
       '@supabase/supabase-js',
       '@supabase/realtime-js',
+      'ioredis',
     ],
   },
 };

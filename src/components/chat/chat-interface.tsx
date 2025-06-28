@@ -79,7 +79,8 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
                 conversation_id: conversationId || tempId,
                 isError: true,
             };
-            setMessages(prev => [...prev.filter(m => m.id !== 'loading' && m.id !== tempId), errorMessage]);
+            // Replace the loading message with the error message, but keep the user's message
+            setMessages(prev => [...prev.filter(m => m.id !== 'loading'), errorMessage]);
 
         } else if (response.conversationId && isNewChat) {
             router.push(`/chat?id=${response.conversationId}`);
@@ -96,7 +97,8 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
             conversation_id: conversationId || tempId,
             isError: true,
         };
-        setMessages(prev => [...prev.filter(m => m.id !== 'loading' && m.id !== tempId), errorMessage]);
+        // Replace the loading message with the error message, but keep the user's message
+        setMessages(prev => [...prev.filter(m => m.id !== 'loading'), errorMessage]);
       }
     });
   };

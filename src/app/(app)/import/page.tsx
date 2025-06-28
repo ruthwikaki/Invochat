@@ -99,6 +99,13 @@ export default function ImportPage() {
     setMappings(newMappings);
   };
 
+  const resetState = () => {
+      setCurrentStep(1);
+      setFile(null);
+      setParsedData([]);
+      setHeaders([]);
+      setMappings({ sku: '', name: '', quantity: '', cost: '' });
+  };
 
   const processFile = (selectedFile: File) => {
     if (!['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'].includes(selectedFile.type)) {
@@ -190,10 +197,7 @@ export default function ImportPage() {
       setTimeout(() => setShowConfetti(false), 6000); // Hide confetti after 6 seconds
 
       // Reset state for another import
-      setCurrentStep(1);
-      setFile(null);
-      setParsedData([]);
-      setHeaders([]);
+      resetState();
       
     } catch (error: any) {
       toast({ 
@@ -201,6 +205,8 @@ export default function ImportPage() {
         title: "Import Failed", 
         description: error.message 
       });
+      // Also reset on failure so the user can try again
+      resetState();
     } finally {
       setIsImporting(false);
     }
