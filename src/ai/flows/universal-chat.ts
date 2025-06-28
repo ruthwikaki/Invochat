@@ -13,7 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
 import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getCompanySettings } from '@/services/database';
-import { APP_CONFIG } from '@/config/app-config';
+import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 
 // Updated few-shot examples to reflect the new, richer schema
@@ -274,7 +274,7 @@ const universalChatOrchestrator = ai.defineFlow(
         `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`
     ).join('\n\n');
 
-    const aiModel = APP_CONFIG.ai.model;
+    const aiModel = config.ai.model;
 
     // Pipeline Step 1: Generate SQL
     const { output: generationOutput } = await sqlGenerationPrompt(

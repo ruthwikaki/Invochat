@@ -17,7 +17,7 @@ import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem 
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
-import { APP_CONFIG } from '@/config/app-config';
+import { config } from '@/config/app-config';
 import { sendEmailAlert } from './email';
 import { logger } from '@/lib/logger';
 
@@ -72,10 +72,10 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
         logger.info(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
         const defaultSettingsData = {
             company_id: companyId,
-            dead_stock_days: APP_CONFIG.businessLogic.deadStockDays,
-            overstock_multiplier: APP_CONFIG.businessLogic.overstockMultiplier,
-            high_value_threshold: APP_CONFIG.businessLogic.highValueThreshold,
-            fast_moving_days: APP_CONFIG.businessLogic.fastMovingDays,
+            dead_stock_days: config.businessLogic.deadStockDays,
+            overstock_multiplier: config.businessLogic.overstockMultiplier,
+            high_value_threshold: config.businessLogic.highValueThreshold,
+            fast_moving_days: config.businessLogic.fastMovingDays,
         };
         
         const { data: newData, error: insertError } = await supabase
@@ -266,7 +266,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   if (isRedisEnabled) {
       try {
-          await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', 300);
+          await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', config.redis.ttl.dashboard);
           logger.info(`[Cache] SET for dashboard metrics: ${cacheKey}`);
       } catch (error) {
           logger.error(`[Redis] Error setting cache for ${cacheKey}:`, error);
@@ -638,5 +638,3 @@ export async function saveSuccessfulQuery(
         }
     });
 }
-
-    

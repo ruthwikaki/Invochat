@@ -1,11 +1,30 @@
 
-import { testSupabaseConnection, testDatabaseQuery, testGenkitConnection, testMaterializedView } from '@/app/data-actions';
+import { testSupabaseConnection, testDatabaseQuery, testGenkitConnection, testMaterializedView, testRedisConnection } from '@/app/data-actions';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { AlertCircle, CheckCircle, Database, HelpCircle, Bot, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle, Database, HelpCircle, Bot, Zap, Redis } from 'lucide-react';
 
-async function TestResultItem({ title, success, helpText, testId, errorText }: { title: string, success: boolean, helpText?: string, testId: number, errorText?: string | null }) {
+async function TestResultItem({ title, success, helpText, testId, errorText, isEnabled = true }: { title: string, success: boolean, helpText?: string, testId: number, errorText?: string | null, isEnabled?: boolean }) {
+  let status: 'pass' | 'fail' | 'skipped' = 'fail';
+  if (!isEnabled) {
+    status = 'skipped';
+  } else if (success) {
+    status = 'pass';
+  }
+
+  const badgeVariant = {
+    pass: 'default',
+    fail: 'destructive',
+    skipped: 'secondary',
+  }[status] as 'default' | 'destructive' | 'secondary';
+
+  const statusText = {
+    pass: 'Pass',
+    fail: 'Fail',
+    skipped: 'Skipped',
+  }[status];
+
   return (
     <div className="flex flex-col items-start gap-1 rounded-lg border p-3">
         <div className="flex w-full items-center justify-between">
@@ -13,11 +32,12 @@ async function TestResultItem({ title, success, helpText, testId, errorText }: {
                 <span className="font-medium">{testId}. {title}</span>
                 {helpText && <HelpCircle className="h-4 w-4 text-muted-foreground" title={helpText} />}
             </div>
-            <Badge variant={success ? 'default' : 'destructive'}>
-                {success ? 'Pass' : 'Fail'}
+            <Badge variant={badgeVariant}>
+                {statusText}
             </Badge>
         </div>
-        {!success && errorText && <p className="text-xs text-destructive pl-5">{errorText}</p>}
+        {status === 'fail' && errorText && <p className="text-xs text-destructive pl-5">{errorText}</p>}
+        {status === 'skipped' && errorText && <p className="text-xs text-muted-foreground pl-5">{errorText}</p>}
     </div>
   )
 }
@@ -27,6 +47,7 @@ export default async function SystemHealthPage() {
   const databaseQuery = await testDatabaseQuery();
   const genkitConnection = await testGenkitConnection();
   const materializedView = await testMaterializedView();
+  const redisConnection = await testRedisConnection();
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -93,6 +114,26 @@ export default async function SystemHealthPage() {
                 </pre>
                 </div>
             )}
+        </CardContent>
+      </Card>
+
+      {/* Redis Test */}
+      <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+                <Redis className="h-6 w-6 text-primary" />
+                Redis Health
+            </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <TestResultItem 
+              testId={8} 
+              title="Redis Connection" 
+              success={redisConnection.success} 
+              errorText={redisConnection.error}
+              isEnabled={redisConnection.isEnabled}
+              helpText="Tests if the app can connect to the Redis server for caching and rate limiting."
+            />
         </CardContent>
       </Card>
 

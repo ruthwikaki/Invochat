@@ -16,9 +16,10 @@ import {
 } from '@/services/database';
 import type { User, CompanySettings } from '@/types';
 import { ai } from '@/ai/genkit';
-import { APP_CONFIG } from '@/config/app-config';
+import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
+import { isRedisEnabled, redisClient } from '@/lib/redis';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
@@ -263,7 +264,7 @@ export async function testGenkitConnection(): Promise<{
 
     try {
         // Use the model from the app config for an accurate test
-        const model = APP_CONFIG.ai.model;
+        const model = config.ai.model;
         
         await ai.generate({
             model: model,
@@ -277,7 +278,7 @@ export async function testGenkitConnection(): Promise<{
     } catch (e: any) {
         let errorMessage = e.message || 'An unknown error occurred.';
         if (e.status === 'NOT_FOUND' || e.message?.includes('NOT_FOUND') || e.message?.includes('Model not found')) {
-            errorMessage = `The configured AI model ('${APP_CONFIG.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
+            errorMessage = `The configured AI model ('${config.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
         } else if (e.message?.includes('API key not valid')) {
             errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
         }
@@ -285,4 +286,21 @@ export async function testGenkitConnection(): Promise<{
     }
 }
 
-    
+export async function testRedisConnection(): Promise<{
+    success: boolean;
+    error: string | null;
+    isEnabled: boolean;
+}> {
+    if (!isRedisEnabled) {
+        return { success: true, error: 'Redis is not configured (REDIS_URL is not set), so caching and rate limiting are disabled. This is not a failure.', isEnabled: false };
+    }
+    try {
+        const pong = await redisClient.ping();
+        if (pong !== 'PONG') {
+            throw new Error('Redis PING command did not return PONG.');
+        }
+        return { success: true, error: null, isEnabled: true };
+    } catch (e: any) {
+        return { success: false, error: e.message, isEnabled: true };
+    }
+}

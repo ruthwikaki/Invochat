@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A lightweight flow to estimate query response time.
@@ -6,7 +7,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
-import { APP_CONFIG } from '@/config/app-config';
+import { config } from '@/config/app-config';
 
 const TimeEstimateOutputSchema = z.enum(['short', 'medium', 'long']);
 export type TimeEstimateOutput = z.infer<typeof TimeEstimateOutputSchema>;
@@ -39,7 +40,7 @@ const estimateTimeFlow = ai.defineFlow(
     outputSchema: TimeEstimateOutputSchema,
   },
   async (query) => {
-    const {output} = await estimationPrompt(query, {model: APP_CONFIG.ai.model});
+    const {output} = await estimationPrompt(query, {model: config.ai.model});
     return output || 'medium'; // Default to medium if the model fails
   }
 );

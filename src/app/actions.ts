@@ -11,7 +11,7 @@ import { redisClient, isRedisEnabled, rateLimit } from '@/lib/redis';
 import crypto from 'crypto';
 import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss, trackEndpointPerformance } from '@/services/monitoring';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { APP_CONFIG } from '@/config/app-config';
+import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { getEstimatedTimeForQuery } from '@/ai/flows/estimate-time-flow';
 import { logger } from '@/lib/logger';
@@ -216,7 +216,7 @@ export async function handleUserMessage(
             .select('role, content')
             .eq('conversation_id', currentConversationId)
             .order('created_at', { ascending: false })
-            .limit(APP_CONFIG.ai.historyLimit);
+            .limit(config.ai.historyLimit);
 
         if (historyError) throw new Error("Could not fetch conversation history.");
         historyForAI = (history || []).reverse().map(msg => ({
@@ -303,7 +303,7 @@ export async function handleUserMessage(
     // Step 5: Cache the successful result in Redis if it wasn't a cache hit
     if (isRedisEnabled && !redisClient.get(cacheKey) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
         try {
-            await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', 3600); // Cache for 1 hour
+            await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', config.redis.ttl.aiQuery); // Cache for 1 hour
             logger.info(`[Cache] SET for AI query: ${cacheKey}`);
         } catch (e) {
             logger.error(`[Redis] Error setting cached query for ${cacheKey}:`, e);

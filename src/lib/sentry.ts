@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -7,8 +8,9 @@
  */
 import * as Sentry from '@sentry/nextjs';
 import { logger } from './logger';
+import { config } from '@/config/app-config';
 
-const SENTRY_DSN = process.env.SENTRY_DSN;
+const SENTRY_DSN = config.monitoring.sentryDsn;
 
 let isSentryEnabled = false;
 

@@ -10,11 +10,11 @@ import { ArrowRight, Bot } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
-import { APP_CONFIG } from '@/config/app-config';
+import { config } from '@/config/app-config';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 
-const quickActions = APP_CONFIG.chat.quickActions;
+const quickActions = config.chat.quickActions;
 
 type ChatInterfaceProps = {
     conversationId?: string;
