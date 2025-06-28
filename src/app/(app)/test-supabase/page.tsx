@@ -1,20 +1,23 @@
 
-import { testSupabaseConnection, testDatabaseQuery, testGenkitConnection } from '@/app/data-actions';
+import { testSupabaseConnection, testDatabaseQuery, testGenkitConnection, testMaterializedView } from '@/app/data-actions';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { AlertCircle, CheckCircle, Database, HelpCircle, Bot } from 'lucide-react';
+import { AlertCircle, CheckCircle, Database, HelpCircle, Bot, Zap } from 'lucide-react';
 
-async function TestResultItem({ title, success, helpText, testId }: { title: string, success: boolean, helpText?: string, testId: number }) {
+async function TestResultItem({ title, success, helpText, testId, errorText }: { title: string, success: boolean, helpText?: string, testId: number, errorText?: string | null }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border p-3">
-        <div className="flex items-center gap-2">
-            <span className="font-medium">{testId}. {title}</span>
-            {helpText && <HelpCircle className="h-4 w-4 text-muted-foreground" title={helpText} />}
+    <div className="flex flex-col items-start gap-1 rounded-lg border p-3">
+        <div className="flex w-full items-center justify-between">
+            <div className="flex items-center gap-2">
+                <span className="font-medium">{testId}. {title}</span>
+                {helpText && <HelpCircle className="h-4 w-4 text-muted-foreground" title={helpText} />}
+            </div>
+            <Badge variant={success ? 'default' : 'destructive'}>
+                {success ? 'Pass' : 'Fail'}
+            </Badge>
         </div>
-        <Badge variant={success ? 'default' : 'destructive'}>
-            {success ? 'Pass' : 'Fail'}
-        </Badge>
+        {!success && errorText && <p className="text-xs text-destructive pl-5">{errorText}</p>}
     </div>
   )
 }
@@ -23,6 +26,7 @@ export default async function SystemHealthPage() {
   const supabaseConnection = await testSupabaseConnection();
   const databaseQuery = await testDatabaseQuery();
   const genkitConnection = await testGenkitConnection();
+  const materializedView = await testMaterializedView();
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -43,12 +47,13 @@ export default async function SystemHealthPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-            <TestResultItem testId={1} title="Credentials Configured" success={supabaseConnection.isConfigured} />
-            <TestResultItem testId={2} title="API Connection Successful" success={supabaseConnection.success} />
+            <TestResultItem testId={1} title="Credentials Configured" success={supabaseConnection.isConfigured} errorText={supabaseConnection.error?.message} />
+            <TestResultItem testId={2} title="API Connection Successful" success={supabaseConnection.success} errorText={supabaseConnection.error?.message} />
             <TestResultItem testId={3} title="Authenticated User Found" success={!!supabaseConnection.user} />
-            <TestResultItem testId={4} title="Database Query Test" success={databaseQuery.success} helpText="Tests if the server can query the 'inventory' table using the Service Role Key." />
+            <TestResultItem testId={4} title="Database Query Test" success={databaseQuery.success} errorText={databaseQuery.error} helpText="Tests if the server can query the 'inventory' table using the Service Role Key." />
+            <TestResultItem testId={5} title="Performance View Exists" success={materializedView.success} errorText={materializedView.error} helpText="Checks for the 'company_dashboard_metrics' view, which speeds up the dashboard." />
             
-            {supabaseConnection.error && (
+            {supabaseConnection.error && !supabaseConnection.isConfigured && (
               <div>
                 <h3 className="font-semibold mb-2 text-destructive">Supabase API Error:</h3>
                 <pre className="bg-muted p-4 rounded-md text-sm text-destructive font-mono overflow-auto">
@@ -77,10 +82,10 @@ export default async function SystemHealthPage() {
             </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-            <TestResultItem testId={5} title="GOOGLE_API_KEY Configured" success={genkitConnection.isConfigured} />
-            <TestResultItem testId={6} title="Genkit API Call Successful" success={genkitConnection.success} helpText="Attempts a simple text generation call to verify the API key and model access." />
+            <TestResultItem testId={6} title="GOOGLE_API_KEY Configured" success={genkitConnection.isConfigured} errorText={genkitConnection.error} />
+            <TestResultItem testId={7} title="Genkit API Call Successful" success={genkitConnection.success} errorText={genkitConnection.error} helpText="Attempts a simple text generation call to verify the API key and model access." />
 
-            {genkitConnection.error && (
+            {genkitConnection.error && !genkitConnection.isConfigured && (
                 <div>
                 <h3 className="font-semibold mb-2 text-destructive">Genkit Error Details:</h3>
                 <pre className="bg-muted p-4 rounded-md text-sm text-destructive font-mono overflow-auto">

@@ -193,6 +193,37 @@ export async function testDatabaseQuery(): Promise<{
 }
 
 
+export async function testMaterializedView(): Promise<{ success: boolean; error: string | null; }> {
+    try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !supabaseServiceKey) {
+            return { success: false, error: 'Supabase service role credentials are not configured on the server.' };
+        }
+        const serviceSupabase = createServiceRoleClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
+
+        const { data, error } = await serviceSupabase
+            .from('pg_matviews')
+            .select('matviewname')
+            .eq('matviewname', 'company_dashboard_metrics')
+            .single();
+
+        if (error) {
+            // If it's a 'no rows returned' error, it means the view doesn't exist.
+            if (error.code === 'PGRST116') {
+                return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
+            }
+            throw error; // For other unexpected errors
+        }
+
+        return { success: !!data, error: null };
+    } catch(e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+
 export async function testGenkitConnection(): Promise<{
     success: boolean;
     error: string | null;
