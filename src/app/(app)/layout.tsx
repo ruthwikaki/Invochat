@@ -1,3 +1,4 @@
+
 'use client';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -5,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import ErrorBoundary from '@/components/error-boundary';
 import { useState, useCallback } from 'react';
+import { DynamicThemeProvider } from '@/components/dynamic-theme-provider';
 
 export default function AppLayout({
   children,
@@ -21,6 +23,7 @@ export default function AppLayout({
 
   return (
     <SidebarProvider>
+      <DynamicThemeProvider />
       <div className="flex h-dvh w-full bg-background">
         {/* Hide default sidebar on chat page to use chat-specific layout */}
         {!isChatPage && <AppSidebar />}

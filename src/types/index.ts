@@ -107,10 +107,20 @@ export type DashboardMetrics = {
 
 export type CompanySettings = {
   company_id: string;
+  // Business Rules
   dead_stock_days: number;
   overstock_multiplier: number;
   high_value_threshold: number;
   fast_moving_days: number;
+  // General Settings
+  currency: string | null;
+  timezone: string | null;
+  tax_rate: number | null;
+  // Theming
+  theme_primary_color: string | null;
+  theme_background_color: string | null;
+  theme_accent_color: string | null;
+  
   custom_rules: Record<string, any> | null;
   created_at?: string;
   updated_at?: string;

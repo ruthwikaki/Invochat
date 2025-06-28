@@ -76,6 +76,12 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             overstock_multiplier: config.businessLogic.overstockMultiplier,
             high_value_threshold: config.businessLogic.highValueThreshold,
             fast_moving_days: config.businessLogic.fastMovingDays,
+            currency: 'USD',
+            timezone: 'UTC',
+            tax_rate: 0,
+            theme_primary_color: '262 84% 59%',
+            theme_background_color: '0 0% 96%',
+            theme_accent_color: '0 0% 90%',
         };
         
         const { data: newData, error: insertError } = await supabase

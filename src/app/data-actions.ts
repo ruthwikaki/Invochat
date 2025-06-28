@@ -126,10 +126,16 @@ const CompanySettingsUpdateSchema = z.object({
     fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.'),
     overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.'),
     high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.'),
+    currency: z.string().nullable().optional(),
+    timezone: z.string().nullable().optional(),
+    tax_rate: z.number().nullable().optional(),
+    theme_primary_color: z.string().nullable().optional(),
+    theme_background_color: z.string().nullable().optional(),
+    theme_accent_color: z.string().nullable().optional(),
 });
 
 
-export async function updateCompanySettings(settings: Partial<Omit<CompanySettings, 'company_id'>>): Promise<CompanySettings> {
+export async function updateCompanySettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
     const parsedSettings = CompanySettingsUpdateSchema.safeParse(settings);
     
     if (!parsedSettings.success) {
@@ -138,7 +144,9 @@ export async function updateCompanySettings(settings: Partial<Omit<CompanySettin
     }
 
     const { companyId } = await getAuthContext();
-    return updateSettingsInDb(companyId, parsedSettings.data);
+    // Exclude company_id and other non-updatable fields from the payload
+    const { company_id, created_at, updated_at, ...updateData } = settings;
+    return updateSettingsInDb(companyId, updateData);
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -17,15 +18,28 @@ import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings } from '@/types';
 import { getCompanySettings, updateCompanySettings } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon, Users } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 
-const settingsFields: { key: keyof CompanySettings; label: string; description: string }[] = [
+const businessRulesFields: { key: keyof CompanySettings; label: string; description: string }[] = [
     { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".' },
     { key: 'fast_moving_days', label: 'Fast-Moving Item Window (Days)', description: 'Timeframe to consider for "fast-moving" items.' },
     { key: 'overstock_multiplier', label: 'Overstock Multiplier', description: 'Reorder point is multiplied by this to define "overstock".' },
     { key: 'high_value_threshold', label: 'High-Value Threshold ($)', description: 'The cost above which an item is considered "high-value".' },
 ];
+
+const generalSettingsFields: { key: keyof CompanySettings; label: string; description: string, type: string, placeholder: string }[] = [
+    { key: 'currency', label: 'Currency Code', description: 'e.g., USD, EUR, JPY. Used for future currency formatting.', type: 'text', placeholder: 'USD' },
+    { key: 'timezone', label: 'Timezone', description: 'e.g., UTC, America/New_York. Used for future date formatting.', type: 'text', placeholder: 'UTC' },
+    { key: 'tax_rate', label: 'Default Tax Rate (%)', description: 'Default sales tax rate for future calculations.', type: 'number', placeholder: '8.5' },
+];
+
+const themeFields: { key: keyof CompanySettings; label: string; description: string }[] = [
+    { key: 'theme_primary_color', label: 'Primary Color', description: 'Main color for buttons and highlights (HSL format).' },
+    { key: 'theme_background_color', label: 'Background Color', description: 'Main page background color (HSL format).' },
+    { key: 'theme_accent_color', label: 'Accent Color', description: 'Color for secondary elements and hover states (HSL format).' },
+];
+
 
 export default function SettingsPage() {
     const [settings, setSettings] = useState<Partial<CompanySettings>>({});
@@ -53,27 +67,31 @@ export default function SettingsPage() {
     }, [toast]);
     
     const handleInputChange = (key: keyof CompanySettings, value: string) => {
-        const numericValue = value === '' ? '' : Number(value);
-        if (!isNaN(numericValue as number)) {
-            setSettings(prev => ({ ...prev, [key]: numericValue }));
-        }
+        const fieldType = [...generalSettingsFields, ...businessRulesFields, ...themeFields].find(f => f.key === key)?.type;
+        const processedValue = fieldType === 'number' && value !== '' ? Number(value) : value;
+        setSettings(prev => ({ ...prev, [key]: processedValue }));
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         startTransition(async () => {
             try {
-                const settingsToUpdate = {
-                    dead_stock_days: Number(settings.dead_stock_days),
-                    fast_moving_days: Number(settings.fast_moving_days),
-                    overstock_multiplier: Number(settings.overstock_multiplier),
-                    high_value_threshold: Number(settings.high_value_threshold),
-                }
-                await updateCompanySettings(settingsToUpdate);
+                // Ensure numeric values are numbers before sending
+                const settingsToUpdate = { ...settings };
+                [...businessRulesFields, ...generalSettingsFields].forEach(field => {
+                    if (field.type === 'number' && typeof settingsToUpdate[field.key] !== 'number') {
+                        settingsToUpdate[field.key] = Number(settingsToUpdate[field.key]) || 0;
+                    }
+                });
+                
+                await updateCompanySettings(settingsToUpdate as CompanySettings);
+
                 toast({
                     title: 'Success',
                     description: 'Your settings have been updated.',
                 });
+                // Reload to apply theme changes
+                window.location.reload();
             } catch (error) {
                 toast({
                     variant: 'destructive',
@@ -93,33 +111,24 @@ export default function SettingsPage() {
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <SettingsIcon className="h-5 w-5" />
-                            Business Rules
-                        </CardTitle>
-                        <CardDescription>
-                            Define how the application and AI interpret your business logic. These settings affect reports, alerts, and AI responses.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? (
-                            <div className="space-y-6">
-                                {Array.from({ length: 4 }).map((_, i) => (
-                                    <div key={i} className="space-y-2">
-                                        <Skeleton className="h-4 w-1/4" />
-                                        <Skeleton className="h-10 w-full" />
-                                        <Skeleton className="h-3 w-1/2" />
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Business Rules Card */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <SettingsIcon className="h-5 w-5" />
+                                Business Rules
+                            </CardTitle>
+                            <CardDescription>
+                                Define thresholds that affect reports, alerts, and AI responses.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? <Skeleton className="h-48 w-full" /> : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {settingsFields.map(({ key, label, description }) => (
-                                         <div key={key} className="space-y-2">
+                                    {businessRulesFields.map(({ key, label, description }) => (
+                                        <div key={key} className="space-y-2">
                                             <Label htmlFor={key} className="text-base">{label}</Label>
                                             <Input
                                                 id={key}
@@ -132,18 +141,90 @@ export default function SettingsPage() {
                                         </div>
                                     ))}
                                 </div>
+                            )}
+                        </CardContent>
+                    </Card>
 
-                                <div className="flex justify-end pt-4">
-                                    <Button type="submit" disabled={isPending}>
-                                        {isPending ? 'Saving...' : 'Save Settings'}
-                                    </Button>
+                    {/* Theming Card */}
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Palette className="h-5 w-5" />
+                                Branding & Theming
+                            </CardTitle>
+                            <CardDescription>
+                                Customize the look and feel of your workspace.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {loading ? <Skeleton className="h-64 w-full" /> : (
+                                <div className="space-y-6">
+                                     <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
+                                        <Label className="flex items-center gap-2 text-muted-foreground"><ImageIcon className="h-4 w-4" /> Company Logo</Label>
+                                        <Button disabled variant="outline">Upload Logo</Button>
+                                        <p className="text-xs text-muted-foreground">Logo customization is coming soon.</p>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {themeFields.map(({ key, label, description }) => (
+                                            <div key={key} className="space-y-2">
+                                                <Label htmlFor={key}>{label}</Label>
+                                                <Input
+                                                    id={key}
+                                                    type="text"
+                                                    value={settings[key] as string || ''}
+                                                    onChange={(e) => handleInputChange(key, e.target.value)}
+                                                    placeholder='e.g., 262 84% 59%'
+                                                />
+                                                <p className="text-xs text-muted-foreground">{description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </form>
-                        )}
-                    </CardContent>
-                </Card>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <div className="flex justify-end pt-4">
+                        <Button type="submit" disabled={isPending || loading} size="lg">
+                            {isPending ? 'Saving...' : 'Save All Settings'}
+                        </Button>
+                    </div>
+
+                </div>
 
                 <div className="space-y-6 lg:col-span-1">
+                     {/* General Settings Card */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Briefcase className="h-5 w-5" />
+                                General
+                            </CardTitle>
+                             <CardDescription>
+                                Company-wide localization and financial settings.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             {loading ? <Skeleton className="h-48 w-full" /> : (
+                                <div className="space-y-6">
+                                    {generalSettingsFields.map(({ key, label, description, type, placeholder }) => (
+                                        <div key={key} className="space-y-2">
+                                            <Label htmlFor={key}>{label}</Label>
+                                            <Input
+                                                id={key}
+                                                type={type}
+                                                value={settings[key] as string || ''}
+                                                onChange={(e) => handleInputChange(key, e.target.value)}
+                                                placeholder={placeholder}
+                                            />
+                                            <p className="text-xs text-muted-foreground">{description}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
                      <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -154,7 +235,7 @@ export default function SettingsPage() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm text-muted-foreground">
-                                Invite your team to collaborate. This feature is currently under development but you can preview it now.
+                                Invite your team to collaborate.
                             </p>
                         </CardContent>
                         <CardFooter>
@@ -164,7 +245,7 @@ export default function SettingsPage() {
                         </CardFooter>
                     </Card>
                 </div>
-            </div>
+            </form>
         </div>
     );
 }
