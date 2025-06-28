@@ -375,6 +375,39 @@ export async function testRedisConnection(): Promise<{
     }
 }
 
+export async function removeTeamMember(memberIdToRemove: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { userId: currentUserId } = await getAuthContext();
+
+        // Security check: You cannot remove yourself.
+        if (memberIdToRemove === currentUserId) {
+            return { success: false, error: "You cannot remove yourself from the team." };
+        }
+
+        const supabase = getServiceRoleClient();
+
+        // This is a permanent and destructive action.
+        const { error } = await supabase.auth.admin.deleteUser(memberIdToRemove);
+
+        if (error) {
+            logger.error(`[Remove Action] Failed to remove team member ${memberIdToRemove}:`, error);
+            // Provide a user-friendly message for common issues
+            if (error.message.includes('User not found')) {
+                 return { success: false, error: "The user could not be found. They may have already been removed." };
+            }
+            throw new Error(error.message);
+        }
+
+        logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
+        revalidatePath('/settings/team');
+        return { success: true };
+
+    } catch (e: any) {
+        logger.error('[Remove Action] Caught exception:', e);
+        return { success: false, error: e.message };
+    }
+}
+
 function getServiceRoleClient() {
     if (!supabaseAdmin) {
         throw new Error('Database admin client is not configured.');

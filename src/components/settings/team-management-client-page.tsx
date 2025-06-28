@@ -13,8 +13,20 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertTriangle, Mail, Loader2, Users } from 'lucide-react';
-import { inviteTeamMember } from '@/app/data-actions';
+import { inviteTeamMember, removeTeamMember } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
 
 interface TeamManagementClientPageProps {
   initialMembers: TeamMember[];
@@ -23,14 +35,15 @@ interface TeamManagementClientPageProps {
 export function TeamManagementClientPage({ initialMembers }: TeamManagementClientPageProps) {
     const { user } = useAuth();
     const [members, setMembers] = useState<TeamMember[]>(initialMembers);
-    const [isPending, startTransition] = useTransition();
+    const [invitePending, startInviteTransition] = useTransition();
+    const [removePending, startRemoveTransition] = useTransition();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const { toast } = useToast();
 
     const handleInvite = async (formData: FormData) => {
         setFormError(null);
-        startTransition(async () => {
+        startInviteTransition(async () => {
             const result = await inviteTeamMember(formData);
             if (result.success) {
                 toast({
@@ -43,6 +56,26 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
             }
         });
     };
+
+     const handleRemoveMember = (memberId: string) => {
+        startRemoveTransition(async () => {
+            const result = await removeTeamMember(memberId);
+            if (result.success) {
+                toast({
+                    title: 'Member Removed',
+                    description: 'The user has been removed from your team.',
+                });
+                setMembers(prev => prev.filter(m => m.id !== memberId));
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: result.error || 'Failed to remove team member.',
+                });
+            }
+        });
+    };
+
 
     return (
         <div className="space-y-6">
@@ -75,13 +108,13 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                         type="email"
                                         placeholder="teammate@example.com"
                                         required
-                                        disabled={isPending}
+                                        disabled={invitePending}
                                     />
                                 </div>
                                 {formError && <p className="text-sm text-destructive">{formError}</p>}
                                 <DialogFooter>
-                                    <Button type="submit" disabled={isPending}>
-                                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    <Button type="submit" disabled={invitePending}>
+                                        {invitePending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Send Invitation
                                     </Button>
                                 </DialogFooter>
@@ -114,7 +147,29 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                     </TableCell>
                                     <TableCell className="text-right space-x-2">
                                         <Button variant="outline" size="sm" disabled>Change Role</Button>
-                                        <Button variant="destructive" size="sm" disabled>Remove</Button>
+                                         <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" size="sm" disabled={member.role === 'Owner' || removePending}>
+                                                    Remove
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This action cannot be undone. This will permanently remove the user
+                                                        and revoke their access to your company.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleRemoveMember(member.id)} disabled={removePending}>
+                                                        {removePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                                        Continue
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -132,11 +187,10 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                 </CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground">
-                        Full team management is a top priority. Here's what's planned for future updates, which will require changes to the database schema:
+                        Advanced team management is a top priority. Here's what's planned for future updates, which will require changes to the database schema:
                     </p>
                     <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-muted-foreground">
-                        <li>**Role-Based Access Control:** Assigning fine-grained permissions like "Admin," "Editor," and "Viewer."</li>
-                        <li>**User Management:** The ability to change user roles or remove them from the team.</li>
+                        <li>**Role-Based Access Control:** The ability to change a user's role (e.g., from "Member" to "Admin") to grant different permissions.</li>
                         <li>**Audit Logs:** A complete log to track all significant actions taken by users for security and accountability.</li>
                     </ul>
                 </CardContent>
