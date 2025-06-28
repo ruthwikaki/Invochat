@@ -223,13 +223,17 @@ const universalChatOrchestrator = ai.defineFlow(
         throw new Error("User query was empty.");
     }
     
-    // Pipeline Step 0a: Fetch dynamic DB schema & business logic
-    const schemaData = await getDbSchema(companyId);
+    // Pipeline Step 0: Fetch dynamic data in parallel for speed
+    const [schemaData, settings, dynamicPatterns] = await Promise.all([
+        getDbSchema(companyId),
+        getCompanySettings(companyId),
+        getQueryPatternsForCompany(companyId)
+    ]);
+
     const formattedSchema = schemaData.map(table => 
         `Table: ${table.tableName} | Columns: ${table.rows.length > 0 ? Object.keys(table.rows[0]).join(', ') : 'No columns detected or table is empty'}`
     ).join('\n');
     
-    const settings = await getCompanySettings(companyId);
     const { businessLogic } = APP_CONFIG; // For seasonalCategories, which aren't in settings yet
     
     const semanticLayer = `
@@ -243,8 +247,6 @@ const universalChatOrchestrator = ai.defineFlow(
       - "Seasonal items": products with category in (${businessLogic.seasonalCategories.map(c => `'${c}'`).join(', ')}).
     `;
 
-    // Pipeline Step 0b: Fetch dynamic, company-specific query patterns for learning
-    const dynamicPatterns = await getQueryPatternsForCompany(companyId);
     const formattedDynamicPatterns = dynamicPatterns.map((p, i) => 
         // Continue numbering from the static examples
         `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`

@@ -7,7 +7,7 @@
  */
 export const APP_CONFIG = {
   ai: {
-    model: 'googleai/gemini-1.5-pro',
+    model: 'googleai/gemini-1.5-flash',
     maxRetries: 2,
     historyLimit: 10,
   },
