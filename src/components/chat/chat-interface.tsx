@@ -12,6 +12,7 @@ import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
 import { APP_CONFIG } from '@/config/app-config';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/auth-context';
 
 const quickActions = APP_CONFIG.chat.quickActions;
 
@@ -39,10 +40,22 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const isNewChat = !conversationId;
 
   const processAndSetMessages = (userMessageText: string) => {
+    // Need a companyId to create a message, even a temporary one.
+    const companyId = user?.app_metadata?.company_id;
+    if (!companyId) {
+        toast({
+            variant: 'destructive',
+            title: 'Authentication Error',
+            description: 'Could not identify your company. Please try logging in again.',
+        });
+        return;
+    }
+
     const tempId = `temp_${Date.now()}`;
     const optimisticUserMessage: Message = {
       id: tempId,
@@ -50,6 +63,7 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
       content: userMessageText,
       created_at: new Date().toISOString(),
       conversation_id: conversationId || tempId,
+      company_id: companyId,
     };
     
     setMessages(prev => [...prev, optimisticUserMessage]);
@@ -60,6 +74,7 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
       content: '...',
       created_at: new Date().toISOString(),
       conversation_id: conversationId || tempId,
+      company_id: companyId,
     };
     setMessages(prev => [...prev, loadingMessage]);
 
@@ -77,14 +92,16 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
                 content: response.error,
                 created_at: new Date().toISOString(),
                 conversation_id: conversationId || tempId,
+                company_id: companyId,
                 isError: true,
             };
-            // Replace the loading message with the error message, but keep the user's message
+            // Replace loading message with error, keeping user's optimistic message
             setMessages(prev => [...prev.filter(m => m.id !== 'loading'), errorMessage]);
 
         } else if (response.conversationId && isNewChat) {
             router.push(`/chat?id=${response.conversationId}`);
         } else {
+            // Re-fetch messages from the server to get the real data
             router.refresh();
         }
 
@@ -95,9 +112,10 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
             content: error.message || 'Could not get response from InvoChat.',
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
+            company_id: companyId,
             isError: true,
         };
-        // Replace the loading message with the error message, but keep the user's message
+        // Replace loading message with error, keeping user's optimistic message
         setMessages(prev => [...prev.filter(m => m.id !== 'loading'), errorMessage]);
       }
     });

@@ -130,12 +130,12 @@ function getErrorMessage(error: any): string {
     let errorMessage = `An unexpected error occurred. Please try again.`;
     if (error.message?.includes('Query timed out')) errorMessage = error.message;
     else if (error.message?.includes('The database query failed')) errorMessage = "I tried to query the database, but the query failed. The AI may have generated an invalid SQL query or requested a non-existent column. Please try rephrasing your request.";
-    else if (error.message?.includes('The generated query was invalid')) errorMessage = "The AI generated a query that was deemed insecure and was blocked. Please try your request again.";
+    else if (error.message?.includes('The generated query was invalid')) errorMessage = `The AI generated a query that was deemed insecure or incorrect and was blocked. Reason: ${error.message.split('Reason: ')[1]}`;
     else if (error.message?.includes('The AI model did not return a valid final response object')) errorMessage = "The AI returned an unexpected or empty response. This might be a temporary issue with the model. Please try again."
     else if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) errorMessage = 'The configured AI model is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.';
     else if (error.message?.includes('API key not valid')) errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
     else if (error.message?.includes('authenticated or configured')) errorMessage = error.message;
-    else if (error.message?.includes('violates not-null constraint')) errorMessage = 'A database error occurred while trying to save a message. This usually points to an issue with application logic.';
+    else if (error.message?.includes('violates not-null constraint')) errorMessage = 'A critical database error occurred while trying to save a message. This usually points to an issue with application logic or database setup.';
     return errorMessage;
 }
 
@@ -192,7 +192,7 @@ export async function handleUserMessage(
         historyForAI.push({ role: 'user', content: userQuery });
     }
 
-    // Step 2: Save the user's message
+    // Step 2: Save the user's message, ensuring company_id is included.
     await supabase.from('messages').insert({
         conversation_id: currentConversationId,
         company_id: companyId,
@@ -234,7 +234,7 @@ export async function handleUserMessage(
     }
     const responseData = parsedResponse.data;
     
-    // Step 4: Construct and save the assistant's message
+    // Step 4: Construct the assistant's message, ensuring company_id is included.
     const assistantMessage: Omit<Message, 'id' | 'created_at'> = {
       conversation_id: currentConversationId,
       company_id: companyId,
@@ -261,7 +261,10 @@ export async function handleUserMessage(
         .select()
         .single();
     
-    if (saveMsgError) throw new Error(`Could not save assistant message: ${saveMsgError.message}`);
+    if (saveMsgError) {
+      console.error('Error saving assistant message:', saveMsgError);
+      throw new Error(`Could not save assistant message: ${saveMsgError.message}`);
+    }
     
     // Step 5: Cache the successful result in Redis if it wasn't a cache hit
     if (isRedisEnabled && !redisClient.get(cacheKey) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
@@ -291,5 +294,3 @@ export async function handleUserMessage(
     return { error: getErrorMessage(error) };
   }
 }
-
-    

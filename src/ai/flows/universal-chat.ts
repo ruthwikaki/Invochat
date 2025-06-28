@@ -83,21 +83,18 @@ const sqlGenerationPrompt = ai.definePrompt({
 
     **QUERY GENERATION PROCESS (You MUST follow these steps):**
 
-    **Step 1: Analyze Query Complexity.**
-    - Is the user asking for a simple list (e.g., "list all suppliers")? This is a **SIMPLE** query.
-    - Is the user asking for trends, comparisons, rankings, growth, or multi-step calculations (e.g., "top 5 products by sales growth", "compare this month's sales to last month", "suppliers with the most dead stock")? This is a **COMPLEX ANALYTICAL** query.
-
-    **Step 2: Apply Generation Rules based on Complexity.**
-
-    **A) For ALL Queries:**
+    **A) For ALL Queries (NON-NEGOTIABLE):**
     1.  **Security is paramount**: The query MUST be a read-only \`SELECT\` statement.
-    2.  **Mandatory Filtering**: Every table referenced (including in joins) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement.
-    3.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
+    2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement.
+    3.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
+    4.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
+    5.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM table1 JOIN table2 ON table1.id = table2.table1_id\`).
 
     **B) For COMPLEX ANALYTICAL Queries:**
-    4.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
+    6.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
         - **Common Table Expressions (CTEs)** are REQUIRED to break down complex logic. Do not use nested subqueries where a CTE would be clearer.
         - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
+    7.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
 
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style.
@@ -129,7 +126,7 @@ const queryValidationPrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), sqlQuery: z.string() }) },
   output: { schema: z.object({ isValid: z.boolean(), correction: z.string().optional().describe('Reason if invalid.') }) },
   prompt: `
-    You are a SQL validation agent. Review the generated SQL query.
+    You are a SQL validation agent. Review the generated SQL query with extreme scrutiny.
 
     USER'S QUESTION: "{{userQuery}}"
     GENERATED SQL: \`\`\`sql
@@ -137,13 +134,13 @@ const queryValidationPrompt = ai.definePrompt({
 \`\`\`
 
     VALIDATION CHECKLIST:
-    1.  **Security**: Is it a read-only SELECT query? Does it contain a 'company_id' filter?
+    1.  **Security**: Is it a read-only SELECT query? Does EVERY table reference (including joins) contain a 'company_id' filter?
     2.  **Correctness**: Is the syntax valid PostgreSQL? Does it logically answer the user's question?
-    3.  **Business Sense**: Does it use the correct columns/tables based on the question and business context?
+    3.  **Business Sense**: Does it use the correct columns/tables based on the question and business context? Does it avoid nonsensical operations like cross joins? If the user asked for a metric like 'turnover', is the calculation present and correct?
 
     OUTPUT:
     - If valid, return \`{"isValid": true}\`.
-    - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely."}\`.
+    - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely and technically."}\`. For example: "The query uses a cross join between vendors and inventory, which is invalid. It should use an explicit JOIN ON a shared key." or "The query is missing the calculation for inventory turnover rate."
   `,
 });
 
