@@ -113,11 +113,10 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const startTime = performance.now();
   const supabase = getServiceRoleClient();
   
-  // With the `products` table removed, we query other tables.
   const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
-  const salesPromise = supabase.from('sales').select('total_amount').eq('company_id', companyId);
+  const salesPromise = supabase.from('sales').select('id, total_amount').eq('company_id', companyId);
+  const customersPromise = supabase.from('customers').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
 
-  // Queries for charts, executed via a secure RPC function
   const salesTrendQuery = `
     SELECT
       TO_CHAR(sale_date, 'YYYY-MM-DD') as date,
@@ -127,21 +126,38 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     GROUP BY 1
     ORDER BY 1 ASC
   `;
-  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
+  const topCustomersQuery = `
+    SELECT
+      c.name,
+      SUM(s.total_amount) as value
+    FROM sales s
+    JOIN customers c ON s.customer_id = c.id
+    WHERE s.company_id = '${companyId}'
+      AND c.company_id = '${companyId}'
+    GROUP BY c.name
+    ORDER BY value DESC
+    LIMIT 5
+  `;
   
-  // Inventory by category is now too complex for a single static query.
-  // We will return empty data and let the AI handle this on demand.
+  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
+  const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
+  
+  // This remains a complex calculation best handled by the AI on-demand.
   const inventoryByCategoryPromise = Promise.resolve({ data: [], error: null });
 
   const [
     vendorsRes,
     salesRes,
+    customersRes,
     salesTrendRes,
+    topCustomersRes,
     inventoryByCategoryRes
   ] = await Promise.all([
     vendorsPromise,
     salesPromise,
+    customersPromise,
     salesTrendPromise,
+    topCustomersPromise,
     inventoryByCategoryPromise
   ]);
 
@@ -150,28 +166,30 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
   const { count: suppliersCount, error: suppliersError } = vendorsRes;
   const { data: sales, error: salesError } = salesRes;
+  const { count: customersCount, error: customersError } = customersRes;
   const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
+  const { data: topCustomersData, error: topCustomersError } = topCustomersRes;
   const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
   
-  const firstError = suppliersError || salesError || salesTrendError || inventoryByCategoryError;
+  const firstError = suppliersError || salesError || customersError || salesTrendError || topCustomersError || inventoryByCategoryError;
   if (firstError) {
     console.error('Dashboard data fetching error:', firstError);
     throw new Error(firstError.message);
   }
 
   const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
+  const totalOrders = (sales || []).length;
+  const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
 
-  // Note: Inventory value, SKUs, dead stock, and low stock are now complex calculations.
-  // We will return 0 for these and let the AI calculate them on demand.
   const finalMetrics: DashboardMetrics = {
-      inventoryValue: 0,
-      deadStockValue: 0,
-      lowStockCount: 0,
-      totalSKUs: 0,
       totalSuppliers: suppliersCount || 0,
       totalSalesValue: Math.round(totalSalesValue),
+      totalOrders,
+      totalCustomers: customersCount || 0,
+      averageOrderValue,
       salesTrendData: salesTrendData || [],
       inventoryByCategoryData: inventoryByCategoryData || [],
+      topCustomersData: topCustomersData || [],
   };
 
   if (isRedisEnabled) {

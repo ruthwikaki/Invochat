@@ -1,5 +1,5 @@
 
-import { AlertTriangle, DollarSign, Package, TrendingDown, Truck, BarChart, AlertCircle } from 'lucide-react';
+import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
@@ -7,6 +7,7 @@ import { getDashboardData } from '@/app/data-actions';
 import Link from 'next/link';
 import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
 import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';
+import { TopCustomersChart } from '@/components/dashboard/top-customers-chart';
 
 function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000_000) {
@@ -15,7 +16,17 @@ function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000) {
         return `$${(value / 1_000).toFixed(1)}k`;
     }
-    return `$${value.toFixed(0)}`;
+    return `$${value.toFixed(2)}`;
+}
+
+function formatNumber(value: number) {
+    if (Math.abs(value) >= 1_000_000) {
+        return `${(value / 1_000_000).toFixed(1)}M`;
+    }
+    if (Math.abs(value) >= 1_000) {
+        return `${(value / 1_000).toFixed(1)}k`;
+    }
+    return value.toString();
 }
 
 function MetricCard({
@@ -94,57 +105,37 @@ export default async function DashboardPage() {
                         <ErrorDisplay error={fetchError} />
                     ) : data ? (
                         <>
-                            {data.inventoryValue > 0 && (
-                                <MetricCard
-                                    href="/inventory"
-                                    title="Total Product Value"
-                                    value={formatCurrency(data.inventoryValue)}
-                                    icon={DollarSign}
-                                    className="sm:col-span-2"
-                                />
-                            )}
                             <MetricCard
                                 href="/analytics"
-                                title="Total Sales"
+                                title="Total Revenue"
                                 value={formatCurrency(data.totalSalesValue)}
                                 icon={BarChart}
-                                label="All-time sales data"
-                                className={data.inventoryValue > 0 ? "sm:col-span-2" : "sm:col-span-4"}
+                                label="All-time sales revenue"
                             />
-                             {data.deadStockValue > 0 && (
-                                <MetricCard
-                                    href="/dead-stock"
-                                    title="Dead Stock Value"
-                                    value={formatCurrency(data.deadStockValue)}
-                                    icon={TrendingDown}
-                                    label="Ask the AI for details"
-                                />
-                             )}
-                            {data.lowStockCount > 0 && (
-                                <MetricCard
-                                    href="/alerts"
-                                    title="Low Stock Items"
-                                    value={data.lowStockCount.toString()}
-                                    icon={AlertCircle}
-                                    label="Ask the AI for a list"
-                                />
-                            )}
-                            {data.totalSKUs > 0 && (
-                                <MetricCard
-                                    href="/inventory"
-                                    title="Total SKUs"
-                                    value={data.totalSKUs.toString()}
-                                    icon={Package}
-                                />
-                            )}
-                            <MetricCard
+                             <MetricCard
+                                href="/analytics"
+                                title="Total Orders"
+                                value={formatNumber(data.totalOrders)}
+                                icon={ShoppingCart}
+                                label="All-time processed orders"
+                            />
+                             <MetricCard
+                                href="/analytics"
+                                title="Average Order Value"
+                                value={formatCurrency(data.averageOrderValue)}
+                                icon={DollarSign}
+                                label="All-time AOV"
+                            />
+                             <MetricCard
                                 href="/suppliers"
-                                title="Total Suppliers"
-                                value={data.totalSuppliers.toString()}
-                                icon={Truck}
+                                title="Total Customers"
+                                value={formatNumber(data.totalCustomers)}
+                                icon={Users}
+                                label="All-time customer count"
                             />
                             
-                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-4" />
+                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-2" />
+                            <TopCustomersChart data={data.topCustomersData} className="sm:col-span-2 lg:col-span-2" />
                             <InventoryCategoryChart data={data.inventoryByCategoryData} className="sm:col-span-2 lg:col-span-4" />
                         </>
                     ) : null}

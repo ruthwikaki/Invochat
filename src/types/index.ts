@@ -96,14 +96,14 @@ export type Alert = {
 };
 
 export type DashboardMetrics = {
-    inventoryValue: number;
-    deadStockValue: number;
-    lowStockCount: number;
-    totalSKUs: number;
-    totalSuppliers: number;
     totalSalesValue: number;
+    totalOrders: number;
+    totalCustomers: number;
+    averageOrderValue: number;
+    totalSuppliers: number;
     salesTrendData: { date: string; Sales: number }[];
     inventoryByCategoryData: { name: string; value: number }[];
+    topCustomersData: { name: string; value: number }[];
 };
 
 export type CompanySettings = {
