@@ -60,7 +60,7 @@ export async function middleware(req: NextRequest) {
   );
 
   const { pathname } = req.nextUrl;
-  const authRoutes = ['/login', '/signup'];
+  const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
   const publicRoutes = ['/quick-test'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isPublicRoute = publicRoutes.includes(pathname);
@@ -70,6 +70,11 @@ export async function middleware(req: NextRequest) {
 
     // If user is authenticated
     if (user) {
+      // Allow access to update-password page if there's a recovery code
+      if (pathname === '/update-password' && req.nextUrl.searchParams.has('code')) {
+        return response;
+      }
+
       if (isAuthRoute) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
@@ -91,7 +96,7 @@ export async function middleware(req: NextRequest) {
       }
     } else {
       // If user is not authenticated and trying to access a protected route
-      if (!isAuthRoute && !isPublicRoute) {
+      if (!isAuthRoute && !isPublicRoute && pathname !== '/update-password') {
         return NextResponse.redirect(new URL('/login', req.url));
       }
     }

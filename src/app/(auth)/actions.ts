@@ -10,6 +10,27 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 
+function getSupabaseClient() {
+    const cookieStore = cookies();
+    return createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return cookieStore.get(name)?.value;
+            },
+            set(name: string, value: string, options: CookieOptions) {
+              cookieStore.set({ name, value, ...options });
+            },
+            remove(name: string, options: CookieOptions) {
+              cookieStore.set({ name, value: '', ...options });
+            },
+          },
+        }
+    );
+}
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1, 'Password is required'),
@@ -29,25 +50,7 @@ export async function login(formData: FormData) {
   }
 
   const { email, password } = parsed.data;
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-
+  const supabase = getSupabaseClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.session) {
@@ -91,24 +94,7 @@ export async function signup(formData: FormData) {
     }
 
     const { email, password, companyName } = parsed.data;
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options })
-          },
-        },
-      }
-    );
+    const supabase = getSupabaseClient();
 
     const { data, error } = await supabase.auth.signUp({
         email,
@@ -135,4 +121,52 @@ export async function signup(formData: FormData) {
     }
     
     redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
+}
+
+
+const requestPasswordResetSchema = z.object({
+    email: z.string().email("Please enter a valid email address."),
+});
+
+export async function requestPasswordReset(formData: FormData) {
+    const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
+
+    if (!parsed.success) {
+        redirect(`/forgot-password?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+    }
+
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
+    });
+    
+    if (error) {
+        logger.error("Password reset error:", error);
+        redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
+    }
+    
+    redirect('/forgot-password?success=true');
+}
+
+const updatePasswordSchema = z.object({
+    password: z.string().min(6, "Password must be at least 6 characters long."),
+});
+
+export async function updatePassword(formData: FormData) {
+    const parsed = updatePasswordSchema.safeParse(Object.fromEntries(formData));
+
+    if (!parsed.success) {
+        redirect(`/update-password?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+    }
+    
+    const supabase = getSupabaseClient();
+
+    // The user should be in a session from the password recovery link
+    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+
+    if (error) {
+        redirect(`/update-password?error=${encodeURIComponent(error.message)}`);
+    }
+
+    redirect('/login?message=Your password has been updated successfully.');
 }

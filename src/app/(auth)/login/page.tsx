@@ -54,7 +54,7 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
   );
 };
 
-export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
+export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
   return (
     <main className="relative flex min-h-dvh w-full items-center justify-center bg-muted/40 p-4">
        <div
@@ -79,6 +79,12 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
+             {searchParams?.message && (
+              <Alert>
+                <AlertTitle>Success</AlertTitle>
+                <AlertDescription>{searchParams.message}</AlertDescription>
+              </Alert>
+            )}
             
             <div className="space-y-2">
               <Label htmlFor="email" className="text-card-foreground">Email</Label>
@@ -86,7 +92,15 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-card-foreground">Password</Label>
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-card-foreground">Password</Label>
+                    <Link
+                        href="/forgot-password"
+                        className="text-sm font-medium text-primary hover:underline"
+                    >
+                        Forgot password?
+                    </Link>
+                </div>
               <PasswordInput id="password" name="password" required />
             </div>
             

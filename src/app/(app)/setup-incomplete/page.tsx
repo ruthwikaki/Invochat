@@ -143,19 +143,22 @@ export default function SetupIncompletePage() {
                     <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
                         <AlertTriangle className="h-8 w-8 text-destructive" />
                     </div>
-                    <CardTitle className="mt-4">Account Setup Incomplete</CardTitle>
+                    <CardTitle className="mt-4">One-Time Database Setup Required</CardTitle>
                     <CardDescription>
-                        Your user account is authenticated, but your database is not fully configured.
+                       To get started, the necessary database functions and triggers must be set up in your Supabase project.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                        This application requires components in your database to function correctly. Please run the following SQL code **once** in your Supabase project's SQL Editor to set them up.
+                    <p className="text-sm text-center font-semibold text-destructive bg-destructive/10 p-3 rounded-md">
+                        This is a one-time action for the developer setting up this project. Your end-users will not see this page.
                     </p>
-                    <h3 className="font-semibold pt-4">How to Fix</h3>
-                    <p className="text-sm text-muted-foreground">
-                        Click the button to copy the setup SQL, then paste and run it in the Supabase SQL Editor.
-                    </p>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                        <h3 className="font-semibold text-card-foreground">How to Fix:</h3>
+                        <p>1. Click the button below to copy the required SQL setup script.</p>
+                        <p>2. Go to your Supabase project's SQL Editor.</p>
+                        <p>3. Paste the entire script into the editor and click "Run".</p>
+                    </div>
+
                     <div className="relative bg-background border rounded-md font-mono text-xs max-h-72 overflow-y-auto">
                         <Button
                             size="sm"
@@ -170,7 +173,7 @@ export default function SetupIncompletePage() {
                         </pre>
                     </div>
                      <p className="text-sm text-muted-foreground pt-2">
-                        After running the SQL, you must **sign out and sign up with a new user account**. The trigger only runs for new accounts. Existing accounts will not be fixed automatically.
+                        <strong className="text-destructive">Important:</strong> The database trigger only works for <strong className="text-destructive">new</strong> user signups. After running the SQL, you must sign out and sign up again with a fresh email account to test the application.
                     </p>
                 </CardContent>
                 <CardFooter>
@@ -180,7 +183,7 @@ export default function SetupIncompletePage() {
                         onClick={handleSignOut}
                     >
                         <LogOut className="mr-2 h-4 w-4" />
-                        Sign Out and Start Over
+                        Sign Out & Create a New Account
                     </Button>
                 </CardFooter>
             </Card>
