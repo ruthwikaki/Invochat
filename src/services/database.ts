@@ -13,7 +13,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Supplier, Alert, CompanySettings } from '@/types';
+import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -114,7 +114,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const supabase = getServiceRoleClient();
   
   const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
-  const customersPromise = supabase.from('customers').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
+  const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
   const salesPromise = supabase.from('sales').select('id, total_amount').eq('company_id', companyId);
 
   const salesTrendQuery = `
@@ -142,7 +142,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   `;
   const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
   
-  const inventoryByCategoryPromise = Promise.resolve({ data: [], error: null });
+  const inventoryByCategoryPromise = Promise.resolve({ data: [], error: {message: 'Inventory category chart needs a `products` table with categories.'} });
 
   const [
     vendorsResult,
@@ -169,8 +169,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     }
     if (result.status === 'rejected' || (result.status === 'fulfilled' && result.value.error)) {
         const error = result.status === 'rejected' ? result.reason : result.value.error;
-        // Don't log a scary error if the table just doesn't exist.
-        if (error?.code !== '42P01') { 
+        if (error?.message && !error.message.includes('does not exist')) { 
             console.warn(`[DB Service] A dashboard metric query failed:`, error?.message);
         }
     }
@@ -191,7 +190,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const topCustomersData = extractData(topCustomersResult, []);
   const inventoryByCategoryData = extractData(inventoryByCategoryResult, []);
 
-  const totalSalesValue = sales.reduce((sum, sale: any) => sum + (sale.total_amount || 0), 0);
+  const totalSalesValue = sales.reduce((sum: number, sale: any) => sum + (sale.total_amount || 0), 0);
   const totalOrders = sales.length;
   const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
 
@@ -225,11 +224,85 @@ export async function getProductsData(companyId: string): Promise<any[]> {
   return Promise.resolve([]);
 }
 
-export async function getDeadStockPageData(companyId: string) {
-    // This is now a complex calculation. We will return an empty state
-    // and recommend the user ask the AI for this information.
-    return { deadStock: [], totalValue: 0, totalUnits: 0, averageAge: 0 };
+async function getRawDeadStockData(companyId: string, settings: CompanySettings): Promise<DeadStockItem[]> {
+    const supabase = getServiceRoleClient();
+    const deadStockDays = settings.dead_stock_days;
+
+    const deadStockQuery = `
+        WITH LastSale AS (
+            SELECT
+                oi.sku,
+                MAX(s.sale_date) as last_sale_date
+            FROM sales s
+            JOIN order_items oi ON s.id = oi.sale_id
+            WHERE s.company_id = '${companyId}' AND oi.company_id = '${companyId}'
+            GROUP BY oi.sku
+        )
+        SELECT
+            iv.sku,
+            iv.product_name,
+            iv.quantity,
+            iv.cost,
+            (iv.quantity * iv.cost) as total_value,
+            ls.last_sale_date
+        FROM inventory_valuation iv
+        LEFT JOIN LastSale ls ON iv.sku = ls.sku
+        WHERE iv.company_id = '${companyId}'
+        AND iv.quantity > 0
+        AND (ls.last_sale_date IS NULL OR ls.last_sale_date < CURRENT_DATE - INTERVAL '${deadStockDays} days')
+        ORDER BY total_value DESC;
+    `;
+
+    const { data, error } = await supabase.rpc('execute_dynamic_query', {
+        query_text: deadStockQuery.trim().replace(/;/g, '')
+    });
+
+    if (error) {
+        console.error(`[DB Service] Error fetching raw dead stock data for company ${companyId}:`, error);
+        // If the query fails (e.g., tables don't exist), return empty array to prevent crashes.
+        return [];
+    }
+
+    return (data || []) as DeadStockItem[];
 }
+
+export async function getDeadStockPageData(companyId: string) {
+    const cacheKey = `company:${companyId}:deadstock`;
+    if (isRedisEnabled) {
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) {
+                await incrementCacheHit('deadstock');
+                return JSON.parse(cachedData);
+            }
+            await incrementCacheMiss('deadstock');
+        } catch(e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
+    }
+
+    const startTime = performance.now();
+    const settings = await getCompanySettings(companyId);
+    const deadStockItems = await getRawDeadStockData(companyId, settings);
+    const endTime = performance.now();
+    await trackDbQueryPerformance('getDeadStockPageData', endTime - startTime);
+    
+    const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
+    const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
+
+    const result = {
+        deadStockItems,
+        totalValue,
+        totalUnits,
+    };
+
+    if (isRedisEnabled) {
+      try {
+        await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600); // 1-hour TTL
+      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+    }
+
+    return result;
+}
+
 
 /**
  * This function directly queries the vendors table to get a list of all suppliers
@@ -283,42 +356,81 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
-    const settings = await getCompanySettings(companyId);
-    // This is now a complex, on-demand calculation better suited for the AI.
-    // However, we can generate a basic "low stock" alert to demonstrate the email functionality.
-    
-    // This is a simplified example. A real implementation would be much more robust.
-    const { data: lowStockItems, error } = await supabaseAdmin
-        .from('fba_inventory')
-        .select('sku, quantity, afn_researching_quantity')
-        .eq('company_id', companyId)
-        .lt('quantity', 20); // Example threshold
-
-    if (error || !lowStockItems || lowStockItems.length === 0) {
-        return [];
+    const cacheKey = `company:${companyId}:alerts`;
+     if (isRedisEnabled) {
+        try {
+            const cachedData = await redisClient.get(cacheKey);
+            if (cachedData) {
+                await incrementCacheHit('alerts');
+                return JSON.parse(cachedData);
+            }
+            await incrementCacheMiss('alerts');
+        } catch(e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
     }
-
+    
+    const supabase = getServiceRoleClient();
+    const settings = await getCompanySettings(companyId);
     const alerts: Alert[] = [];
-    for (const item of lowStockItems) {
+    
+    // --- Low Stock Alerts ---
+    // This is a simplified example. A real implementation would be more robust.
+    const { data: lowStockItems, error: lowStockError } = await supabase
+        .from('fba_inventory') // Assuming reorder point is on this table.
+        .select('sku, quantity, product_name')
+        .eq('company_id', companyId)
+        .lt('quantity', 20); // Using a static 20 for reorder point as an example.
+
+    if (lowStockError) {
+        console.warn('[DB Service] Could not check for low stock items:', lowStockError.message);
+    } else if (lowStockItems) {
+        for (const item of lowStockItems) {
+            const alert: Alert = {
+                id: `low-stock-${item.sku}`,
+                type: 'low_stock',
+                title: `Low Stock Warning`,
+                message: `Item "${item.product_name || item.sku}" is running low on stock.`,
+                severity: 'warning',
+                timestamp: new Date().toISOString(),
+                metadata: {
+                    productId: item.sku,
+                    productName: item.product_name || item.sku,
+                    currentStock: item.quantity,
+                    reorderPoint: 20 // Example reorder point
+                },
+            };
+            alerts.push(alert);
+            await sendEmailAlert(alert);
+        }
+    }
+    
+    // --- Dead Stock Alerts ---
+    const deadStockItems = await getRawDeadStockData(companyId, settings);
+    for (const item of deadStockItems) {
         const alert: Alert = {
-            id: `low-stock-${item.sku}`,
-            type: 'low_stock',
-            title: `Low Stock Warning`,
-            message: `Item with SKU ${item.sku} is running low on stock.`,
-            severity: 'warning',
+            id: `dead-stock-${item.sku}`,
+            type: 'dead_stock',
+            title: `Dead Stock Alert`,
+            message: `Item "${item.product_name || item.sku}" is now considered dead stock.`,
+            severity: 'info',
             timestamp: new Date().toISOString(),
             metadata: {
                 productId: item.sku,
-                productName: item.sku, // Name not available in this table
+                productName: item.product_name || item.sku,
                 currentStock: item.quantity,
-                reorderPoint: 20 // Example reorder point
+                lastSoldDate: item.last_sale_date,
+                value: item.total_value,
             },
         };
         alerts.push(alert);
-        // Trigger the email simulation for each alert.
         await sendEmailAlert(alert);
     }
     
+    if (isRedisEnabled) {
+        try {
+            await redisClient.set(cacheKey, JSON.stringify(alerts), 'EX', 3600);
+        } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e); }
+    }
+
     return alerts;
 }
 
