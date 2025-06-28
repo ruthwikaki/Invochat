@@ -13,6 +13,7 @@ import {
     getDatabaseSchemaAndData as getDbSchemaAndData,
     getCompanySettings as getSettings,
     updateCompanySettings as updateSettingsInDb,
+    generateAnomalyInsights as getAnomalyInsightsFromDB,
 } from '@/services/database';
 import type { User, CompanySettings } from '@/types';
 import { ai } from '@/ai/genkit';
@@ -102,6 +103,11 @@ export async function getDatabaseSchemaAndData() {
 export async function getCompanySettings(): Promise<CompanySettings> {
     const companyId = await getCompanyIdForCurrentUser();
     return getSettings(companyId);
+}
+
+export async function getAnomalyInsights() {
+    const companyId = await getCompanyIdForCurrentUser();
+    return getAnomalyInsightsFromDB(companyId);
 }
 
 

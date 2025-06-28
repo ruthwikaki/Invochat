@@ -644,3 +644,58 @@ export async function saveSuccessfulQuery(
         }
     });
 }
+
+export async function generateAnomalyInsights(companyId: string): Promise<any[]> {
+    return withPerformanceTracking('generateAnomalyInsights', async () => {
+        const supabase = getServiceRoleClient();
+        const anomalyQuery = `
+            WITH daily_metrics AS (
+                SELECT DATE(sale_date) as date,
+                    SUM(total_amount) as daily_revenue,
+                    COUNT(DISTINCT customer_id) as daily_customers,
+                    AVG(total_amount) as avg_order_value
+                FROM sales
+                WHERE company_id = '${companyId}'
+                AND sale_date >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY DATE(sale_date)
+            ),
+            statistics AS (
+                SELECT AVG(daily_revenue) as avg_revenue,
+                    STDDEV(daily_revenue) as stddev_revenue,
+                    AVG(daily_customers) as avg_customers,
+                    STDDEV(daily_customers) as stddev_customers
+                FROM daily_metrics
+            )
+            SELECT
+                d.date,
+                d.daily_revenue,
+                d.daily_customers,
+                s.avg_revenue,
+                s.avg_customers,
+                CASE
+                    WHEN ABS(d.daily_revenue - s.avg_revenue) > (2 * s.stddev_revenue)
+                    THEN 'Revenue Anomaly'
+                    WHEN ABS(d.daily_customers - s.avg_customers) > (2 * s.stddev_customers)
+                    THEN 'Customer Count Anomaly'
+                    ELSE NULL
+                END as anomaly_type
+            FROM daily_metrics d, statistics s
+            WHERE (s.stddev_revenue > 0 OR s.stddev_customers > 0) AND (
+                (s.stddev_revenue > 0 AND ABS(d.daily_revenue - s.avg_revenue) > (2 * s.stddev_revenue))
+                OR
+                (s.stddev_customers > 0 AND ABS(d.daily_customers - s.avg_customers) > (2 * s.stddev_customers))
+            );
+        `;
+
+        const { data, error } = await supabase.rpc('execute_dynamic_query', {
+            query_text: anomalyQuery.trim().replace(/;/g, '')
+        });
+
+        if (error) {
+            logger.error(`[DB Service] Error generating anomaly insights for company ${companyId}:`, error);
+            throw new Error(`Failed to generate anomaly insights: ${error.message}`);
+        }
+
+        return data || [];
+    });
+}
