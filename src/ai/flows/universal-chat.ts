@@ -32,27 +32,27 @@ const FEW_SHOT_EXAMPLES = `
      ORDER BY total_spent DESC
      LIMIT 5;
 
-  2. User asks: "List all sales over $1000 with product details"
+  2. User asks: "What was my return rate last month?"
      SQL:
-     WITH SaleDetails AS (
-         SELECT
-             s.id as sale_id,
-             s.sale_date,
-             s.total_amount,
-             c.name as customer_name,
-             oi.sku,
-             oi.quantity,
-             oi.price
-         FROM sales s
-         JOIN customers c ON s.customer_id = c.id
-         JOIN order_items oi ON s.id = oi.sale_id
-         WHERE s.company_id = '{{companyId}}'
-           AND c.company_id = '{{companyId}}'
-           AND oi.company_id = '{{companyId}}'
-           AND s.total_amount > 1000
+     WITH MonthlySales AS (
+         SELECT COUNT(id) as total_sales
+         FROM sales
+         WHERE company_id = '{{companyId}}'
+           AND sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+           AND sale_date < date_trunc('month', CURRENT_DATE)
+     ),
+     MonthlyReturns AS (
+         SELECT COUNT(id) as total_returns
+         FROM returns
+         WHERE company_id = '{{companyId}}'
+           AND return_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+           AND return_date < date_trunc('month', CURRENT_DATE)
      )
-     SELECT * FROM SaleDetails
-     ORDER BY sale_date DESC;
+     SELECT
+        ms.total_sales,
+        mr.total_returns,
+        (mr.total_returns::decimal / ms.total_sales) * 100 as return_rate_percentage
+     FROM MonthlySales ms, MonthlyReturns mr;
 
   3. User asks: "What was my total inventory value in the 'Main Warehouse'?"
      SQL:
@@ -97,7 +97,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     6.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
         - **Common Table Expressions (CTEs)** are REQUIRED to break down complex logic. Do not use nested subqueries where a CTE would be clearer.
         - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
-    7.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
+    7.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
 
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style.
@@ -248,6 +248,8 @@ const universalChatOrchestrator = ai.defineFlow(
       - "Dead stock": items with no sales in 'sales' or 'sales_detail' tables within the 'dead_stock_days' setting (${settings.dead_stock_days} days).
       - "Low stock": items in 'fba_inventory' where quantity is near or below a reorder point (if available).
       - "Revenue" or "Sales": MUST be calculated from 'sales.total_amount'.
+      - "Profit" or "Margin": MUST be calculated from 'sales_detail.profit'.
+      - "Returns": MUST be calculated using the 'returns' and 'return_items' tables.
       - "Inventory Value": MUST be calculated by multiplying quantity and cost from a table like 'inventory_valuation' or 'fba_inventory'.
       - "Product": Refers to an item, identified by 'sku' or a product name column.
     `;
@@ -344,5 +346,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    

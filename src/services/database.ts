@@ -142,7 +142,16 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   `;
   const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
   
-  const inventoryByCategoryPromise = Promise.resolve({ data: [], error: {message: 'Inventory category chart needs a `products` table with categories.'} });
+  const inventoryByCategoryQuery = `
+    SELECT 
+        pa.value as name, 
+        sum(iv.quantity * iv.cost) as value 
+    FROM inventory_valuation iv
+    JOIN product_attributes pa ON iv.sku = pa.sku AND pa.key = 'category'
+    WHERE iv.company_id = '${companyId}' AND pa.company_id = '${companyId}'
+    GROUP BY pa.value
+  `;
+  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
 
   const [
     vendorsResult,
@@ -573,5 +582,3 @@ export async function saveSuccessfulQuery(
         }
     }
 }
-
-    
