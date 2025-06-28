@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { DollarSign, Package, TrendingDown, Bot, AlertTriangle } from 'lucide-react';
+import { DollarSign, Package, TrendingDown, Bot, Settings } from 'lucide-react';
 import { getDeadStockData } from '@/app/data-actions';
 import { DataTable } from '@/components/ai-response/data-table';
 import Link from 'next/link';
@@ -82,26 +82,35 @@ export default async function DeadStockPage() {
 
       <Card>
         <CardHeader>
-            <CardTitle>Need a Deeper Dive?</CardTitle>
+            <CardTitle>What's Next? Take Action</CardTitle>
             <CardDescription>
-                This report shows current dead stock. For more complex analysis, ask the AI.
+                Use your data to make informed decisions. Here are some next steps you can take.
             </CardDescription>
         </CardHeader>
-        <CardContent>
-            <p className="text-muted-foreground mb-4">Try asking questions like:</p>
-            <ul className="list-disc pl-5 space-y-2 text-sm">
-                <li>"Which vendor supplies the most dead stock items?"</li>
-                <li>"Show me a pie chart of dead stock value by category."</li>
-                <li>"Are there seasonal items that are now considered dead stock?"</li>
-            </ul>
+        <CardContent className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2"><Settings className="h-4 w-4 text-primary"/> Adjust Your Strategy</h4>
+                <p className="text-sm text-muted-foreground">
+                    Your "Dead Stock Threshold" is a key business metric. If this report isn't useful, consider adjusting it in the settings.
+                </p>
+                 <Button asChild variant="outline">
+                    <Link href="/settings">Adjust Threshold</Link>
+                </Button>
+            </div>
+             <div className="space-y-3">
+                <h4 className="font-semibold flex items-center gap-2"><Bot className="h-4 w-4 text-primary"/> Brainstorm with AI</h4>
+                <p className="text-sm text-muted-foreground">
+                    Ask InvoChat to generate marketing campaigns, discount strategies, or bundling ideas to move this inventory.
+                </p>
+                 <Button asChild>
+                    <Link href="/chat">Ask InvoChat</Link>
+                </Button>
+            </div>
         </CardContent>
-        <CardFooter>
-            <Button asChild>
-                <Link href="/chat">
-                    <Bot className="mr-2 h-4 w-4" />
-                    Ask InvoChat
-                </Link>
-            </Button>
+         <CardFooter>
+            <p className="text-xs text-muted-foreground">
+                Future updates will include trend analysis and one-click actions like "Create Discount."
+            </p>
         </CardFooter>
       </Card>
       
