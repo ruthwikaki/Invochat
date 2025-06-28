@@ -116,17 +116,35 @@ export async function updateCompanySettings(companyId: string, settings: Partial
     });
 }
 
-export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
-  const cacheKey = `company:${companyId}:dashboard`;
+function getIntervalFromRange(dateRange: string): number {
+    const days = parseInt(dateRange.replace('d', ''), 10);
+    return isNaN(days) ? 30 : days;
+}
+
+export async function getDashboardMetrics(companyId: string, dateRange: string = '30d'): Promise<DashboardMetrics> {
+  const cacheKey = `company:${companyId}:dashboard:${dateRange}`;
+  const days = getIntervalFromRange(dateRange);
 
   const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
     return withPerformanceTracking('getDashboardMetrics', async () => {
         const supabase = getServiceRoleClient();
         
         // --- Define all queries ---
-        const salesPromise = supabase.from('sales').select('id, total_amount').eq('company_id', companyId);
+        const salesQuery = `
+            SELECT id, total_amount FROM sales
+            WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
+        `;
+        const salesPromise = supabase.rpc('execute_dynamic_query', { query_text: salesQuery.trim().replace(/;/g, '') });
+
         const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
-        const profitPromise = supabase.from('sales_detail').select('profit').eq('company_id', companyId);
+
+        const profitQuery = `
+            SELECT sd.profit FROM sales_detail sd JOIN sales s ON sd.sale_id = s.id
+            WHERE sd.company_id = '${companyId}' AND s.company_id = '${companyId}'
+            AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
+        `;
+        const profitPromise = supabase.rpc('execute_dynamic_query', { query_text: profitQuery.trim().replace(/;/g, '') });
+
         const inventoryValuePromise = supabase.from('inventory_valuation').select('quantity, cost').eq('company_id', companyId);
 
         const lowStockCountQuery = `
@@ -138,7 +156,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
 
         const salesTrendQuery = `
             SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
-            FROM sales WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '30 days')
+            FROM sales WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
             GROUP BY 1 ORDER BY 1 ASC
         `;
         const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
@@ -147,6 +165,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
             SELECT c.name, SUM(s.total_amount) as value
             FROM sales s JOIN customers c ON s.customer_id = c.id
             WHERE s.company_id = '${companyId}' AND c.company_id = '${companyId}'
+            AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
             GROUP BY c.name ORDER BY value DESC LIMIT 5
         `;
         const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
@@ -160,17 +179,17 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
         const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
 
         const returnRateQuery = `
-            WITH Sales90Days AS (
+            WITH SalesRange AS (
                 SELECT count(id) as total_sales FROM sales
-                WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '90 days')
-            ), Returns90Days AS (
+                WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
+            ), ReturnsRange AS (
                 SELECT count(id) as total_returns FROM returns
-                WHERE company_id = '${companyId}' AND return_date >= (CURRENT_DATE - INTERVAL '90 days')
+                WHERE company_id = '${companyId}' AND return_date >= (CURRENT_DATE - INTERVAL '${days} days')
             )
             SELECT
                 s.total_sales, r.total_returns,
                 CASE WHEN s.total_sales > 0 THEN (r.total_returns::decimal / s.total_sales) * 100 ELSE 0 END as return_rate
-            FROM Sales90Days s, Returns90Days r
+            FROM SalesRange s, ReturnsRange r
         `;
         const returnRatePromise = supabase.rpc('execute_dynamic_query', { query_text: returnRateQuery.trim().replace(/;/g, '') });
 

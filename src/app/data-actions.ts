@@ -64,10 +64,10 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
 }
 
 
-export async function getDashboardData() {
+export async function getDashboardData(dateRange: string = '30d') {
     try {
         const companyId = await getCompanyIdForCurrentUser();
-        return getDashboardMetrics(companyId);
+        return getDashboardMetrics(companyId, dateRange);
     } catch (error) {
         logger.error('[Data Action Error] Failed to get dashboard data:', error);
         // Re-throw the error so the calling page's error boundary can catch it.

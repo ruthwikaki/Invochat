@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
 import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';
 import { TopCustomersChart } from '@/components/dashboard/top-customers-chart';
+import { DashboardHeaderControls } from '@/components/dashboard/header-controls';
 
 function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000_000) {
@@ -79,12 +80,17 @@ function ErrorDisplay({ error }: { error: Error }) {
     )
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: { range?: string };
+}) {
     let data;
     let fetchError: Error | null = null;
+    const dateRange = searchParams?.range || '30d';
     
     try {
-        data = await getDashboardData();
+        data = await getDashboardData(dateRange);
     } catch (e: any) {
         fetchError = e;
     }
@@ -98,6 +104,7 @@ export default async function DashboardPage() {
                         <SidebarTrigger className="md:hidden" />
                         <h1 className="text-2xl font-semibold">Dashboard</h1>
                     </div>
+                    <DashboardHeaderControls />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -110,21 +117,21 @@ export default async function DashboardPage() {
                                 title="Total Revenue"
                                 value={formatCurrency(data.totalSalesValue)}
                                 icon={BarChart}
-                                label="All-time sales revenue"
+                                label={`Last ${dateRange.replace('d', '')} days`}
                             />
                              <MetricCard
                                 href="/analytics"
                                 title="Total Profit"
                                 value={formatCurrency(data.totalProfit)}
                                 icon={TrendingUp}
-                                label="All-time gross profit"
+                                label={`Last ${dateRange.replace('d', '')} days`}
                             />
                             <MetricCard
                                 href="/analytics"
                                 title="Return Rate"
                                 value={`${data.returnRate.toFixed(1)}%`}
                                 icon={RefreshCw}
-                                label="Last 90 days"
+                                label={`Last ${dateRange.replace('d', '')} days`}
                             />
                              <MetricCard
                                 href="/analytics"
@@ -146,7 +153,7 @@ export default async function DashboardPage() {
                                 title="Average Order Value"
                                 value={formatCurrency(data.averageOrderValue)}
                                 icon={DollarSign}
-                                label="All-time AOV"
+                                label={`Last ${dateRange.replace('d', '')} days`}
                             />
                             
                             <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-4" />
