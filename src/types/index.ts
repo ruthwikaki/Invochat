@@ -124,3 +124,9 @@ export type UnifiedInventoryItem = {
   cost: number;
   total_value: number;
 };
+
+export type TeamMember = {
+  id: string;
+  email: string | undefined;
+  role: 'Owner' | 'Member';
+};

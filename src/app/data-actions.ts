@@ -15,18 +15,21 @@ import {
     generateAnomalyInsights as getAnomalyInsightsFromDB,
     getUnifiedInventoryFromDB,
     getInventoryCategoriesFromDB,
+    getTeamMembers as getTeamMembersFromDB,
+    inviteUserToCompany,
 } from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
-import { isRedisEnabled, redisClient } from '@/lib/redis';
+import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import { revalidatePath } from 'next/cache';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
-async function getCompanyIdForCurrentUser(): Promise<string> {
-    logger.debug('[getCompanyIdForCurrentUser] Attempting to determine Company ID...');
+async function getAuthContext(): Promise<{ userId: string, companyId: string }> {
+    logger.debug('[getAuthContext] Attempting to determine Company ID...');
     try {
         const cookieStore = cookies();
         const supabase = createServerClient(
@@ -56,7 +59,7 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         }
         
         logger.debug(`[getCompanyIdForCurrentUser] Success. Company ID: ${companyId}`);
-        return companyId;
+        return { userId: user.id, companyId };
     } catch (e: any) {
         logger.error('[getCompanyIdForCurrentUser] Caught exception:', e.message);
         // Re-throw the error to be caught by the calling function's error boundary.
@@ -67,7 +70,7 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
 
 export async function getDashboardData(dateRange: string = '30d') {
     try {
-        const companyId = await getCompanyIdForCurrentUser();
+        const { companyId } = await getAuthContext();
         return getDashboardMetrics(companyId, dateRange);
     } catch (error) {
         logger.error('[Data Action Error] Failed to get dashboard data:', error);
@@ -77,42 +80,42 @@ export async function getDashboardData(dateRange: string = '30d') {
 }
 
 export async function getUnifiedInventory(params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getUnifiedInventoryFromDB(companyId, params);
 }
 
 export async function getInventoryCategories(): Promise<string[]> {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getInventoryCategoriesFromDB(companyId);
 }
 
 export async function getDeadStockData() {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getDeadStockPageData(companyId);
 }
 
 export async function getSuppliersData() {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getSuppliersFromDB(companyId);
 }
 
 export async function getAlertsData() {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getAlertsFromDB(companyId);
 }
 
 export async function getDatabaseSchemaAndData() {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getDbSchemaAndData(companyId);
 }
 
 export async function getCompanySettings(): Promise<CompanySettings> {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getSettings(companyId);
 }
 
 export async function getAnomalyInsights() {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return getAnomalyInsightsFromDB(companyId);
 }
 
@@ -134,9 +137,56 @@ export async function updateCompanySettings(settings: Partial<Omit<CompanySettin
         throw new Error(`Invalid settings format: ${errorMessages}`);
     }
 
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     return updateSettingsInDb(companyId, parsedSettings.data);
 }
+
+export async function getTeamMembers(): Promise<TeamMember[]> {
+    const { userId, companyId } = await getAuthContext();
+    const members = await getTeamMembersFromDB(companyId);
+
+    // Differentiate the current user as 'Owner'
+    return members.map(member => ({
+        id: member.id,
+        email: member.email,
+        role: member.id === userId ? 'Owner' : 'Member',
+    }));
+}
+
+const InviteTeamMemberSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address." }),
+});
+
+export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
+        if (!parsed.success) {
+            return { success: false, error: parsed.error.issues[0].message };
+        }
+        const { email } = parsed.data;
+
+        const { companyId } = await getAuthContext();
+        const supabase = getServiceRoleClient();
+        
+        const { data: companyData, error: companyError } = await supabase
+            .from('companies')
+            .select('name')
+            .eq('id', companyId)
+            .single();
+
+        if (companyError || !companyData) {
+            throw new Error('Could not retrieve company information to send invite.');
+        }
+
+        await inviteUserToCompany(companyId, companyData.name, email);
+        revalidatePath('/settings/team');
+        return { success: true };
+    } catch (e: any) {
+        logger.error('[Invite Action] Failed to invite team member:', e);
+        return { success: false, error: e.message };
+    }
+}
+
 
 export async function testSupabaseConnection(): Promise<{
     success: boolean;
@@ -192,7 +242,7 @@ export async function testDatabaseQuery(): Promise<{
   error: string | null;
 }> {
   try {
-    const companyId = await getCompanyIdForCurrentUser();
+    const { companyId } = await getAuthContext();
     
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -315,4 +365,11 @@ export async function testRedisConnection(): Promise<{
     } catch (e: any) {
         return { success: false, error: e.message, isEnabled: true };
     }
+}
+
+function getServiceRoleClient() {
+    if (!supabaseAdmin) {
+        throw new Error('Database admin client is not configured.');
+    }
+    return supabaseAdmin;
 }

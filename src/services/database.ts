@@ -13,7 +13,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem } from '@/types';
+import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem, User } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -780,5 +780,47 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
         }
         
         return data.map((item: any) => item.value) || [];
+    });
+}
+
+export async function getTeamMembers(companyId: string): Promise<Pick<User, 'id' | 'email'>[]> {
+    return withPerformanceTracking('getTeamMembers', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('users') // this is the public.users table
+            .select('id, email')
+            .eq('company_id', companyId);
+
+        if (error) {
+            logger.error(`[DB Service] Error fetching team members for company ${companyId}:`, error);
+            throw error;
+        }
+        return data || [];
+    });
+}
+
+export async function inviteUserToCompany(companyId: string, companyName: string, email: string) {
+    return withPerformanceTracking('inviteUserToCompany', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+            data: {
+                company_id: companyId,
+                company_name: companyName,
+            },
+            redirectTo: `${config.app.url}/dashboard`,
+        });
+
+        if (error) {
+            logger.error(`[DB Service] Error inviting user ${email} to company ${companyId}:`, error);
+            if (error.message.includes('User already exists')) {
+                throw new Error('This user already exists in the system. They cannot be invited again.');
+            }
+            if (error.message.includes('already been invited')) {
+                throw new Error('This user has already been invited. They need to accept the existing invitation from their email.');
+            }
+            throw error;
+        }
+
+        return data;
     });
 }
