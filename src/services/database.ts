@@ -251,14 +251,62 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
-    // Alerting is now a complex, on-demand calculation better suited for the AI.
-    // We return an empty array to prevent errors on the Alerts page.
-    return [];
+    const settings = await getCompanySettings(companyId);
+    // This is now a complex, on-demand calculation better suited for the AI.
+    // However, we can generate a basic "low stock" alert to demonstrate the email functionality.
+    
+    // This is a simplified example. A real implementation would be much more robust.
+    const { data: lowStockItems, error } = await supabaseAdmin
+        .from('fba_inventory')
+        .select('sku, quantity, afn_researching_quantity')
+        .eq('company_id', companyId)
+        .lt('quantity', 20); // Example threshold
+
+    if (error || !lowStockItems || lowStockItems.length === 0) {
+        return [];
+    }
+
+    const alerts: Alert[] = [];
+    for (const item of lowStockItems) {
+        const alert: Alert = {
+            id: `low-stock-${item.sku}`,
+            type: 'low_stock',
+            title: `Low Stock Warning`,
+            message: `Item with SKU ${item.sku} is running low on stock.`,
+            severity: 'warning',
+            timestamp: new Date().toISOString(),
+            metadata: {
+                productId: item.sku,
+                productName: item.sku, // Name not available in this table
+                currentStock: item.quantity,
+                reorderPoint: 20 // Example reorder point
+            },
+        };
+        alerts.push(alert);
+        // Trigger the email simulation for each alert.
+        await sendEmailAlert(alert);
+    }
+    
+    return alerts;
 }
 
-// These are the tables we want to expose to the user.
+// These are the tables we want to expose to the user for querying.
 // We are explicitly listing them to match what the AI has been told it can query.
-const USER_FACING_TABLES = ['vendors', 'sales', 'customers', 'returns', 'order_items', 'fba_inventory', 'inventory_valuation', 'warehouse_locations', 'price_lists'];
+// This list is now updated to reflect the new, more complex schema.
+const USER_FACING_TABLES = [
+    'vendors', 
+    'sales', 
+    'sales_detail',
+    'customers', 
+    'returns', 
+    'order_items', 
+    'fba_inventory', 
+    'inventory_valuation', 
+    'warehouse_locations', 
+    'price_lists',
+    'product_attributes',
+    'daily_stats',
+];
 
 /**
  * Fetches the schema and sample data for user-facing tables.

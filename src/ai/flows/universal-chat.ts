@@ -32,22 +32,36 @@ const FEW_SHOT_EXAMPLES = `
      ORDER BY total_spent DESC
      LIMIT 5;
 
-  2. User asks: "List all sales over $1000"
+  2. User asks: "List all sales over $1000 with product details"
      SQL:
-     SELECT
-        id,
-        sale_date,
-        total_amount
-     FROM sales
-     WHERE company_id = '{{companyId}}' AND total_amount > 1000
+     WITH SaleDetails AS (
+         SELECT
+             s.id as sale_id,
+             s.sale_date,
+             s.total_amount,
+             c.name as customer_name,
+             oi.sku,
+             oi.quantity,
+             oi.price
+         FROM sales s
+         JOIN customers c ON s.customer_id = c.id
+         JOIN order_items oi ON s.id = oi.sale_id
+         WHERE s.company_id = '{{companyId}}'
+           AND c.company_id = '{{companyId}}'
+           AND oi.company_id = '{{companyId}}'
+           AND s.total_amount > 1000
+     )
+     SELECT * FROM SaleDetails
      ORDER BY sale_date DESC;
 
-  3. User asks: "What were my total sales yesterday?"
+  3. User asks: "What was my total inventory value in the 'Main Warehouse'?"
      SQL:
-     SELECT SUM(total_amount) as total_sales
-     FROM sales
-     WHERE company_id = '{{companyId}}'
-       AND sale_date = (CURRENT_DATE - INTERVAL '1 day');
+     SELECT SUM(iv.quantity * iv.cost) as total_inventory_value
+     FROM inventory_valuation iv
+     JOIN warehouse_locations wl ON iv.warehouse_id = wl.id
+     WHERE iv.company_id = '{{companyId}}'
+       AND wl.company_id = '{{companyId}}'
+       AND wl.warehouse_name = 'Main Warehouse';
 `;
 
 
@@ -229,14 +243,13 @@ const universalChatOrchestrator = ai.defineFlow(
         `Table: ${table.tableName} | Columns: ${table.rows.length > 0 ? Object.keys(table.rows[0]).join(', ') : 'No columns detected or table is empty'}`
     ).join('\n');
     
-    const { businessLogic } = APP_CONFIG; // For seasonalCategories, which aren't in settings yet
-    
-    // Updated Semantic Layer for the new schema
+    // Updated Semantic Layer for the new schema, providing more explicit guidance.
     const semanticLayer = `
-      - "Dead stock": refers to items with no recent sales records. The AI needs to query sales or order tables to determine this.
-      - "Low stock": refers to items whose inventory levels are near or below a reorder threshold. The AI needs to query inventory-related tables like 'fba_inventory' or 'inventory_valuation'.
-      - "Revenue" or "Sales": calculated from 'sales.total_amount'.
-      - "Inventory Value": must be calculated by querying an inventory table like 'inventory_valuation'.
+      - "Dead stock": items with no sales in 'sales' or 'sales_detail' tables within the 'dead_stock_days' setting (${settings.dead_stock_days} days).
+      - "Low stock": items in 'fba_inventory' where quantity is near or below a reorder point (if available).
+      - "Revenue" or "Sales": MUST be calculated from 'sales.total_amount'.
+      - "Inventory Value": MUST be calculated by multiplying quantity and cost from a table like 'inventory_valuation' or 'fba_inventory'.
+      - "Product": Refers to an item, identified by 'sku' or a product name column.
     `;
 
     const formattedDynamicPatterns = dynamicPatterns.map((p, i) => 
