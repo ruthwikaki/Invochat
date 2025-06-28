@@ -100,7 +100,7 @@ export default async function DashboardPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {fetchError ? (
                         <ErrorDisplay error={fetchError} />
                     ) : data ? (
@@ -139,6 +139,7 @@ export default async function DashboardPage() {
                                 value={formatNumber(data.lowStockItemsCount)}
                                 icon={AlertCircle}
                                 label="Items below reorder point"
+                                className="lg:col-start-2"
                             />
                              <MetricCard
                                 href="/analytics"
@@ -148,9 +149,9 @@ export default async function DashboardPage() {
                                 label="All-time AOV"
                             />
                             
-                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-3" />
-                            <TopCustomersChart data={data.topCustomersData} className="sm:col-span-2" />
-                            <InventoryCategoryChart data={data.inventoryByCategoryData} className="sm:col-span-1" />
+                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-4" />
+                            <TopCustomersChart data={data.topCustomersData} className="sm:col-span-2 lg:col-span-3" />
+                            <InventoryCategoryChart data={data.inventoryByCategoryData} className="sm:col-span-2 lg:col-span-1" />
                         </>
                     ) : null}
                 </div>

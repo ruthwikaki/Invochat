@@ -1,5 +1,4 @@
 
-
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -44,20 +43,14 @@ export type Message = {
 
 // Represents the configuration for a dynamically generated chart.
 export type ChartConfig = {
-    chartType: 'bar' | 'pie' | 'line';
-    title: string;
+    chartType: 'bar' | 'pie' | 'line' | 'treemap' | 'scatter';
+    title?: string;
     data: any[];
     config: {
         dataKey: string;
-        nameKey?: string;
-        fill?: string;
-        stroke?: string;
-        // For line/bar charts
+        nameKey: string;
         xAxisKey?: string;
-        // For pie charts
-        innerRadius?: number;
-        outerRadius?: number;
-        paddingAngle?: number;
+        yAxisKey?: string;
     }
 }
 

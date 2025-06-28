@@ -117,7 +117,7 @@ const CompanySettingsUpdateSchema = z.object({
     fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.'),
     overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.'),
     high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.'),
-}).partial();
+});
 
 
 export async function updateCompanySettings(settings: Partial<Omit<CompanySettings, 'company_id'>>): Promise<CompanySettings> {

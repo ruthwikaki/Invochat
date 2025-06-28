@@ -311,7 +311,7 @@ export async function handleUserMessage(
     }
     
     // Step 5: Cache the successful result in Redis if it wasn't a cache hit
-    if (isRedisEnabled && !redisClient.get(cacheKey) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
+    if (isRedisEnabled && !(await redisClient.get(cacheKey)) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
         try {
             await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', config.redis.ttl.aiQuery); // Cache for 1 hour
             logger.info(`[Cache] SET for AI query: ${cacheKey}`);

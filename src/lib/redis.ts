@@ -15,6 +15,10 @@ const mockRedisClient = {
     zadd: () => mockRedisClient,
     expire: () => mockRedisClient,
     exec: async () => [[null, 0], [null, 0], [null, 0]], // Mock exec response
+    ping: async () => 'PONG' as const,
+    incr: async (key: string) => 1,
+    incrbyfloat: async (key: string, inc: number) => String(inc),
+    zcard: async (key: string) => 0,
 };
 
 if (process.env.REDIS_URL) {
