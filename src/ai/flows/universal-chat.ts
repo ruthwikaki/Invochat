@@ -316,12 +316,39 @@ const errorRecoveryPrompt = ai.definePrompt({
 
 
 /**
+ * Tool: External Data Integration
+ * A placeholder tool that simulates fetching external economic data.
+ */
+const getEconomicIndicators = ai.defineTool(
+    {
+        name: 'getEconomicIndicators',
+        description: 'Returns current key economic indicators and industry benchmarks for context.',
+        inputSchema: z.object({}), // No input needed for this simple version
+        outputSchema: z.object({
+            inflationRate: z.number().describe('The current annualized inflation rate as a percentage.'),
+            industryAverageTurnover: z.number().describe('The average inventory turnover rate for the retail industry.'),
+        }),
+    },
+    async () => {
+        // In a real application, this would call an external API.
+        // For now, we return hardcoded placeholder values.
+        logger.info('[Tool Call] getEconomicIndicators invoked.');
+        return {
+            inflationRate: 3.5, // Placeholder value
+            industryAverageTurnover: 6.0, // Placeholder value
+        };
+    }
+);
+
+
+/**
  * Agent 4: Result Interpretation & Response Generation
  * Analyzes the query result and formulates the final user-facing message.
  */
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
+  tools: [getEconomicIndicators],
   input: { schema: z.object({ userQuery: z.string(), queryDataJson: z.string() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
@@ -331,10 +358,15 @@ const finalResponsePrompt = ai.definePrompt({
     {{{queryDataJson}}}
 
     YOUR TASK:
-    1.  **Analyze Data**: Review the JSON. If it's empty or null, state that you found no information.
-    2.  **Assess Confidence**: Based on the user's query and the data, provide a confidence score from 0.0 to 1.0. A 1.0 means you are certain the query fully answered the user's request. A lower score means you had to make assumptions.
-    3.  **List Assumptions**: If your confidence is below 1.0, list the assumptions you made (e.g., "Interpreted 'top products' as 'top by sales value'"). If confidence is 1.0, return an empty array.
-    4.  **Formulate Response**: Provide a concise, natural language response based ONLY on the data. Do NOT mention SQL, databases, or JSON.
+    1.  **Analyze Data & Context**:
+        - Review the JSON data. If it's empty or null, state that you found no information.
+        - **If the user's query implies a need for broader context** (e.g., asking about performance, growth, or comparisons), use the \`getEconomicIndicators\` tool to fetch data like inflation or industry benchmarks.
+    2.  **Formulate Response**:
+        - Provide a concise, natural language response based on the database data and any external context you fetched.
+        - Do NOT mention SQL, databases, or JSON.
+        - If you used the tool, weave the external data into your analysis seamlessly (e.g., "Your revenue grew by 5%, which is outpacing the current inflation rate of 3.5%.").
+    3.  **Assess Confidence**: Based on the user's query and the data, provide a confidence score from 0.0 to 1.0. A 1.0 means you are certain the query fully answered the user's request. A lower score means you had to make assumptions.
+    4.  **List Assumptions**: If your confidence is below 1.0, list the assumptions you made (e.g., "Interpreted 'top products' as 'top by sales value'"). If confidence is 1.0, return an empty array.
     5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type and a title for it. Available types are:
         - 'table': For detailed, row-based data.
         - 'bar': For comparing distinct items.
