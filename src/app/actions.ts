@@ -99,12 +99,17 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
 }
 
 
-function transformDataForChart(data: any[] | null | undefined, chartType: string): { name: string; value: number }[] {
+function transformDataForChart(data: any[] | null | undefined, chartType: string): { name: string; value: number }[] | any[] {
     if (!Array.isArray(data) || data.length === 0) return [];
     const firstItem = data[0];
     if (typeof firstItem !== 'object' || firstItem === null) return [];
     const keys = Object.keys(firstItem);
     if (keys.length < 2) return [];
+
+    // Specific handling for scatter plots which need 'x' and 'y'
+    if (chartType === 'scatter' && 'x' in firstItem && 'y' in firstItem) {
+        return data.filter(p => typeof p.x === 'number' && typeof p.y === 'number');
+    }
     
     // For treemaps, the size key is important. Often called 'value' or 'size'.
     const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('size') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('amount')) || keys.find(k => typeof firstItem[k] === 'number');
@@ -262,38 +267,32 @@ export async function handleUserMessage(
     if (responseData.visualization && responseData.visualization.type !== 'none' && Array.isArray(responseData.data) && responseData.data.length > 0) {
       const vizType = responseData.visualization.type;
       const vizTitle = responseData.visualization.title;
-      const vizData = responseData.data;
+      let vizData = transformDataForChart(responseData.data, vizType);
 
-      if (vizType === 'table') {
-        assistantMessage.visualization = { type: 'table', data: vizData, config: { title: vizTitle || 'Data Table' }};
-      } else if (vizType === 'scatter') {
-        const isValid = vizData.every(p => typeof p.x === 'number' && typeof p.y === 'number');
-        if (isValid) {
-          assistantMessage.visualization = { 
-            type: 'chart', 
-            data: vizData, 
-            config: { 
-              chartType: 'scatter', 
-              title: vizTitle || 'Scatter Plot', 
-              xAxisKey: 'x',
-              yAxisKey: 'y',
-              nameKey: 'name'
-            }
-          };
-        }
-      } else if (['bar', 'pie', 'line', 'treemap'].includes(vizType)) {
-        const transformedData = transformDataForChart(vizData, vizType);
-        if (transformedData.length > 0) {
-          assistantMessage.visualization = { 
-            type: 'chart', 
-            data: transformedData, 
-            config: { 
-              chartType: vizType as 'bar' | 'pie' | 'line' | 'treemap', 
-              title: vizTitle || 'Data Visualization', 
-              dataKey: 'value', 
-              nameKey: 'name' 
-            }
-          };
+      if (vizData && vizData.length > 0) {
+        if (vizType === 'table') {
+          assistantMessage.visualization = { type: 'table', data: vizData, config: { title: vizTitle || 'Data Table' }};
+        } else if (['bar', 'pie', 'line', 'treemap', 'scatter'].includes(vizType)) {
+            const firstItem = vizData[0];
+            const nameKey = (vizType === 'scatter') 
+                ? 'name' 
+                : Object.keys(firstItem).find(k => typeof firstItem[k] === 'string') || 'name';
+            const dataKey = (vizType === 'scatter')
+                ? 'y'
+                : Object.keys(firstItem).find(k => typeof firstItem[k] === 'number') || 'value';
+
+            assistantMessage.visualization = { 
+              type: 'chart', 
+              data: vizData, 
+              config: { 
+                chartType: vizType as any,
+                title: vizTitle || 'Data Visualization', 
+                dataKey: dataKey, 
+                nameKey: nameKey,
+                xAxisKey: (vizType === 'scatter') ? 'x' : nameKey,
+                yAxisKey: (vizType === 'scatter') ? 'y' : dataKey,
+              }
+            };
         }
       }
     }
