@@ -1,7 +1,7 @@
 
 'use client';
 
-import { handleUserMessage } from '@/app/actions';
+import { handleUserMessage, getEstimatedTime } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -44,8 +44,7 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
 
   const isNewChat = !conversationId;
 
-  const processAndSetMessages = (userMessageText: string) => {
-    // Need a companyId to create a message, even a temporary one.
+  const processAndSetMessages = async (userMessageText: string) => {
     const companyId = user?.app_metadata?.company_id;
     if (!companyId) {
         toast({
@@ -55,6 +54,8 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
         });
         return;
     }
+
+    setInput('');
 
     const tempId = `temp_${Date.now()}`;
     const optimisticUserMessage: Message = {
@@ -68,15 +69,23 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
     
     setMessages(prev => [...prev, optimisticUserMessage]);
     
-    const loadingMessage: Message = {
+    // Show a temporary generic loading indicator
+    const tempLoadingMessage: Message = {
       id: 'loading',
       role: 'assistant',
-      content: '...',
+      content: '...', // This will be replaced by the LoadingIndicator component
       created_at: new Date().toISOString(),
       conversation_id: conversationId || tempId,
       company_id: companyId,
+      loadingState: 'short' // Default to a fast message
     };
-    setMessages(prev => [...prev, loadingMessage]);
+    setMessages(prev => [...prev, tempLoadingMessage]);
+
+    // Get the real estimate
+    const estimate = await getEstimatedTime(userMessageText);
+
+    // Update the loading message with the real estimate
+    setMessages(prev => prev.map(m => m.id === 'loading' ? { ...m, loadingState: estimate } : m));
 
     startTransition(async () => {
       try {
@@ -125,13 +134,13 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
     e.preventDefault();
     if (input.trim() && !isPending) {
       processAndSetMessages(input);
-      setInput('');
     }
   };
 
   const handleQuickAction = (action: string) => {
-    setInput('');
-    processAndSetMessages(action);
+    if (!isPending) {
+        processAndSetMessages(action);
+    }
   };
   
   useEffect(() => {
@@ -158,8 +167,7 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
                 {messages.map((m) => (
                     <ChatMessage 
                         key={m.id} 
-                        message={m} 
-                        isLoading={m.id === 'loading'} 
+                        message={m}
                     />
                 ))}
             </div>

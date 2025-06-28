@@ -40,6 +40,7 @@ export type Message = {
   assumptions?: string[] | null;
   created_at: string;
   isError?: boolean;
+  loadingState?: 'short' | 'medium' | 'long' | null;
 };
 
 // Represents the configuration for a dynamically generated chart.

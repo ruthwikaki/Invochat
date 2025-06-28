@@ -15,14 +15,24 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-function TypingIndicator() {
-  return (
-    <div className="flex items-center space-x-1">
-      <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-      <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-      <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground" />
-    </div>
-  );
+function LoadingIndicator({ loadingState }: { loadingState?: Message['loadingState'] }) {
+    const messages = {
+        short: 'Just a moment...',
+        medium: 'Thinking...',
+        long: 'This is a complex one, analyzing...',
+    };
+    const text = messages[loadingState || 'medium'];
+
+    return (
+        <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground" />
+            </div>
+            <span className="text-sm italic text-muted-foreground">{text}</span>
+        </div>
+    );
 }
 
 function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | null, assumptions?: string[] | null }) {
@@ -56,13 +66,12 @@ function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | 
 
 export function ChatMessage({
   message,
-  isLoading = false,
 }: {
   message: Message;
-  isLoading?: boolean;
 }) {
   const { user } = useAuth();
   const isUserMessage = message.role === 'user';
+  const isLoading = message.id === 'loading';
   
   const getInitials = (email: string | undefined) => {
     if (!email) return 'U';
@@ -91,7 +100,7 @@ export function ChatMessage({
           )}
         >
           <div className="text-base whitespace-pre-wrap">
-            {isLoading ? <TypingIndicator /> : message.content}
+            {isLoading ? <LoadingIndicator loadingState={message.loadingState} /> : message.content}
           </div>
           {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />

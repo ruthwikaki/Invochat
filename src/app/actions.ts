@@ -13,6 +13,7 @@ import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss } from '
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { APP_CONFIG } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
+import { getEstimatedTimeForQuery } from '@/ai/flows/estimate-time-flow';
 
 function getServiceRoleClient() {
     if (!supabaseAdmin) {
@@ -42,6 +43,23 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
     }
     return { userId: user.id, companyId };
 }
+
+/**
+ * A lightweight server action to quickly estimate the response time for a query.
+ * @param query The user's query text.
+ * @returns A promise that resolves to 'short', 'medium', or 'long'.
+ */
+export async function getEstimatedTime(query: string): Promise<'short' | 'medium' | 'long'> {
+    try {
+        const estimate = await getEstimatedTimeForQuery(query);
+        return estimate;
+    } catch (error) {
+        console.warn(`[Time Estimation] Failed to get estimate for query "${query}". Defaulting to 'medium'.`, error);
+        // Don't let estimation failure block the main chat flow.
+        return 'medium';
+    }
+}
+
 
 /**
  * Fetches all conversations for the currently authenticated user.
@@ -237,7 +255,7 @@ export async function handleUserMessage(
     // Step 4: Construct the assistant's message, ensuring company_id is included.
     const assistantMessage: Omit<Message, 'id' | 'created_at'> = {
       conversation_id: currentConversationId,
-      company_id: companyId,
+      company_id: companyId, // This is now correctly required by the type.
       role: 'assistant',
       content: responseData.response,
       confidence: responseData.confidence,
