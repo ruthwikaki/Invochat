@@ -175,7 +175,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     customersPromise,
     profitPromise,
     inventoryValuePromise,
-    lowStockResult,
+    lowStockPromise,
     salesTrendPromise,
     topCustomersPromise,
     inventoryByCategoryPromise,
