@@ -116,6 +116,29 @@ LANGUAGE sql
 AS $$
   REFRESH MATERIALIZED VIEW public.company_dashboard_metrics;
 $$;
+
+-- ========= Part 4: AI Query Learning =========
+-- This table stores successful query patterns for each company.
+-- The AI uses these as dynamic few-shot examples to learn from
+-- past interactions and improve the accuracy of its generated SQL
+-- for specific users over time.
+
+CREATE TABLE IF NOT EXISTS public.query_patterns (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    user_question text NOT NULL,
+    successful_sql_query text NOT NULL,
+    usage_count integer DEFAULT 1,
+    last_used_at timestamp with time zone DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now(),
+    -- A user is unlikely to ask the exact same question in two different ways
+    -- that should be stored separately. This constraint ensures we update
+    -- the existing pattern rather than creating duplicates.
+    CONSTRAINT unique_question_per_company UNIQUE (company_id, user_question)
+);
+
+-- Add an index for faster lookups when fetching patterns for a company.
+CREATE INDEX IF NOT EXISTS idx_query_patterns_company_id ON public.query_patterns(company_id);
 `;
 
 

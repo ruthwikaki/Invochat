@@ -222,14 +222,14 @@ const sqlGenerationPrompt = ai.definePrompt({
     9.  **Use Tools**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
     
     **Step 3: Consult Examples for Structure.**
-    Review these examples to understand the expected query style.
+    Review these examples to understand the expected query style. Your primary source of inspiration should be the COMPANY-SPECIFIC EXAMPLES if they exist, as they reflect what has worked for this user before.
     ---
-    FEW-SHOT EXAMPLES (General):
-    ${FEW_SHOT_EXAMPLES}
-    ---
-    ---
-    COMPANY-SPECIFIC EXAMPLES (Queries that have worked for this company before):
+    COMPANY-SPECIFIC EXAMPLES (Highest Priority - Learn from these first):
     {{{dynamicExamples}}}
+    ---
+    ---
+    FEW-SHOT EXAMPLES (General Fallback):
+    ${FEW_SHOT_EXAMPLES}
     ---
 
     **Step 4: Generate the Response.**
@@ -387,9 +387,11 @@ const universalChatOrchestrator = ai.defineFlow(
     
     const semanticLayer = ENHANCED_SEMANTIC_LAYER;
 
-    const formattedDynamicPatterns = dynamicPatterns.map((p, i) => 
-        `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`
-    ).join('\n\n');
+    const formattedDynamicPatterns = dynamicPatterns.length > 0 
+        ? dynamicPatterns.map((p, i) => 
+            `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`
+          ).join('\n\n')
+        : "No company-specific examples found yet. Rely on the general examples.";
 
     const aiModel = config.ai.model;
 

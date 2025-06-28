@@ -669,6 +669,7 @@ export async function saveSuccessfulQuery(
     });
 }
 
+
 export async function generateAnomalyInsights(companyId: string): Promise<any[]> {
     return withPerformanceTracking('generateAnomalyInsights', async () => {
         const supabase = getServiceRoleClient();
