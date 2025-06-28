@@ -6,15 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { handleUserMessage } from '@/app/actions';
-import type { Message, DashboardMetrics } from '@/types';
-import { AlertTriangle, Sparkles, Bot, BarChart2, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid } from 'lucide-react';
+import type { Message } from '@/types';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataVisualization } from '@/components/chat/data-visualization';
-import { getDashboardData } from '@/app/data-actions';
-import { useToast } from '@/hooks/use-toast';
-import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
-import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';
 import Link from 'next/link';
 
 // --- State and Error Components ---
@@ -50,7 +45,7 @@ function ErrorState({ error }: { error: string }) {
   );
 }
 
-// --- Component for the "Strategic Reports" Tab ---
+// --- Component for the Strategic Reports ---
 
 const availableAnalyses = [
     {
@@ -191,62 +186,6 @@ function StrategicReports() {
 }
 
 
-// --- Component for the "Performance Overview" Tab ---
-
-function KeyMetricsReport() {
-    const [data, setData] = useState<DashboardMetrics | null>(null);
-    const [loading, setLoading] = useState(true);
-    const { toast } = useToast();
-
-    useEffect(() => {
-        async function fetchData() {
-            setLoading(true);
-            try {
-                const dashboardData = await getDashboardData();
-                setData(dashboardData);
-            } catch (error) {
-                console.error("Failed to load key metrics", error);
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not load key metrics data.' });
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchData();
-    }, [toast]);
-
-    if (loading) {
-        return (
-            <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 mt-4">
-                <Card>
-                    <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
-                    <CardContent><Skeleton className="h-80 w-full" /></CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
-                    <CardContent><Skeleton className="h-80 w-full" /></CardContent>
-                </Card>
-            </div>
-        )
-    }
-
-    if (!data) {
-        return (
-            <Card className="mt-4 text-center p-8">
-                <CardTitle>Could not load metrics</CardTitle>
-                <CardDescription>There was an issue fetching the pre-built reports.</CardDescription>
-            </Card>
-        );
-    }
-
-    return (
-        <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 mt-4">
-            <SalesTrendChart data={data.salesTrendData} />
-            <InventoryCategoryChart data={data.inventoryByCategoryData} />
-        </div>
-    )
-}
-
-
 export default function AnalyticsPage() {
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6 flex flex-col h-full">
@@ -254,31 +193,15 @@ export default function AnalyticsPage() {
               <div className="flex items-center gap-2">
                 <SidebarTrigger className="md:hidden" />
                 <div>
-                    <h1 className="text-2xl font-semibold">Analytics</h1>
-                    <p className="text-muted-foreground text-sm">Explore your data and run strategic reports.</p>
+                    <h1 className="text-2xl font-semibold">Strategic Reports</h1>
+                    <p className="text-muted-foreground text-sm">Generate deep-dive analyses with a single click.</p>
                 </div>
               </div>
             </div>
 
-            <Tabs defaultValue="strategic-reports" className="flex-grow flex flex-col">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="strategic-reports">
-                        <Bot className="mr-2 h-4 w-4" />
-                        Strategic Reports
-                    </TabsTrigger>
-                    <TabsTrigger value="performance-overview">
-                        <BarChart2 className="mr-2 h-4 w-4" />
-                        Performance Overview
-                    </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="strategic-reports" className="mt-4 flex-grow">
-                    <StrategicReports />
-                </TabsContent>
-                <TabsContent value="performance-overview" className="mt-4">
-                    <KeyMetricsReport />
-                </TabsContent>
-            </Tabs>
+            <div className="flex-grow">
+                <StrategicReports />
+            </div>
         </div>
     );
 }
