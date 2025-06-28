@@ -1,14 +1,13 @@
 
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { handleUserMessage } from '@/app/actions';
 import type { Message, DashboardMetrics } from '@/types';
-import { AlertTriangle, Sparkles, Send, Bot, BarChart2 } from 'lucide-react';
+import { AlertTriangle, Sparkles, Bot, BarChart2, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataVisualization } from '@/components/chat/data-visualization';
@@ -16,28 +15,9 @@ import { getDashboardData } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
 import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';
+import Link from 'next/link';
 
-// --- Components for the "AI Analyst" Tab ---
-
-function AiAnalystPlaceholder() {
-  return (
-    <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed mt-4">
-        <Sparkles className="h-16 w-16 text-muted-foreground" />
-        <CardTitle className="mt-4">AI Analyst</CardTitle>
-        <CardDescription className="mt-2 max-w-sm">
-            Ask for any data visualization or report, and the AI will generate it for you.
-        </CardDescription>
-        <div className="mt-6 text-sm text-muted-foreground">
-            <p className="font-semibold">Try these examples:</p>
-            <ul className="mt-2 list-none space-y-1">
-                <li>"Show a pie chart of inventory value by category"</li>
-                <li>"What are my top 5 best selling products?"</li>
-                <li>"List suppliers with low stock items"</li>
-            </ul>
-        </div>
-    </Card>
-  );
-}
+// --- State and Error Components ---
 
 function LoadingState() {
   return (
@@ -48,6 +28,7 @@ function LoadingState() {
         </CardHeader>
         <CardContent className="space-y-4">
             <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-4 w-1/4" />
         </CardContent>
     </Card>
   );
@@ -69,111 +50,148 @@ function ErrorState({ error }: { error: string }) {
   );
 }
 
-function AiAnalyst() {
-    const [query, setQuery] = useState('');
+// --- Component for the "Strategic Reports" Tab ---
+
+const availableAnalyses = [
+    {
+      key: 'abc',
+      title: 'ABC Analysis',
+      icon: Pyramid,
+      description: 'Categorize products by revenue contribution (A, B, C) to identify your most critical inventory.',
+      prompt: 'Perform ABC analysis on my inventory',
+      details: "This analysis helps you prioritize which items to focus on for stock control, marketing, and sales efforts. 'A' items are your most valuable, 'C' items are the least."
+    },
+    {
+      key: 'forecast',
+      title: 'Demand Forecasting',
+      icon: TrendingUp,
+      description: 'Forecast sales for your top products for the next month based on historical trends.',
+      prompt: "Forecast next month's demand for my top 10 products",
+      details: "Uses linear regression on your past 12 months of sales data to project future demand, helping you with purchasing and stock level decisions."
+    },
+    {
+        key: 'velocity',
+        title: 'Sales Velocity Analysis',
+        icon: Activity,
+        description: 'Identify your fastest and slowest-selling products over the last 90 days.',
+        prompt: 'Identify my 10 fastest and 10 slowest-moving products over the last 90 days based on units sold.',
+        details: "This report shows you which products are moving quickly ('fast-movers') and which are not ('slow-movers'), allowing you to adjust marketing or consider discontinuing items."
+    }
+];
+
+function StrategicReports() {
+    const [currentAnalysisKey, setCurrentAnalysisKey] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
-    const [aiResponse, setAiResponse] = useState<Message | null>(null);
+    const [analysisResult, setAnalysisResult] = useState<Message | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [conversationId, setConversationId] = useState<string | null>(null);
 
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        if (!query.trim() || isPending) return;
-
-        setAiResponse(null);
+    const handleRunAnalysis = (prompt: string, key: string) => {
+        setCurrentAnalysisKey(key);
+        setAnalysisResult(null);
         setError(null);
         
         startTransition(async () => {
             try {
-                // The handleUserMessage action now manages history internally
                 const response = await handleUserMessage({
-                    content: query,
-                    conversationId: conversationId,
-                    // We can add a source to distinguish these from main chat
+                    content: prompt,
+                    conversationId: null, // Always create a new conversation for a report
                     source: 'analytics_page', 
                 });
                 
                 if (response.error) {
                     setError(response.error);
-                    setAiResponse(null);
+                    setAnalysisResult(null);
                 } else if (response.newMessage) {
-                    setAiResponse(response.newMessage);
-                    // If a new conversation was created, store its ID
-                    if (response.conversationId && !conversationId) {
-                        setConversationId(response.conversationId);
-                    }
+                    setAnalysisResult(response.newMessage);
+                    setConversationId(response.conversationId || null);
                     setError(null);
                 }
             } catch (e: any) {
                 setError(e.message || 'An unexpected error occurred.');
-                setAiResponse(null);
+                setAnalysisResult(null);
             }
         });
     };
+    
+    const currentAnalysisDetails = availableAnalyses.find(a => a.key === currentAnalysisKey);
 
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Custom Report Generator</CardTitle>
-                <CardDescription>
-                    Use natural language to ask for specific data reports and visualizations. The AI will create a dedicated conversation for this report.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <form onSubmit={handleSubmit} className="relative">
-                    <Input
-                        placeholder="e.g., 'Show me a bar chart of warehouse distribution'"
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        disabled={isPending}
-                        className="pr-12 h-12 text-base"
-                    />
-                    <Button 
-                        type="submit" 
-                        size="icon" 
-                        className="absolute right-2 top-1/2 -translate-y-1/2" 
-                        disabled={!query.trim() || isPending}
-                        aria-label="Generate Report"
-                    >
-                        <Send className="h-5 w-5" />
+    if (currentAnalysisKey && currentAnalysisDetails) {
+        return (
+            <Card>
+                <CardHeader>
+                    <Button variant="outline" size="sm" onClick={() => setCurrentAnalysisKey(null)} className="mb-4 w-fit">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to All Reports
                     </Button>
-                </form>
-
-                <div className="mt-6">
-                    {isPending ? (
+                    <CardTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        {currentAnalysisDetails.title}
+                    </CardTitle>
+                    <CardDescription>{currentAnalysisDetails.details}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     {isPending ? (
                         <LoadingState />
                     ) : error ? (
                         <ErrorState error={error} />
-                    ) : aiResponse ? (
-                         <Card className="mt-4">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Sparkles className="h-5 w-5 text-primary" />
-                                    AI Generated Report
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {aiResponse.content && <p className="mb-4 text-muted-foreground">{aiResponse.content}</p>}
-                                {aiResponse.visualization ? (
-                                    <DataVisualization
-                                        visualization={aiResponse.visualization}
-                                        title={aiResponse.visualization.config?.title}
-                                    />
-                                ) : (
-                                    <p>The AI did not return a data visualization for this query.</p>
-                                )}
-                            </CardContent>
-                        </Card>
-                    ) : (
-                        <AiAnalystPlaceholder />
+                    ) : analysisResult && (
+                         <>
+                            {analysisResult.content && <p className="mb-4 text-muted-foreground">{analysisResult.content}</p>}
+                            {analysisResult.visualization ? (
+                                <DataVisualization
+                                    visualization={analysisResult.visualization}
+                                    title={analysisResult.visualization.config?.title}
+                                />
+                            ) : (
+                                <p>The AI did not return a data visualization for this query.</p>
+                            )}
+                            {conversationId && (
+                                <Button asChild variant="link" className="mt-4">
+                                    <Link href={`/chat?id=${conversationId}`}>View in Chat History <ChevronsRight className="h-4 w-4" /></Link>
+                                </Button>
+                            )}
+                        </>
                     )}
-                </div>
-            </CardContent>
-        </Card>
-    )
+                </CardContent>
+            </Card>
+        )
+    }
+
+    return (
+        <div className="space-y-6">
+            <Card className="bg-muted/50">
+                <CardHeader>
+                    <CardTitle>AI-Powered Strategic Reports</CardTitle>
+                    <CardDescription>
+                       Run sophisticated analyses on your data with a single click. Each report is generated by the AI and saved as a new conversation in your chat history for future reference.
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {availableAnalyses.map((analysis) => (
+                    <Card key={analysis.key} className="flex flex-col">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <analysis.icon className="h-5 w-5 text-primary" />
+                                {analysis.title}
+                            </CardTitle>
+                            <CardDescription>{analysis.description}</CardDescription>
+                        </CardHeader>
+                        <CardFooter className="mt-auto">
+                            <Button className="w-full" onClick={() => handleRunAnalysis(analysis.prompt, analysis.key)} disabled={isPending}>
+                                Run Analysis
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+        </div>
+    );
 }
 
-// --- Component for the "Key Metrics" Tab ---
+
+// --- Component for the "Performance Overview" Tab ---
 
 function KeyMetricsReport() {
     const [data, setData] = useState<DashboardMetrics | null>(null);
@@ -237,27 +255,27 @@ export default function AnalyticsPage() {
                 <SidebarTrigger className="md:hidden" />
                 <div>
                     <h1 className="text-2xl font-semibold">Analytics</h1>
-                    <p className="text-muted-foreground text-sm">Explore your data and generate custom reports.</p>
+                    <p className="text-muted-foreground text-sm">Explore your data and run strategic reports.</p>
                 </div>
               </div>
             </div>
 
-            <Tabs defaultValue="ai-analyst" className="flex-grow flex flex-col">
+            <Tabs defaultValue="strategic-reports" className="flex-grow flex flex-col">
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="ai-analyst">
+                    <TabsTrigger value="strategic-reports">
                         <Bot className="mr-2 h-4 w-4" />
-                        AI Analyst
+                        Strategic Reports
                     </TabsTrigger>
-                    <TabsTrigger value="key-metrics">
+                    <TabsTrigger value="performance-overview">
                         <BarChart2 className="mr-2 h-4 w-4" />
-                        Key Metrics
+                        Performance Overview
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="ai-analyst" className="mt-4 flex-grow">
-                    <AiAnalyst />
+                <TabsContent value="strategic-reports" className="mt-4 flex-grow">
+                    <StrategicReports />
                 </TabsContent>
-                <TabsContent value="key-metrics" className="mt-4">
+                <TabsContent value="performance-overview" className="mt-4">
                     <KeyMetricsReport />
                 </TabsContent>
             </Tabs>

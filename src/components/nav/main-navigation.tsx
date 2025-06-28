@@ -12,17 +12,18 @@ import {
   Truck,
   BarChart,
   AlertCircle,
+  Pyramid,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/chat', label: 'Chat with InvoChat', icon: MessageSquare },
+  { href: '/analytics', label: 'Analytics', icon: Pyramid },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
-  { href: '/analytics', label: 'Analytics', icon: BarChart },
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
 ];
 
