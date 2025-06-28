@@ -10,7 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Mail, Briefcase, FileText } from 'lucide-react';
+import { Mail, Briefcase, FileText, Truck } from 'lucide-react';
 import { getSuppliersData } from '@/app/data-actions';
 import type { Supplier } from '@/types';
 
@@ -30,7 +30,13 @@ export default async function SuppliersPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {suppliers.length === 0 ? (
-          <p className="col-span-full text-center text-muted-foreground">No suppliers found.</p>
+          <div className="col-span-full">
+            <Card className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed">
+                <Truck className="h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-4 text-lg font-semibold">No Suppliers Found</h3>
+                <p className="text-muted-foreground">Once you import or add supplier data, it will appear here.</p>
+            </Card>
+          </div>
         ) : (
           suppliers.map((supplier) => (
             <Card key={supplier.id}>
@@ -69,5 +75,3 @@ export default async function SuppliersPage() {
     </div>
   );
 }
-
-    

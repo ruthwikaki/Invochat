@@ -6,7 +6,6 @@ import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
-    getProductsData, 
     getDeadStockPageData,
     getSuppliersFromDB,
     getAlertsFromDB,
@@ -14,8 +13,10 @@ import {
     getCompanySettings as getSettings,
     updateCompanySettings as updateSettingsInDb,
     generateAnomalyInsights as getAnomalyInsightsFromDB,
+    getUnifiedInventoryFromDB,
+    getInventoryCategoriesFromDB,
 } from '@/services/database';
-import type { User, CompanySettings } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -75,9 +76,14 @@ export async function getDashboardData(dateRange: string = '30d') {
     }
 }
 
-export async function getInventoryData() {
+export async function getUnifiedInventory(params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
     const companyId = await getCompanyIdForCurrentUser();
-    return getProductsData(companyId);
+    return getUnifiedInventoryFromDB(companyId, params);
+}
+
+export async function getInventoryCategories(): Promise<string[]> {
+    const companyId = await getCompanyIdForCurrentUser();
+    return getInventoryCategoriesFromDB(companyId);
 }
 
 export async function getDeadStockData() {

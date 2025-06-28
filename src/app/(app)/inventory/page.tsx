@@ -1,5 +1,6 @@
+
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { getUnifiedInventory, getInventoryCategories } from '@/services/database';
+import { getUnifiedInventory, getInventoryCategories } from '@/app/data-actions';
 import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
 import { Package } from 'lucide-react';
 

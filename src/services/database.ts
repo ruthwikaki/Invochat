@@ -20,7 +20,6 @@ import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from '
 import { config } from '@/config/app-config';
 import { sendEmailAlert } from './email';
 import { logger } from '@/lib/logger';
-import { getCompanyIdForCurrentUser } from '@/app/data-actions';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
@@ -307,13 +306,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
 
   // If cache is disabled, or on a cache miss/error, fetch directly and wait for it.
   return fetchAndCacheMetrics();
-}
-
-export async function getProductsData(companyId: string): Promise<any[]> {
-  // With the `products` table removed, this function no longer has a single source of truth.
-  // Returning an empty array to prevent errors on pages that used to call this.
-  // The AI should be used for specific inventory queries now.
-  return Promise.resolve([]);
 }
 
 async function getRawDeadStockData(companyId: string, settings: CompanySettings): Promise<DeadStockItem[]> {
@@ -728,9 +720,8 @@ export async function generateAnomalyInsights(companyId: string): Promise<any[]>
     });
 }
 
-export async function getUnifiedInventory(params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
-    return withPerformanceTracking('getUnifiedInventory', async () => {
-        const companyId = await getCompanyIdForCurrentUser();
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
+    return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
         const { query, category } = params;
 
@@ -769,9 +760,8 @@ export async function getUnifiedInventory(params: { query?: string; category?: s
     });
 }
 
-export async function getInventoryCategories(): Promise<string[]> {
-    return withPerformanceTracking('getInventoryCategories', async () => {
-        const companyId = await getCompanyIdForCurrentUser();
+export async function getInventoryCategoriesFromDB(companyId: string): Promise<string[]> {
+    return withPerformanceTracking('getInventoryCategoriesFromDB', async () => {
         const supabase = getServiceRoleClient();
         
         const query = `

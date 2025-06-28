@@ -100,7 +100,7 @@ function renderChart(props: DynamicChartProps) {
                         innerRadius="50%"
                         paddingAngle={5}
                         labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                     >
                         {data.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />

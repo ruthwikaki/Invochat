@@ -1,13 +1,7 @@
+// This file is deprecated and has been replaced by the System Health page.
+// It can be safely deleted from your project.
+import { redirect } from 'next/navigation';
+
 export default function QuickTest() {
-  const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const hasKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  return (
-    <div className="p-8">
-      <h1>Quick Environment Test</h1>
-      <p>URL: {hasUrl ? '✅' : '❌'}</p>
-      <p>Key: {hasKey ? '✅' : '❌'}</p>
-      <p>URL Value: {process.env.NEXT_PUBLIC_SUPABASE_URL}</p>
-    </div>
-  );
+  redirect('/test-supabase');
 }
