@@ -13,13 +13,14 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem } from '@/types';
+import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
 import { sendEmailAlert } from './email';
 import { logger } from '@/lib/logger';
+import { getCompanyIdForCurrentUser } from '@/app/data-actions';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
@@ -724,5 +725,70 @@ export async function generateAnomalyInsights(companyId: string): Promise<any[]>
         }
 
         return data || [];
+    });
+}
+
+export async function getUnifiedInventory(params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
+    return withPerformanceTracking('getUnifiedInventory', async () => {
+        const companyId = await getCompanyIdForCurrentUser();
+        const supabase = getServiceRoleClient();
+        const { query, category } = params;
+
+        let sqlQuery = `
+            SELECT
+                iv.sku,
+                iv.product_name,
+                pa.value as category,
+                iv.quantity,
+                iv.cost,
+                (iv.quantity * iv.cost) as total_value
+            FROM inventory_valuation iv
+            LEFT JOIN product_attributes pa ON iv.sku = pa.sku AND pa."key" = 'category' AND pa.company_id = iv.company_id
+            WHERE iv.company_id = '${companyId}'
+        `;
+
+        if (query) {
+            sqlQuery += ` AND (iv.product_name ILIKE '%${query.replace(/'/g, "''")}%' OR iv.sku ILIKE '%${query.replace(/'/g, "''")}%')`;
+        }
+        if (category) {
+            sqlQuery += ` AND pa.value = '${category.replace(/'/g, "''")}'`;
+        }
+        sqlQuery += ` ORDER BY iv.product_name;`;
+
+
+        const { data, error } = await supabase.rpc('execute_dynamic_query', {
+            query_text: sqlQuery.trim().replace(/;/g, '')
+        });
+
+        if (error) {
+            logger.error(`[DB Service] Error fetching unified inventory for company ${companyId}:`, error);
+            throw error;
+        }
+
+        return (data || []) as UnifiedInventoryItem[];
+    });
+}
+
+export async function getInventoryCategories(): Promise<string[]> {
+    return withPerformanceTracking('getInventoryCategories', async () => {
+        const companyId = await getCompanyIdForCurrentUser();
+        const supabase = getServiceRoleClient();
+        
+        const query = `
+            SELECT DISTINCT value FROM product_attributes
+            WHERE company_id = '${companyId}' AND "key" = 'category' AND value IS NOT NULL
+            ORDER BY value ASC;
+        `;
+
+        const { data, error } = await supabase.rpc('execute_dynamic_query', {
+            query_text: query.trim().replace(/;/g, '')
+        });
+
+        if (error) {
+            logger.error(`[DB Service] Error fetching inventory categories for company ${companyId}:`, error);
+            return [];
+        }
+        
+        return data.map((item: any) => item.value) || [];
     });
 }

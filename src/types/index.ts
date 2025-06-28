@@ -115,3 +115,12 @@ export type CompanySettings = {
   created_at?: string;
   updated_at?: string;
 };
+
+export type UnifiedInventoryItem = {
+  sku: string;
+  product_name: string;
+  category: string | null;
+  quantity: number;
+  cost: number;
+  total_value: number;
+};
