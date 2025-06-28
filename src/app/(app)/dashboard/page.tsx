@@ -1,5 +1,5 @@
 
-import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, AlertCircle } from 'lucide-react';
+import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, AlertCircle, TrendingUp, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {fetchError ? (
                         <ErrorDisplay error={fetchError} />
                     ) : data ? (
@@ -114,10 +114,31 @@ export default async function DashboardPage() {
                             />
                              <MetricCard
                                 href="/analytics"
-                                title="Total Orders"
-                                value={formatNumber(data.totalOrders)}
-                                icon={ShoppingCart}
-                                label="All-time processed orders"
+                                title="Total Profit"
+                                value={formatCurrency(data.totalProfit)}
+                                icon={TrendingUp}
+                                label="All-time gross profit"
+                            />
+                            <MetricCard
+                                href="/analytics"
+                                title="Return Rate"
+                                value={`${data.returnRate.toFixed(1)}%`}
+                                icon={RefreshCw}
+                                label="Last 90 days"
+                            />
+                             <MetricCard
+                                href="/analytics"
+                                title="Inventory Value"
+                                value={formatCurrency(data.totalInventoryValue)}
+                                icon={Package}
+                                label="Current value of all stock"
+                            />
+                            <MetricCard
+                                href="/alerts"
+                                title="Low Stock SKUs"
+                                value={formatNumber(data.lowStockItemsCount)}
+                                icon={AlertCircle}
+                                label="Items below reorder point"
                             />
                              <MetricCard
                                 href="/analytics"
@@ -126,17 +147,10 @@ export default async function DashboardPage() {
                                 icon={DollarSign}
                                 label="All-time AOV"
                             />
-                             <MetricCard
-                                href="/suppliers"
-                                title="Total Customers"
-                                value={formatNumber(data.totalCustomers)}
-                                icon={Users}
-                                label="All-time customer count"
-                            />
                             
-                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-2" />
-                            <TopCustomersChart data={data.topCustomersData} className="sm:col-span-2 lg:col-span-2" />
-                            <InventoryCategoryChart data={data.inventoryByCategoryData} className="sm:col-span-2 lg:col-span-4" />
+                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-3" />
+                            <TopCustomersChart data={data.topCustomersData} className="sm:col-span-2" />
+                            <InventoryCategoryChart data={data.inventoryByCategoryData} className="sm:col-span-1" />
                         </>
                     ) : null}
                 </div>

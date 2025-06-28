@@ -101,10 +101,13 @@ export type Alert = {
 
 export type DashboardMetrics = {
     totalSalesValue: number;
+    totalProfit: number;
+    returnRate: number;
+    totalInventoryValue: number;
+    lowStockItemsCount: number;
     totalOrders: number;
     totalCustomers: number;
     averageOrderValue: number;
-    totalSuppliers: number;
     salesTrendData: { date: string; Sales: number }[];
     inventoryByCategoryData: { name: string; value: number }[];
     topCustomersData: { name: string; value: number }[];
