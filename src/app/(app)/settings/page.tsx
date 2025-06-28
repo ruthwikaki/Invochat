@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -7,6 +6,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -17,7 +17,8 @@ import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings } from '@/types';
 import { getCompanySettings, updateCompanySettings } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Users } from 'lucide-react';
+import Link from 'next/link';
 
 const settingsFields: { key: keyof CompanySettings; label: string; description: string }[] = [
     { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".' },
@@ -92,54 +93,78 @@ export default function SettingsPage() {
                 </div>
             </div>
             
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <SettingsIcon className="h-5 w-5" />
-                        Business Rules
-                    </CardTitle>
-                    <CardDescription>
-                        Define how the application and AI interpret your business logic. These settings affect reports, alerts, and AI responses.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="space-y-6">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <div key={i} className="space-y-2">
-                                    <Skeleton className="h-4 w-1/4" />
-                                    <Skeleton className="h-10 w-full" />
-                                    <Skeleton className="h-3 w-1/2" />
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {settingsFields.map(({ key, label, description }) => (
-                                     <div key={key} className="space-y-2">
-                                        <Label htmlFor={key} className="text-base">{label}</Label>
-                                        <Input
-                                            id={key}
-                                            type="number"
-                                            value={settings[key] || ''}
-                                            onChange={(e) => handleInputChange(key, e.target.value)}
-                                            className="text-lg"
-                                        />
-                                        <p className="text-sm text-muted-foreground">{description}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-2">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <SettingsIcon className="h-5 w-5" />
+                            Business Rules
+                        </CardTitle>
+                        <CardDescription>
+                            Define how the application and AI interpret your business logic. These settings affect reports, alerts, and AI responses.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {loading ? (
+                            <div className="space-y-6">
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <Skeleton className="h-4 w-1/4" />
+                                        <Skeleton className="h-10 w-full" />
+                                        <Skeleton className="h-3 w-1/2" />
                                     </div>
                                 ))}
                             </div>
+                        ) : (
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    {settingsFields.map(({ key, label, description }) => (
+                                         <div key={key} className="space-y-2">
+                                            <Label htmlFor={key} className="text-base">{label}</Label>
+                                            <Input
+                                                id={key}
+                                                type="number"
+                                                value={settings[key] || ''}
+                                                onChange={(e) => handleInputChange(key, e.target.value)}
+                                                className="text-lg"
+                                            />
+                                            <p className="text-sm text-muted-foreground">{description}</p>
+                                        </div>
+                                    ))}
+                                </div>
 
-                            <div className="flex justify-end pt-4">
-                                <Button type="submit" disabled={isPending}>
-                                    {isPending ? 'Saving...' : 'Save Settings'}
-                                </Button>
-                            </div>
-                        </form>
-                    )}
-                </CardContent>
-            </Card>
+                                <div className="flex justify-end pt-4">
+                                    <Button type="submit" disabled={isPending}>
+                                        {isPending ? 'Saving...' : 'Save Settings'}
+                                    </Button>
+                                </div>
+                            </form>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <div className="space-y-6 lg:col-span-1">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Users className="h-5 w-5" />
+                                Team Management
+                            </CardTitle>
+                            <CardDescription>Manage team members and access controls for your company.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground">
+                                Invite your team to collaborate. This feature is currently under development but you can preview it now.
+                            </p>
+                        </CardContent>
+                        <CardFooter>
+                            <Button asChild variant="secondary" className="w-full">
+                                <Link href="/settings/team">Manage Team</Link>
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+            </div>
         </div>
     );
 }
