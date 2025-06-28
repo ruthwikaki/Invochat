@@ -18,6 +18,7 @@ import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { APP_CONFIG } from '@/config/app-config';
+import { sendEmailAlert } from './email';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
@@ -433,7 +434,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     inventory.forEach(item => {
         // Low Stock Alert
         if (item.quantity <= item.reorder_point) {
-            alerts.push({
+            const newAlert: Alert = {
                 id: `low-${item.id}`,
                 type: 'low_stock',
                 title: 'Low Stock',
@@ -447,12 +448,15 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                     reorderPoint: item.reorder_point,
                     value: item.quantity * Number(item.cost)
                 }
-            });
+            };
+            alerts.push(newAlert);
+            // Fire and forget email alert
+            sendEmailAlert(newAlert);
         }
 
         // Dead Stock Alert
         if (item.last_sold_date && isBefore(parseISO(item.last_sold_date), deadStockDaysAgo)) {
-             alerts.push({
+             const newAlert: Alert = {
                 id: `dead-${item.id}`,
                 type: 'dead_stock',
                 title: 'Dead Stock',
@@ -466,7 +470,10 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                     lastSoldDate: item.last_sold_date,
                     value: item.quantity * Number(item.cost)
                 }
-            });
+            };
+            alerts.push(newAlert);
+             // Fire and forget email alert
+            sendEmailAlert(newAlert);
         }
     });
 
