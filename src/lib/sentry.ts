@@ -40,7 +40,7 @@ if (SENTRY_DSN) {
  * @param error The error object to capture.
  * @param context An optional object containing additional context.
  */
-export function captureError(error: any, context?: Record<string, any>) {
+export async function captureError(error: any, context?: Record<string, any>) {
   // Always log the error locally for immediate visibility.
   logger.error(context ? (context.source || 'Generic Error') : 'Generic Error', { error, context });
 
