@@ -118,7 +118,6 @@ const sqlGenerationPrompt = ai.definePrompt({
     - The \`sqlQuery\` field MUST contain ONLY the SQL string. Do not include markdown or trailing semicolons.
     - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with inventory to get product names.").
   `,
-  config: { model: APP_CONFIG.ai.model },
 });
 
 /**
@@ -146,7 +145,6 @@ const queryValidationPrompt = ai.definePrompt({
     - If valid, return \`{"isValid": true}\`.
     - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely."}\`.
   `,
-  config: { model: APP_CONFIG.ai.model },
 });
 
 /**
@@ -182,7 +180,6 @@ const errorRecoveryPrompt = ai.definePrompt({
         6.  **If Unfixable**: If the error is ambiguous or you cannot confidently fix it, do not provide a \`correctedQuery\`. Explain why in the \`reasoning\` field instead.
         7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter.
     `,
-    config: { model: APP_CONFIG.ai.model },
 });
 
 
@@ -209,7 +206,6 @@ const finalResponsePrompt = ai.definePrompt({
     5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type ('table', 'bar', 'pie', 'line', or 'none') and a title for it.
     6.  **Format Output**: Return a single JSON object with 'response', 'visualization', 'confidence', and 'assumptions' fields. Do NOT include the raw data in your response.
   `,
-  config: { model: APP_CONFIG.ai.model },
 });
 
 
@@ -257,21 +253,23 @@ const universalChatOrchestrator = ai.defineFlow(
         `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`
     ).join('\n\n');
 
+    const aiModel = APP_CONFIG.ai.model;
+
     // Pipeline Step 1: Generate SQL
-    const { output: generationOutput } = await sqlGenerationPrompt({ 
-        companyId, 
-        userQuery, 
-        dbSchema: formattedSchema, 
-        semanticLayer,
-        dynamicExamples: formattedDynamicPatterns
-    });
+    const { output: generationOutput } = await sqlGenerationPrompt(
+      { companyId, userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
+      { model: aiModel }
+    );
     if (!generationOutput?.sqlQuery) {
         throw new Error("AI failed to generate an SQL query.");
     }
     let sqlQuery = generationOutput.sqlQuery;
 
     // Pipeline Step 2: Validate SQL
-    const { output: validationOutput } = await queryValidationPrompt({ userQuery, sqlQuery });
+    const { output: validationOutput } = await queryValidationPrompt(
+        { userQuery, sqlQuery },
+        { model: aiModel }
+    );
     if (!validationOutput?.isValid) {
         console.error("Generated SQL failed validation:", validationOutput.correction);
         throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
@@ -286,12 +284,10 @@ const universalChatOrchestrator = ai.defineFlow(
     if (queryError) {
         console.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
         
-        const { output: recoveryOutput } = await errorRecoveryPrompt({
-            userQuery,
-            failedQuery: sqlQuery,
-            errorMessage: queryError.message,
-            dbSchema: formattedSchema,
-        });
+        const { output: recoveryOutput } = await errorRecoveryPrompt(
+            { userQuery, failedQuery: sqlQuery, errorMessage: queryError.message, dbSchema: formattedSchema },
+            { model: aiModel }
+        );
 
         if (recoveryOutput?.correctedQuery) {
             console.log(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
@@ -324,7 +320,10 @@ const universalChatOrchestrator = ai.defineFlow(
 
     // Pipeline Step 4: Interpret Results and Generate Final Response
     const queryDataJson = JSON.stringify(queryData || []);
-    const { output: finalOutput } = await finalResponsePrompt({ userQuery, queryDataJson });
+    const { output: finalOutput } = await finalResponsePrompt(
+        { userQuery, queryDataJson },
+        { model: aiModel }
+    );
     if (!finalOutput) {
       throw new Error('The AI model did not return a valid final response object.');
     }
