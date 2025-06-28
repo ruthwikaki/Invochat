@@ -126,6 +126,13 @@ export default async function DashboardPage({
                                 icon={TrendingUp}
                                 label={`Last ${dateRange.replace('d', '')} days`}
                             />
+                             <MetricCard
+                                href="/analytics"
+                                title="Average Order Value"
+                                value={formatCurrency(data.averageOrderValue)}
+                                icon={DollarSign}
+                                label={`Last ${dateRange.replace('d', '')} days`}
+                            />
                             <MetricCard
                                 href="/analytics"
                                 title="Return Rate"
@@ -146,14 +153,6 @@ export default async function DashboardPage({
                                 value={formatNumber(data.lowStockItemsCount)}
                                 icon={AlertCircle}
                                 label="Items below reorder point"
-                                className="lg:col-start-2"
-                            />
-                             <MetricCard
-                                href="/analytics"
-                                title="Average Order Value"
-                                value={formatCurrency(data.averageOrderValue)}
-                                icon={DollarSign}
-                                label={`Last ${dateRange.replace('d', '')} days`}
                             />
                             
                             <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-4" />

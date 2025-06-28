@@ -1,10 +1,9 @@
 
 'use client';
 
+import { useRef } from 'react';
 import type { ChartConfig } from '@/types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Expand, Pencil, Download } from 'lucide-react';
+import { motion, useInView } from 'framer-motion';
 import {
   Bar,
   BarChart,
@@ -65,7 +64,7 @@ const TreemapContent = (props: any) => {
 };
 
 
-function renderChart(props: DynamicChartProps) {
+function renderChart(props: DynamicChartProps, isInView: boolean) {
     const { chartType, data, config } = props;
     
     switch (chartType) {
@@ -80,7 +79,7 @@ function renderChart(props: DynamicChartProps) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Bar dataKey={config.dataKey} radius={[4, 4, 0, 0]}>
+                    <Bar dataKey={config.dataKey} radius={[4, 4, 0, 0]} animationDuration={isInView ? 900 : 0}>
                         {data.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
                         ))}
@@ -99,6 +98,7 @@ function renderChart(props: DynamicChartProps) {
                         outerRadius="80%"
                         innerRadius="50%"
                         paddingAngle={5}
+                        animationDuration={isInView ? 900 : 0}
                         labelLine={false}
                         label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                     >
@@ -126,7 +126,7 @@ function renderChart(props: DynamicChartProps) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Line type="monotone" dataKey={config.dataKey} stroke="hsl(var(--primary))" />
+                    <Line type="monotone" dataKey={config.dataKey} stroke="hsl(var(--primary))" animationDuration={isInView ? 900 : 0} />
                 </LineChart>
             );
         case 'treemap':
@@ -136,7 +136,7 @@ function renderChart(props: DynamicChartProps) {
                     dataKey={config.dataKey}
                     nameKey={config.nameKey}
                     aspectRatio={16 / 9}
-                    isAnimationActive={false} // Important for custom content
+                    isAnimationActive={isInView}
                     content={<TreemapContent />}
                 >
                     <Tooltip
@@ -181,7 +181,7 @@ function renderChart(props: DynamicChartProps) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.yAxisKey} fill="hsl(var(--primary))" />
+                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.yAxisKey} fill="hsl(var(--primary))" animationDuration={isInView ? 900 : 0} />
                 </ScatterChart>
             );
         default:
@@ -191,25 +191,34 @@ function renderChart(props: DynamicChartProps) {
 
 
 export function DynamicChart(props: DynamicChartProps) {
+    const ref = useRef(null);
+    const isInView = useInView(ref, { once: true, amount: 0.3 });
+
     if (!props.data || props.data.length === 0) {
         return <p>No data available to display the chart.</p>;
     }
     
-    // If it's part of the full-screen dialog, just render the chart
+    // If it's part of the full-screen dialog, don't animate, just show it.
     if (props.isExpanded) {
         return (
             <ResponsiveContainer width="100%" height="100%">
-                {renderChart(props)}
+                {renderChart(props, true)}
             </ResponsiveContainer>
         )
     }
 
-    // Otherwise, render it within the component container for the chat
+    // Otherwise, render it within the component container for the chat with animation
     return (
-        <div className="h-full w-full">
+        <motion.div
+            ref={ref}
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: isInView ? 1 : 0, y: isInView ? 0 : 50 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className="h-full w-full"
+        >
             <ResponsiveContainer width="100%" height="100%">
-                {renderChart(props)}
+                {renderChart(props, isInView)}
             </ResponsiveContainer>
-        </div>
+        </motion.div>
     );
 }

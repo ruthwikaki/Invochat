@@ -8,15 +8,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { InvochatLogo } from '../invochat-logo';
-import { MessageSquarePlus, MessageSquareText, Star, Home, Package, Lightbulb, TrendingDown, Truck, BarChart, AlertCircle, LogOut, Moon, Settings, Sun, Database, ShieldCheck } from 'lucide-react';
+import { MessageSquarePlus, MessageSquareText, Star, Settings, Moon, Sun, Database, ShieldCheck, Upload } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Sidebar, SidebarFooter, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/context/auth-context';
 import { useTheme } from 'next-themes';
-import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Skeleton } from '../ui/skeleton';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../ui/dropdown-menu';
+import { UserAccountNav } from '@/components/nav/user-account-nav';
+import { MainNavigation } from '@/components/nav/main-navigation';
 
 
 type ConversationSidebarProps = {
@@ -30,27 +29,9 @@ export function ConversationSidebar({
 }: ConversationSidebarProps) {
     const pathname = usePathname();
     const { setTheme } = useTheme();
-    const { user, signOut, loading } = useAuth();
-
-    const handleSignOut = async () => {
-        try {
-        await signOut();
-        } catch (error) {
-        console.error('Sign out error:', error);
-        }
-    };
-
-    const mainMenuItems = [
-        { href: '/dashboard', label: 'Dashboard', icon: Home },
-        { href: '/inventory', label: 'Inventory', icon: Package },
-        { href: '/insights', label: 'Insights', icon: Lightbulb },
-        { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
-        { href: '/suppliers', label: 'Suppliers', icon: Truck },
-        { href: '/analytics', label: 'Analytics', icon: BarChart },
-        { href: '/alerts', label: 'Alerts', icon: AlertCircle },
-    ];
 
     const settingsMenuItems = [
+        { href: '/import', label: 'Data Importer', icon: Upload },
         { href: '/database', label: 'Database Explorer', icon: Database },
         { href: '/test-supabase', label: 'System Health', icon: ShieldCheck },
         { href: '/settings', label: 'Settings', icon: Settings },
@@ -105,40 +86,12 @@ export function ConversationSidebar({
 
         <div className="p-2 space-y-1">
             <p className="px-2 text-xs font-semibold text-muted-foreground tracking-wider">Navigate</p>
-             <SidebarMenu>
-                {mainMenuItems.map((item) => (
-                    <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href) && item.href !== '/chat'}>
-                        <Link href={item.href} prefetch={false}>
-                        <item.icon />
-                        {item.label}
-                        </Link>
-                    </SidebarMenuButton>
-                    </SidebarMenuItem>
-                ))}
-            </SidebarMenu>
+            <MainNavigation />
         </div>
       </ScrollArea>
 
        <SidebarFooter className="mt-auto flex flex-col gap-2 border-t">
-         <div className="flex items-center gap-2 p-2">
-          {loading ? (
-            <>
-              <Skeleton className="h-8 w-8 rounded-full" />
-              <Skeleton className="h-4 w-24" />
-            </>
-          ) : user ? (
-            <>
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <span className="text-sm truncate">{user.email}</span>
-              <SidebarMenuButton variant="ghost" size="icon" className="h-8 w-8 ml-auto" onClick={handleSignOut}>
-                <LogOut />
-              </SidebarMenuButton>
-            </>
-          ) : null}
-        </div>
+         <UserAccountNav />
         <SidebarMenu>
             {settingsMenuItems.map((item) => (
                 <SidebarMenuItem key={item.href}>

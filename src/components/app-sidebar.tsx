@@ -4,19 +4,9 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  AlertCircle,
-  BarChart,
-  Home,
-  LogOut,
-  MessageSquare,
   Moon,
-  Package,
   Settings,
   Sun,
-  TrendingDown,
-  Truck,
-  Lightbulb,
-  Beaker,
   Database,
   ShieldCheck,
   Upload,
@@ -33,34 +23,13 @@ import {
 } from './ui/sidebar';
 import { useTheme } from 'next-themes';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
-import { useAuth } from '@/context/auth-context';
-import { Avatar, AvatarFallback } from './ui/avatar';
-import { Skeleton } from './ui/skeleton';
+import { UserAccountNav } from '@/components/nav/user-account-nav';
+import { MainNavigation } from '@/components/nav/main-navigation';
+
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { setTheme } = useTheme();
-  const { user, signOut, loading } = useAuth();
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      // The signOut function in auth-context now handles navigation
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
-  };
-
-  const menuItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: Home },
-    { href: '/chat', label: 'Chat with InvoChat', icon: MessageSquare },
-    { href: '/inventory', label: 'Inventory', icon: Package },
-    { href: '/insights', label: 'Insights', icon: Lightbulb },
-    { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
-    { href: '/suppliers', label: 'Suppliers', icon: Truck },
-    { href: '/analytics', label: 'Analytics', icon: BarChart },
-    { href: '/alerts', label: 'Alerts', icon: AlertCircle },
-  ];
 
   return (
     <Sidebar>
@@ -71,38 +40,10 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarMenu>
-          {menuItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
-                <Link href={item.href} prefetch={false}>
-                  <item.icon />
-                  {item.label}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+        <MainNavigation />
       </SidebarContent>
       <SidebarFooter className="mt-auto flex flex-col gap-2">
-         <div className="flex items-center gap-2 p-2 border-t">
-          {loading ? (
-            <>
-              <Skeleton className="h-8 w-8 rounded-full" />
-              <Skeleton className="h-4 w-24" />
-            </>
-          ) : user ? (
-            <>
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
-              <span className="text-sm truncate">{user.email}</span>
-              <SidebarMenuButton variant="ghost" size="icon" className="h-8 w-8 ml-auto" onClick={handleSignOut}>
-                <LogOut />
-              </SidebarMenuButton>
-            </>
-          ) : null}
-        </div>
+         <UserAccountNav />
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/import'}>
