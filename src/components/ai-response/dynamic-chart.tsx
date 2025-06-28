@@ -20,8 +20,6 @@ import {
 
 type DynamicChartProps = ChartConfig & { isExpanded?: boolean };
 
-const COLORS = ['#6B46C1', '#475569', '#10B981', '#F59E0B', '#F43F5E'];
-
 function renderChart(props: DynamicChartProps) {
     const { chartType, data, config } = props;
     
@@ -37,7 +35,11 @@ function renderChart(props: DynamicChartProps) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Bar dataKey={config.dataKey} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey={config.dataKey} radius={[4, 4, 0, 0]}>
+                        {data.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
+                        ))}
+                    </Bar>
                 </BarChart>
             );
         case 'pie':
@@ -52,12 +54,11 @@ function renderChart(props: DynamicChartProps) {
                         outerRadius="80%"
                         innerRadius="50%"
                         paddingAngle={5}
-                        fill="hsl(var(--primary))"
                         labelLine={false}
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
                         {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
                         ))}
                     </Pie>
                     <Tooltip 

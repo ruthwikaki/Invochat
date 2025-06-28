@@ -13,8 +13,6 @@ type InventoryCategoryChartProps = {
   className?: string;
 };
 
-const COLORS = ['#6B46C1', '#475569', '#10B981', '#F59E0B', '#F43F5E', '#3B82F6'];
-
 const RADIAN = Math.PI / 180;
 const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
   if (percent < 0.05) return null; // Don't render labels for tiny slices
@@ -67,7 +65,7 @@ export function InventoryCategoryChart({ data, className }: InventoryCategoryCha
                         animationDuration={isInView ? 900 : 0}
                         >
                         {data.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke={COLORS[index % COLORS.length]} />
+                            <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} stroke={`hsl(var(--chart-${(index % 5) + 1}))`} />
                         ))}
                         </Pie>
                         <Tooltip
