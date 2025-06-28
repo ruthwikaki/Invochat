@@ -119,161 +119,167 @@ export async function updateCompanySettings(companyId: string, settings: Partial
 export async function getDashboardMetrics(companyId: string): Promise<DashboardMetrics> {
   const cacheKey = `company:${companyId}:dashboard`;
 
+  const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
+    return withPerformanceTracking('getDashboardMetrics', async () => {
+        const supabase = getServiceRoleClient();
+        
+        // --- Define all queries ---
+        const salesPromise = supabase.from('sales').select('id, total_amount').eq('company_id', companyId);
+        const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+        const profitPromise = supabase.from('sales_detail').select('profit').eq('company_id', companyId);
+        const inventoryValuePromise = supabase.from('inventory_valuation').select('quantity, cost').eq('company_id', companyId);
+        const lowStockPromise = supabase.from('fba_inventory').select('*', { count: 'exact', head: true }).eq('company_id', companyId).lt('quantity', 20);
+
+        const salesTrendQuery = `
+            SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
+            FROM sales WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '30 days')
+            GROUP BY 1 ORDER BY 1 ASC
+        `;
+        const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
+        
+        const topCustomersQuery = `
+            SELECT c.name, SUM(s.total_amount) as value
+            FROM sales s JOIN customers c ON s.customer_id = c.id
+            WHERE s.company_id = '${companyId}' AND c.company_id = '${companyId}'
+            GROUP BY c.name ORDER BY value DESC LIMIT 5
+        `;
+        const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
+        
+        const inventoryByCategoryQuery = `
+            SELECT pa.value as name, sum(iv.quantity * iv.cost) as value 
+            FROM inventory_valuation iv JOIN product_attributes pa ON iv.sku = pa.sku AND pa.key = 'category'
+            WHERE iv.company_id = '${companyId}' AND pa.company_id = '${companyId}'
+            GROUP BY pa.value
+        `;
+        const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
+
+        const returnRateQuery = `
+            WITH Sales90Days AS (
+                SELECT count(id) as total_sales FROM sales
+                WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '90 days')
+            ), Returns90Days AS (
+                SELECT count(id) as total_returns FROM returns
+                WHERE company_id = '${companyId}' AND return_date >= (CURRENT_DATE - INTERVAL '90 days')
+            )
+            SELECT
+                s.total_sales, r.total_returns,
+                CASE WHEN s.total_sales > 0 THEN (r.total_returns::decimal / s.total_sales) * 100 ELSE 0 END as return_rate
+            FROM Sales90Days s, Returns90Days r
+        `;
+        const returnRatePromise = supabase.rpc('execute_dynamic_query', { query_text: returnRateQuery.trim().replace(/;/g, '') });
+
+        const results = await Promise.allSettled([
+            salesPromise,
+            customersPromise,
+            profitPromise,
+            inventoryValuePromise,
+            lowStockPromise,
+            salesTrendPromise,
+            topCustomersPromise,
+            inventoryByCategoryPromise,
+            returnRatePromise,
+        ]);
+        
+        const extractData = (result: PromiseSettledResult<any>, defaultValue: any) => {
+            if (result.status === 'fulfilled' && !result.value.error) {
+            return result.value.data ?? defaultValue;
+            }
+            if (result.status === 'rejected' || (result.status === 'fulfilled' && result.value.error)) {
+                const error = result.status === 'rejected' ? result.reason : result.value.error;
+                if (error?.message && !error.message.includes('does not exist')) { 
+                    logger.warn(`[DB Service] A dashboard metric query failed:`, error?.message);
+                }
+            }
+            return defaultValue;
+        };
+
+        const extractCount = (result: PromiseSettledResult<any>) => {
+            if (result.status === 'fulfilled' && !result.value.error) {
+                return result.value.count || 0;
+            }
+            return 0;
+        }
+        
+        const [
+            salesResult,
+            customersResult,
+            profitResult,
+            inventoryValueResult,
+            lowStockResult,
+            salesTrendResult,
+            topCustomersResult,
+            inventoryByCategoryResult,
+            returnRateResult,
+        ] = results;
+
+        const sales = extractData(salesResult, []);
+        const customersCount = extractCount(customersResult);
+        const profitData = extractData(profitResult, []);
+        const inventoryValueData = extractData(inventoryValueResult, []);
+        const lowStockItemsCount = extractCount(lowStockResult);
+
+        const salesTrendData = extractData(salesTrendResult, []);
+        const topCustomersData = extractData(topCustomersResult, []);
+        const inventoryByCategoryData = extractData(inventoryByCategoryResult, []);
+        const returnRateData = extractData(returnRateResult, [])[0];
+
+        const totalSalesValue = sales.reduce((sum: number, sale: any) => sum + (sale.total_amount || 0), 0);
+        const totalOrders = sales.length;
+        const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
+        const totalProfit = profitData.reduce((sum: number, item: any) => sum + (item.profit || 0), 0);
+        const totalInventoryValue = inventoryValueData.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.cost || 0)), 0);
+        const returnRate = returnRateData?.return_rate || 0;
+        
+        const finalMetrics: DashboardMetrics = {
+            totalSalesValue: Math.round(totalSalesValue),
+            totalProfit: Math.round(totalProfit),
+            returnRate: returnRate,
+            totalInventoryValue: Math.round(totalInventoryValue),
+            lowStockItemsCount,
+            totalOrders,
+            totalCustomers: customersCount,
+            averageOrderValue,
+            salesTrendData: salesTrendData || [],
+            inventoryByCategoryData: inventoryByCategoryData || [],
+            topCustomersData: topCustomersData || [],
+        };
+
+        if (isRedisEnabled) {
+            try {
+                await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', config.redis.ttl.dashboard);
+                logger.info(`[Cache] SET for dashboard metrics: ${cacheKey}`);
+            } catch (error) {
+                logger.error(`[Redis] Error setting cache for ${cacheKey}:`, error);
+            }
+        }
+        return finalMetrics;
+    });
+  };
+
   if (isRedisEnabled) {
     try {
-        const cachedData = await redisClient.get(cacheKey);
-        if (cachedData) {
-            logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
-            await incrementCacheHit('dashboard');
-            return JSON.parse(cachedData);
-        }
-        logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
-        await incrementCacheMiss('dashboard');
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        logger.info(`[Cache] HIT (Stale-While-Revalidate) for dashboard metrics: ${cacheKey}`);
+        await incrementCacheHit('dashboard');
+
+        // Don't wait for this. Fire-and-forget revalidation in the background.
+        fetchAndCacheMetrics().catch(err => {
+            logger.error(`[SWR Background Revalidation] Failed to revalidate cache for ${cacheKey}:`, err);
+        });
+
+        // Return the stale data immediately.
+        return JSON.parse(cachedData);
+      }
+      logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+      await incrementCacheMiss('dashboard');
     } catch (error) {
-        logger.error(`[Redis] Error getting cache for ${cacheKey}:`, error);
+      logger.error(`[Redis] Error getting cache for ${cacheKey}. Fetching directly from DB.`, error);
     }
   }
 
-  const startTime = performance.now();
-  const supabase = getServiceRoleClient();
-  
-  // --- Define all queries ---
-  const salesPromise = supabase.from('sales').select('id, total_amount').eq('company_id', companyId);
-  const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
-  const profitPromise = supabase.from('sales_detail').select('profit').eq('company_id', companyId);
-  const inventoryValuePromise = supabase.from('inventory_valuation').select('quantity, cost').eq('company_id', companyId);
-  const lowStockPromise = supabase.from('fba_inventory').select('*', { count: 'exact', head: true }).eq('company_id', companyId).lt('quantity', 20);
-
-  const salesTrendQuery = `
-    SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
-    FROM sales WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '30 days')
-    GROUP BY 1 ORDER BY 1 ASC
-  `;
-  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
-  
-  const topCustomersQuery = `
-    SELECT c.name, SUM(s.total_amount) as value
-    FROM sales s JOIN customers c ON s.customer_id = c.id
-    WHERE s.company_id = '${companyId}' AND c.company_id = '${companyId}'
-    GROUP BY c.name ORDER BY value DESC LIMIT 5
-  `;
-  const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
-  
-  const inventoryByCategoryQuery = `
-    SELECT pa.value as name, sum(iv.quantity * iv.cost) as value 
-    FROM inventory_valuation iv JOIN product_attributes pa ON iv.sku = pa.sku AND pa.key = 'category'
-    WHERE iv.company_id = '${companyId}' AND pa.company_id = '${companyId}'
-    GROUP BY pa.value
-  `;
-  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
-
-  const returnRateQuery = `
-    WITH Sales90Days AS (
-        SELECT count(id) as total_sales FROM sales
-        WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '90 days')
-    ), Returns90Days AS (
-        SELECT count(id) as total_returns FROM returns
-        WHERE company_id = '${companyId}' AND return_date >= (CURRENT_DATE - INTERVAL '90 days')
-    )
-    SELECT
-        s.total_sales, r.total_returns,
-        CASE WHEN s.total_sales > 0 THEN (r.total_returns::decimal / s.total_sales) * 100 ELSE 0 END as return_rate
-    FROM Sales90Days s, Returns90Days r
-  `;
-  const returnRatePromise = supabase.rpc('execute_dynamic_query', { query_text: returnRateQuery.trim().replace(/;/g, '') });
-
-  // --- Execute all queries in parallel ---
-  const results = await Promise.allSettled([
-    salesPromise,
-    customersPromise,
-    profitPromise,
-    inventoryValueResult,
-    lowStockPromise,
-    salesTrendPromise,
-    topCustomersPromise,
-    inventoryByCategoryPromise,
-    returnRatePromise,
-  ]);
-  
-  const endTime = performance.now();
-  await trackDbQueryPerformance('getDashboardMetrics', endTime - startTime);
-  
-  // --- Helper to safely extract data and handle errors ---
-  const extractData = (result: PromiseSettledResult<any>, defaultValue: any) => {
-    if (result.status === 'fulfilled' && !result.value.error) {
-      return result.value.data ?? defaultValue;
-    }
-    if (result.status === 'rejected' || (result.status === 'fulfilled' && result.value.error)) {
-        const error = result.status === 'rejected' ? result.reason : result.value.error;
-        if (error?.message && !error.message.includes('does not exist')) { 
-            logger.warn(`[DB Service] A dashboard metric query failed:`, error?.message);
-        }
-    }
-    return defaultValue;
-  };
-
-  const extractCount = (result: PromiseSettledResult<any>) => {
-      if (result.status === 'fulfilled' && !result.value.error) {
-          return result.value.count || 0;
-      }
-      return 0;
-  }
-  
-  // --- Process results ---
-  const [
-    salesResult,
-    customersResult,
-    profitResult,
-    inventoryValueResult,
-    lowStockResult,
-    salesTrendResult,
-    topCustomersResult,
-    inventoryByCategoryResult,
-    returnRateResult,
-  ] = results;
-
-  const sales = extractData(salesResult, []);
-  const customersCount = extractCount(customersResult);
-  const profitData = extractData(profitResult, []);
-  const inventoryValueData = extractData(inventoryValueResult, []);
-  const lowStockItemsCount = extractCount(lowStockResult);
-
-  const salesTrendData = extractData(salesTrendResult, []);
-  const topCustomersData = extractData(topCustomersResult, []);
-  const inventoryByCategoryData = extractData(inventoryByCategoryResult, []);
-  const returnRateData = extractData(returnRateResult, [])[0];
-
-  const totalSalesValue = sales.reduce((sum: number, sale: any) => sum + (sale.total_amount || 0), 0);
-  const totalOrders = sales.length;
-  const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
-  const totalProfit = profitData.reduce((sum: number, item: any) => sum + (item.profit || 0), 0);
-  const totalInventoryValue = inventoryValueData.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.cost || 0)), 0);
-  const returnRate = returnRateData?.return_rate || 0;
-  
-  const finalMetrics: DashboardMetrics = {
-      totalSalesValue: Math.round(totalSalesValue),
-      totalProfit: Math.round(totalProfit),
-      returnRate: returnRate,
-      totalInventoryValue: Math.round(totalInventoryValue),
-      lowStockItemsCount,
-      totalOrders,
-      totalCustomers: customersCount,
-      averageOrderValue,
-      salesTrendData: salesTrendData || [],
-      inventoryByCategoryData: inventoryByCategoryData || [],
-      topCustomersData: topCustomersData || [],
-  };
-
-  if (isRedisEnabled) {
-      try {
-          await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', config.redis.ttl.dashboard);
-          logger.info(`[Cache] SET for dashboard metrics: ${cacheKey}`);
-      } catch (error) {
-          logger.error(`[Redis] Error setting cache for ${cacheKey}:`, error);
-      }
-  }
-
-  return finalMetrics;
+  // If cache is disabled, or on a cache miss/error, fetch directly and wait for it.
+  return fetchAndCacheMetrics();
 }
 
 export async function getProductsData(companyId: string): Promise<any[]> {
