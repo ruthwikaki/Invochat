@@ -341,6 +341,7 @@ const finalResponsePrompt = ai.definePrompt({
         - 'pie': For showing proportions of a whole.
         - 'line': For showing trends over time.
         - 'treemap': For hierarchical data or showing parts of a whole with nested rectangles. Good for inventory value by category and then by product.
+        - 'scatter': For showing the relationship or correlation between two numerical variables (e.g., price vs. units sold). Data should have 'x' and 'y' keys.
         - 'none': If no visualization is appropriate.
     6.  **Format Output**: Return a single JSON object with 'response', 'visualization', 'confidence', and 'assumptions' fields. Do NOT include the raw data in your response.
   `,

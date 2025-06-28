@@ -16,7 +16,7 @@ export const UniversalChatOutputSchema = z.object({
   response: z.string().describe("The natural language response to the user."),
   data: z.array(z.any()).optional().nullable().describe("The raw data retrieved from the database, if any, for visualizations."),
   visualization: z.object({
-    type: z.enum(['table', 'bar', 'pie', 'line', 'treemap', 'none']),
+    type: z.enum(['table', 'bar', 'pie', 'line', 'treemap', 'scatter', 'none']),
     title: z.string().optional(),
     config: z.any().optional()
   }).optional().describe("A suggested visualization for the data."),

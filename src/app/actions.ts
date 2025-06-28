@@ -261,12 +261,40 @@ export async function handleUserMessage(
     };
     
     if (responseData.visualization && responseData.visualization.type !== 'none' && Array.isArray(responseData.data) && responseData.data.length > 0) {
-      if (responseData.visualization.type === 'table') {
-        assistantMessage.visualization = { type: 'table', data: responseData.data, config: { title: responseData.visualization.title || 'Data Table' }};
-      } else if (['bar', 'pie', 'line', 'treemap'].includes(responseData.visualization.type)) {
-        const transformedData = transformDataForChart(responseData.data, responseData.visualization.type);
+      const vizType = responseData.visualization.type;
+      const vizTitle = responseData.visualization.title;
+      const vizData = responseData.data;
+
+      if (vizType === 'table') {
+        assistantMessage.visualization = { type: 'table', data: vizData, config: { title: vizTitle || 'Data Table' }};
+      } else if (vizType === 'scatter') {
+        const isValid = vizData.every(p => typeof p.x === 'number' && typeof p.y === 'number');
+        if (isValid) {
+          assistantMessage.visualization = { 
+            type: 'chart', 
+            data: vizData, 
+            config: { 
+              chartType: 'scatter', 
+              title: vizTitle || 'Scatter Plot', 
+              xAxisKey: 'x',
+              yAxisKey: 'y',
+              nameKey: 'name'
+            }
+          };
+        }
+      } else if (['bar', 'pie', 'line', 'treemap'].includes(vizType)) {
+        const transformedData = transformDataForChart(vizData, vizType);
         if (transformedData.length > 0) {
-          assistantMessage.visualization = { type: 'chart', data: transformedData, config: { chartType: responseData.visualization.type as 'bar' | 'pie' | 'line' | 'treemap', title: responseData.visualization.title || 'Data Visualization', dataKey: 'value', nameKey: 'name' }};
+          assistantMessage.visualization = { 
+            type: 'chart', 
+            data: transformedData, 
+            config: { 
+              chartType: vizType as 'bar' | 'pie' | 'line' | 'treemap', 
+              title: vizTitle || 'Data Visualization', 
+              dataKey: 'value', 
+              nameKey: 'name' 
+            }
+          };
         }
       }
     }

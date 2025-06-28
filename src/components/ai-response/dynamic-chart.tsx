@@ -8,17 +8,20 @@ import { Expand, Pencil, Download } from 'lucide-react';
 import {
   Bar,
   BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
+  Treemap,
   XAxis,
   YAxis,
-  Cell,
-  Legend,
-  Treemap,
 } from 'recharts';
 
 type DynamicChartProps = ChartConfig & { isExpanded?: boolean };
@@ -144,6 +147,42 @@ function renderChart(props: DynamicChartProps) {
                          formatter={(value: number, name: string) => [value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), name]}
                     />
                 </Treemap>
+            );
+        case 'scatter':
+            return (
+                <ScatterChart
+                    margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
+                >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                        type="number" 
+                        dataKey={config.xAxisKey}
+                        name={config.xAxisKey}
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => value.toLocaleString()}
+                    />
+                    <YAxis 
+                        type="number" 
+                        dataKey={config.yAxisKey}
+                        name={config.yAxisKey}
+                        stroke="hsl(var(--muted-foreground))"
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => value.toLocaleString()}
+                    />
+                    <Tooltip
+                        cursor={{ strokeDasharray: '3 3' }}
+                        contentStyle={{
+                            backgroundColor: 'hsl(var(--background))',
+                            borderColor: 'hsl(var(--border))'
+                        }}
+                    />
+                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.yAxisKey} fill="hsl(var(--primary))" />
+                </ScatterChart>
             );
         default:
             return <p>Unsupported chart type.</p>;
