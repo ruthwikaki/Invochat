@@ -2,9 +2,10 @@
 'use server';
 
 import { redisClient, isRedisEnabled } from '@/lib/redis';
+import { logger } from '@/lib/logger';
 
 if (isRedisEnabled) {
-    console.log('[Monitoring] Performance monitoring service is active.');
+    logger.info('[Monitoring] Performance monitoring service is active.');
 }
 
 /**
@@ -31,7 +32,7 @@ export async function trackAiQueryPerformance(query: string, durationMs: number)
 
         await pipeline.exec();
     } catch (e) {
-        console.error('[Monitoring] Failed to track AI query performance:', e);
+        logger.error('[Monitoring] Failed to track AI query performance:', e);
     }
 }
 
@@ -54,7 +55,7 @@ export async function trackDbQueryPerformance(functionName: string, durationMs: 
 
         await pipeline.exec();
     } catch (e) {
-        console.error(`[Monitoring] Failed to track DB query performance for ${functionName}:`, e);
+        logger.error(`[Monitoring] Failed to track DB query performance for ${functionName}:`, e);
     }
 }
 
@@ -68,7 +69,7 @@ export async function incrementCacheHit(cacheType: string): Promise<void> {
     try {
         await redisClient.incr(`perf:cache_hits:${cacheType}`);
     } catch (e) {
-        console.error(`[Monitoring] Failed to increment cache hit for ${cacheType}:`, e);
+        logger.error(`[Monitoring] Failed to increment cache hit for ${cacheType}:`, e);
     }
 }
 
@@ -81,6 +82,6 @@ export async function incrementCacheMiss(cacheType: string): Promise<void> {
     try {
         await redisClient.incr(`perf:cache_misses:${cacheType}`);
     } catch (e) {
-        console.error(`[Monitoring] Failed to increment cache miss for ${cacheType}:`, e);
+        logger.error(`[Monitoring] Failed to increment cache miss for ${cacheType}:`, e);
     }
 }

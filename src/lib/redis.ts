@@ -1,4 +1,5 @@
 import Redis from 'ioredis';
+import { logger } from './logger';
 
 let redis: Redis | null = null;
 
@@ -11,7 +12,7 @@ const mockRedisClient = {
 };
 
 if (process.env.REDIS_URL) {
-    console.log('[Redis] Attempting to connect to Redis instance...');
+    logger.info('[Redis] Attempting to connect to Redis instance...');
     try {
         const client = new Redis(process.env.REDIS_URL, {
             maxRetriesPerRequest: 2,
@@ -19,11 +20,11 @@ if (process.env.REDIS_URL) {
         });
 
         client.on('connect', () => {
-            console.log('[Redis] Connection established.');
+            logger.info('[Redis] Connection established.');
         });
 
         client.on('error', (err) => {
-            console.error(`[Redis] Connection error: ${err.message}. Caching will be disabled for this session.`);
+            logger.error(`[Redis] Connection error: ${err.message}. Caching will be disabled for this session.`);
             // In case of error, we can switch to the mock client to prevent app crashes on subsequent calls
             redis = null; 
         });
@@ -31,10 +32,10 @@ if (process.env.REDIS_URL) {
         redis = client;
 
     } catch (e: any) {
-        console.error(`[Redis] Failed to initialize client: ${e.message}`);
+        logger.error(`[Redis] Failed to initialize client: ${e.message}`);
     }
 } else {
-    console.warn('[Redis] REDIS_URL is not set. Caching is disabled.');
+    logger.warn('[Redis] REDIS_URL is not set. Caching is disabled.');
 }
 
 // If connection failed or was not configured, use the mock client.
@@ -58,10 +59,10 @@ export async function invalidateCompanyCache(companyId: string, types: ('dashboa
     
     if (keysToInvalidate.length > 0) {
         try {
-            console.log(`[Redis] Invalidating cache for company ${companyId}. Keys: ${keysToInvalidate.join(', ')}`);
+            logger.info(`[Redis] Invalidating cache for company ${companyId}. Keys: ${keysToInvalidate.join(', ')}`);
             await redis.del(keysToInvalidate);
         } catch (e) {
-            console.error(`[Redis] Cache invalidation failed for company ${companyId}:`, e);
+            logger.error(`[Redis] Cache invalidation failed for company ${companyId}:`, e);
         }
     }
 }

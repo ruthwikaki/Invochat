@@ -14,6 +14,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { APP_CONFIG } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { getEstimatedTimeForQuery } from '@/ai/flows/estimate-time-flow';
+import { logger } from '@/lib/logger';
 
 function getServiceRoleClient() {
     if (!supabaseAdmin) {
@@ -54,7 +55,7 @@ export async function getEstimatedTime(query: string): Promise<'short' | 'medium
         const estimate = await getEstimatedTimeForQuery(query);
         return estimate;
     } catch (error) {
-        console.warn(`[Time Estimation] Failed to get estimate for query "${query}". Defaulting to 'medium'.`, error);
+        logger.warn(`[Time Estimation] Failed to get estimate for query "${query}". Defaulting to 'medium'.`, error);
         // Don't let estimation failure block the main chat flow.
         return 'medium';
     }
@@ -76,12 +77,12 @@ export async function getConversations(): Promise<Conversation[]> {
             .order('last_accessed_at', { ascending: false });
 
         if (error) {
-            console.error("Error fetching conversations:", error);
+            logger.error("Error fetching conversations:", error);
             return [];
         }
         return data as Conversation[];
     } catch (error) {
-        console.error("Failed to get auth context in getConversations:", error);
+        logger.error("Failed to get auth context in getConversations:", error);
         return [];
     }
 }
@@ -101,7 +102,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
             .order('created_at', { ascending: true });
         
         if (error) {
-            console.error(`Error fetching messages for convo ${conversationId}:`, error);
+            logger.error(`Error fetching messages for convo ${conversationId}:`, error);
             return [];
         }
 
@@ -110,7 +111,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
 
         return data as Message[];
     } catch (error) {
-        console.error("Failed to get auth context in getMessages:", error);
+        logger.error("Failed to get auth context in getMessages:", error);
         return [];
     }
 }
@@ -229,11 +230,11 @@ export async function handleUserMessage(
     if (isRedisEnabled) {
         const cachedResponse = await redisClient.get(cacheKey);
         if (cachedResponse) {
-            console.log(`[Cache] HIT for AI query: ${cacheKey}`);
+            logger.info(`[Cache] HIT for AI query: ${cacheKey}`);
             await incrementCacheHit('ai_query');
             flowResponse = JSON.parse(cachedResponse);
         } else {
-            console.log(`[Cache] MISS for AI query: ${cacheKey}`);
+            logger.info(`[Cache] MISS for AI query: ${cacheKey}`);
             await incrementCacheMiss('ai_query');
         }
     }
@@ -250,7 +251,7 @@ export async function handleUserMessage(
     
     const parsedResponse = UniversalChatOutputSchema.safeParse(flowResponse);
     if (!parsedResponse.success) {
-      console.error("AI response validation error:", parsedResponse.error);
+      logger.error("AI response validation error:", parsedResponse.error);
       throw new Error('The AI returned data in an unexpected format.');
     }
     const responseData = parsedResponse.data;
@@ -283,7 +284,7 @@ export async function handleUserMessage(
         .single();
     
     if (saveMsgError) {
-      console.error('Error saving assistant message:', saveMsgError);
+      logger.error('Error saving assistant message:', saveMsgError);
       throw new Error(`Could not save assistant message: ${saveMsgError.message}`);
     }
     
@@ -291,9 +292,9 @@ export async function handleUserMessage(
     if (isRedisEnabled && !redisClient.get(cacheKey) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
         try {
             await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', 3600); // Cache for 1 hour
-            console.log(`[Cache] SET for AI query: ${cacheKey}`);
+            logger.info(`[Cache] SET for AI query: ${cacheKey}`);
         } catch (e) {
-            console.error(`[Redis] Error setting cached query for ${cacheKey}:`, e);
+            logger.error(`[Redis] Error setting cached query for ${cacheKey}:`, e);
         }
     }
     
@@ -311,7 +312,7 @@ export async function handleUserMessage(
     return { conversationId: currentConversationId, newMessage: savedAssistantMessage as Message };
     
   } catch (error: any) {
-    console.error('Chat error:', error);
+    logger.error('Chat error:', error);
     return { error: getErrorMessage(error) };
   }
 }

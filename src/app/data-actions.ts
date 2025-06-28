@@ -17,11 +17,12 @@ import {
 import type { User, CompanySettings } from '@/types';
 import { ai } from '@/ai/genkit';
 import { APP_CONFIG } from '@/config/app-config';
+import { logger } from '@/lib/logger';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
 async function getCompanyIdForCurrentUser(): Promise<string> {
-    console.log('[getCompanyIdForCurrentUser] Attempting to determine Company ID...');
+    logger.debug('[getCompanyIdForCurrentUser] Attempting to determine Company ID...');
     try {
         const cookieStore = cookies();
         const supabase = createServerClient(
@@ -38,7 +39,7 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
-            console.error('[getCompanyIdForCurrentUser] Supabase auth error:', error.message);
+            logger.error('[getCompanyIdForCurrentUser] Supabase auth error:', error.message);
             throw new Error(`Authentication error: ${error.message}`);
         }
 
@@ -46,14 +47,14 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
         const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
         
         if (!user || !companyId || typeof companyId !== 'string') {
-            console.warn('[getCompanyIdForCurrentUser] Could not determine Company ID. User may not be fully signed up or session is invalid.');
+            logger.warn('[getCompanyIdForCurrentUser] Could not determine Company ID. User may not be fully signed up or session is invalid.');
             throw new Error('Your user session is invalid or not fully configured. Please try signing out and signing back in.');
         }
         
-        console.log(`[getCompanyIdForCurrentUser] Success. Company ID: ${companyId}`);
+        logger.debug(`[getCompanyIdForCurrentUser] Success. Company ID: ${companyId}`);
         return companyId;
     } catch (e: any) {
-        console.error('[getCompanyIdForCurrentUser] Caught exception:', e.message);
+        logger.error('[getCompanyIdForCurrentUser] Caught exception:', e.message);
         // Re-throw the error to be caught by the calling function's error boundary.
         throw e;
     }
@@ -65,7 +66,7 @@ export async function getDashboardData() {
         const companyId = await getCompanyIdForCurrentUser();
         return getDashboardMetrics(companyId);
     } catch (error) {
-        console.error('[Data Action Error] Failed to get dashboard data:', error);
+        logger.error('[Data Action Error] Failed to get dashboard data:', error);
         // Re-throw the error so the calling page's error boundary can catch it.
         throw error;
     }

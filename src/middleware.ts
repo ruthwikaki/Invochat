@@ -1,6 +1,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { logger } from './lib/logger';
 
 export async function middleware(req: NextRequest) {
   let response = NextResponse.next({
@@ -95,7 +96,7 @@ export async function middleware(req: NextRequest) {
       }
     }
   } catch (error) {
-    console.error('[Middleware] Error:', error);
+    logger.error('[Middleware] Error:', error);
     // On error, allow access to auth routes but protect others
     if (!isAuthRoute && !isPublicRoute) {
       return NextResponse.redirect(new URL('/login', req.url));

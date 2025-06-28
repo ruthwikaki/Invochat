@@ -14,6 +14,7 @@ import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
 import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getCompanySettings } from '@/services/database';
 import { APP_CONFIG } from '@/config/app-config';
+import { logger } from '@/lib/logger';
 
 // Updated few-shot examples to reflect the new, richer schema
 const FEW_SHOT_EXAMPLES = `
@@ -276,7 +277,7 @@ const universalChatOrchestrator = ai.defineFlow(
         { model: aiModel }
     );
     if (!validationOutput?.isValid) {
-        console.error("Generated SQL failed validation:", validationOutput.correction);
+        logger.error("Generated SQL failed validation:", validationOutput.correction);
         throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
     }
 
@@ -287,7 +288,7 @@ const universalChatOrchestrator = ai.defineFlow(
     
     // Pipeline Step 3b: Error Recovery (if needed)
     if (queryError) {
-        console.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
+        logger.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
         
         const { output: recoveryOutput } = await errorRecoveryPrompt(
             { userQuery, failedQuery: sqlQuery, errorMessage: queryError.message, dbSchema: formattedSchema },
@@ -295,7 +296,7 @@ const universalChatOrchestrator = ai.defineFlow(
         );
 
         if (recoveryOutput?.correctedQuery) {
-            console.log(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
+            logger.info(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
             
             // Retry with the new query
             sqlQuery = recoveryOutput.correctedQuery; // Update the query to the corrected one
@@ -307,13 +308,13 @@ const universalChatOrchestrator = ai.defineFlow(
             queryError = retryResult.error;
 
             if (queryError) {
-                console.error('[UniversalChat:Flow] Corrected query also failed:', queryError.message);
+                logger.error('[UniversalChat:Flow] Corrected query also failed:', queryError.message);
                 throw new Error(`I tried to automatically fix a query error, but the correction also failed. The original error was: ${queryError.message}`);
             } else {
-                console.log('[UniversalChat:Flow] Corrected query executed successfully.');
+                logger.info('[UniversalChat:Flow] Corrected query executed successfully.');
             }
         } else {
-            console.error('[UniversalChat:Flow] AI could not recover from the query error.');
+            logger.error('[UniversalChat:Flow] AI could not recover from the query error.');
             throw new Error(`The database query failed: ${queryError.message}.`);
         }
     }
@@ -333,9 +334,9 @@ const universalChatOrchestrator = ai.defineFlow(
       throw new Error('The AI model did not return a valid final response object.');
     }
     
-    console.log(`[UniversalChat:Flow] AI Confidence for query "${userQuery}": ${finalOutput.confidence}`);
+    logger.info(`[UniversalChat:Flow] AI Confidence for query "${userQuery}": ${finalOutput.confidence}`);
     if (finalOutput.assumptions && finalOutput.assumptions.length > 0) {
-        console.log(`[UniversalChat:Flow] AI Assumptions: ${finalOutput.assumptions.join(', ')}`);
+        logger.info(`[UniversalChat:Flow] AI Assumptions: ${finalOutput.assumptions.join(', ')}`);
     }
 
     return {

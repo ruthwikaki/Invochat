@@ -19,6 +19,7 @@ import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { APP_CONFIG } from '@/config/app-config';
 import { sendEmailAlert } from './email';
+import { logger } from '@/lib/logger';
 
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
@@ -39,7 +40,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
         .single();
     
     if (error && error.code !== 'PGRST116') { // PGRST116 = 'no rows returned'
-        console.error(`[DB Service] Error fetching company settings for ${companyId}:`, error);
+        logger.error(`[DB Service] Error fetching company settings for ${companyId}:`, error);
         throw error;
     }
 
@@ -48,7 +49,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     }
 
     // No settings found, so create and return default settings.
-    console.log(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
+    logger.info(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
     const defaultSettingsData = {
         company_id: companyId,
         dead_stock_days: APP_CONFIG.businessLogic.deadStockDays,
@@ -64,7 +65,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
         .single();
     
     if (insertError) {
-        console.error(`[DB Service] Failed to insert default settings for company ${companyId}:`, insertError);
+        logger.error(`[DB Service] Failed to insert default settings for company ${companyId}:`, insertError);
         throw insertError;
     }
 
@@ -81,12 +82,12 @@ export async function updateCompanySettings(companyId: string, settings: Partial
         .single();
         
     if (error) {
-        console.error(`[DB Service] Error updating settings for ${companyId}:`, error);
+        logger.error(`[DB Service] Error updating settings for ${companyId}:`, error);
         throw error;
     }
     
     // Invalidate cache since business logic has changed
-    console.log(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
+    logger.info(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
     
     return data as CompanySettings;
@@ -99,14 +100,14 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     try {
         const cachedData = await redisClient.get(cacheKey);
         if (cachedData) {
-            console.log(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+            logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
             await incrementCacheHit('dashboard');
             return JSON.parse(cachedData);
         }
-        console.log(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+        logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
         await incrementCacheMiss('dashboard');
     } catch (error) {
-        console.error(`[Redis] Error getting cache for ${cacheKey}:`, error);
+        logger.error(`[Redis] Error getting cache for ${cacheKey}:`, error);
     }
   }
 
@@ -194,7 +195,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     if (result.status === 'rejected' || (result.status === 'fulfilled' && result.value.error)) {
         const error = result.status === 'rejected' ? result.reason : result.value.error;
         if (error?.message && !error.message.includes('does not exist')) { 
-            console.warn(`[DB Service] A dashboard metric query failed:`, error?.message);
+            logger.warn(`[DB Service] A dashboard metric query failed:`, error?.message);
         }
     }
     return defaultValue;
@@ -243,9 +244,9 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   if (isRedisEnabled) {
       try {
           await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', 300);
-          console.log(`[Cache] SET for dashboard metrics: ${cacheKey}`);
+          logger.info(`[Cache] SET for dashboard metrics: ${cacheKey}`);
       } catch (error) {
-          console.error(`[Redis] Error setting cache for ${cacheKey}:`, error);
+          logger.error(`[Redis] Error setting cache for ${cacheKey}:`, error);
       }
   }
 
@@ -293,7 +294,7 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
     });
 
     if (error) {
-        console.error(`[DB Service] Error fetching raw dead stock data for company ${companyId}:`, error);
+        logger.error(`[DB Service] Error fetching raw dead stock data for company ${companyId}:`, error);
         // If the query fails (e.g., tables don't exist), return empty array to prevent crashes.
         return [];
     }
@@ -311,7 +312,7 @@ export async function getDeadStockPageData(companyId: string) {
                 return JSON.parse(cachedData);
             }
             await incrementCacheMiss('deadstock');
-        } catch(e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
+        } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
     }
 
     const startTime = performance.now();
@@ -332,7 +333,7 @@ export async function getDeadStockPageData(companyId: string) {
     if (isRedisEnabled) {
       try {
         await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600); // 1-hour TTL
-      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+      } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
     }
 
     return result;
@@ -353,7 +354,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
                 return JSON.parse(cachedData);
             }
             await incrementCacheMiss('suppliers');
-        } catch (e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
+        } catch (e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
     }
 
     const startTime = performance.now();
@@ -367,7 +368,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
     await trackDbQueryPerformance('getSuppliersFromDB', endTime - startTime);
 
     if (error) {
-        console.error('Error fetching suppliers from DB', error);
+        logger.error('Error fetching suppliers from DB', error);
         throw new Error(`Could not load supplier data: ${error.message}`);
     }
     
@@ -383,7 +384,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
      if (isRedisEnabled) {
       try {
         await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600); // 10 min TTL
-      } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+      } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
     }
 
     return result;
@@ -400,7 +401,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                 return JSON.parse(cachedData);
             }
             await incrementCacheMiss('alerts');
-        } catch(e) { console.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
+        } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
     }
     
     const supabase = getServiceRoleClient();
@@ -416,7 +417,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         .lt('quantity', 20); // Using a static 20 for reorder point as an example.
 
     if (lowStockError) {
-        console.warn('[DB Service] Could not check for low stock items:', lowStockError.message);
+        logger.warn('[DB Service] Could not check for low stock items:', lowStockError.message);
     } else if (lowStockItems) {
         for (const item of lowStockItems) {
             const alert: Alert = {
@@ -463,7 +464,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     if (isRedisEnabled) {
         try {
             await redisClient.set(cacheKey, JSON.stringify(alerts), 'EX', 3600);
-        } catch (e) { console.error(`[Redis] Error setting cache for ${cacheKey}`, e); }
+        } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e); }
     }
 
     return alerts;
@@ -505,7 +506,7 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
       .limit(10);
 
     if (error) {
-      console.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not exist or be configured for the current company. Error: ${error.message}`);
+      logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not exist or be configured for the current company. Error: ${error.message}`);
       // Push an empty result so the UI can still render the table name
       results.push({ tableName, rows: [] });
     } else {
@@ -540,7 +541,7 @@ export async function getQueryPatternsForCompany(
 
   if (error) {
     // This is not a critical error; the system can proceed without these examples.
-    console.warn(`[DB Service] Could not fetch query patterns for company ${companyId}: ${error.message}`);
+    logger.warn(`[DB Service] Could not fetch query patterns for company ${companyId}: ${error.message}`);
     return [];
   }
 
@@ -570,7 +571,7 @@ export async function saveSuccessfulQuery(
         .single();
 
     if (selectError && selectError.code !== 'PGRST116') { // Ignore 'no rows' error
-        console.warn(`[DB Service] Could not check for existing query pattern: ${selectError.message}`);
+        logger.warn(`[DB Service] Could not check for existing query pattern: ${selectError.message}`);
         return;
     }
 
@@ -586,9 +587,9 @@ export async function saveSuccessfulQuery(
             .eq('id', existingPattern.id);
 
         if (updateError) {
-            console.warn(`[DB Service] Could not update query pattern: ${updateError.message}`);
+            logger.warn(`[DB Service] Could not update query pattern: ${updateError.message}`);
         } else {
-            console.log(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
+            logger.debug(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
         }
     } else {
         // If it doesn't exist, insert a new record
@@ -603,9 +604,9 @@ export async function saveSuccessfulQuery(
             });
 
         if (insertError) {
-            console.warn(`[DB Service] Could not insert new query pattern: ${insertError.message}`);
+            logger.warn(`[DB Service] Could not insert new query pattern: ${insertError.message}`);
         } else {
-            console.log(`[DB Service] Inserted new query pattern for question: "${userQuestion}"`);
+            logger.info(`[DB Service] Inserted new query pattern for question: "${userQuestion}"`);
         }
     }
 }

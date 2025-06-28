@@ -9,6 +9,7 @@
  */
 
 import type { Alert } from '@/types';
+import { logger } from '@/lib/logger';
 
 /**
  * Simulates sending an email alert.
@@ -16,7 +17,7 @@ import type { Alert } from '@/types';
  * @param alert The alert object containing details for the email.
  */
 export async function sendEmailAlert(alert: Alert): Promise<void> {
-  console.log('--- SIMULATING EMAIL ALERT ---');
+  logger.info('--- SIMULATING EMAIL ALERT ---');
   
   const subject = `InvoChat Alert: ${alert.title} - ${alert.metadata.productName || 'System Alert'}`;
   
@@ -40,11 +41,10 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     Resend (https://resend.com) or Postmark (https://postmarkapp.com) here.
   `;
 
-  console.log(`To: user@example.com`);
-  console.log(`Subject: ${subject}`);
-  console.log('Body:');
-  console.log(body.trim());
-  console.log('------------------------------');
+  logger.info(`To: user@example.com`);
+  logger.info(`Subject: ${subject}`);
+  logger.info('Body:', body.trim());
+  logger.info('------------------------------');
 
   // In a real implementation, this would involve an API call to your email provider.
   // Example with Resend:
@@ -59,8 +59,8 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
   //     subject: subject,
   //     text: body, // Or use a pre-made React component for HTML emails
   //   });
-  //   console.log('Email sent successfully via Resend.');
+  //   logger.info('Email sent successfully via Resend.');
   // } catch (error) {
-  //   console.error('Failed to send email:', error);
+  //   logger.error('Failed to send email:', error);
   // }
 }
