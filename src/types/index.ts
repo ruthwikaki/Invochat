@@ -25,6 +25,7 @@ export type Conversation = {
 export type Message = {
   id: string;
   conversation_id: string;
+  company_id?: string; // Optional on client, required on server DB insert
   role: 'user' | 'assistant';
   content: string;
   visualization?: {
@@ -126,3 +127,5 @@ export type CompanySettings = {
   created_at?: string;
   updated_at?: string;
 };
+
+    

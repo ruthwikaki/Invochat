@@ -135,6 +135,7 @@ function getErrorMessage(error: any): string {
     else if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) errorMessage = 'The configured AI model is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.';
     else if (error.message?.includes('API key not valid')) errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
     else if (error.message?.includes('authenticated or configured')) errorMessage = error.message;
+    else if (error.message?.includes('violates not-null constraint')) errorMessage = 'A database error occurred while trying to save a message. This usually points to an issue with application logic.';
     return errorMessage;
 }
 
@@ -153,12 +154,11 @@ export async function handleUserMessage(
   }
   
   const { content: userQuery, source } = parsedPayload.data;
-  const initialConversationId = parsedPayload.data.conversationId;
+  let currentConversationId = parsedPayload.data.conversationId;
   const supabase = getServiceRoleClient();
 
   try {
     const { userId, companyId } = await getAuthContext();
-    let currentConversationId = initialConversationId;
     let historyForAI: { role: 'user' | 'assistant'; content: string }[] = [];
 
     // Step 1: Find or Create Conversation
@@ -175,10 +175,8 @@ export async function handleUserMessage(
         
         if (convoError) throw new Error(`Could not create conversation: ${convoError.message}`);
         currentConversationId = newConvo.id;
-        // For a new chat, the history for the AI starts with just the user's message.
         historyForAI.push({ role: 'user', content: userQuery });
     } else {
-        // If conversation exists, fetch its history for AI context
         const { data: history, error: historyError } = await supabase
             .from('messages')
             .select('role, content')
@@ -191,12 +189,7 @@ export async function handleUserMessage(
             role: msg.role as 'user' | 'assistant',
             content: msg.content
         }));
-         // Add the new user message to the history for the AI call
         historyForAI.push({ role: 'user', content: userQuery });
-    }
-
-    if (!currentConversationId) {
-        throw new Error("Failed to create or identify a conversation.");
     }
 
     // Step 2: Save the user's message
@@ -244,6 +237,7 @@ export async function handleUserMessage(
     // Step 4: Construct and save the assistant's message
     const assistantMessage: Omit<Message, 'id' | 'created_at'> = {
       conversation_id: currentConversationId,
+      company_id: companyId,
       role: 'assistant',
       content: responseData.response,
       confidence: responseData.confidence,
@@ -279,8 +273,13 @@ export async function handleUserMessage(
         }
     }
     
-    // Revalidate the chat path to trigger UI updates
-    revalidatePath('/chat');
+    // Revalidate the path to trigger UI updates. This will re-fetch conversations and messages.
+    if (parsedPayload.data.conversationId) {
+        revalidatePath(`/chat?id=${parsedPayload.data.conversationId}`);
+    } else {
+        revalidatePath('/chat');
+    }
+    
     if (source === 'analytics_page') {
       revalidatePath('/analytics');
     }
@@ -292,3 +291,5 @@ export async function handleUserMessage(
     return { error: getErrorMessage(error) };
   }
 }
+
+    
