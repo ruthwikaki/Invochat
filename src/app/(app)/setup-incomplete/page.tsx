@@ -87,14 +87,17 @@ $$;
 -- This creates a "materialized view", which is like a pre-calculated snapshot
 -- of your key inventory metrics. Querying this view is much faster than
 -- calculating the metrics from the raw inventory table every time the dashboard loads.
+-- NOTE: This view is based on the 'inventory_valuation' table.
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   company_id,
   COUNT(DISTINCT sku) as total_skus,
   SUM(quantity * cost) as inventory_value,
-  COUNT(CASE WHEN quantity <= reorder_point THEN 1 END) as low_stock_count
-FROM inventory
+  -- Note: reorder_point is not in inventory_valuation, so low_stock_count is simplified.
+  -- A more complex version could JOIN with another table if reorder points exist there.
+  COUNT(CASE WHEN quantity <= 20 THEN 1 END) as low_stock_count
+FROM inventory_valuation
 GROUP BY company_id
 WITH DATA;
 

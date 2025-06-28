@@ -16,10 +16,16 @@ const nextConfig = {
     ],
   },
   experimental: {
-    // This is required to fix a critical warning with server-side Genkit dependencies.
-    // Adding 'handlebars' prevents a webpack error and allows Genkit's context
-    // (including the companyId for tools) to propagate correctly in server actions.
-    serverComponentsExternalPackages: ['@opentelemetry/instrumentation', 'handlebars'],
+    // This is required to fix critical dependency warnings/errors with server-side packages.
+    // Adding these prevents webpack errors and allows Genkit, Supabase, and Redis
+    // to function correctly in server actions and server components.
+    serverComponentsExternalPackages: [
+      '@opentelemetry/instrumentation',
+      'handlebars',
+      '@supabase/supabase-js',
+      '@supabase/realtime-js',
+      'ioredis',
+    ],
   },
 };
 
