@@ -26,7 +26,10 @@ type DynamicChartProps = ChartConfig & { isExpanded?: boolean };
 // A new component to render the content of each treemap rectangle
 // This provides better visual styling than the default.
 const TreemapContent = (props: any) => {
-  const { depth, x, y, width, height, index, name } = props;
+  const { depth, x, y, width, height, index, name, value } = props;
+
+  // Don't render text for very small boxes
+  const showText = width > 60 && height > 25;
 
   return (
     <g>
@@ -41,10 +44,17 @@ const TreemapContent = (props: any) => {
           strokeWidth: 2 / (depth + 1e-10),
           strokeOpacity: 1 / (depth + 1e-10),
         }}
+        rx={4}
+        ry={4}
       />
-      {depth === 1 && width > 60 && height > 25 ? (
-        <text x={x + 4} y={y + 18} fill="#fff" fontSize={14} fillOpacity={0.9}>
+      {depth === 1 && showText ? (
+        <text x={x + 6} y={y + 18} fill="#fff" fontSize={14} fillOpacity={0.9} className="font-medium">
           {name}
+        </text>
+      ) : null}
+      {depth === 1 && showText ? (
+         <text x={x + 6} y={y + 36} fill="#fff" fontSize={12} fillOpacity={0.7}>
+          {value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}
         </text>
       ) : null}
     </g>
@@ -122,7 +132,7 @@ function renderChart(props: DynamicChartProps) {
                     data={data}
                     dataKey={config.dataKey}
                     nameKey={config.nameKey}
-                    aspectRatio={4 / 3}
+                    aspectRatio={16 / 9}
                     isAnimationActive={false} // Important for custom content
                     content={<TreemapContent />}
                 >
@@ -131,7 +141,7 @@ function renderChart(props: DynamicChartProps) {
                             backgroundColor: 'hsl(var(--background))',
                             borderColor: 'hsl(var(--border))'
                         }}
-                         formatter={(value: number, name: string) => [value.toLocaleString(), name]}
+                         formatter={(value: number, name: string) => [value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), name]}
                     />
                 </Treemap>
             );
