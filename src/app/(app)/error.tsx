@@ -1,11 +1,10 @@
-
 'use client'; // Error components must be Client Components
 
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
-import { captureError } from '@/lib/sentry';
+import { logger } from '@/lib/logger';
 
 export default function Error({
   error,
@@ -15,8 +14,8 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log the error to Sentry
-    captureError(error, { source: 'global-error-boundary' });
+    // Log the error to the console
+    logger.error('Global Error Boundary Caught:', error);
   }, [error]);
 
   return (

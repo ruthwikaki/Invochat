@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Centralized, environment-aware configuration for InvoChat.
  *
@@ -36,9 +35,6 @@ export const config = {
       aiQuery: parseIntWithDefault(process.env.REDIS_TTL_AI_QUERY, 3600), // 1 hour
     },
   },
-  monitoring: {
-    sentryDsn: process.env.SENTRY_DSN,
-  },
   businessLogic: {
     deadStockDays: parseIntWithDefault(process.env.BL_DEAD_STOCK_DAYS, 90),
     fastMovingDays: parseIntWithDefault(process.env.BL_FAST_MOVING_DAYS, 30),
@@ -68,9 +64,6 @@ const ConfigSchema = z.object({
         timeout: z.number().int().min(0),
         historyLimit: z.number().int().min(0),
     }),
-    monitoring: z.object({
-        sentryDsn: z.string().optional(),
-    })
 });
 
 // Validate the config on startup. This will throw an error during the build if critical env vars are missing.

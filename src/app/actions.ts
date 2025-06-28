@@ -14,7 +14,6 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
-import { captureError } from '@/lib/sentry';
 
 function getServiceRoleClient() {
     if (!supabaseAdmin) {
@@ -334,10 +333,10 @@ export async function handleUserMessage(
     return { conversationId: currentConversationId, newMessage: savedAssistantMessage as Message };
     
   } catch (error: any) {
-    captureError(error, {
-      source: 'handleUserMessage',
-      payload,
-      conversationId: currentConversationId,
+    logger.error('[handleUserMessage] Error caught', {
+        payload,
+        conversationId: currentConversationId,
+        error: error.message
     });
     return { error: getErrorMessage(error) };
   } finally {
