@@ -73,22 +73,9 @@ export type Supplier = {
     account_number: string | null;
 }
 
-// This type represents a single product, replacing the old InventoryItem
-export type Product = {
-    id: string; // UUID
-    company_id: string; // UUID
-    sku: string;
-    name: string;
-    description: string | null;
-    category: string | null;
-    quantity: number;
-    cost: number;
-    price: number;
-    reorder_point: number;
-    reorder_qty: number;
-    supplier_name: string | null;
-    warehouse_name: string | null;
-}
+// The 'Product' type is removed as the schema no longer has a single 'products' table.
+// Inventory data is now spread across tables like 'fba_inventory', 'inventory_valuation', etc.
+// and can be queried by the AI.
 
 export type Alert = {
     id: string;
@@ -98,6 +85,7 @@ export type Alert = {
     severity: 'warning' | 'info';
     timestamp: string;
     metadata: {
+        // Product-specific metadata is now optional as it's harder to derive
         productId?: string;
         productName?: string;
         currentStock?: number;

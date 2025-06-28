@@ -17,57 +17,37 @@ import { APP_CONFIG } from '@/config/app-config';
 
 // Updated few-shot examples to reflect the new, richer schema
 const FEW_SHOT_EXAMPLES = `
-  1. User asks: "Show me products that haven't sold in 90 days"
+  1. User asks: "Who were my top 5 customers last month?"
      SQL:
-     SELECT p.name, p.sku, p.quantity
-     FROM products p
-     WHERE p.company_id = '{{companyId}}'
-       AND NOT EXISTS (
-         SELECT 1
-         FROM sales_detail sd
-         JOIN sales s ON sd.sale_id = s.id
-         WHERE sd.product_id = p.id
-           AND s.sale_date >= (CURRENT_DATE - INTERVAL '90 days')
-       )
-     ORDER BY p.name;
-
-  2. User asks: "Which suppliers have the most products that are low on stock?"
-     SQL:
-     WITH LowStockCounts AS (
-        SELECT
-            p.supplier_name,
-            COUNT(p.id) as low_stock_product_count
-        FROM products p
-        WHERE p.company_id = '{{companyId}}' AND p.quantity <= p.reorder_point
-        GROUP BY p.supplier_name
-     )
      SELECT
-        v.vendor_name,
-        lsc.low_stock_product_count
-     FROM LowStockCounts lsc
-     JOIN vendors v ON lsc.supplier_name = v.vendor_name AND v.company_id = '{{companyId}}'
-     ORDER BY lsc.low_stock_product_count DESC;
+        c.name,
+        SUM(s.total_amount) as total_spent
+     FROM sales s
+     JOIN customers c ON s.customer_id = c.id
+     WHERE s.company_id = '{{companyId}}'
+       AND c.company_id = '{{companyId}}'
+       AND s.sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+       AND s.sale_date < date_trunc('month', CURRENT_DATE)
+     GROUP BY c.name
+     ORDER BY total_spent DESC
+     LIMIT 5;
 
-  3. User asks: "Compare sales this month to last month for each product category"
+  2. User asks: "List all sales over $1000"
      SQL:
-     WITH MonthlySales AS (
-        SELECT
-            p.category,
-            date_trunc('month', s.sale_date) as sales_month,
-            SUM(sd.quantity * sd.price) as total_sales
-        FROM sales_detail sd
-        JOIN sales s ON sd.sale_id = s.id
-        JOIN products p ON sd.product_id = p.id
-        WHERE s.company_id = '{{companyId}}'
-          AND s.sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-        GROUP BY 1, 2
-     )
      SELECT
-        category,
-        total_sales,
-        LAG(total_sales, 1) OVER (PARTITION BY category ORDER BY sales_month) as previous_month_sales
-     FROM MonthlySales
-     ORDER BY category, sales_month DESC;
+        id,
+        sale_date,
+        total_amount
+     FROM sales
+     WHERE company_id = '{{companyId}}' AND total_amount > 1000
+     ORDER BY sale_date DESC;
+
+  3. User asks: "What were my total sales yesterday?"
+     SQL:
+     SELECT SUM(total_amount) as total_sales
+     FROM sales
+     WHERE company_id = '{{companyId}}'
+       AND sale_date = (CURRENT_DATE - INTERVAL '1 day');
 `;
 
 
@@ -97,7 +77,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement.
     3.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
     4.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    5.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM products JOIN vendors ON products.supplier_id = vendors.id\`).
+    5.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM sales JOIN customers ON sales.customer_id = customers.id\`).
 
     **B) For COMPLEX ANALYTICAL Queries:**
     6.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
@@ -122,7 +102,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     **Step 5: Formulate the Final Output.**
     - Respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
     - The \`sqlQuery\` field MUST contain ONLY the SQL string. Do not include markdown or trailing semicolons.
-    - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with products to get product names.").
+    - The \`reasoning\` field must briefly explain the logic, especially for complex queries (e.g., "Used a CTE to calculate monthly sales first, then joined with customers to get customer names.").
   `,
 });
 
@@ -253,18 +233,13 @@ const universalChatOrchestrator = ai.defineFlow(
     
     // Updated Semantic Layer for the new schema
     const semanticLayer = `
-      - "Dead stock": products that have not appeared in a 'sales_detail' record where the 'sales.sale_date' is more recent than ${settings.dead_stock_days} days ago.
-      - "Low stock": products where 'quantity' <= 'reorder_point'.
-      - "Revenue" or "Sales": calculated from 'sales.total_amount' or by summing 'sales_detail.price * sales_detail.quantity'.
-      - "Inventory Value": calculated by SUM(products.quantity * products.cost).
-      - "Fast-moving items": products sold in the last ${settings.fast_moving_days} days.
-      - "Overstock": items with quantity > (reorder_point * ${settings.overstock_multiplier}).
-      - "High-value items": products where cost > ${settings.high_value_threshold}.
-      - "Seasonal items": products with category in (${businessLogic.seasonalCategories.map(c => `'${c}'`).join(', ')}).
+      - "Dead stock": refers to items with no recent sales records. The AI needs to query sales or order tables to determine this.
+      - "Low stock": refers to items whose inventory levels are near or below a reorder threshold. The AI needs to query inventory-related tables like 'fba_inventory' or 'inventory_valuation'.
+      - "Revenue" or "Sales": calculated from 'sales.total_amount'.
+      - "Inventory Value": must be calculated by querying an inventory table like 'inventory_valuation'.
     `;
 
     const formattedDynamicPatterns = dynamicPatterns.map((p, i) => 
-        // Continue numbering from the static examples
         `${FEW_SHOT_EXAMPLES.trim().split('\n\n').length + i + 1}. User asks: "${p.user_question}"\n   SQL:\n   ${p.successful_sql_query}`
     ).join('\n\n');
 

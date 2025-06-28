@@ -1,338 +1,61 @@
 
 'use client';
+
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Download, Search, AlertTriangle } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Product } from '@/types';
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast';
-import { getInventoryData } from '@/app/data-actions';
-import { format } from 'date-fns';
+import { Bot, Database, Package } from 'lucide-react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { useAuth } from '@/context/auth-context';
-import Papa from 'papaparse';
-
-
-function ProductsSkeleton() {
-  return Array.from({ length: 8 }).map((_, i) => (
-    <TableRow key={i}>
-      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-    </TableRow>
-  ));
-}
-
-function EmptyState() {
-    return (
-        <TableRow>
-            <TableCell colSpan={6}>
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5, ease: 'easeOut' }}
-                    className="flex flex-col items-center justify-center gap-4 text-center rounded-lg border-2 border-dashed bg-card/50 py-24"
-                >
-                    <div className="w-32 h-32">
-                        <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M40 40H88C92.4183 40 96 43.5817 96 48V96C96 100.418 92.4183 104 88 104H40C35.5817 104 32 100.418 32 96V48C32 43.5817 35.5817 40 40 40Z" stroke="hsl(var(--primary))" strokeOpacity="0.2" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                            <motion.path
-                                initial={{ pathLength: 0 }}
-                                animate={{ pathLength: 1 }}
-                                transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                                d="M64 24V40" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                            <motion.path
-                                initial={{ pathLength: 0 }}
-                                animate={{ pathLength: 1 }}
-                                transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                                d="M104 64H88" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                            <motion.path
-                                initial={{ pathLength: 0 }}
-                                animate={{ pathLength: 1 }}
-                                transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                                d="M64 104V88" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                            <motion.path
-                                initial={{ pathLength: 0 }}
-                                animate={{ pathLength: 1 }}
-                                transition={{ duration: 1, delay: 0.2, ease: "circOut" }}
-                                d="M24 64H40" stroke="hsl(var(--primary))" strokeOpacity="0.4" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                            <motion.g
-                                initial={{ opacity: 0, scale: 0.5 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ type: 'spring', stiffness: 200, damping: 10, delay: 0.8 }}
-                            >
-                                <path d="M76 52H52C50.8954 52 50 52.8954 50 54V78C50 79.1046 50.8954 80 52 80H76C77.1046 80 78 79.1046 78 78V54C78 52.8954 77.1046 52 76 52Z" fill="hsl(var(--primary))" fillOpacity="0.1"/>
-                                <path d="M76 52H52C50.8954 52 50 52.8954 50 54V78C50 79.1046 50.8954 80 52 80H76C77.1046 80 78 79.1046 78 78V54C78 52.8954 77.1046 52 76 52Z" stroke="hsl(var(--primary))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M64 60V72" stroke="hsl(var(--primary-foreground))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M58 66H70" stroke="hsl(var(--primary-foreground))" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                            </motion.g>
-                        </svg>
-                    </div>
-                    <h3 className="mt-2 text-2xl font-semibold tracking-tight">Your product list is empty</h3>
-                    <p className="max-w-xs text-muted-foreground">Get started by importing your products. It's fast and easy!</p>
-                    <Button asChild className="mt-4">
-                        <Link href="/import">Import Data</Link>
-                    </Button>
-                </motion.div>
-            </TableCell>
-        </TableRow>
-    );
-}
-
-function NoResultsState({ setSearch, setCategory }: { setSearch: (search: string) => void, setCategory: (category: string) => void }) {
-    const handleClear = () => {
-        setSearch('');
-        setCategory('all');
-    };
-    return (
-        <TableRow>
-            <TableCell colSpan={6}>
-                <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, ease: 'easeOut' }}
-                    className="flex flex-col items-center justify-center gap-4 text-center rounded-lg border-2 border-dashed bg-card/50 py-24"
-                >
-                    <Search className="h-16 w-16 text-muted-foreground" />
-                    <h3 className="mt-2 text-2xl font-semibold tracking-tight">No Products Found</h3>
-                    <p className="max-w-xs text-muted-foreground">Your search and filter combination did not match any products.</p>
-                    <Button onClick={handleClear} variant="outline" className="mt-4">
-                        Clear Filters
-                    </Button>
-                </motion.div>
-            </TableCell>
-        </TableRow>
-    );
-}
-
 
 export default function ProductsPage() {
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('all');
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
-  const { user } = useAuth();
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await getInventoryData(); // This now gets products
-      setAllProducts(data as Product[]);
-    } catch (err: any) {
-      console.error("Failed to fetch products", err);
-      const errorMessage = err.message || 'Could not load products data.';
-      setError(errorMessage);
-      toast({ variant: 'destructive', title: 'Error', description: errorMessage });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  // Combined effect for initial fetch and real-time subscription
-  useEffect(() => {
-    const companyId = user?.app_metadata?.company_id;
-    if (!companyId) {
-      setLoading(false);
-      return;
-    }
-
-    const supabase = createBrowserSupabaseClient();
-    const channel = supabase
-      .channel(`products-changes-for-${companyId}`)
-      .on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'products', // Listen to the new products table
-          filter: `company_id=eq.${companyId}`
-        },
-        (payload) => {
-          const { eventType, new: newItem, old: oldItem } = payload;
-          
-          setAllProducts(currentProducts => {
-              if (eventType === 'INSERT') {
-                  return [...currentProducts, newItem as Product];
-              }
-              if (eventType === 'UPDATE') {
-                  return currentProducts.map(item => item.id === newItem.id ? newItem as Product : item);
-              }
-              if (eventType === 'DELETE') {
-                  return currentProducts.filter(item => item.id !== (oldItem as any).id);
-              }
-              return currentProducts;
-          });
-        }
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-            console.log('[Real-time] Successfully subscribed to products updates. Fetching initial data...');
-            fetchData();
-        }
-        if (status === 'CHANNEL_ERROR' || err) {
-            console.error('[Real-time] Subscription error:', err);
-            toast({
-                variant: 'destructive',
-                title: 'Real-time Error',
-                description: 'Could not connect to live updates. The page may not update automatically.',
-            });
-            fetchData();
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, toast, fetchData]);
-
-  const categories = useMemo(() => {
-    const uniqueCategories = [...new Set(allProducts.map(item => item.category).filter(Boolean) as string[])];
-    return ['all', ...uniqueCategories.sort()];
-  }, [allProducts]);
-
-  const filteredProducts = useMemo(() => {
-    return allProducts.filter((item) => {
-        const matchesCategory = category === 'all' || item.category === category;
-        const matchesSearch = !search || item.name.toLowerCase().includes(search.toLowerCase());
-        return matchesCategory && matchesSearch;
-    });
-  }, [allProducts, search, category]);
-  
-  const handleExport = () => {
-    if (filteredProducts.length === 0) {
-        toast({
-            variant: 'destructive',
-            title: 'No Data to Export',
-            description: 'There are no items in the current view to export.',
-        });
-        return;
-    }
-    const csv = Papa.unparse(filteredProducts);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'products_export.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="md:hidden" />
-          <h1 className="text-2xl font-semibold">Products</h1>
-        </div>
-        <Button onClick={handleExport} disabled={loading || !!error}>
-          <Download className="mr-2 h-4 w-4" />
-          Export to CSV
-        </Button>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 flex flex-col items-center justify-center h-full text-center">
+       <div className="flex items-center gap-2 absolute top-8 left-8">
+        <SidebarTrigger className="md:hidden" />
       </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name..."
-              className="pl-10"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              disabled={loading || !!error}
-            />
-          </div>
-          <Select value={category} onValueChange={setCategory} disabled={loading || !!error || categories.length <= 1}>
-            <SelectTrigger className="w-full md:w-[180px]">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-                {categories.map((cat) => (
-                    <SelectItem key={cat} value={cat} className="capitalize">{cat === 'all' ? 'All Categories' : cat}</SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Quantity</TableHead>
-                <TableHead className="text-right">Unit Cost</TableHead>
-                <TableHead>Warehouse</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <ProductsSkeleton />
-              ) : error ? (
-                <TableRow>
-                    <TableCell colSpan={6}>
-                        <div className="flex flex-col items-center justify-center gap-4 py-12 text-center text-destructive">
-                            <AlertTriangle className="h-16 w-16" />
-                            <h3 className="text-xl font-semibold">An Error Occurred</h3>
-                            <p className="max-w-md">{error}</p>
-                            <Button onClick={() => fetchData()} variant="destructive">Try Again</Button>
-                        </div>
-                    </TableCell>
-                </TableRow>
-              ) : allProducts.length === 0 ? (
-                <EmptyState />
-              ) : filteredProducts.length === 0 ? (
-                <NoResultsState setSearch={setSearch} setCategory={setCategory} />
-              ) : (
-                filteredProducts.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-mono text-xs">
-                      {item.sku}
-                    </TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="capitalize">{item.category}</TableCell>
-                    <TableCell className="text-right">
-                      {item.quantity}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(item.cost).toLocaleString()}
-                    </TableCell>
-                    <TableCell>{item.warehouse_name || 'N/A'}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+            <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-4">
+                <Package className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle>Your Inventory is Now Smarter</CardTitle>
+            <CardDescription>
+                With the new database schema, your inventory data is spread across multiple tables like sales, warehouses, and suppliers. A simple list view is no longer sufficient.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <p className="text-muted-foreground mb-4">
+               Use the AI chat to ask complex questions and get the insights you need.
+            </p>
+            <ul className="list-disc pl-5 space-y-2 text-sm text-left">
+                <li>"Show me my current inventory value by category."</li>
+                <li>"Which items in the 'Main Warehouse' are running low?"</li>
+                <li>"Create a table of all items from 'Johnson Supply'."</li>
+            </ul>
+        </CardContent>
+        <CardFooter className="flex-col sm:flex-row gap-2">
+            <Button asChild className="w-full sm:w-auto">
+                <Link href="/chat">
+                    <Bot className="mr-2 h-4 w-4" />
+                    Ask InvoChat
+                </Link>
+            </Button>
+            <Button asChild variant="secondary" className="w-full sm:w-auto">
+                <Link href="/database">
+                    <Database className="mr-2 h-4 w-4" />
+                    Explore Raw Tables
+                </Link>
+            </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

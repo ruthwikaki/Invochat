@@ -174,8 +174,9 @@ export async function testDatabaseQuery(): Promise<{
       auth: { persistSession: false }
     });
 
+    // Test a table that is confirmed to exist, like 'vendors'.
     const { error, count } = await serviceSupabase
-      .from('products') // Test the new 'products' table
+      .from('vendors')
       .select('*', { count: 'exact', head: true })
       .eq('company_id', companyId);
 
@@ -187,6 +188,8 @@ export async function testDatabaseQuery(): Promise<{
     let errorMessage = e.message;
     if (e.message?.includes('database')) { // Supabase-specific error
         errorMessage = `Database query failed: ${e.message}`;
+    } else if (e.message?.includes('relation "public.vendors" does not exist')) {
+        errorMessage = "Database query failed: The 'vendors' table could not be found. Please ensure your database schema is set up correctly.";
     }
     return { success: false, count: null, error: errorMessage };
   }

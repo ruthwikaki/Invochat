@@ -94,41 +94,49 @@ export default async function DashboardPage() {
                         <ErrorDisplay error={fetchError} />
                     ) : data ? (
                         <>
-                            <MetricCard
-                                href="/inventory"
-                                title="Total Product Value"
-                                value={formatCurrency(data.inventoryValue)}
-                                icon={DollarSign}
-                                className="sm:col-span-2"
-                            />
+                            {data.inventoryValue > 0 && (
+                                <MetricCard
+                                    href="/inventory"
+                                    title="Total Product Value"
+                                    value={formatCurrency(data.inventoryValue)}
+                                    icon={DollarSign}
+                                    className="sm:col-span-2"
+                                />
+                            )}
                             <MetricCard
                                 href="/analytics"
                                 title="Total Sales"
                                 value={formatCurrency(data.totalSalesValue)}
                                 icon={BarChart}
                                 label="All-time sales data"
-                                className="sm:col-span-2"
+                                className={data.inventoryValue > 0 ? "sm:col-span-2" : "sm:col-span-4"}
                             />
-                            <MetricCard
-                                href="/dead-stock"
-                                title="Dead Stock Value"
-                                value={formatCurrency(data.deadStockValue)}
-                                icon={TrendingDown}
-                                label="Ask the AI for details"
-                            />
-                            <MetricCard
-                                href="/alerts"
-                                title="Low Stock Items"
-                                value={data.lowStockCount.toString()}
-                                icon={AlertCircle}
-                                label="Ask the AI for a list"
-                            />
-                            <MetricCard
-                                href="/inventory"
-                                title="Total SKUs"
-                                value={data.totalSKUs.toString()}
-                                icon={Package}
-                            />
+                             {data.deadStockValue > 0 && (
+                                <MetricCard
+                                    href="/dead-stock"
+                                    title="Dead Stock Value"
+                                    value={formatCurrency(data.deadStockValue)}
+                                    icon={TrendingDown}
+                                    label="Ask the AI for details"
+                                />
+                             )}
+                            {data.lowStockCount > 0 && (
+                                <MetricCard
+                                    href="/alerts"
+                                    title="Low Stock Items"
+                                    value={data.lowStockCount.toString()}
+                                    icon={AlertCircle}
+                                    label="Ask the AI for a list"
+                                />
+                            )}
+                            {data.totalSKUs > 0 && (
+                                <MetricCard
+                                    href="/inventory"
+                                    title="Total SKUs"
+                                    value={data.totalSKUs.toString()}
+                                    icon={Package}
+                                />
+                            )}
                             <MetricCard
                                 href="/suppliers"
                                 title="Total Suppliers"

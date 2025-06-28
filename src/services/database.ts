@@ -13,7 +13,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Product, Supplier, Alert, CompanySettings } from '@/types';
+import type { DashboardMetrics, Supplier, Alert, CompanySettings } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -113,8 +113,7 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const startTime = performance.now();
   const supabase = getServiceRoleClient();
   
-  // With the new schema, we query the new tables.
-  const productsPromise = supabase.from('products').select('quantity, cost').eq('company_id', companyId);
+  // With the `products` table removed, we query other tables.
   const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
   const salesPromise = supabase.from('sales').select('total_amount').eq('company_id', companyId);
 
@@ -130,26 +129,16 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   `;
   const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
   
-  const inventoryByCategoryQuery = `
-    SELECT
-      COALESCE(category, 'Uncategorized') as name,
-      SUM(quantity * cost) as value
-    FROM products
-    WHERE company_id = '${companyId}'
-    GROUP BY 1
-    HAVING SUM(quantity * cost) > 0
-    ORDER BY 2 DESC
-  `;
-  const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
+  // Inventory by category is now too complex for a single static query.
+  // We will return empty data and let the AI handle this on demand.
+  const inventoryByCategoryPromise = Promise.resolve({ data: [], error: null });
 
   const [
-    productsRes,
     vendorsRes,
     salesRes,
     salesTrendRes,
     inventoryByCategoryRes
   ] = await Promise.all([
-    productsPromise,
     vendorsPromise,
     salesPromise,
     salesTrendPromise,
@@ -159,28 +148,26 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const endTime = performance.now();
   await trackDbQueryPerformance('getDashboardMetrics', endTime - startTime);
 
-  const { data: productsData, error: productsError } = productsRes;
   const { count: suppliersCount, error: suppliersError } = vendorsRes;
   const { data: sales, error: salesError } = salesRes;
   const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
   const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
   
-  const firstError = productsError || suppliersError || salesError || salesTrendError || inventoryByCategoryError;
+  const firstError = suppliersError || salesError || salesTrendError || inventoryByCategoryError;
   if (firstError) {
     console.error('Dashboard data fetching error:', firstError);
     throw new Error(firstError.message);
   }
 
-  const inventoryValue = (productsData || []).reduce((sum, p) => sum + (p.quantity * p.cost), 0);
   const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
 
-  // Note: Dead stock and low stock are now complex calculations based on sales history.
+  // Note: Inventory value, SKUs, dead stock, and low stock are now complex calculations.
   // We will return 0 for these and let the AI calculate them on demand.
   const finalMetrics: DashboardMetrics = {
-      inventoryValue: Math.round(inventoryValue),
+      inventoryValue: 0,
       deadStockValue: 0,
       lowStockCount: 0,
-      totalSKUs: productsData?.length || 0,
+      totalSKUs: 0,
       totalSuppliers: suppliersCount || 0,
       totalSalesValue: Math.round(totalSalesValue),
       salesTrendData: salesTrendData || [],
@@ -199,19 +186,11 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   return finalMetrics;
 }
 
-export async function getProductsData(companyId: string): Promise<Product[]> {
-  const supabase = getServiceRoleClient();
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('company_id', companyId)
-    .order('name');
-    
-  if (error) {
-    console.error('Error fetching products:', error);
-    throw new Error(`Could not load products data: ${error.message}`);
-  }
-  return data || [];
+export async function getProductsData(companyId: string): Promise<any[]> {
+  // With the `products` table removed, this function no longer has a single source of truth.
+  // Returning an empty array to prevent errors on pages that used to call this.
+  // The AI should be used for specific inventory queries now.
+  return Promise.resolve([]);
 }
 
 export async function getDeadStockPageData(companyId: string) {
@@ -279,7 +258,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 
 // These are the tables we want to expose to the user.
 // We are explicitly listing them to match what the AI has been told it can query.
-const USER_FACING_TABLES = ['products', 'vendors', 'sales', 'sales_detail', 'customers', 'returns'];
+const USER_FACING_TABLES = ['vendors', 'sales', 'customers', 'returns', 'order_items', 'fba_inventory', 'inventory_valuation', 'warehouse_locations', 'price_lists'];
 
 /**
  * Fetches the schema and sample data for user-facing tables.
