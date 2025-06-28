@@ -138,5 +138,5 @@ export type UnifiedInventoryItem = {
 export type TeamMember = {
   id: string;
   email: string | undefined;
-  role: 'Owner' | 'Member';
+  role: 'Owner' | 'Admin' | 'Member';
 };

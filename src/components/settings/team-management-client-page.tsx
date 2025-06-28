@@ -1,18 +1,17 @@
-
 'use client';
 
 import { useState, useTransition } from 'react';
 import type { TeamMember } from '@/types';
 import { useAuth } from '@/context/auth-context';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, Mail, Loader2, Users } from 'lucide-react';
+import { AlertTriangle, Mail, Loader2, Users, Edit } from 'lucide-react';
 import { inviteTeamMember, removeTeamMember } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -26,7 +25,49 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
+// A new dialog component for changing a user's role
+function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange }: { member: TeamMember | null, onRoleChange: (newRole: TeamMember['role']) => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+    if (!member) return null;
+
+    const [selectedRole, setSelectedRole] = useState<TeamMember['role']>(member.role);
+
+    const handleSave = () => {
+        onRoleChange(selectedRole);
+        onOpenChange(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Change Role for {member.email}</DialogTitle>
+                    <DialogDescription>
+                        Select a new role for this user. Full role-based permissions require a database update to be persistent.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <Label htmlFor="role-select">Role</Label>
+                    <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as TeamMember['role'])}>
+                        <SelectTrigger id="role-select">
+                            <SelectValue placeholder="Select a role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Member">Member (Read-only access)</SelectItem>
+                            <SelectItem value="Admin">Admin (Full access, can invite users)</SelectItem>
+                            <SelectItem value="Owner" disabled>Owner (Cannot be assigned)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                    <Button onClick={handleSave}>Save Changes (UI Only)</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
 
 interface TeamManagementClientPageProps {
   initialMembers: TeamMember[];
@@ -39,6 +80,8 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
     const [removePending, startRemoveTransition] = useTransition();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
+    const [memberToEdit, setMemberToEdit] = useState<TeamMember | null>(null);
+    const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
     const { toast } = useToast();
 
     const handleInvite = async (formData: FormData) => {
@@ -57,7 +100,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
         });
     };
 
-     const handleRemoveMember = (memberId: string) => {
+    const handleRemoveMember = (memberId: string) => {
         startRemoveTransition(async () => {
             const result = await removeTeamMember(memberId);
             if (result.success) {
@@ -76,6 +119,20 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
         });
     };
 
+    const handleOpenRoleDialog = (member: TeamMember) => {
+        setMemberToEdit(member);
+        setIsRoleDialogOpen(true);
+    };
+
+    const handleRoleChange = (newRole: TeamMember['role']) => {
+        if (!memberToEdit) return;
+        setMembers(prev => prev.map(m => m.id === memberToEdit.id ? { ...m, role: newRole } : m));
+        toast({
+            title: 'Role Updated (UI Only)',
+            description: `${memberToEdit.email}'s role has been changed to ${newRole}. This change is a demonstration and is not saved to the database.`,
+        });
+        setMemberToEdit(null);
+    };
 
     return (
         <div className="space-y-6">
@@ -143,10 +200,13 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={member.role === 'Owner' ? 'default' : 'secondary'}>{member.role}</Badge>
+                                        <Badge variant={member.role === 'Owner' ? 'default' : (member.role === 'Admin' ? 'secondary' : 'outline')}>{member.role}</Badge>
                                     </TableCell>
                                     <TableCell className="text-right space-x-2">
-                                        <Button variant="outline" size="sm" disabled>Change Role</Button>
+                                        <Button variant="outline" size="sm" onClick={() => handleOpenRoleDialog(member)} disabled={member.role === 'Owner' || removePending}>
+                                            <Edit className="mr-2 h-3 w-3" />
+                                            Change Role
+                                        </Button>
                                          <AlertDialog>
                                             <AlertDialogTrigger asChild>
                                                 <Button variant="destructive" size="sm" disabled={member.role === 'Owner' || removePending}>
@@ -178,6 +238,13 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                 </CardContent>
             </Card>
 
+            <ChangeRoleDialog
+                member={memberToEdit}
+                onRoleChange={handleRoleChange}
+                open={isRoleDialogOpen}
+                onOpenChange={setIsRoleDialogOpen}
+            />
+
             <Card className="bg-muted/50 border-dashed">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-muted-foreground">
@@ -187,10 +254,10 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                 </CardHeader>
                 <CardContent>
                     <p className="text-sm text-muted-foreground">
-                        Advanced team management is a top priority. Here's what's planned for future updates, which will require changes to the database schema:
+                        Full Role-Based Access Control (RBAC) is a top priority. Enabling persistent roles and permissions will require a database schema update to add tables for roles, permissions, and audit logs.
                     </p>
                     <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-muted-foreground">
-                        <li>**Role-Based Access Control:** The ability to change a user's role (e.g., from "Member" to "Admin") to grant different permissions.</li>
+                        <li>**Role Permissions:** The ability to assign specific permissions (e.g., 'can_edit_settings', 'can_invite_users') to roles like 'Admin'.</li>
                         <li>**Audit Logs:** A complete log to track all significant actions taken by users for security and accountability.</li>
                     </ul>
                 </CardContent>
