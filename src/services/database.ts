@@ -114,8 +114,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
   const supabase = getServiceRoleClient();
   
   const vendorsPromise = supabase.from('vendors').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
-  const salesPromise = supabase.from('sales').select('id, total_amount').eq('company_id', companyId);
   const customersPromise = supabase.from('customers').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
+  const salesPromise = supabase.from('sales').select('id, total_amount').eq('company_id', companyId);
 
   const salesTrendQuery = `
     SELECT
@@ -126,6 +126,8 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     GROUP BY 1
     ORDER BY 1 ASC
   `;
+  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
+  
   const topCustomersQuery = `
     SELECT
       c.name,
@@ -138,54 +140,66 @@ export async function getDashboardMetrics(companyId: string): Promise<DashboardM
     ORDER BY value DESC
     LIMIT 5
   `;
-  
-  const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
   const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
   
-  // This remains a complex calculation best handled by the AI on-demand.
   const inventoryByCategoryPromise = Promise.resolve({ data: [], error: null });
 
   const [
-    vendorsRes,
-    salesRes,
-    customersRes,
-    salesTrendRes,
-    topCustomersRes,
-    inventoryByCategoryRes
-  ] = await Promise.all([
+    vendorsResult,
+    customersResult,
+    salesResult,
+    salesTrendResult,
+    topCustomersResult,
+    inventoryByCategoryResult,
+  ] = await Promise.allSettled([
     vendorsPromise,
-    salesPromise,
     customersPromise,
+    salesPromise,
     salesTrendPromise,
     topCustomersPromise,
-    inventoryByCategoryPromise
+    inventoryByCategoryPromise,
   ]);
 
   const endTime = performance.now();
   await trackDbQueryPerformance('getDashboardMetrics', endTime - startTime);
-
-  const { count: suppliersCount, error: suppliersError } = vendorsRes;
-  const { data: sales, error: salesError } = salesRes;
-  const { count: customersCount, error: customersError } = customersRes;
-  const { data: salesTrendData, error: salesTrendError } = salesTrendRes;
-  const { data: topCustomersData, error: topCustomersError } = topCustomersRes;
-  const { data: inventoryByCategoryData, error: inventoryByCategoryError } = inventoryByCategoryRes;
   
-  const firstError = suppliersError || salesError || customersError || salesTrendError || topCustomersError || inventoryByCategoryError;
-  if (firstError) {
-    console.error('Dashboard data fetching error:', firstError);
-    throw new Error(firstError.message);
+  const extractData = (result: PromiseSettledResult<any>, defaultValue: any) => {
+    if (result.status === 'fulfilled' && !result.value.error) {
+      return result.value.data ?? defaultValue;
+    }
+    if (result.status === 'rejected' || (result.status === 'fulfilled' && result.value.error)) {
+        const error = result.status === 'rejected' ? result.reason : result.value.error;
+        // Don't log a scary error if the table just doesn't exist.
+        if (error?.code !== '42P01') { 
+            console.warn(`[DB Service] A dashboard metric query failed:`, error?.message);
+        }
+    }
+    return defaultValue;
+  };
+  
+  const extractCount = (result: PromiseSettledResult<any>) => {
+      if (result.status === 'fulfilled' && !result.value.error) {
+          return result.value.count || 0;
+      }
+      return 0;
   }
 
-  const totalSalesValue = (sales || []).reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
-  const totalOrders = (sales || []).length;
+  const suppliersCount = extractCount(vendorsResult);
+  const customersCount = extractCount(customersResult);
+  const sales = extractData(salesResult, []);
+  const salesTrendData = extractData(salesTrendResult, []);
+  const topCustomersData = extractData(topCustomersResult, []);
+  const inventoryByCategoryData = extractData(inventoryByCategoryResult, []);
+
+  const totalSalesValue = sales.reduce((sum, sale: any) => sum + (sale.total_amount || 0), 0);
+  const totalOrders = sales.length;
   const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
 
   const finalMetrics: DashboardMetrics = {
-      totalSuppliers: suppliersCount || 0,
+      totalSuppliers: suppliersCount,
       totalSalesValue: Math.round(totalSalesValue),
       totalOrders,
-      totalCustomers: customersCount || 0,
+      totalCustomers: customersCount,
       averageOrderValue,
       salesTrendData: salesTrendData || [],
       inventoryByCategoryData: inventoryByCategoryData || [],
@@ -447,3 +461,5 @@ export async function saveSuccessfulQuery(
         }
     }
 }
+
+    
