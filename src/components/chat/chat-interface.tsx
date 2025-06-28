@@ -1,7 +1,7 @@
 
 'use client';
 
-import { handleUserMessage, getEstimatedTime } from '@/app/actions';
+import { handleUserMessage } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -67,8 +67,6 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
       company_id: companyId,
     };
     
-    setMessages(prev => [...prev, optimisticUserMessage]);
-    
     // Show a temporary generic loading indicator
     const tempLoadingMessage: Message = {
       id: 'loading',
@@ -77,15 +75,9 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
       created_at: new Date().toISOString(),
       conversation_id: conversationId || tempId,
       company_id: companyId,
-      loadingState: 'short' // Default to a fast message
     };
-    setMessages(prev => [...prev, tempLoadingMessage]);
 
-    // Get the real estimate
-    const estimate = await getEstimatedTime(userMessageText);
-
-    // Update the loading message with the real estimate
-    setMessages(prev => prev.map(m => m.id === 'loading' ? { ...m, loadingState: estimate } : m));
+    setMessages(prev => [...prev, optimisticUserMessage, tempLoadingMessage]);
 
     startTransition(async () => {
       try {

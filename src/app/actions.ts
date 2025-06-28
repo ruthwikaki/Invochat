@@ -13,7 +13,6 @@ import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss, trackEn
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
-import { getEstimatedTimeForQuery } from '@/ai/flows/estimate-time-flow';
 import { logger } from '@/lib/logger';
 import { captureError } from '@/lib/sentry';
 
@@ -45,23 +44,6 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
     }
     return { userId: user.id, companyId };
 }
-
-/**
- * A lightweight server action to quickly estimate the response time for a query.
- * @param query The user's query text.
- * @returns A promise that resolves to 'short', 'medium', or 'long'.
- */
-export async function getEstimatedTime(query: string): Promise<'short' | 'medium' | 'long'> {
-    try {
-        const estimate = await getEstimatedTimeForQuery(query);
-        return estimate;
-    } catch (error) {
-        logger.warn(`[Time Estimation] Failed to get estimate for query "${query}". Defaulting to 'medium'.`, error);
-        // Don't let estimation failure block the main chat flow.
-        return 'medium';
-    }
-}
-
 
 /**
  * Fetches all conversations for the currently authenticated user.

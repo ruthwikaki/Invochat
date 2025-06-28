@@ -15,14 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-function LoadingIndicator({ loadingState }: { loadingState?: Message['loadingState'] }) {
-    const messages = {
-        short: 'Just a moment...',
-        medium: 'Thinking...',
-        long: 'This is a complex one, analyzing...',
-    };
-    const text = messages[loadingState || 'medium'];
-
+function LoadingIndicator() {
     return (
         <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-1">
@@ -30,7 +23,7 @@ function LoadingIndicator({ loadingState }: { loadingState?: Message['loadingSta
                 <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
                 <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground" />
             </div>
-            <span className="text-sm italic text-muted-foreground">{text}</span>
+            <span className="text-sm italic text-muted-foreground">Thinking...</span>
         </div>
     );
 }
@@ -100,7 +93,7 @@ export function ChatMessage({
           )}
         >
           <div className="text-base whitespace-pre-wrap">
-            {isLoading ? <LoadingIndicator loadingState={message.loadingState} /> : message.content}
+            {isLoading ? <LoadingIndicator /> : message.content}
           </div>
           {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
