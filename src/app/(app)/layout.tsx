@@ -14,7 +14,6 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isChatPage = pathname.startsWith('/chat');
   const [resetKey, setResetKey] = useState(0);
 
   const handleReset = useCallback(() => {
@@ -25,8 +24,7 @@ export default function AppLayout({
     <SidebarProvider>
       <DynamicThemeProvider />
       <div className="flex h-dvh w-full bg-background">
-        {/* Hide default sidebar on chat page to use chat-specific layout */}
-        {!isChatPage && <AppSidebar />}
+        <AppSidebar />
         <main className="flex flex-1 flex-col overflow-y-auto">
           <ErrorBoundary key={resetKey} onReset={handleReset}>
             <AnimatePresence mode="wait">

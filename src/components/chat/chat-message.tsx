@@ -1,13 +1,12 @@
 
 'use client';
 
-import { InvochatLogo } from '@/components/invochat-logo';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
 import { useAuth } from '@/context/auth-context';
 import { DataVisualization } from './data-visualization';
-import { BrainCircuit, AlertTriangle } from 'lucide-react';
+import { BrainCircuit, AlertTriangle, Bot } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -75,13 +74,11 @@ export function ChatMessage({
     <div className={cn("flex flex-col gap-2", isUserMessage && "items-end")}>
       <div className={cn("flex items-start gap-3 w-full", isUserMessage ? "justify-end" : "justify-start")}>
         {!isUserMessage && (
-          message.isError ? (
-            <div className="h-8 w-8 flex items-center justify-center rounded-full bg-destructive/20 shrink-0">
-                <AlertTriangle className="h-5 w-5 text-destructive" />
-            </div>
-          ) : (
-            <InvochatLogo className="h-8 w-8 shrink-0 text-primary" />
-          )
+          <Avatar className={cn('h-8 w-8 shrink-0', message.isError && 'bg-destructive/20')}>
+            <AvatarFallback className={cn('bg-transparent', message.isError && 'text-destructive')}>
+               {message.isError ? <AlertTriangle className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+            </AvatarFallback>
+          </Avatar>
         )}
         <div
           className={cn(

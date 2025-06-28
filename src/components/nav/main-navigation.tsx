@@ -18,8 +18,7 @@ import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/chat', label: 'Chat with InvoChat', icon: MessageSquare },
-  { href: '/analytics', label: 'Analytics', icon: Pyramid },
+  { href: '/analytics', label: 'Strategic Reports', icon: Pyramid },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
@@ -34,7 +33,7 @@ export function MainNavigation() {
     <SidebarMenu>
       {menuItems.map((item) => (
         <SidebarMenuItem key={item.href}>
-          <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
+          <SidebarMenuButton asChild isActive={pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')}>
             <Link href={item.href} prefetch={false}>
               <item.icon />
               {item.label}

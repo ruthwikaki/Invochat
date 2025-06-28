@@ -1,7 +1,7 @@
 
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Moon,
@@ -10,6 +10,9 @@ import {
   Database,
   ShieldCheck,
   Upload,
+  MessageSquarePlus,
+  MessageSquareText,
+  Star,
 } from 'lucide-react';
 import { InvochatLogo } from './invochat-logo';
 import {
@@ -20,30 +23,111 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarTrigger,
 } from './ui/sidebar';
 import { useTheme } from 'next-themes';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from './ui/dropdown-menu';
 import { UserAccountNav } from '@/components/nav/user-account-nav';
 import { MainNavigation } from '@/components/nav/main-navigation';
+import { getConversations } from '@/app/actions';
+import type { Conversation } from '@/types';
+import { useEffect, useState } from 'react';
+import { Button } from './ui/button';
+import { ScrollArea } from './ui/scroll-area';
+import { Separator } from './ui/separator';
+import { cn } from '@/lib/utils';
+import { formatDistanceToNow } from 'date-fns';
 
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeConversationId = searchParams.get('id');
   const { setTheme } = useTheme();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchConversations() {
+      try {
+        setLoading(true);
+        const convos = await getConversations();
+        setConversations(convos);
+      } catch (error) {
+        console.error("Failed to fetch conversations", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchConversations();
+  }, [pathname, activeConversationId]); // Refetch when navigation changes
+
 
   return (
-    <Sidebar>
+    <Sidebar className="w-80 flex-col border-r bg-background">
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <InvochatLogo />
-          <span className="text-lg font-semibold">InvoChat</span>
+          <InvochatLogo className="h-7 w-7" />
+          <h1 className="text-xl font-semibold">InvoChat</h1>
         </div>
+        <SidebarTrigger className="md:hidden" />
       </SidebarHeader>
-      <SidebarContent>
-        <MainNavigation />
-      </SidebarContent>
-      <SidebarFooter className="mt-auto flex flex-col gap-2">
-         <UserAccountNav />
+
+      <div className="p-2">
+         <Button asChild variant="outline" size="sm" className={cn('w-full', pathname === '/chat' && !activeConversationId && 'bg-primary/10')}>
+          <Link href="/chat">
+            <MessageSquarePlus className="mr-2 h-4 w-4"/>
+            New Chat
+          </Link>
+        </Button>
+      </div>
+      
+      <ScrollArea className="flex-1">
+        {/* Main App Navigation */}
+        <div className="p-2 space-y-1">
+            <p className="px-2 text-xs font-semibold text-muted-foreground tracking-wider">Navigate</p>
+            <MainNavigation />
+        </div>
+        
+        <Separator className="my-2" />
+
+        {/* Chat History */}
+        <div className="p-2 space-y-1">
+            <p className="px-2 text-xs font-semibold text-muted-foreground tracking-wider">Chats</p>
+            {loading ? (
+                <p className="p-2 text-xs text-muted-foreground">Loading chats...</p>
+            ) : conversations.length > 0 ? (
+                conversations.map((convo) => (
+                    <Link
+                        key={convo.id}
+                        href={`/chat?id=${convo.id}`}
+                        className={cn(
+                            'group flex flex-col p-2 rounded-md transition-colors w-full text-left',
+                            activeConversationId === convo.id
+                            ? 'bg-primary/10 text-primary'
+                            : 'hover:bg-muted'
+                        )}
+                        >
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium truncate flex items-center gap-2">
+                                <MessageSquareText className="h-4 w-4 shrink-0" />
+                                {convo.title}
+                            </span>
+                            {convo.is_starred && <Star className="h-4 w-4 text-yellow-500 fill-yellow-400" />}
+                        </div>
+                        <span className="text-xs text-muted-foreground mt-1 ml-6">
+                            {formatDistanceToNow(new Date(convo.last_accessed_at), { addSuffix: true })}
+                        </span>
+                    </Link>
+                ))
+            ) : (
+                <p className="p-2 text-xs text-muted-foreground">No recent chats.</p>
+            )}
+        </div>
+      </ScrollArea>
+
+      <SidebarFooter className="mt-auto flex flex-col gap-2 border-t">
+        <UserAccountNav />
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/import'}>
