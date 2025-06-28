@@ -87,18 +87,19 @@ const sqlGenerationPrompt = ai.definePrompt({
 
     **QUERY GENERATION PROCESS (You MUST follow these steps):**
 
-    **A) For ALL Queries (NON-NEGOTIABLE):**
-    1.  **Security is paramount**: The query MUST be a read-only \`SELECT\` statement.
-    2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement.
+    **A) For ALL Queries (NON-NEGOTIABLE SECURITY RULES):**
+    1.  **Security is PARAMOUNT**: The query MUST be a read-only \`SELECT\` statement. You are FORBIDDEN from generating \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`DROP\`, \`GRANT\`, or any other data-modifying or access-control statements.
+    2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement. There are no exceptions.
     3.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
-    4.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    5.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM sales JOIN customers ON sales.customer_id = customers.id\`).
+    4.  **NO SQL Comments**: The final query MUST NOT contain any SQL comments (e.g., --, /* */).
+    5.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
+    6.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM sales JOIN customers ON sales.customer_id = customers.id\`).
 
     **B) For COMPLEX ANALYTICAL Queries:**
-    6.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
+    7.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
         - **Common Table Expressions (CTEs)** are REQUIRED to break down complex logic. Do not use nested subqueries where a CTE would be clearer.
         - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
-    7.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
+    8.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
 
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style.
@@ -130,21 +131,35 @@ const queryValidationPrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), sqlQuery: z.string() }) },
   output: { schema: z.object({ isValid: z.boolean(), correction: z.string().optional().describe('Reason if invalid.') }) },
   prompt: `
-    You are a SQL validation agent. Review the generated SQL query with extreme scrutiny.
+    You are a SQL validation agent. Review the generated SQL query with EXTREME SCRUTINY. Your primary job is to prevent any unsafe or incorrect queries from executing.
 
     USER'S QUESTION: "{{userQuery}}"
     GENERATED SQL: \`\`\`sql
 {{sqlQuery}}
 \`\`\`
 
-    VALIDATION CHECKLIST:
-    1.  **Security**: Is it a read-only SELECT query? Does EVERY table reference (including joins) contain a 'company_id' filter?
-    2.  **Correctness**: Is the syntax valid PostgreSQL? Does it logically answer the user's question?
-    3.  **Business Sense**: Does it use the correct columns/tables based on the question and business context? Does it avoid nonsensical operations like cross joins? If the user asked for a metric like 'turnover', is the calculation present and correct?
+    **SECURITY VALIDATION CHECKLIST (FAIL THE QUERY IF ANY OF THESE ARE TRUE):**
+    1.  **Check for Forbidden Keywords**: Does the query contain ANY of the following keywords (case-insensitive)?
+        - \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`DROP\`, \`TRUNCATE\`, \`ALTER\`, \`GRANT\`, \`REVOKE\`, \`CREATE\`, \`EXECUTE\`
+        If yes, FAIL validation immediately.
+    2.  **Check for SQL Comments**: Does the query contain SQL comments (\`--\` or \`/*\`)?
+        If yes, FAIL validation. Comments can be used to hide malicious code.
+    3.  **Mandatory Company ID Filter**: Does EVERY table reference (including joins, subqueries, and CTEs) have a \`WHERE\` clause that filters by \`company_id\`?
+        If even one is missing, FAIL validation.
+    4.  **Read-Only Check**: Is the query a read-only \`SELECT\` statement?
+        If it's anything else, FAIL validation.
 
-    OUTPUT:
-    - If valid, return \`{"isValid": true}\`.
-    - If invalid, return \`{"isValid": false, "correction": "Explain the error concisely and technically."}\`. For example: "The query uses a cross join between vendors and products, which is invalid. It should use an explicit JOIN ON a shared key." or "The query is missing the calculation for inventory turnover rate."
+    **LOGIC & CORRECTNESS CHECKLIST:**
+    5.  **Syntax Validity**: Is the syntax valid for PostgreSQL?
+    6.  **Logical Answer**: Does the query logically answer the user's question?
+    7.  **Business Sense**: Does it use the correct columns/tables based on the question and business context? If the user asked for a metric like 'turnover', is the calculation present and correct?
+
+    **OUTPUT FORMAT:**
+    - If ALL security and logic checks pass, return \`{"isValid": true}\`.
+    - If ANY check fails, return \`{"isValid": false, "correction": "Explain the specific reason for failure concisely and technically."}\`.
+      - Example (Security Fail): "The query is missing a 'company_id' filter on the 'customers' table."
+      - Example (Security Fail): "The query contains a forbidden 'UPDATE' keyword."
+      - Example (Logic Fail): "The query uses a cross join between vendors and products, which is invalid."
   `,
 });
 
@@ -179,7 +194,7 @@ const errorRecoveryPrompt = ai.definePrompt({
         4.  **Do Not Change Intent**: The corrected query must not alter the original intent of the user's question.
         5.  **Explain Your Reasoning**: Briefly explain what was wrong and how you fixed it in the \`reasoning\` field.
         6.  **If Unfixable**: If the error is ambiguous or you cannot confidently fix it, do not provide a \`correctedQuery\`. Explain why in the \`reasoning\` field instead.
-        7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter.
+        7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter on all tables. It must not contain SQL comments.
     `,
 });
 
@@ -282,6 +297,7 @@ const universalChatOrchestrator = ai.defineFlow(
     }
 
     // Pipeline Step 3: Execute Query with Error Recovery
+    logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${sqlQuery}"`);
     let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
       query_text: sqlQuery.replace(/;/g, '')
     });
@@ -300,6 +316,15 @@ const universalChatOrchestrator = ai.defineFlow(
             
             // Retry with the new query
             sqlQuery = recoveryOutput.correctedQuery; // Update the query to the corrected one
+            
+            // Re-validate the corrected query before executing
+            const { output: revalidationOutput } = await queryValidationPrompt({ userQuery, sqlQuery }, { model: aiModel });
+            if (!revalidationOutput?.isValid) {
+                logger.error("Corrected SQL failed re-validation:", revalidationOutput.correction);
+                throw new Error(`The AI's attempt to fix the query was also invalid. Reason: ${revalidationOutput.correction}`);
+            }
+
+            logger.info(`[Audit Trail] Executing re-validated SQL for company ${companyId}: "${sqlQuery}"`);
             const retryResult = await supabaseAdmin.rpc('execute_dynamic_query', {
                 query_text: sqlQuery.replace(/;/g, '')
             });
