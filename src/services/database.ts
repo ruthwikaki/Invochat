@@ -482,7 +482,6 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                     },
                 };
                 alerts.push(alert);
-                // await sendEmailAlert(alert);
             }
         }
         
@@ -505,7 +504,6 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                 },
             };
             alerts.push(alert);
-            // await sendEmailAlert(alert);
         }
         
         if (isRedisEnabled) {
