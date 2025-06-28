@@ -47,10 +47,10 @@ export const config = {
   },
   chat: {
     quickActions: [
-      "What's not selling?",
-      'Show supplier performance',
-      'Create inventory chart',
-      'What needs reordering?',
+      "What were my top 5 products by revenue last month?",
+      "Show a pie chart of inventory value by category",
+      "Which suppliers provide items that are currently low on stock?",
+      "Forecast sales for the next quarter",
     ],
   },
 };
