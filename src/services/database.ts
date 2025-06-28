@@ -24,7 +24,7 @@ import { logger } from '@/lib/logger';
 /**
  * Returns the Supabase admin client and throws a clear error if it's not configured.
  */
-function getServiceRoleClient() {
+export function getServiceRoleClient() {
     if (!supabaseAdmin) {
         throw new Error('Database admin client is not configured. Please ensure SUPABASE_SERVICE_ROLE_KEY is set in your environment variables.');
     }
@@ -827,5 +827,27 @@ export async function inviteUserToCompany(companyId: string, companyName: string
         }
 
         return data;
+    });
+}
+
+export async function removeTeamMemberFromDb(
+    userIdToRemove: string,
+    companyId: string
+): Promise<{ success: boolean; error?: string }> {
+    return withPerformanceTracking('removeTeamMemberFromDb', async () => {
+        const supabase = getServiceRoleClient();
+        
+        // This is a permanent and destructive action.
+        // It deletes the user from auth.users, which will cascade and delete from public.users
+        const { error: adminError } = await supabase.auth.admin.deleteUser(userIdToRemove);
+
+        if (adminError) {
+             if (adminError.message.includes('User not found')) {
+                 return { success: false, error: "The user could not be found. They may have already been removed." };
+            }
+            throw new Error(adminError.message);
+        }
+
+        return { success: true };
     });
 }

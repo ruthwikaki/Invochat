@@ -2,7 +2,6 @@
 'use server';
 
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { createClient as createServiceRoleClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
@@ -17,6 +16,8 @@ import {
     getInventoryCategoriesFromDB,
     getTeamMembers as getTeamMembersFromDB,
     inviteUserToCompany,
+    removeTeamMember as removeTeamMemberFromDb,
+    getServiceRoleClient,
 } from '@/services/database';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember } from '@/types';
 import { ai } from '@/ai/genkit';
@@ -252,17 +253,7 @@ export async function testDatabaseQuery(): Promise<{
   try {
     const { companyId } = await getAuthContext();
     
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-        return { success: false, count: null, error: 'Supabase service role credentials are not configured on the server.' };
-    }
-
-    // Create a client with the service_role key to bypass RLS for this test.
-    const serviceSupabase = createServiceRoleClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false }
-    });
+    const serviceSupabase = getServiceRoleClient();
 
     // Test a table that is guaranteed to exist for any configured company
     const { error, count } = await serviceSupabase
@@ -288,13 +279,7 @@ export async function testDatabaseQuery(): Promise<{
 
 export async function testMaterializedView(): Promise<{ success: boolean; error: string | null; }> {
     try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !supabaseServiceKey) {
-            return { success: false, error: 'Supabase service role credentials are not configured on the server.' };
-        }
-        const serviceSupabase = createServiceRoleClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
+        const serviceSupabase = getServiceRoleClient();
 
         const { data, error } = await serviceSupabase
             .from('pg_matviews')
@@ -377,40 +362,26 @@ export async function testRedisConnection(): Promise<{
 
 export async function removeTeamMember(memberIdToRemove: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const { userId: currentUserId } = await getAuthContext();
+        const { userId: currentUserId, companyId } = await getAuthContext();
 
         // Security check: You cannot remove yourself.
         if (memberIdToRemove === currentUserId) {
             return { success: false, error: "You cannot remove yourself from the team." };
         }
 
-        const supabase = getServiceRoleClient();
-
-        // This is a permanent and destructive action.
-        const { error } = await supabase.auth.admin.deleteUser(memberIdToRemove);
-
-        if (error) {
-            logger.error(`[Remove Action] Failed to remove team member ${memberIdToRemove}:`, error);
-            // Provide a user-friendly message for common issues
-            if (error.message.includes('User not found')) {
-                 return { success: false, error: "The user could not be found. They may have already been removed." };
-            }
-            throw new Error(error.message);
+        const result = await removeTeamMemberFromDb(memberIdToRemove, companyId);
+        
+        if (result.success) {
+            logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
+            revalidatePath('/settings/team');
+        } else {
+             logger.error(`[Remove Action] Failed to remove team member ${memberIdToRemove}:`, result.error);
         }
-
-        logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
-        revalidatePath('/settings/team');
-        return { success: true };
+        
+        return result;
 
     } catch (e: any) {
         logger.error('[Remove Action] Caught exception:', e);
         return { success: false, error: e.message };
     }
-}
-
-function getServiceRoleClient() {
-    if (!supabaseAdmin) {
-        throw new Error('Database admin client is not configured.');
-    }
-    return supabaseAdmin;
 }

@@ -10,38 +10,48 @@ import { cookies } from 'next/headers';
 import { redisClient, isRedisEnabled, rateLimit } from '@/lib/redis';
 import crypto from 'crypto';
 import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss, trackEndpointPerformance } from '@/services/monitoring';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getServiceRoleClient } from '@/services/database';
 import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
 
-function getServiceRoleClient() {
-    if (!supabaseAdmin) {
-        throw new Error('Database admin client is not configured.');
-    }
-    return supabaseAdmin;
-}
+async function getAuthContext(): Promise<{ userId: string; companyId: string }> {
+    logger.debug('[getAuthContext] Attempting to determine Company ID...');
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              get(name: string) {
+                return cookieStore.get(name)?.value;
+              },
+            },
+          }
+        );
+        const { data: { user }, error } = await supabase.auth.getUser();
 
-async function getAuthContext(): Promise<{ userId: string, companyId: string }> {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
-    const { data: { user } } = await supabase.auth.getUser();
-    // Use app_metadata as the source of truth, set by the trigger
-    const companyId = user?.app_metadata?.company_id;
-    if (!user || !companyId) {
-        throw new Error("Authentication error: User or company not found.");
+        if (error) {
+            logger.error('[getAuthContext] Supabase auth error:', error.message);
+            throw new Error(`Authentication error: ${error.message}`);
+        }
+
+        // Check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
+        const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
+        
+        if (!user || !companyId || typeof companyId !== 'string') {
+            logger.warn('[getAuthContext] Could not determine Company ID. User may not be fully signed up or session is invalid.');
+            throw new Error('Your user session is invalid or not fully configured. Please try signing out and signing back in.');
+        }
+        
+        logger.debug(`[getAuthContext] Success. Company ID: ${companyId}`);
+        return { userId: user.id, companyId };
+    } catch (e: any) {
+        logger.error('[getAuthContext] Caught exception:', e.message);
+        // Re-throw the error to be caught by the calling function's error boundary.
+        throw e;
     }
-    return { userId: user.id, companyId };
 }
 
 /**
@@ -137,15 +147,30 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
 
 function getErrorMessage(error: any): string {
     let errorMessage = `An unexpected error occurred. Please try again.`;
-    if (error.message?.includes('Query timed out')) errorMessage = error.message;
-    else if (error.message?.includes('The database query failed')) errorMessage = "I tried to query the database, but the query failed. The AI may have generated an invalid SQL query or requested a non-existent column. Please try rephrasing your request.";
-    else if (error.message?.includes('The generated query was invalid')) errorMessage = `The AI generated a query that was deemed insecure or incorrect and was blocked. Reason: ${error.message.split('Reason: ')[1]}`;
-    else if (error.message?.includes('The AI model did not return a valid final response object')) errorMessage = "The AI returned an unexpected or empty response. This might be a temporary issue with the model. Please try again."
-    else if (error.status === 'NOT_FOUND' || error.message?.includes('NOT_FOUND') || error.message?.includes('Model not found')) errorMessage = 'The configured AI model is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.';
-    else if (error.message?.includes('API key not valid')) errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
-    else if (error.message?.includes('authenticated or configured')) errorMessage = error.message;
-    else if (error.message?.includes('violates not-null constraint')) errorMessage = 'A critical database error occurred while trying to save a message. This usually points to an issue with application logic or database setup.';
-    else if (error.message?.includes('Rate limited')) errorMessage = 'You are sending messages too quickly. Please wait a moment before trying again.';
+    
+    const message = error.message || '';
+    const status = error.status || '';
+
+    if (message.includes('Query timed out')) {
+        errorMessage = "The database query took too long to respond. This can happen with very complex questions. Please try simplifying your request.";
+    } else if (message.includes('The database query failed')) {
+        errorMessage = "I tried to query the database, but the query failed. This may be because the AI generated an invalid SQL query or requested a non-existent column. Please try rephrasing your request.";
+    } else if (message.includes('The generated query was invalid')) {
+        errorMessage = `For security, the AI-generated query was blocked. Reason: ${message.split('Reason: ')[1]}`;
+    } else if (message.includes('The AI model did not return a valid final response object')) {
+        errorMessage = "The AI returned an unexpected or empty response. This might be a temporary issue. Please try again.";
+    } else if (status === 'NOT_FOUND' || message.includes('NOT_FOUND') || message.includes('Model not found')) {
+        errorMessage = `The AI model '${config.ai.model}' is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
+    } else if (message.includes('API key not valid')) {
+        errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file and ensure it is correct.';
+    } else if (message.includes('Your user session is invalid or not fully configured')) {
+        errorMessage = message; // Pass the more descriptive error through
+    } else if (message.includes('violates not-null constraint')) {
+        errorMessage = 'A critical database error occurred while trying to save data. This may indicate an issue with the application setup.';
+    } else if (message.includes('Rate limited')) {
+        errorMessage = 'You are sending messages too quickly. Please wait a moment before trying again.';
+    }
+    
     return errorMessage;
 }
 

@@ -83,6 +83,18 @@ begin
 end;
 $$;
 
+-- ========= SECURITY NOTE FOR PRODUCTION =========
+-- The 'execute_dynamic_query' function is powerful. In a production environment,
+-- it is highly recommended to restrict its usage to prevent misuse.
+-- You should revoke the default public execute permission and grant it only
+-- to the roles that need it (like 'service_role' for the backend).
+--
+-- Run these commands in your SQL Editor after the initial setup:
+--
+-- REVOKE EXECUTE ON FUNCTION public.execute_dynamic_query FROM public;
+-- GRANT EXECUTE ON FUNCTION public.execute_dynamic_query TO service_role;
+--
+
 -- ========= Part 3: Performance Optimization (Optional, but Recommended) =========
 -- This creates a "materialized view", which is like a pre-calculated snapshot
 -- of your key inventory metrics. Querying this view is much faster than
