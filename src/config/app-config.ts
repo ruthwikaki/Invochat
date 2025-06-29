@@ -84,26 +84,5 @@ const ConfigSchema = z.object({
     }),
 });
 
-// Validate the config on startup. This will throw an error during the build if critical env vars are missing.
-// This satisfies the "Configuration Validation on app startup" requirement.
-try {
-    ConfigSchema.parse(config);
-} catch (e: any) {
-    console.error("❌ Invalid application configuration:");
-    let detailedError = "Check server logs for details.";
-    if (e instanceof z.ZodError) {
-        // Create a more readable error message from the Zod issues.
-        detailedError = e.errors.map(err => `[${err.path.join('.')}] ${err.message}`).join('\n');
-    }
-    console.error(detailedError);
-    
-    // In a server environment, we should exit gracefully if validation fails in production.
-    if (isProduction && typeof process.exit === 'function') {
-        process.exit(1);
-    }
-    // Do not throw an error in development, as it can be caused by hot-reloading timing issues.
-    // The error will be caught later at the point of use if a key is truly missing.
-}
-
 // A type alias for convenience
 export type AppConfig = typeof config;

@@ -14,7 +14,7 @@ import {
   MessageSquareText,
   Star,
 } from 'lucide-react';
-import { ArvoLogo } from './invochat-logo';
+import { ArvoLogo } from './arvo-logo';
 import {
   Sidebar,
   SidebarContent,

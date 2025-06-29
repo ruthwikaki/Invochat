@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ArvoLogo } from '@/components/invochat-logo';
+import { ArvoLogo } from '@/components/arvo-logo';
 import { login } from '@/app/(auth)/actions';
 
 function SubmitButton() {

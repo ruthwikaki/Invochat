@@ -114,10 +114,10 @@ export type DashboardMetrics = {
 
 export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
-  dead_stock_days: z.number(),
-  overstock_multiplier: z.number(),
-  high_value_threshold: z.number(),
-  fast_moving_days: z.number(),
+  dead_stock_days: z.number().default(90),
+  overstock_multiplier: z.number().default(3),
+  high_value_threshold: z.number().default(1000),
+  fast_moving_days: z.number().default(30),
   currency: z.string().nullable().optional().default('USD'),
   timezone: z.string().nullable().optional().default('UTC'),
   tax_rate: z.number().nullable().optional().default(0),

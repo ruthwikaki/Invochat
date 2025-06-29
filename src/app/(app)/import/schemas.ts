@@ -14,7 +14,7 @@ export const InventoryImportSchema = z.object({
 // Schema for validating a row from a suppliers (vendors) CSV.
 export const SupplierImportSchema = z.object({
   vendor_name: z.string().min(1, 'Vendor Name is required.'),
-  contact_info: z.string().email('Contact Info must be a valid email address.'),
+  contact_info: z.string().min(1, 'Contact Info is required.'),
   // Optional fields can be empty in the CSV.
   address: z.string().optional().nullable(),
   terms: z.string().optional().nullable(),
