@@ -4,11 +4,12 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 // Extend the Supabase User type to include our custom app_metadata
 // which may or may not be present on a new user object.
-export type User = Omit<SupabaseUser, 'app_metadata'> & {
+export type User = Omit<SupabaseUser, 'app_metadata' | 'role'> & {
   app_metadata?: {
     company_id?: string;
     // other metadata properties can be added here
   };
+  role?: string; // Add the role from the public.users table
 };
 
 export type Conversation = {

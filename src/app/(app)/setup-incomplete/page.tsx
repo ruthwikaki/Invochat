@@ -12,10 +12,8 @@ const sqlCode = `-- This file contains all the necessary SQL to set up your data
 -- This script is idempotent and can be safely re-run on an existing database.
 
 -- ========= Part 1: New User Trigger =========
--- This function and trigger ensure that when a new user signs up,
--- their company information is correctly created and the 'company_id'
--- is stored in their authentication metadata, which is crucial for
--- the app's multi-tenancy to work correctly.
+-- This function and trigger ensure that when a new user signs up via email or accepts an invitation,
+-- their company information and role are correctly created and stored.
 
 -- First, ensure the 'uuid-ossp' extension is enabled to generate UUIDs.
 create extension if not exists "uuid-ossp" with schema extensions;
@@ -29,19 +27,38 @@ as $$
 declare
   user_company_id uuid;
   user_company_name text;
+  user_role text;
+  is_invite boolean;
 begin
-  -- Extract company_id and company_name from the metadata provided during signup.
-  user_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
-  user_company_name := new.raw_user_meta_data->>'company_name';
+  -- Check if this is an invite acceptance by looking for the invited_at timestamp
+  is_invite := new.invited_at IS NOT NULL;
 
-  -- Create a corresponding record in the 'public.companies' table.
-  insert into public.companies (id, name)
-  values (user_company_id, user_company_name)
-  on conflict (id) do nothing;
+  IF is_invite THEN
+    -- This is an invited user. Their company_id is in the metadata from the invite.
+    user_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
+    user_role := 'Member';
+    
+    IF user_company_id IS NULL THEN
+      -- This case should not happen if invites are sent correctly, but as a safeguard:
+      raise exception 'Invited user must have a company_id in metadata.';
+    END IF;
+    
+  ELSE
+    -- This is a new company signup. A new company_id was generated on the client.
+    user_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
+    user_company_name := new.raw_user_meta_data->>'company_name';
+    user_role := 'Owner';
 
-  -- Create a corresponding record in the 'public.users' table to link the user to their company.
-  insert into public.users (id, email, company_id)
-  values (new.id, new.email, user_company_id);
+    -- Create a corresponding record in the 'public.companies' table.
+    -- This is also safe for invites; ON CONFLICT does nothing if the company already exists.
+    insert into public.companies (id, name)
+    values (user_company_id, user_company_name)
+    on conflict (id) do nothing;
+  END IF;
+
+  -- Create a corresponding record in the 'public.users' table with the correct role.
+  insert into public.users (id, email, company_id, role)
+  values (new.id, new.email, user_company_id, user_role);
 
   -- **This is the most critical step for authentication.**
   -- It copies the company_id into 'app_metadata', which makes it available
@@ -120,7 +137,7 @@ CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics()
 RETURNS void
 LANGUAGE sql
 AS $$
-  REFRESH MATERIALIZED VIEW public.company_dashboard_metrics;
+  REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
 $$;
 
 

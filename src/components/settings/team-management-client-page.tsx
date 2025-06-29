@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertTriangle, Mail, Loader2, Users, Edit } from 'lucide-react';
-import { inviteTeamMember, removeTeamMember } from '@/app/data-actions';
+import { inviteTeamMember, removeTeamMember, updateTeamMemberRole } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -28,14 +28,13 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 // A new dialog component for changing a user's role
-function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange }: { member: TeamMember | null, onRoleChange: (newRole: TeamMember['role']) => void, open: boolean, onOpenChange: (open: boolean) => void }) {
+function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending }: { member: TeamMember | null, onRoleChange: (newRole: TeamMember['role']) => void, open: boolean, onOpenChange: (open: boolean) => void, isPending: boolean }) {
     if (!member) return null;
 
     const [selectedRole, setSelectedRole] = useState<TeamMember['role']>(member.role);
 
     const handleSave = () => {
         onRoleChange(selectedRole);
-        onOpenChange(false);
     };
 
     return (
@@ -44,13 +43,13 @@ function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange }: { member
                 <DialogHeader>
                     <DialogTitle>Change Role for {member.email}</DialogTitle>
                     <DialogDescription>
-                        Select a new role for this user. Full role-based permissions require a database update to be persistent.
+                        Select a new role for this user. This will be saved to the database.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <Label htmlFor="role-select">Role</Label>
                     <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as TeamMember['role'])}>
-                        <SelectTrigger id="role-select">
+                        <SelectTrigger id="role-select" disabled={isPending}>
                             <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
                         <SelectContent>
@@ -61,8 +60,11 @@ function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange }: { member
                     </Select>
                 </div>
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSave}>Save Changes (UI Only)</Button>
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={isPending}>
+                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -78,11 +80,14 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
     const [members, setMembers] = useState<TeamMember[]>(initialMembers);
     const [invitePending, startInviteTransition] = useTransition();
     const [removePending, startRemoveTransition] = useTransition();
+    const [roleChangePending, startRoleChangeTransition] = useTransition();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [memberToEdit, setMemberToEdit] = useState<TeamMember | null>(null);
     const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
     const { toast } = useToast();
+    
+    const currentUserRole = members.find(m => m.id === user?.id)?.role;
 
     const handleInvite = async (formData: FormData) => {
         setFormError(null);
@@ -126,13 +131,28 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
 
     const handleRoleChange = (newRole: TeamMember['role']) => {
         if (!memberToEdit) return;
-        setMembers(prev => prev.map(m => m.id === memberToEdit.id ? { ...m, role: newRole } : m));
-        toast({
-            title: 'Role Updated (UI Only)',
-            description: `${memberToEdit.email}'s role has been changed to ${newRole}. This change is a demonstration and is not saved to the database.`,
+
+        startRoleChangeTransition(async () => {
+            const result = await updateTeamMemberRole(memberToEdit.id, newRole as 'Admin' | 'Member');
+            if (result.success) {
+                setMembers(prev => prev.map(m => m.id === memberToEdit.id ? { ...m, role: newRole } : m));
+                toast({
+                    title: 'Role Updated',
+                    description: `${memberToEdit.email}'s role has been changed to ${newRole}.`,
+                });
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error Updating Role',
+                    description: result.error || 'An unknown error occurred.',
+                });
+            }
+            setIsRoleDialogOpen(false);
+            setMemberToEdit(null);
         });
-        setMemberToEdit(null);
     };
+
+    const isOwner = currentUserRole === 'Owner';
 
     return (
         <div className="space-y-6">
@@ -144,7 +164,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                     </div>
                      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button>
+                            <Button disabled={!isOwner}>
                                 <Mail className="mr-2 h-4 w-4" />
                                 Invite Member
                             </Button>
@@ -203,13 +223,13 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                         <Badge variant={member.role === 'Owner' ? 'default' : (member.role === 'Admin' ? 'secondary' : 'outline')}>{member.role}</Badge>
                                     </TableCell>
                                     <TableCell className="text-right space-x-2">
-                                        <Button variant="outline" size="sm" onClick={() => handleOpenRoleDialog(member)} disabled={member.role === 'Owner' || removePending}>
+                                        <Button variant="outline" size="sm" onClick={() => handleOpenRoleDialog(member)} disabled={!isOwner || member.role === 'Owner' || removePending || roleChangePending}>
                                             <Edit className="mr-2 h-3 w-3" />
                                             Change Role
                                         </Button>
                                          <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <Button variant="destructive" size="sm" disabled={member.role === 'Owner' || removePending}>
+                                                <Button variant="destructive" size="sm" disabled={!isOwner || member.role === 'Owner' || removePending}>
                                                     Remove
                                                 </Button>
                                             </AlertDialogTrigger>
@@ -243,22 +263,21 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                 onRoleChange={handleRoleChange}
                 open={isRoleDialogOpen}
                 onOpenChange={setIsRoleDialogOpen}
+                isPending={roleChangePending}
             />
 
             <Card className="bg-muted/50 border-dashed">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-muted-foreground">
-                        <AlertTriangle className="h-5 w-5" />
-                        Advanced Features Coming Soon
+                        <Users className="h-5 w-5" />
+                        Understanding Roles
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                        Full Role-Based Access Control (RBAC) is a top priority. Enabling persistent roles and permissions will require a database schema update to add tables for roles, permissions, and audit logs.
-                    </p>
-                    <ul className="list-disc pl-5 mt-2 space-y-1 text-sm text-muted-foreground">
-                        <li>**Role Permissions:** The ability to assign specific permissions (e.g., 'can_edit_settings', 'can_invite_users') to roles like 'Admin'.</li>
-                        <li>**Audit Logs:** A complete log to track all significant actions taken by users for security and accountability.</li>
+                    <ul className="list-disc pl-5 space-y-2 text-sm text-muted-foreground">
+                        <li><strong>Owner:</strong> The user who created the company. Only the Owner can change roles and manage billing (feature coming soon).</li>
+                        <li><strong>Admin:</strong> Can invite and remove other members, and has full access to all application features.</li>
+                        <li><strong>Member:</strong> Has read-only access to most of the application. Cannot change settings or invite users.</li>
                     </ul>
                 </CardContent>
             </Card>

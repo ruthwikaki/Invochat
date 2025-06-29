@@ -788,12 +788,13 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
     });
 }
 
-export async function getTeamMembers(companyId: string): Promise<Pick<User, 'id' | 'email'>[]> {
+export async function getTeamMembers(companyId: string): Promise<{ id: string, email: string, role: string }[]> {
     return withPerformanceTracking('getTeamMembers', async () => {
         const supabase = getServiceRoleClient();
+        // Now selecting the role as well
         const { data, error } = await supabase
             .from('users') // this is the public.users table
-            .select('id, email')
+            .select('id, email, role')
             .eq('company_id', companyId);
 
         if (error) {

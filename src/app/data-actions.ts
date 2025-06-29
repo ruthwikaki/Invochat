@@ -151,14 +151,14 @@ export async function updateCompanySettings(settings: Partial<CompanySettings>):
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
-    const { userId, companyId } = await getAuthContext();
+    const { companyId } = await getAuthContext();
     const members = await getTeamMembersFromDB(companyId);
 
     // Differentiate the current user as 'Owner'
     return members.map(member => ({
         id: member.id,
         email: member.email,
-        role: member.id === userId ? 'Owner' : 'Member',
+        role: member.role as TeamMember['role'],
     }));
 }
 
@@ -382,6 +382,63 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
 
     } catch (e: any) {
         logger.error('[Remove Action] Caught exception:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { userId: currentUserId, companyId } = await getAuthContext();
+
+        // Security Check 1: Get the current user's role from the database.
+        const supabase = getServiceRoleClient();
+        const { data: currentUserData, error: currentUserError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', currentUserId)
+            .single();
+
+        if (currentUserError || !currentUserData) {
+            throw new Error("Could not verify your permissions.");
+        }
+        
+        // Security Check 2: Only owners can change roles.
+        if (currentUserData.role !== 'Owner') {
+            return { success: false, error: "You do not have permission to change user roles." };
+        }
+        
+        // Security Check 3: You cannot change the Owner's role.
+        const { data: memberToUpdateData, error: memberToUpdateError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', memberIdToUpdate)
+            .single();
+            
+        if (memberToUpdateError || !memberToUpdateData) {
+            throw new Error("The specified user was not found.");
+        }
+
+        if (memberToUpdateData.role === 'Owner') {
+            return { success: false, error: "The company owner's role cannot be changed." };
+        }
+        
+        // Update the user's role in the database.
+        const { error: updateError } = await supabase
+            .from('users')
+            .update({ role: newRole })
+            .eq('id', memberIdToUpdate)
+            .eq('company_id', companyId); // Extra security check
+
+        if (updateError) {
+            throw new Error(updateError.message);
+        }
+
+        logger.info(`[Role Update] User ${currentUserId} updated role for ${memberIdToUpdate} to ${newRole}`);
+        revalidatePath('/settings/team');
+        return { success: true };
+
+    } catch (e: any) {
+        logger.error('[Role Update Action] Caught exception:', e);
         return { success: false, error: e.message };
     }
 }
