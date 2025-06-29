@@ -151,7 +151,13 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         `;
         const profitPromise = supabase.rpc('execute_dynamic_query', { query_text: profitQuery.trim().replace(/;/g, '') });
 
-        const inventoryValuePromise = supabase.from('inventory_valuation').select('quantity, cost').eq('company_id', companyId);
+        // OPTIMIZED: Calculate total inventory value directly in the database.
+        const inventoryValueQuery = `
+            SELECT SUM(quantity * cost) as total_value
+            FROM inventory_valuation
+            WHERE company_id = '${companyId}'
+        `;
+        const inventoryValuePromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryValueQuery.trim().replace(/;/g, '') });
 
         const lowStockCountQuery = `
             SELECT COUNT(*) as count
@@ -246,7 +252,10 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const sales = extractData(salesResult, []);
         const customersCount = extractCount(customersResult);
         const profitData = extractData(profitResult, []);
-        const inventoryValueData = extractData(inventoryValueResult, []);
+        // OPTIMIZED: Extract single value from aggregate query
+        const inventoryValueData = extractData(inventoryValueResult, [{ total_value: 0 }]);
+        const totalInventoryValue = inventoryValueData[0]?.total_value || 0;
+
         const lowStockCountData = extractData(lowStockResult, [{count: 0}]);
         const lowStockItemsCount = lowStockCountData[0]?.count || 0;
 
@@ -259,7 +268,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const totalOrders = sales.length;
         const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
         const totalProfit = profitData.reduce((sum: number, item: any) => sum + (item.profit || 0), 0);
-        const totalInventoryValue = inventoryValueData.reduce((sum: number, item: any) => sum + ((item.quantity || 0) * (item.cost || 0)), 0);
         const returnRate = returnRateData?.return_rate || 0;
         
         const finalMetrics: DashboardMetrics = {

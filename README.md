@@ -47,3 +47,22 @@ If you sign up and see a "Setup Incomplete" page, copy the SQL code provided on 
 *   **Database**: [Supabase](https://supabase.com/)
 *   **AI**: [Google AI & Genkit](https://firebase.google.com/docs/genkit)
 *   **Authentication**: [Supabase Auth](https://supabase.com/docs/guides/auth)
+
+## Deployment & Scaling
+
+This application is configured for deployment on Firebase App Hosting.
+
+### Auto-scaling
+
+For production environments with a large number of users, you may need to adjust the auto-scaling configuration. In the `apphosting.yaml` file, you can increase the `maxInstances` value to allow App Hosting to automatically spin up more server instances in response to increased traffic.
+
+```yaml
+# apphosting.yaml
+runConfig:
+  # Increase this value for better performance under load
+  maxInstances: 10
+```
+
+### Database Performance
+
+The application's dashboard has been optimized to perform expensive calculations at the database level, and it uses a Redis-based caching layer to reduce redundant queries. For even larger datasets, consider implementing materialized views for your most frequent and complex analytical queries.
