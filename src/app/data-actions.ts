@@ -17,8 +17,8 @@ import {
     getTeamMembers as getTeamMembersFromDB,
     inviteUserToCompany,
     removeTeamMember as removeTeamMemberFromDb,
-    getServiceRoleClient,
 } from '@/services/database';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';

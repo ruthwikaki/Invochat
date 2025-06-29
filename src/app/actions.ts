@@ -10,7 +10,7 @@ import { cookies } from 'next/headers';
 import { redisClient, isRedisEnabled, rateLimit } from '@/lib/redis';
 import crypto from 'crypto';
 import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss, trackEndpointPerformance } from '@/services/monitoring';
-import { getServiceRoleClient } from '@/services/database';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';

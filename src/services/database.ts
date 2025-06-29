@@ -12,7 +12,7 @@
  * to ensure users can only access their own data.
  */
 
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem, User } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
@@ -20,16 +20,6 @@ import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from '
 import { config } from '@/config/app-config';
 import { sendEmailAlert } from './email';
 import { logger } from '@/lib/logger';
-
-/**
- * Returns the Supabase admin client and throws a clear error if it's not configured.
- */
-export function getServiceRoleClient() {
-    if (!supabaseAdmin) {
-        throw new Error('Database admin client is not configured. Please ensure SUPABASE_SERVICE_ROLE_KEY is set in your environment variables.');
-    }
-    return supabaseAdmin;
-}
 
 /**
  * A higher-order function to wrap database operations with performance tracking.
