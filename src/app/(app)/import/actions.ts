@@ -11,6 +11,11 @@ import { logger } from '@/lib/logger';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+// Lenient check as MIME types can be inconsistent across browsers/OS
+const ALLOWED_MIME_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
+
 // Define a type for the structure of our import results.
 export type ImportResult = {
   success: boolean;
@@ -125,7 +130,18 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         const dataType = formData.get('dataType') as string;
         
         if (!file || file.size === 0) {
-            return { success: true, successCount: 0, errorCount: 0, errors: [{ row: 0, message: 'No file was uploaded or file is empty.' }], summaryMessage: 'Upload failed.' };
+            return { success: false, summaryMessage: 'No file was uploaded or the file is empty.' };
+        }
+
+        // Validate file size
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            return { success: false, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
+        }
+        
+        // Validate file type
+        if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+            logger.warn(`[Data Import] Blocked invalid file type: ${file.type}`);
+            return { success: false, summaryMessage: `Invalid file type. Only CSV files are allowed.` };
         }
         
         const fileContent = await file.text();
