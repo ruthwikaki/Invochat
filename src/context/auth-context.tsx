@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
 import { useRouter } from 'next/navigation';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient, Subscription } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 
 interface AuthContextType {
@@ -18,7 +18,6 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Use the new ssr library's browser client
   const [supabase] = useState<SupabaseClient | null>(() => createBrowserSupabaseClient());
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,16 +28,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     if (!supabase) return;
     
-    // Clear the user state immediately
     setUser(null);
-    
-    // Sign out from Supabase
     const { error } = await supabase.auth.signOut();
     if (error) {
       logger.error('Error signing out:', error);
     }
-    
-    // Navigate to login
     router.push('/login');
   }, [supabase, router]);
 
@@ -49,38 +43,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let mounted = true;
+    let authListener: Subscription | undefined;
 
-    // 1. Get initial session
-    const initializeAuth = async () => {
+    const initializeAndListen = async () => {
+      // 1. Get initial session
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
         if (mounted) {
           setUser(session?.user as User ?? null);
-          setLoading(false);
         }
       } catch (error) {
-        logger.error('Error initializing auth:', error);
+        logger.error('Error getting initial auth session:', error);
+      } finally {
         if (mounted) {
           setLoading(false);
         }
       }
+
+      // 2. Listen for auth changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          if (mounted) {
+            setUser(session?.user as User ?? null);
+          }
+        }
+      );
+      authListener = subscription;
     };
 
-    initializeAuth();
-    
-    // 2. Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (mounted) {
-          setUser(session?.user as User ?? null);
-        }
-      }
-    );
+    initializeAndListen();
 
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
+      authListener?.unsubscribe();
     };
   }, [supabase]);
 

@@ -392,6 +392,12 @@ const universalChatOrchestrator = ai.defineFlow(
     if (generationOutput?.sqlQuery) {
         let sqlQuery = generationOutput.sqlQuery;
 
+        // Security Hardening: Redundant check to ensure the query is a SELECT statement.
+        if (!sqlQuery.trim().toLowerCase().startsWith('select')) {
+            logger.error("[UniversalChat:Flow] AI generated a non-SELECT query, blocking execution.", { query: sqlQuery });
+            throw new Error("The AI-generated query was blocked for security reasons because it was not a read-only SELECT statement.");
+        }
+
         const { output: validationOutput } = await queryValidationPrompt(
             { userQuery, sqlQuery },
             { model: aiModel }

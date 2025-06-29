@@ -174,8 +174,20 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         }
         const { email } = parsed.data;
 
-        const { companyId } = await getAuthContext();
+        const { userId, companyId } = await getAuthContext();
         const supabase = getServiceRoleClient();
+
+        // RBAC Check: Ensure the current user has permission to invite.
+        const { data: currentUserData, error: roleError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', userId)
+            .single();
+
+        if (roleError || !currentUserData) throw new Error("Could not verify your permissions.");
+        if (currentUserData.role !== 'Owner' && currentUserData.role !== 'Admin') {
+            return { success: false, error: "You do not have permission to invite users." };
+        }
         
         const { data: companyData, error: companyError } = await supabase
             .from('companies')
@@ -367,6 +379,19 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
         // Security check: You cannot remove yourself.
         if (memberIdToRemove === currentUserId) {
             return { success: false, error: "You cannot remove yourself from the team." };
+        }
+
+        // RBAC Check: Ensure the current user has permission to remove members.
+        const supabase = getServiceRoleClient();
+        const { data: currentUserData, error: roleError } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', currentUserId)
+            .single();
+
+        if (roleError || !currentUserData) throw new Error("Could not verify your permissions.");
+        if (currentUserData.role !== 'Owner' && currentUserData.role !== 'Admin') {
+            return { success: false, error: "You do not have permission to remove team members." };
         }
 
         const result = await removeTeamMemberFromDb(memberIdToRemove, companyId);

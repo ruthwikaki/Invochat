@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview Centralized, environment-aware configuration for InvoChat.
  *
@@ -27,6 +28,7 @@ export const config = {
     historyLimit: parseIntWithDefault(process.env.AI_HISTORY_LIMIT, 10),
   },
   database: {
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     queryLimit: parseIntWithDefault(process.env.DB_QUERY_LIMIT, 1000),
   },
   redis: {
@@ -63,6 +65,10 @@ const ConfigSchema = z.object({
         maxRetries: z.number().int().min(0),
         timeout: z.number().int().min(0),
         historyLimit: z.number().int().min(0),
+    }),
+    database: z.object({
+        serviceRoleKey: z.string().min(1, "SUPABASE_SERVICE_ROLE_KEY is not set. This is required for server-side database operations."),
+        queryLimit: z.number().int().min(0),
     }),
 });
 

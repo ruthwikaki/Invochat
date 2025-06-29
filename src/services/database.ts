@@ -132,158 +132,98 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
   const days = getIntervalFromRange(dateRange);
 
   const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
-    return withPerformanceTracking('getDashboardMetrics', async () => {
+    return withPerformanceTracking('getDashboardMetricsOptimized', async () => {
         const supabase = getServiceRoleClient();
         
-        const salesQuery = `
-            SELECT id, total_amount FROM orders
-            WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
-        `;
-        const salesPromise = supabase.rpc('execute_dynamic_query', { query_text: salesQuery.trim().replace(/;/g, '') });
+        const { data: mvData, error: mvError } = await supabase
+            .from('company_dashboard_metrics')
+            .select('inventory_value, low_stock_count')
+            .eq('company_id', companyId)
+            .single();
 
-        const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+        if (mvError) logger.warn(`[DB Service] Could not fetch from materialized view for company ${companyId}:`, mvError.message);
 
-        const profitQuery = `
-            SELECT sd.quantity, sd.sales_price, i.cost 
-            FROM sales_detail sd 
-            JOIN orders s ON sd.sale_id = s.id AND sd.company_id = s.company_id
-            JOIN inventory i ON sd.item = i.sku AND sd.company_id = i.company_id
-            WHERE s.company_id = '${companyId}'
-            AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
-        `;
-        const profitPromise = supabase.rpc('execute_dynamic_query', { query_text: profitQuery.trim().replace(/;/g, '') });
-
-        const inventoryValueQuery = `
-            SELECT SUM(quantity * cost) as total_value
-            FROM inventory
-            WHERE company_id = '${companyId}'
-        `;
-        const inventoryValuePromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryValueQuery.trim().replace(/;/g, '') });
-
-        const lowStockCountQuery = `
-            SELECT COUNT(*) as count
-            FROM inventory
-            WHERE company_id = '${companyId}' AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
-        `;
-        const lowStockPromise = supabase.rpc('execute_dynamic_query', { query_text: lowStockCountQuery.trim().replace(/;/g, '') });
-
-        const salesTrendQuery = `
-            SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
-            FROM orders WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
-            GROUP BY 1 ORDER BY 1 ASC
-        `;
-        const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
-        
-        const topCustomersQuery = `
-            SELECT c.customer_name as name, SUM(s.total_amount) as value
-            FROM orders s JOIN customers c ON s.customer_name = c.customer_name AND s.company_id = c.company_id
-            WHERE s.company_id = '${companyId}'
-            AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
-            GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
-        `;
-        const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
-        
-        const inventoryByCategoryQuery = `
-            SELECT category as name, sum(quantity * cost) as value 
-            FROM inventory
-            WHERE company_id = '${companyId}' AND category IS NOT NULL
-            GROUP BY category
-        `;
-        const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
-
-        const returnRateQuery = `
-            WITH SalesRange AS (
-                SELECT count(id) as total_sales FROM orders
-                WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
-            ), ReturnsRange AS (
-                SELECT count(id) as total_returns FROM returns
-                WHERE company_id = '${companyId}' AND return_date >= (CURRENT_DATE - INTERVAL '${days} days')
+        const combinedQuery = `
+            WITH date_range AS (
+                SELECT (CURRENT_DATE - INTERVAL '${days} days') as start_date
+            ),
+            orders_in_range AS (
+                SELECT id, total_amount, sale_date, customer_name
+                FROM orders
+                WHERE company_id = '${companyId}' AND sale_date >= (SELECT start_date FROM date_range)
+            ),
+            returns_in_range AS (
+                SELECT id
+                FROM returns
+                WHERE company_id = '${companyId}' AND return_date >= (SELECT start_date FROM date_range)
+            ),
+            sales_details_in_range AS (
+                SELECT sd.quantity, sd.sales_price, i.cost
+                FROM sales_detail sd
+                JOIN orders_in_range s ON sd.sale_id = s.id AND sd.company_id = s.company_id
+                JOIN inventory i ON sd.item = i.sku AND sd.company_id = i.company_id
+            ),
+            sales_trend AS (
+                SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
+                FROM orders_in_range
+                GROUP BY 1 ORDER BY 1
+            ),
+            top_customers AS (
+                SELECT c.customer_name as name, SUM(s.total_amount) as value
+                FROM orders_in_range s JOIN customers c ON s.customer_name = c.customer_name AND c.company_id = '${companyId}'
+                GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
+            ),
+            inventory_by_category AS (
+                SELECT category as name, sum(quantity * cost) as value 
+                FROM inventory
+                WHERE company_id = '${companyId}' AND category IS NOT NULL
+                GROUP BY category
+            ),
+            main_metrics AS (
+                SELECT
+                    (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range) as "totalSalesValue",
+                    (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range) as "totalProfit",
+                    (SELECT COUNT(*) FROM orders_in_range) as "totalOrders",
+                    (SELECT COUNT(*) FROM returns_in_range) as "totalReturns"
             )
-            SELECT
-                s.total_sales, r.total_returns,
-                CASE WHEN s.total_sales > 0 THEN (r.total_returns::decimal / s.total_sales) * 100 ELSE 0 END as return_rate
-            FROM SalesRange s, ReturnsRange r
+            SELECT json_build_object(
+                'totalSalesValue', m."totalSalesValue",
+                'totalProfit', m."totalProfit",
+                'averageOrderValue', CASE WHEN m."totalOrders" > 0 THEN m."totalSalesValue" / m."totalOrders" ELSE 0 END,
+                'returnRate', CASE WHEN m."totalOrders" > 0 THEN (m."totalReturns"::decimal / m."totalOrders") * 100 ELSE 0 END,
+                'totalOrders', m."totalOrders",
+                'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
+                'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
+                'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t)
+            ) as metrics
+            FROM main_metrics m;
         `;
-        const returnRatePromise = supabase.rpc('execute_dynamic_query', { query_text: returnRateQuery.trim().replace(/;/g, '') });
-
-        const results = await Promise.allSettled([
-            salesPromise,
-            customersPromise,
-            profitPromise,
-            inventoryValuePromise,
-            lowStockPromise,
-            salesTrendPromise,
-            topCustomersPromise,
-            inventoryByCategoryPromise,
-            returnRatePromise,
-        ]);
         
-        const extractData = (result: PromiseSettledResult<any>, defaultValue: any) => {
-            if (result.status === 'fulfilled' && !result.value.error) {
-            return result.value.data ?? defaultValue;
-            }
-            if (result.status === 'rejected' || (result.status === 'fulfilled' && result.value.error)) {
-                const error = result.status === 'rejected' ? result.reason : result.value.error;
-                if (error?.message && !error.message.includes('does not exist')) { 
-                    logger.warn(`[DB Service] A dashboard metric query failed:`, error?.message);
-                }
-            }
-            return defaultValue;
-        };
-
-        const extractCount = (result: PromiseSettledResult<any>) => {
-            if (result.status === 'fulfilled' && !result.value.error) {
-                return result.value.count || 0;
-            }
-            return 0;
+        const { data: combinedData, error: combinedError } = await supabase.rpc('execute_dynamic_query', { query_text: combinedQuery.trim().replace(/;/g, '') });
+        
+        if (combinedError) {
+            logger.error(`[DB Service] Dashboard combined query failed for company ${companyId}:`, combinedError);
+            throw combinedError;
         }
-        
-        const [
-            salesResult,
-            customersResult,
-            profitResult,
-            inventoryValueResult,
-            lowStockResult,
-            salesTrendResult,
-            topCustomersResult,
-            inventoryByCategoryResult,
-            returnRateResult,
-        ] = results;
 
-        const sales = extractData(salesResult, []);
-        const customersCount = extractCount(customersResult);
-        const profitData = extractData(profitResult, []);
-        const inventoryValueData = extractData(inventoryValueResult, [{ total_value: 0 }]);
-        const totalInventoryValue = inventoryValueData[0]?.total_value || 0;
+        const metrics = combinedData[0]?.metrics || {};
 
-        const lowStockCountData = extractData(lowStockResult, [{count: 0}]);
-        const lowStockItemsCount = lowStockCountData[0]?.count || 0;
+        const { data: customers } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
-        const salesTrendData = extractData(salesTrendResult, []);
-        const topCustomersData = extractData(topCustomersResult, []);
-        const inventoryByCategoryData = extractData(inventoryByCategoryResult, []);
-        const returnRateData = extractData(returnRateResult, [])[0];
-
-        const totalSalesValue = sales.reduce((sum: number, sale: any) => sum + (sale.total_amount || 0), 0);
-        const totalOrders = sales.length;
-        const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
-        const totalProfit = profitData.reduce((sum: number, item: any) => sum + (item.sales_price - item.cost) * item.quantity, 0);
-        const returnRate = returnRateData?.return_rate || 0;
-        
         const finalMetrics: DashboardMetrics = {
-            totalSalesValue: Math.round(totalSalesValue),
-            totalProfit: Math.round(totalProfit),
-            returnRate: returnRate,
-            totalInventoryValue: Math.round(totalInventoryValue),
-            lowStockItemsCount,
-            totalOrders,
-            totalCustomers: customersCount,
-            averageOrderValue,
-            salesTrendData: salesTrendData || [],
-            inventoryByCategoryData: inventoryByCategoryData || [],
-            topCustomersData: topCustomersData || [],
+            totalSalesValue: Math.round(metrics.totalSalesValue || 0),
+            totalProfit: Math.round(metrics.totalProfit || 0),
+            returnRate: metrics.returnRate || 0,
+            totalInventoryValue: Math.round(mvData?.inventory_value || 0),
+            lowStockItemsCount: mvData?.low_stock_count || 0,
+            totalOrders: metrics.totalOrders || 0,
+            totalCustomers: customers?.count || 0,
+            averageOrderValue: metrics.averageOrderValue || 0,
+            salesTrendData: metrics.salesTrendData || [],
+            inventoryByCategoryData: metrics.inventoryByCategoryData || [],
+            topCustomersData: metrics.topCustomersData || [],
         };
-
+        
         if (isRedisEnabled) {
             try {
                 await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', config.redis.ttl.dashboard);
