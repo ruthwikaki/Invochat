@@ -82,14 +82,21 @@ const ConfigSchema = z.object({
 try {
     ConfigSchema.parse(config);
 } catch (e: any) {
-    console.error("❌ Invalid application configuration:", e.errors);
+    console.error("❌ Invalid application configuration:");
+    let detailedError = "Check server logs for details.";
+    if (e instanceof z.ZodError) {
+        // Create a more readable error message from the Zod issues.
+        detailedError = e.errors.map(err => `[${err.path.join('.')}] ${err.message}`).join('\n');
+    }
+    console.error(detailedError);
+    
     // In a server environment, we should exit gracefully.
-    // In a Next.js build process, this will cause the build to fail, which is what we want.
     if (isProduction && typeof process.exit === 'function') {
         process.exit(1);
     }
     // Fallback for environments where process.exit is not available
-    throw new Error("Invalid application configuration. Check server logs for details.");
+    // Throw a more helpful error for the Next.js overlay.
+    throw new Error(`Invalid application configuration. ${detailedError} Please check your .env file against .env.example.`);
 }
 
 // A type alias for convenience
