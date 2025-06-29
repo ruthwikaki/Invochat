@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const sqlCode = `-- This file contains all the necessary SQL to set up your database.
 -- It should be run once in your Supabase project's SQL Editor.
+-- This script is idempotent and can be safely re-run on an existing database.
 
 -- ========= Part 1: New User Trigger =========
 -- This function and trigger ensure that when a new user signs up,
@@ -95,22 +96,18 @@ $$;
 -- GRANT EXECUTE ON FUNCTION public.execute_dynamic_query TO service_role;
 --
 
--- ========= Part 3: Performance Optimization (Optional, but Recommended) =========
--- This creates a "materialized view", which is like a pre-calculated snapshot
--- of your key inventory metrics. Querying this view is much faster than
--- calculating the metrics from the raw inventory table every time the dashboard loads.
--- NOTE: This view is based on the 'inventory_valuation' table.
-
+-- ========= Part 3: Performance Optimization (Materialized View) =========
+-- This creates a materialized view, which is a pre-calculated snapshot of key metrics.
+-- This makes the dashboard load much faster for large datasets.
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
-  company_id,
-  COUNT(DISTINCT sku) as total_skus,
-  SUM(quantity * cost) as inventory_value,
-  -- Note: reorder_point is not in inventory_valuation, so low_stock_count is simplified.
-  -- A more complex version could JOIN with another table if reorder points exist there.
-  COUNT(CASE WHEN quantity <= 20 THEN 1 END) as low_stock_count
-FROM inventory_valuation
-GROUP BY company_id
+  iv.company_id,
+  COUNT(DISTINCT iv.sku) as total_skus,
+  SUM(iv.quantity * iv.cost) as inventory_value,
+  COUNT(CASE WHEN fi.quantity <= fi.reorder_point AND fi.reorder_point > 0 THEN 1 END) as low_stock_count
+FROM inventory_valuation iv
+LEFT JOIN fba_inventory fi ON iv.sku = fi.sku AND iv.company_id = fi.company_id
+GROUP BY iv.company_id
 WITH DATA;
 
 -- Create an index to make lookups on the view lightning-fast.
@@ -118,10 +115,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_company_dashboard_metrics_company_id
 ON public.company_dashboard_metrics(company_id);
 
 -- This function is used to refresh the view with the latest data.
--- You can set up a schedule to run this periodically (e.g., every 5 minutes)
+-- You can schedule this to run periodically (e.g., every 5 minutes)
 -- using Supabase's pg_cron extension.
--- Example cron job: SELECT cron.schedule('5_minute_refresh', '*/5 * * * *', 'REFRESH MATERIALIZED VIEW public.company_dashboard_metrics');
-
+-- Example cron job: SELECT cron.schedule('refresh_dashboard_metrics', '*/5 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics');
 CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics()
 RETURNS void
 LANGUAGE sql
@@ -129,7 +125,8 @@ AS $$
   REFRESH MATERIALIZED VIEW public.company_dashboard_metrics;
 $$;
 
--- ========= Part 4: AI Query Learning =========
+
+-- ========= Part 4: AI Query Learning Table =========
 -- This table stores successful query patterns for each company.
 -- The AI uses these as dynamic few-shot examples to learn from
 -- past interactions and improve the accuracy of its generated SQL
@@ -178,18 +175,18 @@ export default function SetupIncompletePage() {
                     <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
                         <AlertTriangle className="h-8 w-8 text-destructive" />
                     </div>
-                    <CardTitle className="mt-4">One-Time Database Setup Required</CardTitle>
+                    <CardTitle className="mt-4">Database Setup Required</CardTitle>
                     <CardDescription>
-                       To get started, the necessary database functions and triggers must be set up in your Supabase project.
+                       Your application's new features require database updates. For everything to work correctly, please run the complete SQL script below in your Supabase project.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-sm text-center font-semibold text-destructive bg-destructive/10 p-3 rounded-md">
-                        This is a one-time action for the developer setting up this project. Your end-users will not see this page.
+                        This is a one-time action for the project developer. This script is safe to re-run on an existing database.
                     </p>
                     <div className="space-y-2 text-sm text-muted-foreground">
                         <h3 className="font-semibold text-card-foreground">How to Fix:</h3>
-                        <p>1. Click the button below to copy the required SQL setup script.</p>
+                        <p>1. Click the button below to copy the complete SQL setup script.</p>
                         <p>2. Go to your Supabase project's SQL Editor.</p>
                         <p>3. Paste the entire script into the editor and click "Run".</p>
                     </div>
