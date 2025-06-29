@@ -54,15 +54,15 @@ export type ChartConfig = {
 
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
-    name: z.string().min(1),
-    contact_info: z.string().email(),
+    vendor_name: z.string().min(1),
+    contact_info: z.string().nullable(),
     address: z.string().nullable(),
     terms: z.string().nullable(),
     account_number: z.string().nullable(),
 }).transform(data => ({
     id: data.id,
-    name: (data as any).vendor_name || data.name, // Handle raw data from DB
-    contact_info: data.contact_info,
+    name: data.vendor_name,
+    contact_info: data.contact_info || 'N/A',
     address: data.address,
     terms: data.terms,
     account_number: data.account_number,
@@ -73,9 +73,9 @@ export type Supplier = z.infer<typeof SupplierSchema>;
 export const DeadStockItemSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
-    quantity: z.number(),
-    cost: z.number(),
-    total_value: z.number(),
+    quantity: z.coerce.number(),
+    cost: z.coerce.number(),
+    total_value: z.coerce.number(),
     last_sale_date: z.string().nullable(),
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
@@ -118,13 +118,13 @@ export const CompanySettingsSchema = z.object({
   overstock_multiplier: z.number(),
   high_value_threshold: z.number(),
   fast_moving_days: z.number(),
-  currency: z.string().nullable().default('USD'),
-  timezone: z.string().nullable().default('UTC'),
-  tax_rate: z.number().nullable().default(0),
-  theme_primary_color: z.string().nullable().default('262 84% 59%'),
-  theme_background_color: z.string().nullable().default('0 0% 96%'),
-  theme_accent_color: z.string().nullable().default('0 0% 90%'),
-  custom_rules: z.any().nullable(),
+  currency: z.string().nullable().optional().default('USD'),
+  timezone: z.string().nullable().optional().default('UTC'),
+  tax_rate: z.number().nullable().optional().default(0),
+  theme_primary_color: z.string().nullable().optional().default('262 84% 59%'),
+  theme_background_color: z.string().nullable().optional().default('0 0% 96%'),
+  theme_accent_color: z.string().nullable().optional().default('0 0% 90%'),
+  custom_rules: z.any().nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 });
