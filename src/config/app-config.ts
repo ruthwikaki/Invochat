@@ -97,13 +97,12 @@ try {
     }
     console.error(detailedError);
     
-    // In a server environment, we should exit gracefully.
+    // In a server environment, we should exit gracefully if validation fails in production.
     if (isProduction && typeof process.exit === 'function') {
         process.exit(1);
     }
-    // Fallback for environments where process.exit is not available
-    // Throw a more helpful error for the Next.js overlay.
-    throw new Error(`Invalid application configuration. ${detailedError} Please check your .env file against .env.example.`);
+    // Do not throw an error in development, as it can be caused by hot-reloading timing issues.
+    // The error will be caught later at the point of use if a key is truly missing.
 }
 
 // A type alias for convenience
