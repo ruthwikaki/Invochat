@@ -99,8 +99,10 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
 
         } else if (response.conversationId && isNewChat) {
             router.push(`/chat?id=${response.conversationId}`);
-        } else {
-            router.refresh();
+        } else if (response.newMessage) {
+            // Replace the loading message with the real one
+            setMessages(prev => [...prev.filter(m => m.id !== 'loading'), response.newMessage!]);
+            router.refresh(); // Refresh server-side data like conversation list
         }
 
       } catch (error: any) {
@@ -131,6 +133,8 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
     }
   };
   
+  // This effect ensures the messages displayed are always in sync with the server-fetched initialMessages,
+  // especially when the user navigates between different conversations.
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
@@ -145,7 +149,7 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
         });
       }
     }
-  }, [messages, isPending]);
+  }, [messages]);
 
   return (
     <div className="flex h-full flex-grow flex-col justify-between bg-muted/30">

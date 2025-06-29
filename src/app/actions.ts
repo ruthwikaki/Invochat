@@ -107,18 +107,22 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
     const keys = Object.keys(firstItem);
     if (keys.length < 2) return [];
 
-    if (chartType === 'scatter' && 'x' in firstItem && 'y' in firstItem) {
+    if (chartType === 'scatter') {
+        // For scatter plots, ensure x and y exist and are numbers.
         return data.filter(p => typeof p.x === 'number' && typeof p.y === 'number');
     }
     
+    // Auto-detect name and value keys based on common patterns and types.
     const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('size') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('amount')) || keys.find(k => typeof firstItem[k] === 'number');
     const nameKey = keys.find(k => k !== valueKey && typeof firstItem[k] === 'string' && (k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor') || k.toLowerCase().includes('item'))) || keys.find(k => k !== valueKey);
-
 
     if (!valueKey || !nameKey) return [];
 
     const transformed = data.map((item) => {
+        // Per-item validation: ensure it's a valid object with the required keys.
         if (typeof item !== 'object' || item === null || !(nameKey in item) || !(valueKey in item)) return null;
+        
+        // Coerce value to a number and check if it's valid.
         const rawValue = item[valueKey];
         const numericValue = parseFloat(rawValue);
         if (isNaN(numericValue)) return null;
@@ -126,6 +130,7 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
         return { name: String(item[nameKey] ?? 'Unnamed'), value: numericValue };
     }).filter((item): item is { name: string; value: number } => item !== null);
     
+    // For chart types that cannot handle negative values, filter them out.
     if (['pie', 'bar', 'treemap'].includes(chartType)) {
         return transformed.filter(item => item.value > 0);
     }
