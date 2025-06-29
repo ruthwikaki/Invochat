@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { login } from '@/app/(auth)/actions';
+import { CSRFInput } from '@/components/auth/csrf-input';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -70,6 +71,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             </p>
           </div>
           <form action={login} className="grid gap-4">
+            <CSRFInput />
             {searchParams?.error && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />

@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
+import { CSRFInput } from '@/components/auth/csrf-input';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -67,6 +68,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent>
           <form action={requestPasswordReset} className="grid gap-4">
+            <CSRFInput />
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -26,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { CSRFInput } from '../auth/csrf-input';
 
 // A new dialog component for changing a user's role
 function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending }: { member: TeamMember | null, onRoleChange: (newRole: TeamMember['role']) => void, open: boolean, onOpenChange: (open: boolean) => void, isPending: boolean }) {
@@ -177,6 +179,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                 </DialogDescription>
                             </DialogHeader>
                             <form action={handleInvite} className="space-y-4">
+                                <CSRFInput />
                                 <div>
                                     <Label htmlFor="email" className="sr-only">Email</Label>
                                     <Input

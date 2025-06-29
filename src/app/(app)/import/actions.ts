@@ -9,12 +9,14 @@ import { InventoryImportSchema, SupplierImportSchema } from './schemas';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache } from '@/lib/redis';
+import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 // Define a type for the structure of our import results.
 export type ImportResult = {
-  successCount: number;
-  errorCount: number;
-  errors: { row: number; message: string }[];
+  success: boolean;
+  successCount?: number;
+  errorCount?: number;
+  errors?: { row: number; message: string }[];
   summaryMessage: string;
 };
 
@@ -42,7 +44,7 @@ async function processCsv<T extends z.ZodType<any, any>>(
     schema: T,
     tableName: string,
     companyId: string
-): Promise<ImportResult> {
+): Promise<Omit<ImportResult, 'success'>> {
     const { data: rows, errors: parsingErrors } = Papa.parse(fileContent, {
         header: true,
         skipEmptyLines: true,
@@ -110,35 +112,44 @@ async function processCsv<T extends z.ZodType<any, any>>(
 // The main server action that the client calls.
 export async function handleDataImport(formData: FormData): Promise<ImportResult> {
     try {
+        const cookieStore = cookies();
+        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
+
+        if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+            logger.warn(`[CSRF] Invalid token for data import action.`);
+            return { success: false, summaryMessage: 'Invalid form submission. Please refresh the page and try again.' };
+        }
+
         const file = formData.get('file') as File | null;
         const dataType = formData.get('dataType') as string;
         
         if (!file || file.size === 0) {
-            return { successCount: 0, errorCount: 0, errors: [{ row: 0, message: 'No file was uploaded or file is empty.' }], summaryMessage: 'Upload failed.' };
+            return { success: true, successCount: 0, errorCount: 0, errors: [{ row: 0, message: 'No file was uploaded or file is empty.' }], summaryMessage: 'Upload failed.' };
         }
         
         const fileContent = await file.text();
         const companyId = await getCompanyIdForCurrentUser();
 
-        let result: ImportResult;
+        let result: Omit<ImportResult, 'success'>;
 
         switch (dataType) {
             case 'inventory':
                 result = await processCsv(fileContent, InventoryImportSchema, 'inventory_valuation', companyId);
-                if (result.successCount > 0) await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+                if ((result.successCount || 0) > 0) await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
                 break;
             case 'suppliers':
                 result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId);
-                if (result.successCount > 0) await invalidateCompanyCache(companyId, ['suppliers']);
+                if ((result.successCount || 0) > 0) await invalidateCompanyCache(companyId, ['suppliers']);
                 break;
             default:
                 throw new Error(`Unsupported data type: ${dataType}`);
         }
 
-        return result;
+        return { success: true, ...result };
 
     } catch (e: any) {
         logger.error('[Data Import] An unexpected error occurred:', e);
-        return { successCount: 0, errorCount: 0, errors: [{ row: 0, message: e.message }], summaryMessage: 'An unexpected server error occurred.' };
+        return { success: false, summaryMessage: `An unexpected server error occurred: ${e.message}` };
     }
 }

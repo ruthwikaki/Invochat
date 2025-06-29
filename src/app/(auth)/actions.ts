@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
+import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 function getSupabaseClient() {
     const cookieStore = cookies();
@@ -31,12 +32,24 @@ function getSupabaseClient() {
     );
 }
 
+function validateCsrf(formData: FormData, redirectPath: string) {
+    const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
+    const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+
+    if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+        logger.warn(`[CSRF] Invalid token for action at path: ${redirectPath}`);
+        redirect(`${redirectPath}?error=${encodeURIComponent('Invalid form submission. Please try again.')}`);
+    }
+}
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1, 'Password is required'),
 });
 
 export async function login(formData: FormData) {
+  validateCsrf(formData, '/login');
+
   const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
   const { limited } = await rateLimit(ip, 'auth', 5, 60); // 5 requests per minute per IP
   if (limited) {
@@ -79,6 +92,8 @@ const signupSchema = z.object({
 
 
 export async function signup(formData: FormData) {
+    validateCsrf(formData, '/signup');
+
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
     const { limited } = await rateLimit(ip, 'auth', 5, 60); // 5 requests per minute per IP
     if (limited) {
@@ -129,6 +144,7 @@ const requestPasswordResetSchema = z.object({
 });
 
 export async function requestPasswordReset(formData: FormData) {
+    validateCsrf(formData, '/forgot-password');
     const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {
@@ -153,6 +169,7 @@ const updatePasswordSchema = z.object({
 });
 
 export async function updatePassword(formData: FormData) {
+    validateCsrf(formData, '/update-password');
     const parsed = updatePasswordSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {

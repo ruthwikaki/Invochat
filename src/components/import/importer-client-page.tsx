@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, CheckCircle, FileUp, Loader2, Table } from 'lucide-react';
+import { CSRFInput } from '../auth/csrf-input';
+import { useToast } from '@/hooks/use-toast';
 
 const importOptions = {
     inventory: {
@@ -36,8 +38,8 @@ function SubmitButton() {
     );
 }
 
-function ImportResultsCard({ results }: { results: ImportResult }) {
-    const hasErrors = results.errorCount > 0;
+function ImportResultsCard({ results }: { results: Omit<ImportResult, 'success'> }) {
+    const hasErrors = (results.errorCount || 0) > 0;
     const alertVariant = hasErrors ? 'destructive' : 'default';
     const Icon = hasErrors ? AlertTriangle : CheckCircle;
     
@@ -52,7 +54,7 @@ function ImportResultsCard({ results }: { results: ImportResult }) {
                     <AlertTitle>{results.summaryMessage}</AlertTitle>
                 </Alert>
 
-                {hasErrors && (
+                {hasErrors && results.errors && (
                     <div>
                         <h3 className="mb-2 font-semibold">Error Details:</h3>
                         <div className="max-h-60 overflow-y-auto rounded-md border bg-muted p-2">
@@ -75,14 +77,24 @@ function ImportResultsCard({ results }: { results: ImportResult }) {
 
 export function ImporterClientPage() {
     const [dataType, setDataType] = useState<DataType>('inventory');
-    const [results, setResults] = useState<ImportResult | null>(null);
+    const [results, setResults] = useState<Omit<ImportResult, 'success'> | null>(null);
     const [isPending, startTransition] = useTransition();
+    const { toast } = useToast();
 
     const handleSubmit = (formData: FormData) => {
         setResults(null);
         startTransition(async () => {
             const result = await handleDataImport(formData);
-            setResults(result);
+            if (result.success) {
+                setResults(result);
+            } else {
+                 toast({
+                    variant: 'destructive',
+                    title: 'Import Failed',
+                    description: result.summaryMessage
+                });
+                setResults(null);
+            }
         });
     };
 
@@ -97,6 +109,7 @@ export function ImporterClientPage() {
                 </CardHeader>
                 <form action={handleSubmit}>
                     <CardContent className="space-y-6">
+                        <CSRFInput />
                         <div className="space-y-2">
                             <Label htmlFor="data-type">Data Type</Label>
                             <Select name="dataType" value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>

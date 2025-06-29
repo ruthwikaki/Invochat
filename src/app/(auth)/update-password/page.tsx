@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
+import { CSRFInput } from '@/components/auth/csrf-input';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -82,6 +83,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent>
           <form action={handleSubmit} className="grid gap-4">
+            <CSRFInput />
             <div className="grid gap-2">
               <Label htmlFor="password">New Password</Label>
                <PasswordInput id="password" name="password" required />

@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { CheckCircle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
+import { CSRFInput } from '@/components/auth/csrf-input';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -72,6 +73,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
         </CardHeader>
         <CardContent>
           <form action={signup} className="grid gap-4">
+            <CSRFInput />
             <div className="grid gap-2">
               <Label htmlFor="companyName">Company Name</Label>
               <Input

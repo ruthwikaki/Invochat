@@ -2,6 +2,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { logger } from './lib/logger';
+import { generateCSRFToken, CSRF_COOKIE_NAME } from './lib/csrf';
 
 export async function middleware(req: NextRequest) {
   let response = NextResponse.next({
@@ -58,6 +59,22 @@ export async function middleware(req: NextRequest) {
       },
     }
   );
+
+  // CSRF Protection: Set cookie on all requests
+  // This cookie is NOT httpOnly, so it can be read by client-side script
+  // to be included in form submissions.
+  const csrfToken = req.cookies.get(CSRF_COOKIE_NAME)?.value;
+  if (!csrfToken) {
+    const newCsrfToken = generateCSRFToken();
+    response.cookies.set({
+      name: CSRF_COOKIE_NAME,
+      value: newCsrfToken,
+      httpOnly: false, // Must be readable by client-side script
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];

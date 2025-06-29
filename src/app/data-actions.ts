@@ -15,7 +15,7 @@ import {
     getUnifiedInventoryFromDB,
     getInventoryCategoriesFromDB,
     getTeamMembersFromDB,
-    inviteUserToCompany,
+    inviteUserToCompany as inviteUserToCompanyInDb,
     removeTeamMemberFromDb,
     updateTeamMemberRoleInDb,
 } from '@/services/database';
@@ -27,6 +27,7 @@ import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
+import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
@@ -168,6 +169,15 @@ const InviteTeamMemberSchema = z.object({
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const cookieStore = cookies();
+        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
+
+        if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+            logger.warn(`[CSRF] Invalid token for invite team member action.`);
+            return { success: false, error: 'Invalid form submission. Please try again.' };
+        }
+
         const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
         if (!parsed.success) {
             return { success: false, error: parsed.error.issues[0].message };
@@ -199,7 +209,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
             throw new Error('Could not retrieve company information to send invite.');
         }
 
-        await inviteUserToCompany(companyId, companyData.name, email);
+        await inviteUserToCompanyInDb(companyId, companyData.name, email);
         revalidatePath('/settings/team');
         return { success: true };
     } catch (e: any) {
