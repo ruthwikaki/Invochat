@@ -1,10 +1,5 @@
-import { notFound } from 'next/navigation';
-
-// This component explicitly tells Next.js that this page should not be found.
-// It uses the built-in notFound() function to prevent a route conflict with
-// the actual login page at /src/app/(auth)/login/page.tsx.
-export default function AppLoginPage() {
-  notFound();
-  // A component must return a valid element or null to be syntactically correct.
-  return null;
-}
+// This file is intentionally left non-functional to resolve a build conflict
+// between two routes mapping to `/login`. By exporting a plain object instead of a
+// React component, we signal to the Next.js build system that this file
+// should not be treated as a renderable page.
+export default {};
