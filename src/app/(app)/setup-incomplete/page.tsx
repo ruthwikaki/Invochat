@@ -117,13 +117,17 @@ $$;
 -- This section defines core tables required for application functionality, like 'returns'.
 
 -- The 'returns' table stores information about product returns.
+-- The 'created_at' column is essential for time-based analysis.
 CREATE TABLE IF NOT EXISTS public.returns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     order_id UUID REFERENCES public.orders(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-    -- You can add other return-specific columns here, such as return_reason, quantity, etc.
 );
+
+-- This command ensures that users with an older version of the database schema
+-- get the necessary 'created_at' column added to their 'returns' table.
+ALTER TABLE public.returns ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Add an index for performance on common queries.
 CREATE INDEX IF NOT EXISTS idx_returns_company_created ON public.returns(company_id, created_at);
@@ -254,5 +258,3 @@ export default function SetupIncompletePage() {
         </div>
     )
 }
-
-    
