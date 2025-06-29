@@ -334,7 +334,7 @@ const universalChatOrchestrator = ai.defineFlow(
   async (input) => {
     const { companyId, conversationHistory } = input;
     const lastMessage = conversationHistory[conversationHistory.length - 1];
-    const userQuery = (lastMessage?.content[0]?.text) || '';
+    const userQuery = lastMessage?.content[0]?.text || '';
 
     if (!userQuery) {
         throw new Error("User query was empty.");

@@ -191,7 +191,7 @@ export async function handleUserMessage(
       throw new Error('Rate limited');
     }
 
-    let historyForAI: { role: 'user' | 'assistant'; content: { text: string; }[] }[] = [];
+    let historyForAI: { role: 'user' | 'assistant'; content: { text: string }[] }[] = [];
 
     if (!currentConversationId) {
         const title = source === 'analytics_page' 
@@ -217,13 +217,18 @@ export async function handleUserMessage(
 
         if (historyError) throw new Error("Could not fetch conversation history.");
         
-        const validHistory = (history || []).filter(msg => typeof msg.content === 'string');
-        historyForAI = validHistory.reverse().map(msg => ({
-            role: msg.role as 'user' | 'assistant',
-            content: [{ text: msg.content! }]
-        }));
+        // Convert the database history to the format expected by the AI
+        historyForAI = (history || [])
+            .filter(msg => typeof msg.content === 'string')
+            .reverse() // Reverse to get chronological order
+            .map(msg => ({
+                role: msg.role as 'user' | 'assistant',
+                content: [{ text: msg.content! }] // Wrap content in the required structure
+            }));
+        // Add the current user query to the history
         historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
     }
+
 
     await supabase.from('messages').insert({
         conversation_id: currentConversationId,
@@ -237,14 +242,18 @@ export async function handleUserMessage(
     const cacheKey = `company:${companyId}:query:${queryHash}`;
 
     if (isRedisEnabled) {
-        const cachedResponse = await redisClient.get(cacheKey);
-        if (cachedResponse) {
-            logger.info(`[Cache] HIT for AI query: ${cacheKey}`);
-            await incrementCacheHit('ai_query');
-            flowResponse = JSON.parse(cachedResponse);
-        } else {
-            logger.info(`[Cache] MISS for AI query: ${cacheKey}`);
-            await incrementCacheMiss('ai_query');
+        try {
+            const cachedResponse = await redisClient.get(cacheKey);
+            if (cachedResponse) {
+                logger.info(`[Cache] HIT for AI query: ${cacheKey}`);
+                await incrementCacheHit('ai_query');
+                flowResponse = JSON.parse(cachedResponse);
+            } else {
+                logger.info(`[Cache] MISS for AI query: ${cacheKey}`);
+                await incrementCacheMiss('ai_query');
+            }
+        } catch (e) {
+            logger.error(`[Redis] Error getting cached query for ${cacheKey}:`, e);
         }
     }
 

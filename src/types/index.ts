@@ -6,7 +6,7 @@ export type User = Omit<SupabaseUser, 'app_metadata' | 'role'> & {
   app_metadata?: {
     company_id?: string;
   };
-  role?: string;
+  role?: 'Owner' | 'Admin' | 'Member';
 };
 
 export type Conversation = {

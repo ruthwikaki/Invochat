@@ -1,18 +1,26 @@
 
 import { z } from 'zod';
 
+// A single part of a multi-modal message
+const ContentPartSchema = z.object({
+    text: z.string(),
+    // We only support text for now, but this structure allows for future expansion
+    // to include images, tool calls, etc.
+});
+
+// A message in the conversation history
+const HistoryMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.array(ContentPartSchema),
+});
+
 // Input schema for the universal chat flow
 export const UniversalChatInputSchema = z.object({
   companyId: z.string(),
-  conversationHistory: z.array(z.object({
-    role: z.enum(['user', 'assistant', 'system']),
-    // Content is an array of parts, but for now we only support a single text part.
-    content: z.array(z.object({
-        text: z.string(),
-    })),
-  })),
+  conversationHistory: z.array(HistoryMessageSchema),
 });
 export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
+
 
 // Output schema for the universal chat flow
 export const UniversalChatOutputSchema = z.object({

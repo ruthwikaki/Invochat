@@ -14,7 +14,7 @@ import {
     generateAnomalyInsights as getAnomalyInsightsFromDB,
     getUnifiedInventoryFromDB,
     getInventoryCategoriesFromDB,
-    getTeamMembers as getTeamMembersFromDB,
+    getTeamMembersFromDB,
     inviteUserToCompany,
     removeTeamMemberFromDb,
     updateTeamMemberRoleInDb,

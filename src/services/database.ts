@@ -144,7 +144,10 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
         const profitQuery = `
-            SELECT sd.profit FROM sales_detail sd JOIN orders s ON sd.sale_id = s.id AND sd.company_id = s.company_id
+            SELECT sd.quantity, sd.sales_price, i.cost 
+            FROM sales_detail sd 
+            JOIN orders s ON sd.sale_id = s.id AND sd.company_id = s.company_id
+            JOIN inventory i ON sd.item = i.sku AND sd.company_id = i.company_id
             WHERE s.company_id = '${companyId}'
             AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
         `;
@@ -264,7 +267,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const totalSalesValue = sales.reduce((sum: number, sale: any) => sum + (sale.total_amount || 0), 0);
         const totalOrders = sales.length;
         const averageOrderValue = totalOrders > 0 ? totalSalesValue / totalOrders : 0;
-        const totalProfit = profitData.reduce((sum: number, item: any) => sum + (item.profit || 0), 0);
+        const totalProfit = profitData.reduce((sum: number, item: any) => sum + (item.sales_price - item.cost) * item.quantity, 0);
         const returnRate = returnRateData?.return_rate || 0;
         
         const finalMetrics: DashboardMetrics = {
@@ -515,6 +518,10 @@ const USER_FACING_TABLES = [
     'warehouse_locations', 
     'price_lists',
     'daily_stats',
+    // Child tables without a direct company_id link
+    'order_items',
+    'return_items',
+    'product_attributes'
 ];
 
 export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: any[] }[]> {
@@ -522,27 +529,56 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
         const supabase = getServiceRoleClient();
         const results: { tableName: string; rows: any[] }[] = [];
 
-        for (const tableName of USER_FACING_TABLES) {
+        // Tables that can be filtered directly by company_id
+        const directFilterTables = [
+            'vendors', 'orders', 'customers', 'returns', 'inventory',
+            'sales_detail', 'fba_inventory', 'inventory_valuation', 
+            'warehouse_locations', 'price_lists', 'daily_stats',
+        ];
+
+        // Fetch data for tables with direct company_id filter
+        for (const tableName of directFilterTables) {
             const { data, error } = await supabase
-            .from(tableName)
-            .select('*')
-            .eq('company_id', companyId)
-            .limit(10);
+                .from(tableName)
+                .select('*')
+                .eq('company_id', companyId)
+                .limit(10);
 
             if (error) {
                 if (!error.message.includes("does not exist")) {
                     logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not be configured for the current company. Error: ${error.message}`);
                 }
+                // Even on error, push the table name so the UI knows it was attempted
                 results.push({ tableName, rows: [] });
             } else {
-            results.push({
-                tableName,
-                rows: data || [],
-            });
+                results.push({ tableName, rows: data || [] });
+            }
+        }
+        
+        // Fetch data for child tables without a direct filter
+        // The AI will learn to join through parent tables
+        const childTables = ['order_items', 'return_items', 'product_attributes'];
+        for (const tableName of childTables) {
+             const { data, error } = await supabase
+                .from(tableName)
+                .select('*')
+                .limit(10);
+            
+            if (error) {
+                 if (!error.message.includes("does not exist")) {
+                    logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. Error: ${error.message}`);
+                }
+                results.push({ tableName, rows: [] });
+            } else {
+                 results.push({ tableName, rows: data || [] });
             }
         }
 
-        return results;
+        // Return tables in the specified order
+        return USER_FACING_TABLES.map(tableName => {
+            const found = results.find(r => r.tableName === tableName);
+            return found || { tableName, rows: [] };
+        });
     });
 }
 
