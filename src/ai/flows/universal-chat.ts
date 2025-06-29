@@ -162,8 +162,8 @@ const FEW_SHOT_EXAMPLES = `
          SELECT COUNT(id) as total_returns
          FROM returns
          WHERE company_id = '{{companyId}}'
-           AND created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-           AND created_at < date_trunc('month', CURRENT_DATE)
+           AND requested_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+           AND requested_at < date_trunc('month', CURRENT_DATE)
      )
      SELECT
         ms.total_sales,

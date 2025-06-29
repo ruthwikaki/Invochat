@@ -167,7 +167,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             returns_in_range AS (
                 SELECT id
                 FROM returns
-                WHERE company_id = '${companyId}' AND created_at >= (SELECT start_date FROM date_range)
+                WHERE company_id = '${companyId}' AND requested_at >= (SELECT start_date FROM date_range)
             ),
             sales_details_in_range AS (
                 SELECT oi.quantity, oi.unit_price as sales_price, i.cost
