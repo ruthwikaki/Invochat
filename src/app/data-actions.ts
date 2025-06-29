@@ -17,6 +17,7 @@ import {
     getTeamMembers as getTeamMembersFromDB,
     inviteUserToCompany,
     removeTeamMemberFromDb,
+    updateTeamMemberRoleInDb,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember } from '@/types';
@@ -154,7 +155,6 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();
     const members = await getTeamMembersFromDB(companyId);
 
-    // Differentiate the current user as 'Owner'
     return members.map(member => ({
         id: member.id,
         email: member.email,
@@ -423,19 +423,16 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         }
         
         // Update the user's role in the database.
-        const { error: updateError } = await supabase
-            .from('users')
-            .update({ role: newRole })
-            .eq('id', memberIdToUpdate)
-            .eq('company_id', companyId); // Extra security check
+        const result = await updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
 
-        if (updateError) {
-            throw new Error(updateError.message);
+        if (result.success) {
+             logger.info(`[Role Update] User ${currentUserId} updated role for ${memberIdToUpdate} to ${newRole}`);
+             revalidatePath('/settings/team');
+        } else {
+            logger.error(`[Role Update Action] Failed to update role for ${memberIdToUpdate}:`, result.error);
         }
-
-        logger.info(`[Role Update] User ${currentUserId} updated role for ${memberIdToUpdate} to ${newRole}`);
-        revalidatePath('/settings/team');
-        return { success: true };
+       
+        return result;
 
     } catch (e: any) {
         logger.error('[Role Update Action] Caught exception:', e);

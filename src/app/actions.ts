@@ -159,8 +159,8 @@ function getErrorMessage(error: any): string {
         errorMessage = `For security, the AI-generated query was blocked. Reason: ${message.split('Reason: ')[1]}`;
     } else if (message.includes('The AI model did not return a valid final response object')) {
         errorMessage = "The AI returned an unexpected or empty response. This might be a temporary issue. Please try again.";
-    } else if (status === 'NOT_FOUND' || message.includes('NOT_FOUND') || message.includes('Model not found')) {
-        errorMessage = `The AI model '${config.ai.model}' is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
+    } else if (status === 'NOT_FOUND' || message.includes('NOT_FOUND') || message.includes('Model not found') || message.includes('INVALID_ARGUMENT')) {
+        errorMessage = `The AI model encountered an error. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, an invalid API key, or a malformed request. Please check the System Health page for more details.`;
     } else if (message.includes('API key not valid')) {
         errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file and ensure it is correct.';
     } else if (message.includes('Your user session is invalid or not fully configured')) {
@@ -204,7 +204,7 @@ export async function handleUserMessage(
       throw new Error('Rate limited');
     }
 
-    let historyForAI: { role: 'user' | 'assistant'; content: string }[] = [];
+    let historyForAI: { role: 'user' | 'assistant'; content: { text: string; }[] }[] = [];
 
     // Step 1: Find or Create Conversation
     if (!currentConversationId) {
@@ -220,7 +220,7 @@ export async function handleUserMessage(
         
         if (convoError) throw new Error(`Could not create conversation: ${convoError.message}`);
         currentConversationId = newConvo.id;
-        historyForAI.push({ role: 'user', content: userQuery });
+        historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
     } else {
         const { data: history, error: historyError } = await supabase
             .from('messages')
@@ -232,9 +232,9 @@ export async function handleUserMessage(
         if (historyError) throw new Error("Could not fetch conversation history.");
         historyForAI = (history || []).reverse().map(msg => ({
             role: msg.role as 'user' | 'assistant',
-            content: msg.content
+            content: [{ text: msg.content }]
         }));
-        historyForAI.push({ role: 'user', content: userQuery });
+        historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
     }
 
     // Step 2: Save the user's message, ensuring company_id is included.

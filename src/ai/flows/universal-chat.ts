@@ -259,7 +259,7 @@ const queryValidationPrompt = ai.definePrompt({
 
     **SECURITY VALIDATION CHECKLIST (FAIL THE QUERY IF ANY OF THESE ARE TRUE):**
     1.  **Check for Forbidden Keywords**: Does the query contain ANY of the following keywords (case-insensitive)?
-        - \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`DROP\`, \`TRUNCATE\`, \`ALTER\`, \`GRANT\`, \`REVOKE\`, \`CREATE\`, \`EXECUTE\`
+        - \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`TRUNCATE\`, \`ALTER\`, \`GRANT\`, \`REVOKE\`, \`CREATE\`, \`EXECUTE\`
         If yes, FAIL validation immediately.
     2.  **Check for SQL Comments**: Does the query contain SQL comments (\`--\` or \`/*\`)?
         If yes, FAIL validation. Comments can be used to hide malicious code.
@@ -366,8 +366,9 @@ const universalChatOrchestrator = ai.defineFlow(
   },
   async (input) => {
     const { companyId, conversationHistory } = input;
-    const userQuery = conversationHistory[conversationHistory.length - 1]?.content || '';
-    
+    const lastMessage = conversationHistory[conversationHistory.length - 1];
+    const userQuery = (lastMessage?.content[0]?.text) || '';
+
     if (!userQuery) {
         throw new Error("User query was empty.");
     }

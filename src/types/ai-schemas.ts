@@ -6,7 +6,10 @@ export const UniversalChatInputSchema = z.object({
   companyId: z.string(),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant', 'system']),
-    content: z.string(),
+    // Content is an array of parts, but for now we only support a single text part.
+    content: z.array(z.object({
+        text: z.string(),
+    })),
   })),
 });
 export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;

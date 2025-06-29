@@ -13,7 +13,7 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem, User } from '@/types';
+import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem, User, TeamMember } from '@/types';
 import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -522,21 +522,18 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 
 // These are the tables we want to expose to the user for querying.
 // We are explicitly listing them to match what the AI has been told it can query.
-// This list is now updated to reflect the new, more complex schema.
+// Child tables without a direct company_id are excluded as they are accessed via joins.
 const USER_FACING_TABLES = [
     'vendors', 
     'orders', 
     'sales_detail',
     'customers', 
     'returns', 
-    'return_items',
-    'order_items', 
     'inventory',
     'fba_inventory', 
     'inventory_valuation', 
     'warehouse_locations', 
     'price_lists',
-    'product_attributes',
     'daily_stats',
 ];
 
@@ -788,12 +785,11 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
     });
 }
 
-export async function getTeamMembers(companyId: string): Promise<{ id: string, email: string, role: string }[]> {
+export async function getTeamMembers(companyId: string): Promise<TeamMember[]> {
     return withPerformanceTracking('getTeamMembers', async () => {
         const supabase = getServiceRoleClient();
-        // Now selecting the role as well
         const { data, error } = await supabase
-            .from('users') // this is the public.users table
+            .from('users')
             .select('id, email, role')
             .eq('company_id', companyId);
 
@@ -801,7 +797,7 @@ export async function getTeamMembers(companyId: string): Promise<{ id: string, e
             logger.error(`[DB Service] Error fetching team members for company ${companyId}:`, error);
             throw error;
         }
-        return data || [];
+        return data as TeamMember[];
     });
 }
 
@@ -838,8 +834,6 @@ export async function removeTeamMemberFromDb(
     return withPerformanceTracking('removeTeamMemberFromDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // This is a permanent and destructive action.
-        // It deletes the user from auth.users, which will cascade and delete from public.users
         const { error: adminError } = await supabase.auth.admin.deleteUser(userIdToRemove);
 
         if (adminError) {
@@ -847,6 +841,29 @@ export async function removeTeamMemberFromDb(
                  return { success: false, error: "The user could not be found. They may have already been removed." };
             }
             throw new Error(adminError.message);
+        }
+
+        return { success: true };
+    });
+}
+
+export async function updateTeamMemberRoleInDb(
+    memberIdToUpdate: string,
+    companyId: string,
+    newRole: 'Admin' | 'Member'
+): Promise<{ success: boolean; error?: string }> {
+     return withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
+        const supabase = getServiceRoleClient();
+        
+        const { error: updateError } = await supabase
+            .from('users')
+            .update({ role: newRole })
+            .eq('id', memberIdToUpdate)
+            .eq('company_id', companyId); // Extra security check
+
+        if (updateError) {
+            logger.error(`[DB Service] Failed to update role for ${memberIdToUpdate}:`, updateError);
+            return { success: false, error: updateError.message };
         }
 
         return { success: true };
