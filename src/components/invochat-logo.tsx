@@ -1,10 +1,10 @@
 import { cn } from '@/lib/utils';
 
-export function InvochatLogo({ className }: { className?: string }) {
+export function ArvoLogo({ className }: { className?: string }) {
   return (
     <svg
       role="img"
-      aria-label="InvoChat Logo"
+      aria-label="ARVO Logo"
       className={cn(className)}
       viewBox="0 0 24 24"
       fill="none"

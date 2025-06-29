@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { InvochatLogo } from '@/components/invochat-logo';
+import { ArvoLogo } from '@/components/invochat-logo';
 import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 
@@ -70,8 +70,8 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <InvochatLogo className="h-10 w-10" />
-        <h1>InvoChat</h1>
+        <ArvoLogo className="h-10 w-10" />
+        <h1>ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
