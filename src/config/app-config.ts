@@ -7,11 +7,10 @@
  * operating the application across different environments (dev, staging, prod).
  */
 import { config as dotenvConfig } from 'dotenv';
-import path from 'path';
 
 // Force load .env variables at the earliest point.
 // This is a workaround for cases where Next.js's automatic loading fails.
-dotenvConfig({ path: path.resolve(process.cwd(), '.env') });
+dotenvConfig();
 
 
 import { z } from 'zod';
