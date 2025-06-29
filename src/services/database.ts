@@ -170,10 +170,10 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 WHERE company_id = '${companyId}' AND created_at >= (SELECT start_date FROM date_range)
             ),
             sales_details_in_range AS (
-                SELECT sd.quantity, sd.sales_price, i.cost
-                FROM sales_detail sd
-                JOIN orders_in_range s ON sd.order_id = s.id AND sd.company_id = s.company_id
-                JOIN inventory i ON sd.item = i.sku AND sd.company_id = i.company_id
+                SELECT oi.quantity, oi.unit_price as sales_price, i.cost
+                FROM order_items oi
+                JOIN orders_in_range s ON oi.sale_id = s.id
+                JOIN inventory i ON oi.sku = i.sku AND s.company_id = i.company_id
             ),
             sales_trend AS (
                 SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
@@ -821,5 +821,3 @@ export async function updateTeamMemberRoleInDb(
         return { success: true };
     });
 }
-
-    

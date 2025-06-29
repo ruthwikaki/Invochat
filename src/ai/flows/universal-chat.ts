@@ -70,14 +70,14 @@ const BUSINESS_QUERY_EXAMPLES = `
   4. Forecasting Query:
      User: "Forecast next month's demand for my top 10 products"
      SQL: WITH historical_sales AS (
-       SELECT item as sku, 
-              DATE_TRUNC('month', sale_date) as month,
-              SUM(quantity) as monthly_quantity
-       FROM sales_detail sd
-       JOIN orders o ON sd.order_id = o.id AND sd.company_id = o.company_id
+       SELECT oi.sku as sku, 
+              DATE_TRUNC('month', o.sale_date) as month,
+              SUM(oi.quantity) as monthly_quantity
+       FROM order_items oi
+       JOIN orders o ON oi.sale_id = o.id
        WHERE o.company_id = '{{companyId}}'
          AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
-       GROUP BY sku, month
+       GROUP BY oi.sku, month
      ),
      trend_analysis AS (
        SELECT sku,
@@ -103,12 +103,12 @@ const BUSINESS_QUERY_EXAMPLES = `
      SQL: WITH product_revenue AS (
        SELECT i.sku,
               i.name as product_name,
-              SUM(sd.quantity * sd.sales_price) as total_revenue,
-              SUM(sd.quantity) as total_units
+              SUM(oi.quantity * oi.unit_price) as total_revenue,
+              SUM(oi.quantity) as total_units
        FROM inventory i
-       JOIN sales_detail sd ON i.sku = sd.item AND i.company_id = sd.company_id
-       JOIN orders o ON sd.order_id = o.id AND sd.company_id = o.company_id
-       WHERE i.company_id = '{{companyId}}'
+       JOIN order_items oi ON i.sku = oi.sku
+       JOIN orders o ON oi.sale_id = o.id
+       WHERE i.company_id = '{{companyId}}' AND o.company_id = '{{companyId}}'
          AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY i.sku, i.name
      ),
@@ -495,5 +495,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    
