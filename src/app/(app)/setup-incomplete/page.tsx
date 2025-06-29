@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth } from '@/context/auth-context';
@@ -101,13 +100,12 @@ $$;
 -- This makes the dashboard load much faster for large datasets.
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
-  iv.company_id,
-  COUNT(DISTINCT iv.sku) as total_skus,
-  SUM(iv.quantity * iv.cost) as inventory_value,
-  COUNT(CASE WHEN fi.quantity <= fi.reorder_point AND fi.reorder_point > 0 THEN 1 END) as low_stock_count
-FROM inventory_valuation iv
-LEFT JOIN fba_inventory fi ON iv.sku = fi.sku AND iv.company_id = fi.company_id
-GROUP BY iv.company_id
+  i.company_id,
+  COUNT(DISTINCT i.sku) as total_skus,
+  SUM(i.quantity * i.cost) as inventory_value,
+  COUNT(CASE WHEN i.quantity <= i.reorder_point AND i.reorder_point > 0 THEN 1 END) as low_stock_count
+FROM inventory i
+GROUP BY i.company_id
 WITH DATA;
 
 -- Create an index to make lookups on the view lightning-fast.

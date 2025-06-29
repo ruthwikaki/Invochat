@@ -127,7 +127,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         
         // --- Define all queries ---
         const salesQuery = `
-            SELECT id, total_amount FROM sales
+            SELECT id, total_amount FROM orders
             WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
         `;
         const salesPromise = supabase.rpc('execute_dynamic_query', { query_text: salesQuery.trim().replace(/;/g, '') });
@@ -135,7 +135,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
         const profitQuery = `
-            SELECT sd.profit FROM sales_detail sd JOIN sales s ON sd.sale_id = s.id
+            SELECT sd.profit FROM sales_detail sd JOIN orders s ON sd.sale_id = s.id
             WHERE sd.company_id = '${companyId}' AND s.company_id = '${companyId}'
             AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
         `;
@@ -144,45 +144,45 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         // OPTIMIZED: Calculate total inventory value directly in the database.
         const inventoryValueQuery = `
             SELECT SUM(quantity * cost) as total_value
-            FROM inventory_valuation
+            FROM inventory
             WHERE company_id = '${companyId}'
         `;
         const inventoryValuePromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryValueQuery.trim().replace(/;/g, '') });
 
         const lowStockCountQuery = `
             SELECT COUNT(*) as count
-            FROM fba_inventory
+            FROM inventory
             WHERE company_id = '${companyId}' AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
         `;
         const lowStockPromise = supabase.rpc('execute_dynamic_query', { query_text: lowStockCountQuery.trim().replace(/;/g, '') });
 
         const salesTrendQuery = `
             SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
-            FROM sales WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
+            FROM orders WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
             GROUP BY 1 ORDER BY 1 ASC
         `;
         const salesTrendPromise = supabase.rpc('execute_dynamic_query', { query_text: salesTrendQuery.trim().replace(/;/g, '') });
         
         const topCustomersQuery = `
-            SELECT c.name, SUM(s.total_amount) as value
-            FROM sales s JOIN customers c ON s.customer_id = c.id
+            SELECT c.customer_name as name, SUM(s.total_amount) as value
+            FROM orders s JOIN customers c ON s.customer_name = c.customer_name
             WHERE s.company_id = '${companyId}' AND c.company_id = '${companyId}'
             AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
-            GROUP BY c.name ORDER BY value DESC LIMIT 5
+            GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
         `;
         const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
         
         const inventoryByCategoryQuery = `
-            SELECT pa.value as name, sum(iv.quantity * iv.cost) as value 
-            FROM inventory_valuation iv JOIN product_attributes pa ON iv.sku = pa.sku AND pa.key = 'category'
-            WHERE iv.company_id = '${companyId}' AND pa.company_id = '${companyId}'
-            GROUP BY pa.value
+            SELECT pa.attribute_value as name, sum(i.quantity * i.cost) as value 
+            FROM inventory i JOIN product_attributes pa ON i.id = pa.inventory_id AND pa.attribute_name = 'category'
+            WHERE i.company_id = '${companyId}'
+            GROUP BY pa.attribute_value
         `;
         const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
 
         const returnRateQuery = `
             WITH SalesRange AS (
-                SELECT count(id) as total_sales FROM sales
+                SELECT count(id) as total_sales FROM orders
                 WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
             ), ReturnsRange AS (
                 SELECT count(id) as total_returns FROM returns
@@ -321,22 +321,22 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
             SELECT
                 oi.sku,
                 MAX(s.sale_date) as last_sale_date
-            FROM sales s
+            FROM orders s
             JOIN order_items oi ON s.id = oi.sale_id
-            WHERE s.company_id = '${companyId}' AND oi.company_id = '${companyId}'
+            WHERE s.company_id = '${companyId}'
             GROUP BY oi.sku
         )
         SELECT
-            iv.sku,
-            iv.product_name,
-            iv.quantity,
-            iv.cost,
-            (iv.quantity * iv.cost) as total_value,
+            i.sku,
+            i.name as product_name,
+            i.quantity,
+            i.cost,
+            (i.quantity * i.cost) as total_value,
             ls.last_sale_date
-        FROM inventory_valuation iv
-        LEFT JOIN LastSale ls ON iv.sku = ls.sku
-        WHERE iv.company_id = '${companyId}'
-        AND iv.quantity > 0
+        FROM inventory i
+        LEFT JOIN LastSale ls ON i.sku = ls.sku
+        WHERE i.company_id = '${companyId}'
+        AND i.quantity > 0
         AND (ls.last_sale_date IS NULL OR ls.last_sale_date < CURRENT_DATE - INTERVAL '${deadStockDays} days')
         ORDER BY total_value DESC;
     `;
@@ -460,8 +460,8 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         
         // --- Low Stock Alerts ---
         const lowStockQuery = `
-            SELECT sku, quantity, product_name, reorder_point
-            FROM fba_inventory
+            SELECT sku, quantity, name as product_name, reorder_point
+            FROM inventory
             WHERE company_id = '${companyId}' AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
         `;
         const { data: lowStockItems, error: lowStockError } = await supabase
@@ -525,12 +525,13 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 // This list is now updated to reflect the new, more complex schema.
 const USER_FACING_TABLES = [
     'vendors', 
-    'sales', 
+    'orders', 
     'sales_detail',
     'customers', 
     'returns', 
     'return_items',
     'order_items', 
+    'inventory',
     'fba_inventory', 
     'inventory_valuation', 
     'warehouse_locations', 
@@ -675,9 +676,9 @@ export async function generateAnomalyInsights(companyId: string): Promise<any[]>
             WITH daily_metrics AS (
                 SELECT DATE(sale_date) as date,
                     SUM(total_amount) as daily_revenue,
-                    COUNT(DISTINCT customer_id) as daily_customers,
+                    COUNT(DISTINCT customer_name) as daily_customers,
                     AVG(total_amount) as avg_order_value
-                FROM sales
+                FROM orders
                 WHERE company_id = '${companyId}'
                 AND sale_date >= CURRENT_DATE - INTERVAL '30 days'
                 GROUP BY DATE(sale_date)
@@ -730,24 +731,24 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
 
         let sqlQuery = `
             SELECT
-                iv.sku,
-                iv.product_name,
-                pa.value as category,
-                iv.quantity,
-                iv.cost,
-                (iv.quantity * iv.cost) as total_value
-            FROM inventory_valuation iv
-            LEFT JOIN product_attributes pa ON iv.sku = pa.sku AND pa."key" = 'category' AND pa.company_id = iv.company_id
-            WHERE iv.company_id = '${companyId}'
+                i.sku,
+                i.name as product_name,
+                pa.attribute_value as category,
+                i.quantity,
+                i.cost,
+                (i.quantity * i.cost) as total_value
+            FROM inventory i
+            LEFT JOIN product_attributes pa ON i.id = pa.inventory_id AND pa.attribute_name = 'category'
+            WHERE i.company_id = '${companyId}'
         `;
 
         if (query) {
-            sqlQuery += ` AND (iv.product_name ILIKE '%${query.replace(/'/g, "''")}%' OR iv.sku ILIKE '%${query.replace(/'/g, "''")}%')`;
+            sqlQuery += ` AND (i.name ILIKE '%${query.replace(/'/g, "''")}%' OR i.sku ILIKE '%${query.replace(/'/g, "''")}%')`;
         }
         if (category) {
-            sqlQuery += ` AND pa.value = '${category.replace(/'/g, "''")}'`;
+            sqlQuery += ` AND pa.attribute_value = '${category.replace(/'/g, "''")}'`;
         }
-        sqlQuery += ` ORDER BY iv.product_name;`;
+        sqlQuery += ` ORDER BY i.name;`;
 
 
         const { data, error } = await supabase.rpc('execute_dynamic_query', {
@@ -768,9 +769,10 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
         const supabase = getServiceRoleClient();
         
         const query = `
-            SELECT DISTINCT value FROM product_attributes
-            WHERE company_id = '${companyId}' AND "key" = 'category' AND value IS NOT NULL
-            ORDER BY value ASC;
+            SELECT DISTINCT pa.attribute_value FROM product_attributes pa
+            JOIN inventory i ON pa.inventory_id = i.id
+            WHERE i.company_id = '${companyId}' AND pa.attribute_name = 'category' AND pa.attribute_value IS NOT NULL
+            ORDER BY pa.attribute_value ASC;
         `;
 
         const { data, error } = await supabase.rpc('execute_dynamic_query', {
@@ -782,7 +784,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
             return [];
         }
         
-        return data.map((item: any) => item.value) || [];
+        return data.map((item: any) => item.attribute_value) || [];
     });
 }
 

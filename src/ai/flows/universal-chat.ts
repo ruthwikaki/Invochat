@@ -69,12 +69,12 @@ const BUSINESS_QUERY_EXAMPLES = `
   4. Forecasting Query:
      User: "Forecast next month's demand for my top 10 products"
      SQL: WITH historical_sales AS (
-       SELECT sku, 
-              DATE_TRUNC('month', sale_date) as month,
+       SELECT item as sku, 
+              DATE_TRUNC('month', date) as month,
               SUM(quantity) as monthly_quantity
        FROM sales_detail
        WHERE company_id = '{{companyId}}'
-         AND sale_date >= CURRENT_DATE - INTERVAL '12 months'
+         AND date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY sku, month
      ),
      trend_analysis AS (
@@ -87,27 +87,27 @@ const BUSINESS_QUERY_EXAMPLES = `
        GROUP BY sku
      )
      SELECT t.sku, 
-            iv.product_name,
+            i.name as product_name,
             ROUND(t.base + t.trend * EXTRACT(epoch FROM DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')))) as forecasted_quantity,
             t.avg_monthly as historical_average,
             ROUND(t.stddev_monthly) as demand_variability
      FROM trend_analysis t
-     JOIN inventory_valuation iv ON t.sku = iv.sku AND iv.company_id = '{{companyId}}'
+     JOIN inventory i ON t.sku = i.sku AND i.company_id = '{{companyId}}'
      ORDER BY t.avg_monthly DESC
      LIMIT 10;
 
   5. ABC Analysis Query:
      User: "Perform ABC analysis on my inventory"
      SQL: WITH product_revenue AS (
-       SELECT iv.sku,
-              iv.product_name,
-              SUM(sd.quantity * sd.unit_price) as total_revenue,
+       SELECT i.sku,
+              i.name as product_name,
+              SUM(sd.quantity * sd.sales_price) as total_revenue,
               SUM(sd.quantity) as total_units
-       FROM inventory_valuation iv
-       JOIN sales_detail sd ON iv.sku = sd.sku
-       WHERE iv.company_id = '{{companyId}}' AND sd.company_id = '{{companyId}}'
-         AND sd.sale_date >= CURRENT_DATE - INTERVAL '12 months'
-       GROUP BY iv.sku, iv.product_name
+       FROM inventory i
+       JOIN sales_detail sd ON i.sku = sd.item
+       WHERE i.company_id = '{{companyId}}' AND sd.company_id = '{{companyId}}'
+         AND sd.date >= CURRENT_DATE - INTERVAL '12 months'
+       GROUP BY i.sku, i.name
      ),
      revenue_ranking AS (
        SELECT *,
@@ -136,15 +136,15 @@ const FEW_SHOT_EXAMPLES = `
   1. User asks: "Who were my top 5 customers last month?"
      SQL:
      SELECT
-        c.name,
+        c.customer_name as name,
         SUM(s.total_amount) as total_spent
-     FROM sales s
-     JOIN customers c ON s.customer_id = c.id
+     FROM orders s
+     JOIN customers c ON s.customer_name = c.customer_name
      WHERE s.company_id = '{{companyId}}'
        AND c.company_id = '{{companyId}}'
        AND s.sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
        AND s.sale_date < date_trunc('month', CURRENT_DATE)
-     GROUP BY c.name
+     GROUP BY c.customer_name
      ORDER BY total_spent DESC
      LIMIT 5;
 
@@ -152,7 +152,7 @@ const FEW_SHOT_EXAMPLES = `
      SQL:
      WITH MonthlySales AS (
          SELECT COUNT(id) as total_sales
-         FROM sales
+         FROM orders
          WHERE company_id = '{{companyId}}'
            AND sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
            AND sale_date < date_trunc('month', CURRENT_DATE)
@@ -172,12 +172,10 @@ const FEW_SHOT_EXAMPLES = `
 
   3. User asks: "What was my total inventory value in the 'Main Warehouse'?"
      SQL:
-     SELECT SUM(iv.quantity * iv.cost) as total_inventory_value
-     FROM inventory_valuation iv
-     JOIN warehouse_locations wl ON iv.warehouse_id = wl.id
-     WHERE iv.company_id = '{{companyId}}'
-       AND wl.company_id = '{{companyId}}'
-       AND wl.warehouse_name = 'Main Warehouse';
+     SELECT SUM(i.quantity * i.cost) as total_inventory_value
+     FROM inventory i
+     WHERE i.company_id = '{{companyId}}'
+       AND i.warehouse_name = 'Main Warehouse';
 
   ${BUSINESS_QUERY_EXAMPLES}
 `;
@@ -210,7 +208,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     3.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
     4.  **NO SQL Comments**: The final query MUST NOT contain any SQL comments (e.g., --, /* */).
     5.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    6.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM sales JOIN customers ON sales.customer_id = customers.id\`).
+    6.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM orders JOIN customers ON orders.customer_name = customers.customer_name\`).
 
     **B) For COMPLEX ANALYTICAL Queries:**
     7.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
