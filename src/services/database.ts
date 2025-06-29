@@ -10,12 +10,17 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem, User, TeamMember } from '@/types';
+import { CompanySettingsSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+
+// Simple regex to validate a string is in UUID format.
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const isValidUuid = (uuid: string) => UUID_REGEX.test(uuid);
 
 async function withPerformanceTracking<T>(
     functionName: string,
@@ -31,6 +36,8 @@ async function withPerformanceTracking<T>(
 }
 
 export async function getCompanySettings(companyId: string): Promise<CompanySettings> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    
     return withPerformanceTracking('getCompanySettings', async () => {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
@@ -45,7 +52,8 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
         }
 
         if (data) {
-            return data as CompanySettings;
+            // Validate data against the Zod schema before returning
+            return CompanySettingsSchema.parse(data);
         }
 
         logger.info(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
@@ -61,6 +69,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             theme_primary_color: '262 84% 59%',
             theme_background_color: '0 0% 96%',
             theme_accent_color: '0 0% 90%',
+            custom_rules: {},
         };
         
         const { data: newData, error: insertError } = await supabase
@@ -74,7 +83,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             throw insertError;
         }
 
-        return newData as CompanySettings;
+        return CompanySettingsSchema.parse(newData);
     });
 }
 
@@ -93,7 +102,9 @@ const CompanySettingsUpdateSchema = z.object({
 
 
 export async function updateCompanySettings(companyId: string, settings: Partial<CompanySettings>): Promise<CompanySettings> {
-     const parsedSettings = CompanySettingsUpdateSchema.safeParse(settings);
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+
+    const parsedSettings = CompanySettingsUpdateSchema.safeParse(settings);
     
     if (!parsedSettings.success) {
         const errorMessages = parsedSettings.error.issues.map(issue => issue.message).join(' ');
@@ -118,7 +129,7 @@ export async function updateCompanySettings(companyId: string, settings: Partial
         logger.info(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         
-        return data as CompanySettings;
+        return CompanySettingsSchema.parse(data);
     });
 }
 
@@ -128,6 +139,7 @@ function getIntervalFromRange(dateRange: string): number {
 }
 
 export async function getDashboardMetrics(companyId: string, dateRange: string = '30d'): Promise<DashboardMetrics> {
+  if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   const cacheKey = `company:${companyId}:dashboard:${dateRange}`;
   const days = getIntervalFromRange(dateRange);
 
@@ -257,6 +269,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
 }
 
 async function getRawDeadStockData(companyId: string, settings: CompanySettings): Promise<DeadStockItem[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     const supabase = getServiceRoleClient();
     const deadStockDays = settings.dead_stock_days;
 
@@ -288,6 +301,7 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
 }
 
 export async function getDeadStockPageData(companyId: string) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getDeadStockPageData', async () => {
         const cacheKey = `company:${companyId}:deadstock`;
         if (isRedisEnabled) {
@@ -324,6 +338,7 @@ export async function getDeadStockPageData(companyId: string) {
 }
 
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getSuppliersFromDB', async () => {
         const cacheKey = `company:${companyId}:suppliers`;
         if (isRedisEnabled) {
@@ -369,6 +384,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getAlertsFromDB', async () => {
         const cacheKey = `company:${companyId}:alerts`;
         if (isRedisEnabled) {
@@ -465,6 +481,7 @@ const USER_FACING_TABLES = [
 ];
 
 export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: any[] }[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getDatabaseSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
         const results: { tableName: string; rows: any[] }[] = [];
@@ -526,6 +543,7 @@ export async function getQueryPatternsForCompany(
   companyId: string,
   limit = 3
 ): Promise<{ user_question: string; successful_sql_query: string }[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getQueryPatternsForCompany', async () => {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
@@ -550,6 +568,7 @@ export async function saveSuccessfulQuery(
   userQuestion: string,
   sqlQuery: string
 ): Promise<void> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('saveSuccessfulQuery', async () => {
         const supabase = getServiceRoleClient();
 
@@ -602,6 +621,7 @@ export async function saveSuccessfulQuery(
 
 
 export async function generateAnomalyInsights(companyId: string): Promise<any[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('generateAnomalyInsights', async () => {
         const supabase = getServiceRoleClient();
         const anomalyQuery = `
@@ -657,6 +677,7 @@ export async function generateAnomalyInsights(companyId: string): Promise<any[]>
 }
 
 export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
         const { query, category } = params;
@@ -696,6 +717,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
 }
 
 export async function getInventoryCategoriesFromDB(companyId: string): Promise<string[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getInventoryCategoriesFromDB', async () => {
         const supabase = getServiceRoleClient();
         
@@ -719,6 +741,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
 }
 
 export async function getTeamMembersFromDB(companyId: string): Promise<TeamMember[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getTeamMembersFromDB', async () => {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
@@ -735,6 +758,7 @@ export async function getTeamMembersFromDB(companyId: string): Promise<TeamMembe
 }
 
 export async function inviteUserToCompany(companyId: string, companyName: string, email: string) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('inviteUserToCompany', async () => {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
@@ -764,6 +788,7 @@ export async function removeTeamMemberFromDb(
     userIdToRemove: string,
     companyId: string
 ): Promise<{ success: boolean; error?: string }> {
+    if (!isValidUuid(userIdToRemove) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('removeTeamMemberFromDb', async () => {
         const supabase = getServiceRoleClient();
         
@@ -785,6 +810,7 @@ export async function updateTeamMemberRoleInDb(
     companyId: string,
     newRole: 'Admin' | 'Member'
 ): Promise<{ success: boolean; error?: string }> {
+     if (!isValidUuid(memberIdToUpdate) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
      return withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
         const supabase = getServiceRoleClient();
         

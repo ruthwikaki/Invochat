@@ -51,6 +51,9 @@ export const config = {
       "Forecast sales for the next quarter",
     ],
   },
+  ui: {
+    sidebarCookieMaxAge: parseIntWithDefault(process.env.UI_SIDEBAR_COOKIE_MAX_AGE, 60 * 60 * 24 * 7), // 7 days
+  }
 };
 
 // Runtime validation schema to ensure critical env vars are set

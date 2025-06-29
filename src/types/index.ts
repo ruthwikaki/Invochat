@@ -1,6 +1,7 @@
 
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { z } from 'zod';
 
 export type User = Omit<SupabaseUser, 'app_metadata' | 'role'> & {
   app_metadata?: {
@@ -100,23 +101,24 @@ export type DashboardMetrics = {
     topCustomersData: { name: string; value: number }[];
 };
 
-export type CompanySettings = {
-  company_id: string;
-  dead_stock_days: number;
-  overstock_multiplier: number;
-  high_value_threshold: number;
-  fast_moving_days: number;
-  currency: string | null;
-  timezone: string | null;
-  tax_rate: number | null;
-  theme_primary_color: string | null;
-  theme_background_color: string | null;
-  theme_accent_color: string | null;
-  
-  custom_rules: Record<string, any> | null;
-  created_at?: string;
-  updated_at?: string;
-};
+export const CompanySettingsSchema = z.object({
+  company_id: z.string().uuid(),
+  dead_stock_days: z.number(),
+  overstock_multiplier: z.number(),
+  high_value_threshold: z.number(),
+  fast_moving_days: z.number(),
+  currency: z.string().nullable(),
+  timezone: z.string().nullable(),
+  tax_rate: z.number().nullable(),
+  theme_primary_color: z.string().nullable(),
+  theme_background_color: z.string().nullable(),
+  theme_accent_color: z.string().nullable(),
+  custom_rules: z.any().nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+});
+export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
+
 
 export type UnifiedInventoryItem = {
   sku: string;

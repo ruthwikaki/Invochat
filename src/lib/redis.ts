@@ -34,9 +34,9 @@ if (process.env.REDIS_URL) {
         });
 
         client.on('error', (err) => {
-            logger.error(`[Redis] Connection error: ${err.message}. Caching will be disabled for this session.`);
-            // In case of error, we can switch to the mock client to prevent app crashes on subsequent calls
-            redis = null; 
+            // Log the error. The client will attempt to reconnect automatically.
+            // Calls to redis during this time will fail and should be handled by try/catch blocks.
+            logger.error(`[Redis] Connection error: ${err.message}. The client will attempt to reconnect.`);
         });
         
         redis = client;
