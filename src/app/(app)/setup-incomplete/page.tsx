@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/context/auth-context';
@@ -112,7 +113,23 @@ $$;
 -- GRANT EXECUTE ON FUNCTION public.execute_dynamic_query TO service_role;
 --
 
--- ========= Part 3: Performance Optimization (Materialized View) =========
+-- ========= Part 3: Core Application Tables =========
+-- This section defines core tables required for application functionality, like 'returns'.
+
+-- The 'returns' table stores information about product returns.
+CREATE TABLE IF NOT EXISTS public.returns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    order_id UUID REFERENCES public.orders(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    -- You can add other return-specific columns here, such as return_reason, quantity, etc.
+);
+
+-- Add an index for performance on common queries.
+CREATE INDEX IF NOT EXISTS idx_returns_company_created ON public.returns(company_id, created_at);
+
+
+-- ========= Part 4: Performance Optimization (Materialized View) =========
 -- This creates a materialized view, which is a pre-calculated snapshot of key metrics.
 -- This makes the dashboard load much faster for large datasets.
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
@@ -141,7 +158,7 @@ AS $$
 $$;
 
 
--- ========= Part 4: AI Query Learning Table =========
+-- ========= Part 5: AI Query Learning Table =========
 -- This table stores successful query patterns for each company.
 -- The AI uses these as dynamic few-shot examples to learn from
 -- past interactions and improve the accuracy of its generated SQL
@@ -237,3 +254,5 @@ export default function SetupIncompletePage() {
         </div>
     )
 }
+
+    
