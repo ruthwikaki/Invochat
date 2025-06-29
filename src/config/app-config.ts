@@ -6,6 +6,14 @@
  * variables with sensible defaults. This is crucial for security and for
  * operating the application across different environments (dev, staging, prod).
  */
+import { config as dotenvConfig } from 'dotenv';
+import path from 'path';
+
+// Force load .env variables at the earliest point.
+// This is a workaround for cases where Next.js's automatic loading fails.
+dotenvConfig({ path: path.resolve(process.cwd(), '.env') });
+
+
 import { z } from 'zod';
 
 // Helper to parse numbers from env vars
@@ -72,7 +80,7 @@ const ConfigSchema = z.object({
         historyLimit: z.number().int().min(0),
     }),
     database: z.object({
-        serviceRoleKey: z.string().min(1, "SUPABASE_SERVICE_ROLE_KEY is not set. This is required for server-side database operations."),
+        serviceRoleKey: z.string().min(1, "Required: `SUPABASE_SERVICE_ROLE_KEY` is not set. This is required for server-side database operations."),
         queryLimit: z.number().int().min(0),
     }),
 });
