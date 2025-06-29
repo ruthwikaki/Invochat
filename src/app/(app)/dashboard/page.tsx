@@ -107,12 +107,12 @@ export default async function DashboardPage({
                     <DashboardHeaderControls />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {fetchError ? (
-                        <ErrorDisplay error={fetchError} />
-                    ) : data ? (
-                        <>
-                            <MetricCard
+                {fetchError ? (
+                    <ErrorDisplay error={fetchError} />
+                ) : data ? (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                             <MetricCard
                                 href="/analytics"
                                 title="Total Revenue"
                                 value={formatCurrency(data.totalSalesValue)}
@@ -146,6 +146,7 @@ export default async function DashboardPage({
                                 value={formatCurrency(data.totalInventoryValue)}
                                 icon={Package}
                                 label="Current value of all stock"
+                                className="sm:col-span-2"
                             />
                             <MetricCard
                                 href="/alerts"
@@ -153,14 +154,17 @@ export default async function DashboardPage({
                                 value={formatNumber(data.lowStockItemsCount)}
                                 icon={AlertCircle}
                                 label="Items below reorder point"
+                                className="sm:col-span-2"
                             />
-                            
-                            <SalesTrendChart data={data.salesTrendData} className="sm:col-span-2 lg:col-span-4" />
-                            <TopCustomersChart data={data.topCustomersData} className="sm:col-span-2 lg:col-span-3" />
-                            <InventoryCategoryChart data={data.inventoryByCategoryData} className="sm:col-span-2 lg:col-span-1" />
-                        </>
-                    ) : null}
-                </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                            <SalesTrendChart data={data.salesTrendData} className="lg:col-span-4" />
+                            <TopCustomersChart data={data.topCustomersData} className="lg:col-span-3" />
+                            <InventoryCategoryChart data={data.inventoryByCategoryData} className="lg:col-span-1" />
+                        </div>
+                    </div>
+                ) : null}
             </div>
         </div>
     );
