@@ -408,7 +408,7 @@ const universalChatOrchestrator = ai.defineFlow(
         }
 
         logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${sqlQuery}"`);
-        const { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
+        let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
           query_text: sqlQuery.replace(/;/g, '')
         });
         
