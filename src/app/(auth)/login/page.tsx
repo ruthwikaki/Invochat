@@ -8,7 +8,7 @@ import { Eye, EyeOff, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArvoLogo } from '@/components/arvo-logo';
+import { InvoChatLogo } from '@/components/arvo-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
@@ -155,7 +155,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         <div className="hidden lg:col-span-6 lg:flex flex-col items-center justify-center p-12">
            <motion.div variants={itemVariants} className="text-left max-w-lg">
                 <h2 className="text-5xl font-bold tracking-tighter text-white">Unlock Your Inventory's Potential.</h2>
-                <p className="mt-4 text-lg text-gray-300">ARVO provides the clarity you need to make smarter, faster, data-driven decisions.</p>
+                <p className="mt-4 text-lg text-gray-300">InvoChat provides the clarity you need to make smarter, faster, data-driven decisions.</p>
            </motion.div>
         </div>
         <div className="w-full max-w-md lg:col-span-4">
@@ -175,9 +175,9 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.1, type: "spring", stiffness: 260, damping: 20 }}
                     >
-                         <ArvoLogo className="h-14 w-14 transition-all duration-300 group-hover:[filter:drop-shadow(0_0_8px_hsl(var(--primary)))]"/>
+                         <InvoChatLogo className="h-14 w-14 transition-all duration-300 group-hover:[filter:drop-shadow(0_0_8px_hsl(var(--primary)))]"/>
                     </motion.div>
-                    <h1 className="text-white">ARVO</h1>
+                    <h1 className="text-white">InvoChat</h1>
                 </Link>
                 <p className="text-balance text-gray-300">Intelligent Inventory Management</p>
             </motion.div>
@@ -255,5 +255,3 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     </main>
   );
 }
-
-    

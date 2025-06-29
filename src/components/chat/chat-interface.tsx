@@ -121,7 +121,7 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
         const errorMessage: Message = {
             id: `error_${Date.now()}`,
             role: 'assistant',
-            content: error.message || 'Could not get response from ARVO.',
+            content: error.message || 'Could not get response from InvoChat.',
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
             company_id: companyId,

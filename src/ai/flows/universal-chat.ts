@@ -351,7 +351,7 @@ const finalResponsePrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), queryDataJson: z.string() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are ARVO, an expert AI inventory analyst.
+    You are InvoChat, an expert AI inventory analyst.
     The user asked: "{{userQuery}}"
     You have executed a database query and received this JSON data:
     {{{queryDataJson}}}
