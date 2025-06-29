@@ -141,7 +141,7 @@ export default async function DashboardPage({
                                 label={`Last ${dateRange.replace('d', '')} days`}
                             />
                              <MetricCard
-                                href="/analytics"
+                                href="/inventory"
                                 title="Inventory Value"
                                 value={formatCurrency(data.totalInventoryValue)}
                                 icon={Package}
