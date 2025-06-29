@@ -172,7 +172,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             sales_details_in_range AS (
                 SELECT sd.quantity, sd.sales_price, i.cost
                 FROM sales_detail sd
-                JOIN orders_in_range s ON sd.sale_id = s.id AND sd.company_id = s.company_id
+                JOIN orders_in_range s ON sd.order_id = s.id AND sd.company_id = s.company_id
                 JOIN inventory i ON sd.item = i.sku AND sd.company_id = i.company_id
             ),
             sales_trend AS (

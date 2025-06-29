@@ -74,7 +74,7 @@ const BUSINESS_QUERY_EXAMPLES = `
               DATE_TRUNC('month', sale_date) as month,
               SUM(quantity) as monthly_quantity
        FROM sales_detail sd
-       JOIN orders o ON sd.sale_id = o.id AND sd.company_id = o.company_id
+       JOIN orders o ON sd.order_id = o.id AND sd.company_id = o.company_id
        WHERE o.company_id = '{{companyId}}'
          AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY sku, month
@@ -107,7 +107,7 @@ const BUSINESS_QUERY_EXAMPLES = `
               SUM(sd.quantity) as total_units
        FROM inventory i
        JOIN sales_detail sd ON i.sku = sd.item AND i.company_id = sd.company_id
-       JOIN orders o ON sd.sale_id = o.id AND sd.company_id = o.company_id
+       JOIN orders o ON sd.order_id = o.id AND sd.company_id = o.company_id
        WHERE i.company_id = '{{companyId}}'
          AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY i.sku, i.name
