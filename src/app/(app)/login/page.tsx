@@ -1,6 +1,4 @@
-// This file is intentionally left blank.
-// Its presence in the (app) group was causing a routing conflict with the
-// actual login page at /(auth)/login. Removing its content resolves the error.
-export default function ConflictingLoginPage() {
-  return null;
-}
+// This file is intentionally left blank to resolve a routing conflict.
+// The active login page is at /src/app/(auth)/login/page.tsx.
+// This file cannot be deleted, but removing its default export prevents Next.js
+// from treating it as a page, which solves the build error.
