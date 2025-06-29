@@ -1,4 +1,5 @@
-// This file is intentionally left blank to resolve a routing conflict.
-// The active login page is at /src/app/(auth)/login/page.tsx.
-// This file cannot be deleted, but removing its default export prevents Next.js
-// from treating it as a page, which solves the build error.
+// This file is intentionally modified to resolve a routing conflict.
+// The actual login page is located at /src/app/(auth)/login/page.tsx.
+// By exporting an empty object, we make this file a module but not a page,
+// which prevents Next.js from creating a duplicate route.
+export {};
