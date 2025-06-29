@@ -2,17 +2,42 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, ShieldCheck, Languages, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
+import { useToast } from '@/hooks/use-toast';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useTheme } from 'next-themes';
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px">
+      <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
+      <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
+      <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.223,0-9.657-3.356-11.303-8H2.39v8.04C5.932,41.4,14.28,44,24,44z" />
+      <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C39.986,37.151,44,31.2,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
+    </svg>
+  );
+}
+
+function MicrosoftIcon({ className }: { className?: string }) {
+    return (
+        <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px">
+            <path fill="#ff5722" d="M6,6H22V22H6z" transform="rotate(-180 14 14)"/>
+            <path fill="#4caf50" d="M26,6H42V22H26z" transform="rotate(-180 34 14)"/>
+            <path fill="#2196f3" d="M6,26H22V42H6z" transform="rotate(-180 14 34)"/>
+            <path fill="#ffc107" d="M26,26H42V42H26z" transform="rotate(-180 34 34)"/>
+        </svg>
+    )
+}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -21,9 +46,13 @@ function SubmitButton() {
     <Button
       type="submit"
       disabled={pending}
-      className="w-full"
+      className="w-full h-12 text-base font-bold text-white transition-all duration-300 transform-gpu
+                 bg-gradient-to-r from-purple-600 to-pink-600
+                 hover:from-purple-700 hover:to-pink-700
+                 hover:-translate-y-0.5
+                 active:translate-y-0 active:scale-95"
     >
-      {pending ? 'Signing in...' : 'Sign In'}
+      {pending ? <motion.div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Sign In'}
     </Button>
   );
 }
@@ -36,98 +65,180 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
         id={id}
         name={name}
         type={showPassword ? 'text' : 'password'}
-        placeholder="••••••••"
+        placeholder=" "
         required={required}
-        className="pr-10"
         autoComplete="current-password"
+        className="peer h-12 bg-transparent text-white placeholder-transparent focus:border-purple-500"
       />
-      <Button
+       <Label htmlFor={id} className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all 
+                                      peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 
+                                      peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm">
+        Password
+      </Label>
+      <button
         type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
         onClick={() => setShowPassword(prev => !prev)}
         aria-label={showPassword ? 'Hide password' : 'Show password'}
         tabIndex={-1}
       >
-        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </Button>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={showPassword ? 'eye-off' : 'eye'}
+            initial={{ rotate: -45, opacity: 0 }}
+            animate={{ rotate: 0, opacity: 1 }}
+            exit={{ rotate: 45, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </motion.div>
+        </AnimatePresence>
+      </button>
     </div>
   );
 };
 
+const AnimatedGradientBackground = () => (
+    <div className="absolute inset-0 -z-10 h-full w-full bg-gray-900">
+        <div className="absolute inset-0 h-full w-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-5"></div>
+        <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-purple-800 via-pink-700 to-rose-800 opacity-40 animate-background-pan [background-size:200%_200%]" />
+    </div>
+);
+
+const ThemeToggle = () => {
+    const { theme, setTheme } = useTheme();
+    return (
+        <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </button>
+    )
+}
+
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if (searchParams?.error) {
+            toast({
+                variant: 'destructive',
+                title: 'Login Failed',
+                description: searchParams.error,
+            });
+        }
+         if (searchParams?.message) {
+            toast({
+                title: 'Success',
+                description: searchParams.message,
+            });
+        }
+    }, [searchParams, toast]);
+    
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: {
+                staggerChildren: 0.1
+            }
+        }
+    };
+    
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 }
+    };
+
   return (
-    <div className="w-full lg:grid lg:min-h-dvh lg:grid-cols-2 xl:min-h-dvh">
-      <div className="flex items-center justify-center py-12">
-        <div className="mx-auto grid w-[350px] gap-6">
-          <div className="grid gap-2 text-center">
-             <Link href="/" className="mb-4 flex items-center justify-center gap-3 text-2xl font-bold">
-                  <ArvoLogo className="h-8 w-8" />
-                  <h1 className="text-foreground">ARVO</h1>
-              </Link>
-            <p className="text-balance text-muted-foreground">
-              Enter your email below to login to your account
-            </p>
-          </div>
-          <form action={login} className="grid gap-4">
-            <CSRFInput />
-            {searchParams?.error && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Login Failed</AlertTitle>
-                <AlertDescription>{searchParams.error}</AlertDescription>
-              </Alert>
-            )}
-             {searchParams?.message && (
-              <Alert>
-                <AlertTitle>Success</AlertTitle>
-                <AlertDescription>{searchParams.message}</AlertDescription>
-              </Alert>
-            )}
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="m@example.com"
-                required
-                autoComplete="email"
-              />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href="/forgot-password"
-                  className="ml-auto inline-block text-sm underline"
-                >
-                  Forgot your password?
+    <main className="relative min-h-dvh w-full overflow-hidden bg-gray-900 text-white font-sans">
+      <AnimatedGradientBackground />
+
+      <div className="relative z-10 flex min-h-dvh w-full items-center justify-center p-4 lg:grid lg:grid-cols-10">
+        <div className="hidden lg:col-span-6 lg:block" />
+        <div className="w-full max-w-md lg:col-span-4">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="w-full rounded-2xl border border-white/10 bg-black/20 p-6 shadow-2xl backdrop-blur-lg md:p-8"
+          >
+            <motion.div variants={itemVariants} className="flex flex-col items-center justify-center mb-6 text-center">
+                 <Link href="/" className="group mb-2 flex flex-col items-center justify-center gap-2 text-4xl font-bold">
+                    <ArvoLogo className="h-14 w-14 transition-all duration-300 group-hover:drop-shadow-[0_0_8px_hsl(var(--primary))]"/>
+                    <h1 className="text-white">ARVO</h1>
                 </Link>
-              </div>
-              <PasswordInput id="password" name="password" required />
-            </div>
-            <SubmitButton />
-          </form>
-          <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="underline">
-              Sign up
-            </Link>
-          </div>
+                <p className="text-balance text-gray-300">Intelligent Inventory Management</p>
+            </motion.div>
+            
+            <form action={login} className="grid gap-6">
+              <CSRFInput />
+              
+              <motion.div variants={itemVariants} className="relative">
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder=" " 
+                  required
+                  autoComplete="email"
+                  className="peer h-12 bg-transparent text-white placeholder-transparent focus:border-purple-500"
+                />
+                 <Label htmlFor="email" className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all 
+                                                 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 
+                                                 peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm">
+                    Email
+                </Label>
+              </motion.div>
+
+              <motion.div variants={itemVariants}>
+                 <PasswordInput id="password" name="password" required />
+              </motion.div>
+              
+              <motion.div variants={itemVariants} className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                    <Checkbox id="remember" className="border-gray-500 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-500"/>
+                    <Label htmlFor="remember" className="text-sm text-gray-300">Remember me</Label>
+                </div>
+                <Link href="/forgot-password" className="text-sm text-purple-400 hover:text-purple-300 hover:underline">
+                    Forgot password?
+                </Link>
+              </motion.div>
+
+              <motion.div variants={itemVariants}>
+                <SubmitButton />
+              </motion.div>
+            </form>
+
+            <motion.div variants={itemVariants} className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-white/20"></span>
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-black/20 px-2 text-gray-400 backdrop-blur-sm">Or continue with</span>
+                </div>
+            </motion.div>
+
+            <motion.div variants={itemVariants} className="grid grid-cols-2 gap-4">
+                <Button variant="outline" className="h-11 bg-white/5 border-white/20 text-white hover:bg-white/10">
+                    <GoogleIcon className="mr-2 h-5 w-5" /> Google
+                </Button>
+                <Button variant="outline" className="h-11 bg-white/5 border-white/20 text-white hover:bg-white/10">
+                    <MicrosoftIcon className="mr-2 h-5 w-5" /> Microsoft
+                </Button>
+            </motion.div>
+            
+            <motion.p variants={itemVariants} className="mt-8 text-center text-sm text-gray-400">
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="font-semibold text-purple-400 hover:text-purple-300 hover:underline">
+                Sign up
+              </Link>
+            </motion.p>
+             <motion.div variants={itemVariants} className="mt-8 flex justify-center items-center gap-4 text-xs text-gray-500">
+                <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3"/> SOC2 Compliant</span>
+                <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3"/> GDPR Ready</span>
+            </motion.div>
+          </motion.div>
         </div>
       </div>
-      <div className="hidden bg-muted lg:block">
-        <Image
-          src="https://placehold.co/1080x1920.png"
-          alt="Warehouse logistics"
-          width="1920"
-          height="1080"
-          className="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-          data-ai-hint="warehouse logistics"
-        />
-      </div>
-    </div>
+    </main>
   );
 }
