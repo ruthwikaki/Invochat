@@ -1,5 +1,4 @@
 
-'use server';
 
 /**
  * @fileoverview A simple, centralized logger for the application.

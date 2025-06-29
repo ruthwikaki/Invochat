@@ -16,7 +16,7 @@ import {
     getInventoryCategoriesFromDB,
     getTeamMembers as getTeamMembersFromDB,
     inviteUserToCompany,
-    removeTeamMember as removeTeamMemberFromDb,
+    removeTeamMemberFromDb,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember } from '@/types';
