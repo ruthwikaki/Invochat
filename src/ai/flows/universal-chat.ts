@@ -18,6 +18,48 @@ import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
 
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+/**
+ * A simple utility to replace named parameters in a SQL query string.
+ * IMPORTANT: This is NOT a full-blown SQL parameterization library. It is a
+ * security-focused utility designed to safely insert a validated company_id UUID
+ * into a query. It intentionally throws an error for any other parameter type
+ * to prevent misuse.
+ *
+ * @param query The SQL query with named parameters (e.g., :company_id).
+ * @param params An object where keys match the parameter names.
+ * @returns A SQL string with parameters replaced.
+ */
+function parameterizeQuery(query: string, params: Record<string, unknown>): string {
+  let parameterizedQuery = query;
+
+  if (params.companyId) {
+    const companyId = params.companyId;
+    if (typeof companyId !== 'string' || !UUID_REGEX.test(companyId)) {
+      throw new Error(`[Security] Invalid companyId format. Must be a valid UUID.`);
+    }
+    // Safely quote the UUID for SQL.
+    parameterizedQuery = parameterizedQuery.replace(/:company_id/g, `'${companyId}'`);
+  } else {
+    throw new Error('[Security] companyId parameter is required.');
+  }
+  
+  // Check if any other unsupported placeholders are left
+  const remainingPlaceholders = parameterizedQuery.match(/:\w+/g);
+  if(remainingPlaceholders) {
+      // Allow known, safe placeholders to pass if they exist in other parts of the logic
+      const allowedPlaceholders = new Set([':company_id']); 
+      const unreplaced = remainingPlaceholders.filter(p => !allowedPlaceholders.has(p));
+      if (unreplaced.length > 0) {
+        throw new Error(`[Security] Query contains unsupported or unreplaced parameters: ${unreplaced.join(', ')}`);
+      }
+  }
+
+  return parameterizedQuery;
+}
+
+
 const ENHANCED_SEMANTIC_LAYER = `
   BUSINESS METRICS:
   - "Inventory turnover rate": COGS / Average Inventory Value (industry standard: 5-10x/year)
@@ -75,7 +117,7 @@ const BUSINESS_QUERY_EXAMPLES = `
               SUM(oi.quantity) as monthly_quantity
        FROM order_items oi
        JOIN orders o ON oi.sale_id = o.id
-       WHERE o.company_id = '{{companyId}}'
+       WHERE o.company_id = :company_id
          AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY oi.sku, month
      ),
@@ -94,7 +136,7 @@ const BUSINESS_QUERY_EXAMPLES = `
             t.avg_monthly as historical_average,
             ROUND(t.stddev_monthly) as demand_variability
      FROM trend_analysis t
-     JOIN inventory i ON t.sku = i.sku AND i.company_id = '{{companyId}}'
+     JOIN inventory i ON t.sku = i.sku AND i.company_id = :company_id
      ORDER BY t.avg_monthly DESC
      LIMIT 10;
 
@@ -108,7 +150,7 @@ const BUSINESS_QUERY_EXAMPLES = `
        FROM inventory i
        JOIN order_items oi ON i.sku = oi.sku
        JOIN orders o ON oi.sale_id = o.id
-       WHERE i.company_id = '{{companyId}}' AND o.company_id = '{{companyId}}'
+       WHERE i.company_id = :company_id AND o.company_id = :company_id
          AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY i.sku, i.name
      ),
@@ -142,7 +184,7 @@ const FEW_SHOT_EXAMPLES = `
         SUM(s.total_amount) as total_spent
      FROM orders s
      JOIN customers c ON s.customer_name = c.customer_name AND s.company_id = c.company_id
-     WHERE s.company_id = '{{companyId}}'
+     WHERE s.company_id = :company_id
        AND s.sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
        AND s.sale_date < date_trunc('month', CURRENT_DATE)
      GROUP BY c.customer_name
@@ -154,14 +196,14 @@ const FEW_SHOT_EXAMPLES = `
      WITH MonthlySales AS (
          SELECT COUNT(id) as total_sales
          FROM orders
-         WHERE company_id = '{{companyId}}'
+         WHERE company_id = :company_id
            AND sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
            AND sale_date < date_trunc('month', CURRENT_DATE)
      ),
      MonthlyReturns AS (
          SELECT COUNT(id) as total_returns
          FROM returns
-         WHERE company_id = '{{companyId}}'
+         WHERE company_id = :company_id
            AND requested_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
            AND requested_at < date_trunc('month', CURRENT_DATE)
      )
@@ -175,7 +217,7 @@ const FEW_SHOT_EXAMPLES = `
      SQL:
      SELECT SUM(i.quantity * i.cost) as total_inventory_value
      FROM inventory i
-     WHERE i.company_id = '{{companyId}}'
+     WHERE i.company_id = :company_id
        AND i.warehouse_name = 'Main Warehouse';
 
   ${BUSINESS_QUERY_EXAMPLES}
@@ -184,7 +226,7 @@ const FEW_SHOT_EXAMPLES = `
 
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
-  input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
+  input: { schema: z.object({ userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
   output: { schema: z.object({ sqlQuery: z.string().optional().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
     You are an expert PostgreSQL query generation agent for an e-commerce analytics system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query. You also have access to tools for questions that cannot be answered from the database.
@@ -201,7 +243,7 @@ const sqlGenerationPrompt = ai.definePrompt({
 
     **A) For ALL Queries (NON-NEGOTIABLE SECURITY RULES):**
     1.  **Security is PARAMOUNT**: The query MUST be a read-only \`SELECT\` statement. You are FORBIDDEN from generating \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`DROP\`, \`GRANT\`, or any other data-modifying or access-control statements.
-    2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company: \`company_id = '{{companyId}}'\`. This is a non-negotiable security requirement. There are no exceptions.
+    2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company using a placeholder: \`company_id = :company_id\`. This is a non-negotiable security requirement. There are no exceptions.
     3.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
     4.  **NO SQL Comments**: The final query MUST NOT contain any SQL comments (e.g., --, /* */).
     5.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
@@ -256,7 +298,7 @@ const queryValidationPrompt = ai.definePrompt({
         If yes, FAIL validation immediately.
     2.  **Check for SQL Comments**: Does the query contain SQL comments (\`--\` or \`/*\`)?
         If yes, FAIL validation. Comments can be used to hide malicious code.
-    3.  **Mandatory Company ID Filter**: Does EVERY table reference (including joins, subqueries, and CTEs) have a \`WHERE\` clause that filters by \`company_id\`?
+    3.  **Mandatory Company ID Filter**: Does EVERY table reference (including joins, subqueries, and CTEs) have a \`WHERE\` clause that filters by \`company_id\` (e.g., \`WHERE company_id = :company_id\`)?
         If even one is missing, FAIL validation.
     4.  **Read-Only Check**: Is the query a read-only \`SELECT\` statement?
         If it's anything else, FAIL validation.
@@ -284,7 +326,7 @@ const errorRecoveryPrompt = ai.definePrompt({
 
         USER'S ORIGINAL QUESTION: "{{userQuery}}"
 
-        FAILED SQL QUERY:
+        FAILED SQL QUERY (Note: this is the version with the :company_id placeholder):
         \`\`\`sql
         {{failedQuery}}
         \`\`\`
@@ -299,7 +341,7 @@ const errorRecoveryPrompt = ai.definePrompt({
         4.  **Do Not Change Intent**: The corrected query must not alter the original intent of the user's question.
         5.  **Explain Your Reasoning**: Briefly explain what was wrong and how you fixed it in the \`reasoning\` field.
         6.  **If Unfixable**: If the error is ambiguous or you cannot confidently fix it, do not provide a \`correctedQuery\`. Explain why in the \`reasoning\` field instead.
-        7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter on all tables. It must not contain SQL comments.
+        7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter (\`WHERE company_id = :company_id\`) on all tables. It must not contain SQL comments.
     `,
 });
 
@@ -367,7 +409,7 @@ const universalChatOrchestrator = ai.defineFlow(
     const { output: generationOutput, toolCalls } = await ai.generate({
       model: aiModel,
       prompt: sqlGenerationPrompt,
-      input: { companyId, userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
+      input: { userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
       tools: [getEconomicIndicators],
     });
     
@@ -394,16 +436,16 @@ const universalChatOrchestrator = ai.defineFlow(
     }
 
     if (generationOutput?.sqlQuery) {
-        let sqlQuery = generationOutput.sqlQuery;
+        let sqlQueryWithPlaceholder = generationOutput.sqlQuery;
 
         // Security Hardening: Redundant check to ensure the query is a SELECT statement.
-        if (!sqlQuery.trim().toLowerCase().startsWith('select')) {
-            logger.error("[UniversalChat:Flow] AI generated a non-SELECT query, blocking execution.", { query: sqlQuery });
+        if (!sqlQueryWithPlaceholder.trim().toLowerCase().startsWith('select')) {
+            logger.error("[UniversalChat:Flow] AI generated a non-SELECT query, blocking execution.", { query: sqlQueryWithPlaceholder });
             throw new Error("The AI-generated query was blocked for security reasons because it was not a read-only SELECT statement.");
         }
 
         const { output: validationOutput } = await queryValidationPrompt(
-            { userQuery, sqlQuery },
+            { userQuery, sqlQuery: sqlQueryWithPlaceholder },
             { model: aiModel }
         );
         if (!validationOutput?.isValid) {
@@ -411,33 +453,37 @@ const universalChatOrchestrator = ai.defineFlow(
             throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
         }
 
-        logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${sqlQuery}"`);
+        let finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { companyId });
+
+        logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${finalSqlQuery}"`);
         let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
-          query_text: sqlQuery.replace(/;/g, '')
+          query_text: finalSqlQuery.replace(/;/g, '')
         });
         
         if (queryError) {
             logger.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
             
             const { output: recoveryOutput } = await errorRecoveryPrompt(
-                { userQuery, failedQuery: sqlQuery, errorMessage: queryError.message, dbSchema: formattedSchema },
+                { userQuery, failedQuery: sqlQueryWithPlaceholder, errorMessage: queryError.message, dbSchema: formattedSchema },
                 { model: aiModel }
             );
 
             if (recoveryOutput?.correctedQuery) {
                 logger.info(`[UniversalChat:Flow] AI provided a corrected query. Reasoning: ${recoveryOutput.reasoning}`);
                 
-                sqlQuery = recoveryOutput.correctedQuery;
+                sqlQueryWithPlaceholder = recoveryOutput.correctedQuery;
                 
-                const { output: revalidationOutput } = await queryValidationPrompt({ userQuery, sqlQuery }, { model: aiModel });
+                const { output: revalidationOutput } = await queryValidationPrompt({ userQuery, sqlQuery: sqlQueryWithPlaceholder }, { model: aiModel });
                 if (!revalidationOutput?.isValid) {
                     logger.error("Corrected SQL failed re-validation:", revalidationOutput.correction);
                     throw new Error(`The AI's attempt to fix the query was also invalid. Reason: ${revalidationOutput.correction}`);
                 }
+                
+                finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { companyId });
 
-                logger.info(`[Audit Trail] Executing re-validated SQL for company ${companyId}: "${sqlQuery}"`);
+                logger.info(`[Audit Trail] Executing re-validated SQL for company ${companyId}: "${finalSqlQuery}"`);
                 const retryResult = await supabaseAdmin.rpc('execute_dynamic_query', {
-                    query_text: sqlQuery.replace(/;/g, '')
+                    query_text: finalSqlQuery.replace(/;/g, '')
                 });
                 
                 queryData = retryResult.data;
@@ -456,7 +502,8 @@ const universalChatOrchestrator = ai.defineFlow(
         }
 
         if (!queryError) {
-            await saveSuccessfulQuery(companyId, userQuery, sqlQuery);
+            // Save the version of the query with the placeholder for safer re-use in examples.
+            await saveSuccessfulQuery(companyId, userQuery, sqlQueryWithPlaceholder);
         }
 
         const queryDataJson = JSON.stringify(queryData || []);
