@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem, User, TeamMember } from '@/types';
-import { CompanySettingsSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -268,7 +268,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
   return fetchAndCacheMetrics();
 }
 
-async function getRawDeadStockData(companyId: string, settings: CompanySettings): Promise<DeadStockItem[]> {
+async function getRawDeadStockData(companyId: string, settings: CompanySettings) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     const supabase = getServiceRoleClient();
     const deadStockDays = settings.dead_stock_days;
@@ -297,7 +297,7 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
         return [];
     }
 
-    return (data || []) as DeadStockItem[];
+    return z.array(DeadStockItemSchema).parse(data || []);
 }
 
 export async function getDeadStockPageData(companyId: string) {
@@ -337,7 +337,7 @@ export async function getDeadStockPageData(companyId: string) {
     });
 }
 
-export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
+export async function getSuppliersFromDB(companyId: string) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getSuppliersFromDB', async () => {
         const cacheKey = `company:${companyId}:suppliers`;
@@ -363,14 +363,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
             throw new Error(`Could not load supplier data: ${error.message}`);
         }
         
-        const result = data?.map(v => ({
-            id: v.id,
-            name: v.vendor_name,
-            contact_info: v.contact_info,
-            address: v.address,
-            terms: v.terms,
-            account_number: v.account_number,
-        })) || [];
+        const result = z.array(SupplierSchema).parse(data || []);
 
         if (isRedisEnabled) {
         try {

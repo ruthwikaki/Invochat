@@ -52,23 +52,34 @@ export type ChartConfig = {
     }
 }
 
-export type Supplier = {
-    id: string; // UUID
-    name: string;
-    contact_info: string;
-    address: string | null;
-    terms: string | null;
-    account_number: string | null;
-}
+export const SupplierSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string().min(1),
+    contact_info: z.string().email(),
+    address: z.string().nullable(),
+    terms: z.string().nullable(),
+    account_number: z.string().nullable(),
+}).transform(data => ({
+    id: data.id,
+    name: (data as any).vendor_name || data.name, // Handle raw data from DB
+    contact_info: data.contact_info,
+    address: data.address,
+    terms: data.terms,
+    account_number: data.account_number,
+}));
+export type Supplier = z.infer<typeof SupplierSchema>;
 
-export type DeadStockItem = {
-    sku: string;
-    product_name: string;
-    quantity: number;
-    cost: number;
-    total_value: number;
-    last_sale_date: string | null;
-};
+
+export const DeadStockItemSchema = z.object({
+    sku: z.string(),
+    product_name: z.string(),
+    quantity: z.number(),
+    cost: z.number(),
+    total_value: z.number(),
+    last_sale_date: z.string().nullable(),
+});
+export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
+
 
 export type Alert = {
     id: string;
