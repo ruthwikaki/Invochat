@@ -1,18 +1,8 @@
-import { notFound } from 'next/navigation';
-
 /**
- * This component exists to resolve a build-time route conflict.
- * The application has a primary login page at `/(auth)/login/page.tsx`.
- * This file at `/(app)/login/page.tsx` creates a parallel route to the same `/login` path,
- * which causes a Next.js build error.
- *
- * To solve this, we remove the `default` export. A Next.js page component
- * MUST be a default export. By making this a named export, we signal to the
- * build system that this is not a page, resolving the conflict.
- * The notFound() call is kept as a safeguard in case this component were ever
- * to be rendered, ensuring it serves a 404 page.
+ * This file is intentionally structured to resolve a Next.js build error.
+ * A file named `page.tsx` is only treated as a page if it has a `default`
+ * export that is a React component. By only having a named export of a
+ * constant, we signal to the build system to ignore this file, resolving
+ * the parallel route conflict with `/(auth)/login/page.tsx`.
  */
-export function ConflictingLoginPage() {
-  notFound();
-  return null;
-}
+export const a = 'this is not a page';
