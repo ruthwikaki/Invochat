@@ -184,3 +184,69 @@ CREATE TABLE IF NOT EXISTS public.query_patterns (
 
 -- Add an index for faster lookups when fetching patterns for a company.
 CREATE INDEX IF NOT EXISTS idx_query_patterns_company_id ON public.query_patterns(company_id);
+`;
+
+function SqlCopyBox() {
+    const { toast } = useToast();
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(sqlCode).then(() => {
+            toast({ title: 'Success', description: 'SQL code copied to clipboard.' });
+        }).catch(err => {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not copy code.' });
+        });
+    };
+
+    return (
+        <div className="relative">
+            <pre className="bg-muted p-4 rounded-md text-sm text-muted-foreground overflow-x-auto">
+                <code>{sqlCode}</code>
+            </pre>
+            <Button onClick={handleCopy} variant="secondary" size="sm" className="absolute top-2 right-2">
+                Copy SQL
+            </Button>
+        </div>
+    );
+}
+
+export default function SetupIncompletePage() {
+    const { signOut } = useAuth();
+    const router = useRouter();
+
+    const handleSignOut = async () => {
+        await signOut();
+        router.push('/login');
+    };
+
+    return (
+        <div className="flex min-h-dvh items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-2xl">
+                <CardHeader>
+                    <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit mb-4">
+                        <AlertTriangle className="h-8 w-8 text-destructive" />
+                    </div>
+                    <CardTitle className="text-center text-2xl">Setup Incomplete</CardTitle>
+                    <CardDescription className="text-center">
+                        Your account is not fully configured. To enable full application functionality, please run the following SQL script in your Supabase project's SQL Editor.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                        This script is idempotent, meaning it's safe to run multiple times. It will create necessary database functions and tables without duplicating existing ones.
+                    </p>
+                    <SqlCopyBox />
+                </CardContent>
+                <CardFooter className="flex flex-col items-center gap-4">
+                    <p className="text-sm text-muted-foreground text-center">
+                        After running the script, you must sign out and sign up with a **new user account** to finalize the setup. This is a one-time process.
+                    </p>
+                    <Button onClick={handleSignOut} variant="outline">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign Out
+                    </Button>
+                </CardFooter>
+            </Card>
+        </div>
+    );
+}
+
