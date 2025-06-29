@@ -18,7 +18,7 @@ import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/analytics', label: 'Strategic Reports', icon: Pyramid },
+  { href: '/analytics', label: 'Strategic Reports', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },

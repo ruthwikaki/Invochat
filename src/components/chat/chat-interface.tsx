@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { config } from '@/config/app-config';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
+import { Card, CardContent } from '@/components/ui/card';
 
 const quickActions = config.chat.quickActions;
 
@@ -21,14 +22,25 @@ type ChatInterfaceProps = {
     initialMessages: Message[];
 }
 
-function ChatWelcomePanel() {
+function ChatWelcomePanel({ onQuickActionClick }: { onQuickActionClick: (action: string) => void }) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-center p-4">
-        <Bot className="h-20 w-20 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center p-8 rounded-full bg-card">
+            <Bot className="h-16 w-16 text-primary" />
+        </div>
         <h2 className="mt-6 text-2xl font-semibold">Start a new conversation</h2>
-        <p className="mt-2 text-muted-foreground">
-          Ask me anything about your inventory, sales, or suppliers.
+        <p className="mt-2 max-w-md text-muted-foreground">
+          Ask me anything about your inventory, sales, or suppliers. Or, try one of these quick starts:
         </p>
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full">
+            {quickActions.map((action, i) => (
+                <Card key={i} className="text-left hover:bg-muted transition-colors cursor-pointer" onClick={() => onQuickActionClick(action)}>
+                    <CardContent className="p-4">
+                        <p className="font-medium text-sm">{action}</p>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
       </div>
     );
 }
@@ -133,8 +145,6 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
     }
   };
   
-  // This effect ensures the messages displayed are always in sync with the server-fetched initialMessages,
-  // especially when the user navigates between different conversations.
   useEffect(() => {
     setMessages(initialMessages);
   }, [initialMessages]);
@@ -152,7 +162,7 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
   }, [messages]);
 
   return (
-    <div className="flex h-full flex-grow flex-col justify-between bg-muted/30">
+    <div className="flex h-full flex-grow flex-col justify-between bg-card">
       <ScrollArea className="flex-grow" ref={scrollAreaRef}>
         {messages.length > 0 ? (
             <div className="mx-auto w-full max-w-4xl space-y-6 p-4">
@@ -164,24 +174,10 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
                 ))}
             </div>
         ) : (
-            <ChatWelcomePanel />
+            <ChatWelcomePanel onQuickActionClick={handleQuickAction} />
         )}
       </ScrollArea>
       <div className="mx-auto w-full max-w-4xl p-4 border-t bg-background">
-        <div className="mb-2 flex flex-wrap gap-2">
-          {quickActions.map((action) => (
-            <Button
-              key={action}
-              variant="outline"
-              size="sm"
-              className="rounded-full h-auto py-1 px-3 text-xs"
-              onClick={() => handleQuickAction(action)}
-              disabled={isPending}
-            >
-              {action}
-            </Button>
-          ))}
-        </div>
         <form onSubmit={handleSubmit} className="relative flex items-center">
           <Input
             type="text"

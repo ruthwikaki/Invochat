@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -151,7 +151,7 @@ function StrategicReports() {
 
     return (
         <div className="space-y-6">
-            <Card className="bg-muted/50">
+            <Card className="bg-card">
                 <CardHeader>
                     <CardTitle>AI-Powered Strategic Reports</CardTitle>
                     <CardDescription>
@@ -161,16 +161,19 @@ function StrategicReports() {
             </Card>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {availableAnalyses.map((analysis) => (
-                    <Card key={analysis.key} className="flex flex-col">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <analysis.icon className="h-5 w-5 text-primary" />
+                    <Card key={analysis.key} className="flex flex-col hover:shadow-lg transition-shadow duration-300">
+                        <CardHeader className="flex-grow">
+                            <div className="bg-primary/10 rounded-lg w-12 h-12 flex items-center justify-center mb-4">
+                                <analysis.icon className="h-6 w-6 text-primary" />
+                            </div>
+                            <CardTitle>
                                 {analysis.title}
                             </CardTitle>
                             <CardDescription>{analysis.description}</CardDescription>
                         </CardHeader>
-                        <CardFooter className="mt-auto">
+                        <CardFooter>
                             <Button className="w-full" onClick={() => handleRunAnalysis(analysis.prompt, analysis.key)} disabled={isPending}>
+                               {isPending && currentAnalysisKey === analysis.key ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 Run Analysis
                             </Button>
                         </CardFooter>

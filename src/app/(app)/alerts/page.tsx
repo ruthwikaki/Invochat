@@ -33,32 +33,34 @@ function AlertCard({ alert }: { alert: Alert }) {
   const [formattedDate, setFormattedDate] = useState('');
 
   useEffect(() => {
-    // Alerts are generated on page load, so this will always be "just now" or similar.
     setFormattedDate(formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true }));
   }, [alert.timestamp]);
 
-  const Icon = alert.severity === 'warning' ? AlertCircle : Info;
-  const cardClass = alert.severity === 'warning' ? 'border-warning/50 text-warning' : 'border-blue-500/50';
+  const isWarning = alert.severity === 'warning';
+  const Icon = isWarning ? AlertCircle : Info;
+  const cardClass = isWarning ? 'border-warning/50' : 'border-blue-500/50';
+  const iconColor = isWarning ? 'text-warning' : 'text-blue-500';
   const badgeVariant = alert.type === 'low_stock' ? 'destructive' : 'secondary';
   
   return (
-    <Card className={cn(cardClass)}>
+    <Card className={cn("transition-shadow hover:shadow-md", cardClass)}>
       <CardHeader>
         <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Icon className="h-5 w-5" /> {alert.title}
-            </CardTitle>
-            <CardDescription>
-              Detected {formattedDate}
-            </CardDescription>
+          <div className="flex items-start gap-4">
+             <Icon className={cn("h-6 w-6 mt-1 shrink-0", iconColor)} />
+             <div>
+                <CardTitle>{alert.title}</CardTitle>
+                <CardDescription>
+                  Detected {formattedDate}
+                </CardDescription>
+             </div>
           </div>
-          <Badge variant={badgeVariant}>{alert.type.replace(/_/g, ' ')}</Badge>
+          <Badge variant={badgeVariant} className="capitalize shrink-0">{alert.type.replace(/_/g, ' ')}</Badge>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pl-14">
         <p className="mb-4">{alert.message}</p>
-         <div className="text-xs bg-muted/80 p-2 rounded-md space-y-1">
+         <div className="text-sm bg-muted/80 p-3 rounded-md space-y-2 border">
             {alert.metadata.productName && <p><strong>Product:</strong> {alert.metadata.productName}</p>}
             {alert.metadata.currentStock !== undefined && <p><strong>Stock:</strong> {alert.metadata.currentStock}</p>}
             {alert.metadata.reorderPoint !== undefined && <p><strong>Reorder Point:</strong> {alert.metadata.reorderPoint}</p>}
@@ -138,7 +140,7 @@ export default function AlertsPage() {
             <AlertCard key={alert.id} alert={alert} />
           ))
         ) : (
-          <div className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg">
+          <div className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg bg-card">
             <CheckCircle className="h-12 w-12 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-semibold">All Clear!</h3>
             <p className="text-muted-foreground">You have no active alerts based on your current settings.</p>

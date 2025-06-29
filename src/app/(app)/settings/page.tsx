@@ -18,26 +18,26 @@ import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings } from '@/types';
 import { getCompanySettings, updateCompanySettings } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info } from 'lucide-react';
 import Link from 'next/link';
 
-const businessRulesFields: { key: keyof CompanySettings; label: string; description: string }[] = [
-    { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".' },
-    { key: 'fast_moving_days', label: 'Fast-Moving Item Window (Days)', description: 'Timeframe to consider for "fast-moving" items.' },
-    { key: 'overstock_multiplier', label: 'Overstock Multiplier', description: 'Reorder point is multiplied by this to define "overstock".' },
-    { key: 'high_value_threshold', label: 'High-Value Threshold ($)', description: 'The cost above which an item is considered "high-value".' },
+const businessRulesFields: { key: keyof CompanySettings; label: string; description: string, type: string }[] = [
+    { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".', type: 'number' },
+    { key: 'fast_moving_days', label: 'Fast-Moving Item Window (Days)', description: 'Timeframe to consider for "fast-moving" items.', type: 'number' },
+    { key: 'overstock_multiplier', label: 'Overstock Multiplier', description: 'Reorder point is multiplied by this to define "overstock".', type: 'number' },
+    { key: 'high_value_threshold', label: 'High-Value Threshold ($)', description: 'The cost above which an item is considered "high-value".', type: 'number' },
 ];
 
 const generalSettingsFields: { key: keyof CompanySettings; label: string; description: string, type: string, placeholder: string }[] = [
-    { key: 'currency', label: 'Currency Code', description: 'e.g., USD, EUR, JPY. Used for future currency formatting.', type: 'text', placeholder: 'USD' },
-    { key: 'timezone', label: 'Timezone', description: 'e.g., UTC, America/New_York. Used for future date formatting.', type: 'text', placeholder: 'UTC' },
-    { key: 'tax_rate', label: 'Default Tax Rate (%)', description: 'Default sales tax rate for future calculations.', type: 'number', placeholder: '8.5' },
+    { key: 'currency', label: 'Currency Code', description: 'e.g., USD, EUR. Used for formatting.', type: 'text', placeholder: 'USD' },
+    { key: 'timezone', label: 'Timezone', description: 'e.g., UTC, America/New_York. Used for date display.', type: 'text', placeholder: 'UTC' },
+    { key: 'tax_rate', label: 'Default Tax Rate (%)', description: 'Default sales tax rate for calculations.', type: 'number', placeholder: '8.5' },
 ];
 
 const themeFields: { key: keyof CompanySettings; label: string; description: string }[] = [
-    { key: 'theme_primary_color', label: 'Primary Color', description: 'Main color for buttons and highlights (HSL format).' },
-    { key: 'theme_background_color', label: 'Background Color', description: 'Main page background color (HSL format).' },
-    { key: 'theme_accent_color', label: 'Accent Color', description: 'Color for secondary elements and hover states (HSL format).' },
+    { key: 'theme_primary_color', label: 'Primary Color', description: 'Main color for buttons and highlights.' },
+    { key: 'theme_background_color', label: 'Background Color', description: 'Main page background color.' },
+    { key: 'theme_accent_color', label: 'Accent Color', description: 'Color for secondary elements and hovers.' },
 ];
 
 
@@ -79,8 +79,9 @@ export default function SettingsPage() {
                 // Ensure numeric values are numbers before sending
                 const settingsToUpdate = { ...settings };
                 [...businessRulesFields, ...generalSettingsFields].forEach(field => {
-                    if (field.type === 'number' && typeof settingsToUpdate[field.key] !== 'number') {
-                        settingsToUpdate[field.key] = Number(settingsToUpdate[field.key]) || 0;
+                    const fieldDef = [...businessRulesFields, ...generalSettingsFields].find(f => f.key === field.key);
+                    if (fieldDef?.type === 'number' && typeof settingsToUpdate[field.key] !== 'number') {
+                         settingsToUpdate[field.key] = Number(settingsToUpdate[field.key]) || 0;
                     }
                 });
                 
@@ -88,10 +89,11 @@ export default function SettingsPage() {
 
                 toast({
                     title: 'Success',
-                    description: 'Your settings have been updated.',
+                    description: 'Your settings have been updated. Refreshing to apply changes...',
                 });
-                // Reload to apply theme changes
-                window.location.reload();
+                
+                setTimeout(() => window.location.reload(), 1500);
+
             } catch (error) {
                 toast({
                     variant: 'destructive',
@@ -127,12 +129,12 @@ export default function SettingsPage() {
                         <CardContent>
                             {loading ? <Skeleton className="h-48 w-full" /> : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {businessRulesFields.map(({ key, label, description }) => (
+                                    {businessRulesFields.map(({ key, label, description, type }) => (
                                         <div key={key} className="space-y-2">
                                             <Label htmlFor={key} className="text-base">{label}</Label>
                                             <Input
                                                 id={key}
-                                                type="number"
+                                                type={type}
                                                 value={settings[key] || ''}
                                                 onChange={(e) => handleInputChange(key, e.target.value)}
                                                 className="text-lg"
@@ -153,17 +155,12 @@ export default function SettingsPage() {
                                 Branding & Theming
                             </CardTitle>
                             <CardDescription>
-                                Customize the look and feel of your workspace.
+                                Customize the look and feel of your workspace. Use HSL format for colors.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             {loading ? <Skeleton className="h-64 w-full" /> : (
                                 <div className="space-y-6">
-                                     <div className="space-y-2 p-4 border rounded-lg bg-muted/50">
-                                        <Label className="flex items-center gap-2 text-muted-foreground"><ImageIcon className="h-4 w-4" /> Company Logo</Label>
-                                        <Button disabled variant="outline">Upload Logo</Button>
-                                        <p className="text-xs text-muted-foreground">Logo customization is coming soon.</p>
-                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         {themeFields.map(({ key, label, description }) => (
                                             <div key={key} className="space-y-2">
@@ -179,6 +176,10 @@ export default function SettingsPage() {
                                             </div>
                                         ))}
                                     </div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted p-2 rounded-lg">
+                                        <Info className="h-4 w-4 shrink-0" />
+                                        <span>You can get HSL color values from web tools like <a href="https://hslpicker.com/" target="_blank" rel="noopener noreferrer" className="underline">hslpicker.com</a>.</span>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
@@ -189,7 +190,6 @@ export default function SettingsPage() {
                             {isPending ? 'Saving...' : 'Save All Settings'}
                         </Button>
                     </div>
-
                 </div>
 
                 <div className="space-y-6 lg:col-span-1">
@@ -213,7 +213,7 @@ export default function SettingsPage() {
                                             <Input
                                                 id={key}
                                                 type={type}
-                                                value={settings[key] as string || ''}
+                                                value={settings[key] as any || ''}
                                                 onChange={(e) => handleInputChange(key, e.target.value)}
                                                 placeholder={placeholder}
                                             />
