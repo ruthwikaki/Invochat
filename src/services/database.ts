@@ -4,29 +4,19 @@
 /**
  * @fileoverview
  * This file contains server-side functions for querying the Supabase database.
- *
- * It uses the Supabase Admin client (service_role) to bypass Row Level Security (RLS)
- * policies. This is a deliberate choice for this application context.
- *
- * SECURITY: All functions in this file MUST manually filter queries by `companyId`
- * to ensure users can only access their own data.
+ * It uses the Supabase Admin client (service_role) to bypass Row Level Security (RLS).
+ * SECURITY: All functions in this file MUST manually filter queries by `companyId`.
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Supplier, Alert, CompanySettings, DeadStockItem, UnifiedInventoryItem, User, TeamMember } from '@/types';
-import { subDays, differenceInDays, parseISO, isBefore } from 'date-fns';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
-import { sendEmailAlert } from './email';
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
+import { revalidatePath } from 'next/cache';
 
-/**
- * A higher-order function to wrap database operations with performance tracking.
- * @param functionName The name of the function to track.
- * @param fn The async function to execute and track.
- * @returns The result of the wrapped function.
- */
 async function withPerformanceTracking<T>(
     functionName: string,
     fn: () => Promise<T>
@@ -49,7 +39,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             .eq('company_id', companyId)
             .single();
         
-        if (error && error.code !== 'PGRST116') { // PGRST116 = 'no rows returned'
+        if (error && error.code !== 'PGRST116') {
             logger.error(`[DB Service] Error fetching company settings for ${companyId}:`, error);
             throw error;
         }
@@ -58,7 +48,6 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             return data as CompanySettings;
         }
 
-        // No settings found, so create and return default settings.
         logger.info(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
         const defaultSettingsData = {
             company_id: companyId,
@@ -76,7 +65,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
         
         const { data: newData, error: insertError } = await supabase
             .from('company_settings')
-            .upsert(defaultSettingsData) // Use upsert to avoid race conditions
+            .upsert(defaultSettingsData)
             .select()
             .single();
         
@@ -89,12 +78,34 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
     });
 }
 
-export async function updateCompanySettings(companyId: string, settings: Partial<Omit<CompanySettings, 'company_id'>>): Promise<CompanySettings> {
+const CompanySettingsUpdateSchema = z.object({
+    dead_stock_days: z.number().int().positive('Dead stock days must be a positive number.'),
+    fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.'),
+    overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.'),
+    high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.'),
+    currency: z.string().nullable().optional(),
+    timezone: z.string().nullable().optional(),
+    tax_rate: z.number().nullable().optional(),
+    theme_primary_color: z.string().nullable().optional(),
+    theme_background_color: z.string().nullable().optional(),
+    theme_accent_color: z.string().nullable().optional(),
+});
+
+
+export async function updateCompanySettings(companyId: string, settings: Partial<CompanySettings>): Promise<CompanySettings> {
+     const parsedSettings = CompanySettingsUpdateSchema.safeParse(settings);
+    
+    if (!parsedSettings.success) {
+        const errorMessages = parsedSettings.error.issues.map(issue => issue.message).join(' ');
+        throw new Error(`Invalid settings format: ${errorMessages}`);
+    }
+
     return withPerformanceTracking('updateCompanySettings', async () => {
         const supabase = getServiceRoleClient();
+        const { company_id, created_at, updated_at, ...updateData } = settings;
         const { data, error } = await supabase
             .from('company_settings')
-            .update({ ...settings, updated_at: new Date().toISOString() })
+            .update({ ...updateData, updated_at: new Date().toISOString() })
             .eq('company_id', companyId)
             .select()
             .single();
@@ -104,7 +115,6 @@ export async function updateCompanySettings(companyId: string, settings: Partial
             throw error;
         }
         
-        // Invalidate cache since business logic has changed
         logger.info(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         
@@ -125,7 +135,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
     return withPerformanceTracking('getDashboardMetrics', async () => {
         const supabase = getServiceRoleClient();
         
-        // --- Define all queries ---
         const salesQuery = `
             SELECT id, total_amount FROM orders
             WHERE company_id = '${companyId}' AND sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
@@ -135,13 +144,12 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const customersPromise = supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
         const profitQuery = `
-            SELECT sd.profit FROM sales_detail sd JOIN orders s ON sd.sale_id = s.id
-            WHERE sd.company_id = '${companyId}' AND s.company_id = '${companyId}'
+            SELECT sd.profit FROM sales_detail sd JOIN orders s ON sd.sale_id = s.id AND sd.company_id = s.company_id
+            WHERE s.company_id = '${companyId}'
             AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
         `;
         const profitPromise = supabase.rpc('execute_dynamic_query', { query_text: profitQuery.trim().replace(/;/g, '') });
 
-        // OPTIMIZED: Calculate total inventory value directly in the database.
         const inventoryValueQuery = `
             SELECT SUM(quantity * cost) as total_value
             FROM inventory
@@ -165,18 +173,18 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         
         const topCustomersQuery = `
             SELECT c.customer_name as name, SUM(s.total_amount) as value
-            FROM orders s JOIN customers c ON s.customer_name = c.customer_name
-            WHERE s.company_id = '${companyId}' AND c.company_id = '${companyId}'
+            FROM orders s JOIN customers c ON s.customer_name = c.customer_name AND s.company_id = c.company_id
+            WHERE s.company_id = '${companyId}'
             AND s.sale_date >= (CURRENT_DATE - INTERVAL '${days} days')
             GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
         `;
         const topCustomersPromise = supabase.rpc('execute_dynamic_query', { query_text: topCustomersQuery.trim().replace(/;/g, '') });
         
         const inventoryByCategoryQuery = `
-            SELECT pa.attribute_value as name, sum(i.quantity * i.cost) as value 
-            FROM inventory i JOIN product_attributes pa ON i.id = pa.inventory_id AND pa.attribute_name = 'category'
-            WHERE i.company_id = '${companyId}'
-            GROUP BY pa.attribute_value
+            SELECT category as name, sum(quantity * cost) as value 
+            FROM inventory
+            WHERE company_id = '${companyId}' AND category IS NOT NULL
+            GROUP BY category
         `;
         const inventoryByCategoryPromise = supabase.rpc('execute_dynamic_query', { query_text: inventoryByCategoryQuery.trim().replace(/;/g, '') });
 
@@ -242,7 +250,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const sales = extractData(salesResult, []);
         const customersCount = extractCount(customersResult);
         const profitData = extractData(profitResult, []);
-        // OPTIMIZED: Extract single value from aggregate query
         const inventoryValueData = extractData(inventoryValueResult, [{ total_value: 0 }]);
         const totalInventoryValue = inventoryValueData[0]?.total_value || 0;
 
@@ -292,13 +299,9 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
       if (cachedData) {
         logger.info(`[Cache] HIT (Stale-While-Revalidate) for dashboard metrics: ${cacheKey}`);
         await incrementCacheHit('dashboard');
-
-        // Don't wait for this. Fire-and-forget revalidation in the background.
         fetchAndCacheMetrics().catch(err => {
             logger.error(`[SWR Background Revalidation] Failed to revalidate cache for ${cacheKey}:`, err);
         });
-
-        // Return the stale data immediately.
         return JSON.parse(cachedData);
       }
       logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
@@ -307,8 +310,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
       logger.error(`[Redis] Error getting cache for ${cacheKey}. Fetching directly from DB.`, error);
     }
   }
-
-  // If cache is disabled, or on a cache miss/error, fetch directly and wait for it.
   return fetchAndCacheMetrics();
 }
 
@@ -317,27 +318,17 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
     const deadStockDays = settings.dead_stock_days;
 
     const deadStockQuery = `
-        WITH LastSale AS (
-            SELECT
-                oi.sku,
-                MAX(s.sale_date) as last_sale_date
-            FROM orders s
-            JOIN order_items oi ON s.id = oi.sale_id
-            WHERE s.company_id = '${companyId}'
-            GROUP BY oi.sku
-        )
         SELECT
             i.sku,
             i.name as product_name,
             i.quantity,
             i.cost,
             (i.quantity * i.cost) as total_value,
-            ls.last_sale_date
+            i.last_sold_date
         FROM inventory i
-        LEFT JOIN LastSale ls ON i.sku = ls.sku
         WHERE i.company_id = '${companyId}'
         AND i.quantity > 0
-        AND (ls.last_sale_date IS NULL OR ls.last_sale_date < CURRENT_DATE - INTERVAL '${deadStockDays} days')
+        AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - INTERVAL '${deadStockDays} days')
         ORDER BY total_value DESC;
     `;
 
@@ -347,7 +338,6 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
 
     if (error) {
         logger.error(`[DB Service] Error fetching raw dead stock data for company ${companyId}:`, error);
-        // If the query fails (e.g., tables don't exist), return empty array to prevent crashes.
         return [];
     }
 
@@ -382,7 +372,7 @@ export async function getDeadStockPageData(companyId: string) {
 
         if (isRedisEnabled) {
         try {
-            await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600); // 1-hour TTL
+            await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600);
         } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
         }
 
@@ -390,11 +380,6 @@ export async function getDeadStockPageData(companyId: string) {
     });
 }
 
-
-/**
- * This function directly queries the vendors table to get a list of all suppliers
- * for a given company, ensuring a single, consistent method for data retrieval.
- */
 export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]> {
     return withPerformanceTracking('getSuppliersFromDB', async () => {
         const cacheKey = `company:${companyId}:suppliers`;
@@ -431,7 +416,7 @@ export async function getSuppliersFromDB(companyId: string): Promise<Supplier[]>
 
         if (isRedisEnabled) {
         try {
-            await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600); // 10 min TTL
+            await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600);
         } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
         }
 
@@ -458,7 +443,6 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         const settings = await getCompanySettings(companyId);
         const alerts: Alert[] = [];
         
-        // --- Low Stock Alerts ---
         const lowStockQuery = `
             SELECT sku, quantity, name as product_name, reorder_point
             FROM inventory
@@ -489,7 +473,6 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             }
         }
         
-        // --- Dead Stock Alerts ---
         const deadStockItems = await getRawDeadStockData(companyId, settings);
         for (const item of deadStockItems) {
             const alert: Alert = {
@@ -520,16 +503,13 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     });
 }
 
-// These are the tables we want to expose to the user for querying.
-// We are explicitly listing them to match what the AI has been told it can query.
-// Child tables without a direct company_id are excluded as they are accessed via joins.
 const USER_FACING_TABLES = [
     'vendors', 
     'orders', 
-    'sales_detail',
     'customers', 
     'returns', 
     'inventory',
+    'sales_detail',
     'fba_inventory', 
     'inventory_valuation', 
     'warehouse_locations', 
@@ -537,11 +517,6 @@ const USER_FACING_TABLES = [
     'daily_stats',
 ];
 
-/**
- * Fetches the schema and sample data for user-facing tables.
- * @param companyId The ID of the company to fetch data for.
- * @returns An array of objects, each containing a table name and sample rows.
- */
 export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: any[] }[]> {
     return withPerformanceTracking('getDatabaseSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
@@ -555,9 +530,10 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
             .limit(10);
 
             if (error) {
-            logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not exist or be configured for the current company. Error: ${error.message}`);
-            // Push an empty result so the UI can still render the table name
-            results.push({ tableName, rows: [] });
+                if (!error.message.includes("does not exist")) {
+                    logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not be configured for the current company. Error: ${error.message}`);
+                }
+                results.push({ tableName, rows: [] });
             } else {
             results.push({
                 tableName,
@@ -570,12 +546,6 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
     });
 }
 
-/**
- * Retrieves the most relevant query patterns for a company to provide as examples to the AI.
- * @param companyId The ID of the company.
- * @param limit The maximum number of patterns to retrieve.
- * @returns A promise that resolves to an array of query patterns.
- */
 export async function getQueryPatternsForCompany(
   companyId: string,
   limit = 3
@@ -591,7 +561,6 @@ export async function getQueryPatternsForCompany(
             .limit(limit);
 
         if (error) {
-            // This is not a critical error; the system can proceed without these examples.
             logger.warn(`[DB Service] Could not fetch query patterns for company ${companyId}: ${error.message}`);
             return [];
         }
@@ -600,13 +569,6 @@ export async function getQueryPatternsForCompany(
     });
 }
 
-/**
- * Saves a successful query pattern to the database to be used for future learning.
- * This function performs an "upsert" by first checking if a pattern exists.
- * @param companyId The ID of the company.
- * @param userQuestion The user's original question.
- * @param sqlQuery The successful SQL query that was executed.
- */
 export async function saveSuccessfulQuery(
   companyId: string,
   userQuestion: string,
@@ -615,7 +577,6 @@ export async function saveSuccessfulQuery(
     return withPerformanceTracking('saveSuccessfulQuery', async () => {
         const supabase = getServiceRoleClient();
 
-        // Check if a pattern for this question already exists for this company
         const { data: existingPattern, error: selectError } = await supabase
             .from('query_patterns')
             .select('id, usage_count')
@@ -623,19 +584,18 @@ export async function saveSuccessfulQuery(
             .eq('user_question', userQuestion)
             .single();
 
-        if (selectError && selectError.code !== 'PGRST116') { // Ignore 'no rows' error
+        if (selectError && selectError.code !== 'PGRST116') {
             logger.warn(`[DB Service] Could not check for existing query pattern: ${selectError.message}`);
             return;
         }
 
         if (existingPattern) {
-            // If it exists, update the usage count and last used timestamp
             const { error: updateError } = await supabase
                 .from('query_patterns')
                 .update({
                     usage_count: (existingPattern.usage_count || 0) + 1,
                     last_used_at: new Date().toISOString(),
-                    successful_sql_query: sqlQuery // Also update the query in case the AI improved it
+                    successful_sql_query: sqlQuery
                 })
                 .eq('id', existingPattern.id);
 
@@ -645,7 +605,6 @@ export async function saveSuccessfulQuery(
                 logger.debug(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
             }
         } else {
-            // If it doesn't exist, insert a new record
             const { error: insertError } = await supabase
                 .from('query_patterns')
                 .insert({
@@ -730,12 +689,11 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             SELECT
                 i.sku,
                 i.name as product_name,
-                pa.attribute_value as category,
+                i.category,
                 i.quantity,
                 i.cost,
                 (i.quantity * i.cost) as total_value
             FROM inventory i
-            LEFT JOIN product_attributes pa ON i.id = pa.inventory_id AND pa.attribute_name = 'category'
             WHERE i.company_id = '${companyId}'
         `;
 
@@ -743,7 +701,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             sqlQuery += ` AND (i.name ILIKE '%${query.replace(/'/g, "''")}%' OR i.sku ILIKE '%${query.replace(/'/g, "''")}%')`;
         }
         if (category) {
-            sqlQuery += ` AND pa.attribute_value = '${category.replace(/'/g, "''")}'`;
+            sqlQuery += ` AND i.category = '${category.replace(/'/g, "''")}'`;
         }
         sqlQuery += ` ORDER BY i.name;`;
 
@@ -766,10 +724,9 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
         const supabase = getServiceRoleClient();
         
         const query = `
-            SELECT DISTINCT pa.attribute_value FROM product_attributes pa
-            JOIN inventory i ON pa.inventory_id = i.id
-            WHERE i.company_id = '${companyId}' AND pa.attribute_name = 'category' AND pa.attribute_value IS NOT NULL
-            ORDER BY pa.attribute_value ASC;
+            SELECT DISTINCT category FROM inventory
+            WHERE company_id = '${companyId}' AND category IS NOT NULL
+            ORDER BY category ASC;
         `;
 
         const { data, error } = await supabase.rpc('execute_dynamic_query', {
@@ -781,12 +738,12 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
             return [];
         }
         
-        return data.map((item: any) => item.attribute_value) || [];
+        return data.map((item: any) => item.category) || [];
     });
 }
 
-export async function getTeamMembers(companyId: string): Promise<TeamMember[]> {
-    return withPerformanceTracking('getTeamMembers', async () => {
+export async function getTeamMembersFromDB(companyId: string): Promise<TeamMember[]> {
+    return withPerformanceTracking('getTeamMembersFromDB', async () => {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
             .from('users')
@@ -859,7 +816,7 @@ export async function updateTeamMemberRoleInDb(
             .from('users')
             .update({ role: newRole })
             .eq('id', memberIdToUpdate)
-            .eq('company_id', companyId); // Extra security check
+            .eq('company_id', companyId);
 
         if (updateError) {
             logger.error(`[DB Service] Failed to update role for ${memberIdToUpdate}:`, updateError);

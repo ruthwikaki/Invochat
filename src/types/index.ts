@@ -2,14 +2,11 @@
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-// Extend the Supabase User type to include our custom app_metadata
-// which may or may not be present on a new user object.
 export type User = Omit<SupabaseUser, 'app_metadata' | 'role'> & {
   app_metadata?: {
     company_id?: string;
-    // other metadata properties can be added here
   };
-  role?: string; // Add the role from the public.users table
+  role?: string;
 };
 
 export type Conversation = {
@@ -42,7 +39,6 @@ export type Message = {
   isError?: boolean;
 };
 
-// Represents the configuration for a dynamically generated chart.
 export type ChartConfig = {
     chartType: 'bar' | 'pie' | 'line' | 'treemap' | 'scatter';
     title?: string;
@@ -55,14 +51,12 @@ export type ChartConfig = {
     }
 }
 
-// Data models based on database schema
-// This type is based on the `get_suppliers` RPC function, updated to match vendors table.
 export type Supplier = {
     id: string; // UUID
     name: string;
     contact_info: string;
     address: string | null;
-    terms: string;
+    terms: string | null;
     account_number: string | null;
 }
 
@@ -108,16 +102,13 @@ export type DashboardMetrics = {
 
 export type CompanySettings = {
   company_id: string;
-  // Business Rules
   dead_stock_days: number;
   overstock_multiplier: number;
   high_value_threshold: number;
   fast_moving_days: number;
-  // General Settings
   currency: string | null;
   timezone: string | null;
   tax_rate: number | null;
-  // Theming
   theme_primary_color: string | null;
   theme_background_color: string | null;
   theme_accent_color: string | null;

@@ -37,7 +37,6 @@ async function getAuthContext(): Promise<{ userId: string; companyId: string }> 
             throw new Error(`Authentication error: ${error.message}`);
         }
 
-        // Check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
         const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
         
         if (!user || !companyId || typeof companyId !== 'string') {
@@ -49,14 +48,10 @@ async function getAuthContext(): Promise<{ userId: string; companyId: string }> 
         return { userId: user.id, companyId };
     } catch (e: any) {
         logger.error('[getAuthContext] Caught exception:', e.message);
-        // Re-throw the error to be caught by the calling function's error boundary.
         throw e;
     }
 }
 
-/**
- * Fetches all conversations for the currently authenticated user.
- */
 export async function getConversations(): Promise<Conversation[]> {
     try {
         const { userId, companyId } = await getAuthContext();
@@ -79,9 +74,6 @@ export async function getConversations(): Promise<Conversation[]> {
     }
 }
 
-/**
- * Fetches all messages for a given conversation ID, ensuring the user has access.
- */
 export async function getMessages(conversationId: string): Promise<Message[]> {
     try {
         const { userId, companyId } = await getAuthContext();
@@ -90,7 +82,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
             .from('messages')
             .select('*')
             .eq('conversation_id', conversationId)
-            .eq('company_id', companyId) // Security check
+            .eq('company_id', companyId)
             .order('created_at', { ascending: true });
         
         if (error) {
@@ -98,7 +90,6 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
             return [];
         }
 
-        // Also update the last_accessed_at timestamp for the conversation
         await supabase.from('conversations').update({ last_accessed_at: new Date().toISOString() }).eq('id', conversationId);
 
         return data as Message[];
@@ -116,12 +107,10 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
     const keys = Object.keys(firstItem);
     if (keys.length < 2) return [];
 
-    // Specific handling for scatter plots which need 'x' and 'y'
     if (chartType === 'scatter' && 'x' in firstItem && 'y' in firstItem) {
         return data.filter(p => typeof p.x === 'number' && typeof p.y === 'number');
     }
     
-    // For treemaps, the size key is important. Often called 'value' or 'size'.
     const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('size') || k.toLowerCase().includes('total') || k.toLowerCase().includes('count') || k.toLowerCase().includes('quantity') || k.toLowerCase().includes('amount')) || keys.find(k => typeof firstItem[k] === 'number');
     const nameKey = keys.find(k => k !== valueKey && typeof firstItem[k] === 'string' && (k.toLowerCase().includes('name') || k.toLowerCase().includes('category') || k.toLowerCase().includes('vendor') || k.toLowerCase().includes('item'))) || keys.find(k => k !== valueKey);
 
@@ -137,7 +126,6 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
         return { name: String(item[nameKey] ?? 'Unnamed'), value: numericValue };
     }).filter((item): item is { name: string; value: number } => item !== null);
     
-    // For visualizations where zero or negative values don't make sense (like pie or treemap proportions)
     if (['pie', 'bar', 'treemap'].includes(chartType)) {
         return transformed.filter(item => item.value > 0);
     }
@@ -164,7 +152,7 @@ function getErrorMessage(error: any): string {
     } else if (message.includes('API key not valid')) {
         errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file and ensure it is correct.';
     } else if (message.includes('Your user session is invalid or not fully configured')) {
-        errorMessage = message; // Pass the more descriptive error through
+        errorMessage = message;
     } else if (message.includes('violates not-null constraint')) {
         errorMessage = 'A critical database error occurred while trying to save data. This may indicate an issue with the application setup.';
     } else if (message.includes('Rate limited')) {
@@ -197,8 +185,7 @@ export async function handleUserMessage(
     const supabase = getServiceRoleClient();
     const { userId, companyId } = await getAuthContext();
 
-    // Step 0: Apply Rate Limiting
-    const { limited } = await rateLimit(userId, 'ai_chat', 30, 60); // 30 requests per minute
+    const { limited } = await rateLimit(userId, 'ai_chat', 30, 60);
     if (limited) {
       logger.warn(`[Rate Limit] User ${userId} exceeded AI chat limit.`);
       throw new Error('Rate limited');
@@ -206,7 +193,6 @@ export async function handleUserMessage(
 
     let historyForAI: { role: 'user' | 'assistant'; content: { text: string; }[] }[] = [];
 
-    // Step 1: Find or Create Conversation
     if (!currentConversationId) {
         const title = source === 'analytics_page' 
             ? `Report: ${userQuery.substring(0, 40)}...`
@@ -230,14 +216,15 @@ export async function handleUserMessage(
             .limit(config.ai.historyLimit);
 
         if (historyError) throw new Error("Could not fetch conversation history.");
-        historyForAI = (history || []).reverse().map(msg => ({
+        
+        const validHistory = (history || []).filter(msg => typeof msg.content === 'string');
+        historyForAI = validHistory.reverse().map(msg => ({
             role: msg.role as 'user' | 'assistant',
-            content: [{ text: msg.content }]
+            content: [{ text: msg.content! }]
         }));
         historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
     }
 
-    // Step 2: Save the user's message, ensuring company_id is included.
     await supabase.from('messages').insert({
         conversation_id: currentConversationId,
         company_id: companyId,
@@ -245,7 +232,6 @@ export async function handleUserMessage(
         content: userQuery,
     });
     
-    // Step 3: Call the AI flow (check cache first)
     let flowResponse;
     const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
     const cacheKey = `company:${companyId}:query:${queryHash}`;
@@ -279,10 +265,9 @@ export async function handleUserMessage(
     }
     const responseData = parsedResponse.data;
     
-    // Step 4: Construct the assistant's message, ensuring company_id is included.
     const assistantMessage: Omit<Message, 'id' | 'created_at'> = {
       conversation_id: currentConversationId,
-      company_id: companyId, // This is now correctly required by the type.
+      company_id: companyId,
       role: 'assistant',
       content: responseData.response,
       confidence: responseData.confidence,
@@ -333,17 +318,15 @@ export async function handleUserMessage(
       throw new Error(`Could not save assistant message: ${saveMsgError.message}`);
     }
     
-    // Step 5: Cache the successful result in Redis if it wasn't a cache hit
     if (isRedisEnabled && !(await redisClient.get(cacheKey)) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
         try {
-            await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', config.redis.ttl.aiQuery); // Cache for 1 hour
+            await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', config.redis.ttl.aiQuery);
             logger.info(`[Cache] SET for AI query: ${cacheKey}`);
         } catch (e) {
             logger.error(`[Redis] Error setting cached query for ${cacheKey}:`, e);
         }
     }
     
-    // Revalidate the path to trigger UI updates. This will re-fetch conversations and messages.
     if (parsedPayload.data.conversationId) {
         revalidatePath(`/chat?id=${parsedPayload.data.conversationId}`);
     } else {

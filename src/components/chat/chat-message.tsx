@@ -103,7 +103,6 @@ export function ChatMessage({
         )}
       </div>
       
-      {/* Render visualization if present, aligned correctly under the message bubble */}
       {message.visualization && (
         <div className={cn("max-w-xl w-full animate-in fade-in slide-in-from-bottom-2 duration-300", !isUserMessage && "ml-11")}>
           <DataVisualization

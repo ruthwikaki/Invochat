@@ -67,11 +67,10 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
       company_id: companyId,
     };
     
-    // Show a temporary generic loading indicator
     const tempLoadingMessage: Message = {
       id: 'loading',
       role: 'assistant',
-      content: '...', // This will be replaced by the LoadingIndicator component
+      content: '...',
       created_at: new Date().toISOString(),
       conversation_id: conversationId || tempId,
       company_id: companyId,
@@ -96,13 +95,11 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
                 company_id: companyId,
                 isError: true,
             };
-            // Replace loading message with error, keeping user's optimistic message
             setMessages(prev => [...prev.filter(m => m.id !== 'loading'), errorMessage]);
 
         } else if (response.conversationId && isNewChat) {
             router.push(`/chat?id=${response.conversationId}`);
         } else {
-            // Re-fetch messages from the server to get the real data
             router.refresh();
         }
 
@@ -116,7 +113,6 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
             company_id: companyId,
             isError: true,
         };
-        // Replace loading message with error, keeping user's optimistic message
         setMessages(prev => [...prev.filter(m => m.id !== 'loading'), errorMessage]);
       }
     });

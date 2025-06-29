@@ -104,8 +104,8 @@ const BUSINESS_QUERY_EXAMPLES = `
               SUM(sd.quantity * sd.sales_price) as total_revenue,
               SUM(sd.quantity) as total_units
        FROM inventory i
-       JOIN sales_detail sd ON i.sku = sd.item
-       WHERE i.company_id = '{{companyId}}' AND sd.company_id = '{{companyId}}'
+       JOIN sales_detail sd ON i.sku = sd.item AND i.company_id = sd.company_id
+       WHERE i.company_id = '{{companyId}}'
          AND sd.date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY i.sku, i.name
      ),
@@ -131,7 +131,6 @@ const BUSINESS_QUERY_EXAMPLES = `
 `;
 
 
-// Updated few-shot examples to reflect the new, richer schema
 const FEW_SHOT_EXAMPLES = `
   1. User asks: "Who were my top 5 customers last month?"
      SQL:
@@ -139,9 +138,8 @@ const FEW_SHOT_EXAMPLES = `
         c.customer_name as name,
         SUM(s.total_amount) as total_spent
      FROM orders s
-     JOIN customers c ON s.customer_name = c.customer_name
+     JOIN customers c ON s.customer_name = c.customer_name AND s.company_id = c.company_id
      WHERE s.company_id = '{{companyId}}'
-       AND c.company_id = '{{companyId}}'
        AND s.sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
        AND s.sale_date < date_trunc('month', CURRENT_DATE)
      GROUP BY c.customer_name
@@ -181,10 +179,6 @@ const FEW_SHOT_EXAMPLES = `
 `;
 
 
-/**
- * Agent 1: Planner & SQL Generation Agent
- * Takes the user query and either generates a PostgreSQL query or decides to use a tool.
- */
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
   input: { schema: z.object({ companyId: z.string(), userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
@@ -241,10 +235,6 @@ const sqlGenerationPrompt = ai.definePrompt({
   `,
 });
 
-/**
- * Agent 2: Query Validation
- * Reviews the generated SQL for security, correctness, and business sense.
- */
 const queryValidationPrompt = ai.definePrompt({
   name: 'queryValidationPrompt',
   input: { schema: z.object({ userQuery: z.string(), sqlQuery: z.string() }) },
@@ -276,16 +266,9 @@ const queryValidationPrompt = ai.definePrompt({
     **OUTPUT FORMAT:**
     - If ALL security and logic checks pass, return \`{"isValid": true}\`.
     - If ANY check fails, return \`{"isValid": false, "correction": "Explain the specific reason for failure concisely and technically."}\`.
-      - Example (Security Fail): "The query is missing a 'company_id' filter on the 'customers' table."
-      - Example (Security Fail): "The query contains a forbidden 'UPDATE' keyword."
-      - Example (Logic Fail): "The query uses a cross join between vendors and products, which is invalid."
   `,
 });
 
-/**
- * Agent 3: Error Recovery
- * Analyzes a failed query and its error message to suggest a correction.
- */
 const errorRecoveryPrompt = ai.definePrompt({
     name: 'errorRecoveryPrompt',
     input: { schema: z.object({ userQuery: z.string(), failedQuery: z.string(), errorMessage: z.string(), dbSchema: z.string() }) },
@@ -317,11 +300,6 @@ const errorRecoveryPrompt = ai.definePrompt({
     `,
 });
 
-
-/**
- * Agent 4: Result Interpretation & Response Generation
- * Analyzes the query result and formulates the final user-facing message.
- */
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
@@ -342,22 +320,11 @@ const finalResponsePrompt = ai.definePrompt({
         - Do NOT mention SQL, databases, or JSON.
     3.  **Assess Confidence**: Based on the user's query and the data, provide a confidence score from 0.0 to 1.0. A 1.0 means you are certain the query fully answered the user's request. A lower score means you had to make assumptions.
     4.  **List Assumptions**: If your confidence is below 1.0, list the assumptions you made (e.g., "Interpreted 'top products' as 'top by sales value'"). If confidence is 1.0, return an empty array.
-    5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type and a title for it. Available types are:
-        - 'table': For detailed, row-based data.
-        - 'bar': For comparing distinct items.
-        - 'pie': For showing proportions of a whole.
-        - 'line': For showing trends over time.
-        - 'treemap': For hierarchical data or showing parts of a whole with nested rectangles. Good for inventory value by category and then by product.
-        - 'scatter': For showing the relationship or correlation between two numerical variables (e.g., price vs. units sold). For scatter plots, the data MUST have 'x' and 'y' keys.
-        - 'none': If no visualization is appropriate.
+    5.  **Suggest Visualization**: Based on the data's structure, suggest a visualization type and a title for it. Available types are: 'table', 'bar', 'pie', 'line', 'treemap', 'scatter', 'none'.
     6.  **Format Output**: Return a single JSON object with 'response', 'visualization', 'confidence', and 'assumptions' fields. Do NOT include the raw data in your response.
   `,
 });
 
-
-/**
- * The main orchestrator flow that simulates the multi-agent pipeline.
- */
 const universalChatOrchestrator = ai.defineFlow(
   {
     name: 'universalChatOrchestrator',
@@ -373,7 +340,6 @@ const universalChatOrchestrator = ai.defineFlow(
         throw new Error("User query was empty.");
     }
     
-    // Pipeline Step 0: Fetch dynamic data in parallel for speed
     const [schemaData, settings, dynamicPatterns] = await Promise.all([
         getDbSchema(companyId),
         getCompanySettings(companyId),
@@ -394,22 +360,18 @@ const universalChatOrchestrator = ai.defineFlow(
 
     const aiModel = config.ai.model;
 
-    // Pipeline Step 1: Generate SQL or decide to use a tool
     const { output: generationOutput, toolCalls } = await ai.generate({
       model: aiModel,
-      prompt: sqlGenerationPrompt, // The prompt object itself
+      prompt: sqlGenerationPrompt,
       input: { companyId, userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
-      tools: [getEconomicIndicators], // Make the tool available to the model
+      tools: [getEconomicIndicators],
     });
     
-    // Branch 1: The model chose to use a tool
     if (toolCalls && toolCalls.length > 0) {
         logger.info('[UniversalChat:Flow] AI chose to use the economic indicator tool.');
         const toolCall = toolCalls[0];
         const toolResult = await ai.runTool(toolCall);
         
-        // The tool result is an object like { indicator: '...', value: '...' }
-        // We can use the finalResponsePrompt to format this into a user-friendly message.
         const queryDataJson = JSON.stringify([toolResult]);
         
         const { output: finalOutput } = await finalResponsePrompt(
@@ -421,18 +383,15 @@ const universalChatOrchestrator = ai.defineFlow(
             throw new Error('The AI model did not return a valid final response object after tool use.');
         }
         
-        // Return a response formatted for the UI, including the tool's data.
         return {
             ...finalOutput,
             data: [toolResult],
         };
     }
 
-    // Branch 2: The model generated an SQL query
     if (generationOutput?.sqlQuery) {
         let sqlQuery = generationOutput.sqlQuery;
 
-        // Pipeline Step 2: Validate SQL
         const { output: validationOutput } = await queryValidationPrompt(
             { userQuery, sqlQuery },
             { model: aiModel }
@@ -442,13 +401,11 @@ const universalChatOrchestrator = ai.defineFlow(
             throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
         }
 
-        // Pipeline Step 3: Execute Query with Error Recovery
         logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${sqlQuery}"`);
         let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
           query_text: sqlQuery.replace(/;/g, '')
         });
         
-        // Pipeline Step 3b: Error Recovery (if needed)
         if (queryError) {
             logger.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
             
@@ -492,7 +449,6 @@ const universalChatOrchestrator = ai.defineFlow(
             await saveSuccessfulQuery(companyId, userQuery, sqlQuery);
         }
 
-        // Pipeline Step 4: Interpret Results and Generate Final Response
         const queryDataJson = JSON.stringify(queryData || []);
         const { output: finalOutput } = await finalResponsePrompt(
             { userQuery, queryDataJson },
@@ -513,7 +469,6 @@ const universalChatOrchestrator = ai.defineFlow(
         };
     }
 
-    // Branch 3: Fallback for general questions
     logger.warn("[UniversalChat:Flow] AI did not generate SQL or call a tool. Trying a direct answer.");
     const { text } = await ai.generate({
         model: aiModel,

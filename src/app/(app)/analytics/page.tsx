@@ -12,8 +12,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
 
-// --- State and Error Components ---
-
 function LoadingState() {
   return (
     <Card className="mt-4">
@@ -44,8 +42,6 @@ function ErrorState({ error }: { error: string }) {
     </Card>
   );
 }
-
-// --- Component for the Strategic Reports ---
 
 const availableAnalyses = [
     {
@@ -90,7 +86,7 @@ function StrategicReports() {
             try {
                 const response = await handleUserMessage({
                     content: prompt,
-                    conversationId: null, // Always create a new conversation for a report
+                    conversationId: null,
                     source: 'analytics_page', 
                 });
                 
