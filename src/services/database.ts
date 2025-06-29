@@ -160,7 +160,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 SELECT (CURRENT_DATE - INTERVAL '${days} days') as start_date
             ),
             orders_in_range AS (
-                SELECT id, total_amount, sale_date, customer_name
+                SELECT id, total_amount, sale_date, customer_name, company_id
                 FROM orders
                 WHERE company_id = '${companyId}' AND sale_date >= (SELECT start_date FROM date_range)
             ),
@@ -173,7 +173,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 SELECT oi.quantity, oi.unit_price as sales_price, i.cost
                 FROM order_items oi
                 JOIN orders_in_range s ON oi.sale_id = s.id
-                JOIN inventory i ON oi.sku = i.sku AND s.company_id = i.company_id
+                JOIN inventory i ON oi.sku = i.sku AND i.company_id = s.company_id
             ),
             sales_trend AS (
                 SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
