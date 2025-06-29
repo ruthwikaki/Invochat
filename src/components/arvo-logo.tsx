@@ -1,4 +1,3 @@
-
 import { cn } from '@/lib/utils';
 
 export function ArvoLogo({ className }: { className?: string }) {
@@ -8,12 +7,35 @@ export function ArvoLogo({ className }: { className?: string }) {
       aria-label="ARVO Logo"
       className={cn(className)}
       viewBox="0 0 24 24"
-      fill="none"
+      fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
     >
-        <rect x="3" y="11" width="18" height="8" rx="2" fill="hsl(var(--primary))" fillOpacity="0.5" />
-        <rect x="5" y="7" width="14" height="8" rx="2" fill="hsl(var(--primary))" fillOpacity="0.7" />
-        <rect x="7" y="3" width="10" height="8" rx="2" fill="hsl(var(--primary))" />
+      <path
+        d="M11.25 3.75a.75.75 0 0 1 1.5 0V4h-1.5V3.75z"
+      />
+      <path
+        fillRule="evenodd"
+        d="M12 1.5a.75.75 0 0 1 .75.75c0 .414-.336.75-.75.75a.75.75 0 0 1-.75-.75c0-.414.336-.75.75-.75zM12 3a.75.75 0 0 1-.75-.75.75.75 0 0 1 .75-.75.75.75 0 0 1 .75.75.75.75 0 0 1-.75.75z"
+        clipRule="evenodd"
+      />
+      <path
+        d="M17.5 5.5a2.5 2.5 0 0 0-2.5 2.5v3.5a2.5 2.5 0 0 0 2.5 2.5h-11A2.5 2.5 0 0 0 4 11.5v-3.5a2.5 2.5 0 0 0 2.5-2.5h11zM7 12.75a1.25 1.25 0 0 0 1.25-1.25V8a1.25 1.25 0 0 0-2.5 0v3.5a1.25 1.25 0 0 0 1.25 1.25zm8.75-1.25a1.25 1.25 0 0 1-1.25-1.25V8a1.25 1.25 0 0 1 2.5 0v3.5a1.25 1.25 0 0 1-1.25 1.25z"
+      />
+      <path
+        d="M17.34 12.441a.5.5 0 0 0 .5-.322l-.002-2.18a1.75 1.75 0 0 0-1.75-1.75h-3.88a.5.5 0 0 0-.468.32l-.93 2.478a.5.5 0 0 0 .468.682h3.482l1.582.762z"
+      />
+      <path
+        d="M10.25 10.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm3.5 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0z"
+      />
+      <path
+        d="M7 14.75c-2.761 0-5 2.239-5 5v.25c0 2.485 2.015 4.5 4.5 4.5h11c2.485 0 4.5-2.015 4.5-4.5V19.75c0-2.761-2.239-5-5-5H7z"
+      />
+      <path
+        d="M8.883 18.26l2.867-1.66 2.867 1.66-2.867 1.66-2.867-1.66z"
+      />
+      <path
+        d="M8.883 18.26v3.32l2.867 1.66v-3.32l-2.867-1.66zm5.734 0v3.32l-2.867 1.66v-3.32l2.867-1.66z"
+      />
     </svg>
   );
 }
