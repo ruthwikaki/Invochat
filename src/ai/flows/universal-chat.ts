@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -9,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
 import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getCompanySettings } from '@/services/database';
@@ -70,11 +71,12 @@ const BUSINESS_QUERY_EXAMPLES = `
      User: "Forecast next month's demand for my top 10 products"
      SQL: WITH historical_sales AS (
        SELECT item as sku, 
-              DATE_TRUNC('month', date) as month,
+              DATE_TRUNC('month', sale_date) as month,
               SUM(quantity) as monthly_quantity
-       FROM sales_detail
-       WHERE company_id = '{{companyId}}'
-         AND date >= CURRENT_DATE - INTERVAL '12 months'
+       FROM sales_detail sd
+       JOIN orders o ON sd.sale_id = o.id AND sd.company_id = o.company_id
+       WHERE o.company_id = '{{companyId}}'
+         AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY sku, month
      ),
      trend_analysis AS (
@@ -105,8 +107,9 @@ const BUSINESS_QUERY_EXAMPLES = `
               SUM(sd.quantity) as total_units
        FROM inventory i
        JOIN sales_detail sd ON i.sku = sd.item AND i.company_id = sd.company_id
+       JOIN orders o ON sd.sale_id = o.id AND sd.company_id = o.company_id
        WHERE i.company_id = '{{companyId}}'
-         AND sd.date >= CURRENT_DATE - INTERVAL '12 months'
+         AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
        GROUP BY i.sku, i.name
      ),
      revenue_ranking AS (
@@ -159,8 +162,8 @@ const FEW_SHOT_EXAMPLES = `
          SELECT COUNT(id) as total_returns
          FROM returns
          WHERE company_id = '{{companyId}}'
-           AND date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-           AND date < date_trunc('month', CURRENT_DATE)
+           AND created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
+           AND created_at < date_trunc('month', CURRENT_DATE)
      )
      SELECT
         ms.total_sales,
@@ -335,6 +338,7 @@ const universalChatOrchestrator = ai.defineFlow(
     const { companyId, conversationHistory } = input;
     const lastMessage = conversationHistory[conversationHistory.length - 1];
     const userQuery = lastMessage?.content[0]?.text || '';
+    const supabaseAdmin = getServiceRoleClient();
 
     if (!userQuery) {
         throw new Error("User query was empty.");
@@ -491,3 +495,5 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
+
+    
