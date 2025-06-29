@@ -15,10 +15,12 @@ const parseIntWithDefault = (value: string | undefined, defaultValue: number): n
     return isNaN(parsed) ? defaultValue : parsed;
 };
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 export const config = {
   app: {
     name: process.env.NEXT_PUBLIC_APP_NAME || 'InvoChat',
-    url: process.env.NEXT_PUBLIC_SITE_URL!,
+    url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:9003',
     environment: process.env.NODE_ENV || 'development',
   },
   ai: {
@@ -60,7 +62,7 @@ export const config = {
 const ConfigSchema = z.object({
     app: z.object({
         name: z.string(),
-        url: z.string().min(1, "NEXT_PUBLIC_SITE_URL is not set.").url("NEXT_PUBLIC_SITE_URL must be a valid URL."),
+        url: z.string().url("The provided NEXT_PUBLIC_SITE_URL is not a valid URL."),
         environment: z.string(),
     }),
     ai: z.object({
@@ -83,7 +85,7 @@ try {
     console.error("❌ Invalid application configuration:", e.errors);
     // In a server environment, we should exit gracefully.
     // In a Next.js build process, this will cause the build to fail, which is what we want.
-    if (typeof process.exit === 'function') {
+    if (isProduction && typeof process.exit === 'function') {
         process.exit(1);
     }
     // Fallback for environments where process.exit is not available
