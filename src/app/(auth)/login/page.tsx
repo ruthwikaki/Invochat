@@ -4,7 +4,7 @@
 import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Eye, EyeOff, AlertTriangle, ShieldCheck, Languages, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +13,6 @@ import { login } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useTheme } from 'next-themes';
 
@@ -41,7 +40,6 @@ function MicrosoftIcon({ className }: { className?: string }) {
 
 function SubmitButton() {
   const { pending } = useFormStatus();
-
   return (
     <Button
       type="submit"
@@ -68,11 +66,11 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
         placeholder=" "
         required={required}
         autoComplete="current-password"
-        className="peer h-12 bg-transparent text-white placeholder-transparent focus:border-purple-500"
+        className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-purple-500"
       />
-       <Label htmlFor={id} className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all 
-                                      peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 
-                                      peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm">
+       <Label htmlFor={id} className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all bg-black/20 px-1
+                                      peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0
+                                      peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
         Password
       </Label>
       <button
@@ -99,9 +97,9 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
 };
 
 const AnimatedGradientBackground = () => (
-    <div className="absolute inset-0 -z-10 h-full w-full bg-gray-900">
+    <div className="absolute inset-0 -z-10 h-full w-full bg-gray-950">
         <div className="absolute inset-0 h-full w-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-5"></div>
-        <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-purple-800 via-pink-700 to-rose-800 opacity-40 animate-background-pan [background-size:200%_200%]" />
+        <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-purple-900/80 via-pink-900/80 to-rose-900/80 opacity-40 animate-background-pan [background-size:200%_200%]" />
     </div>
 );
 
@@ -109,7 +107,7 @@ const ThemeToggle = () => {
     const { theme, setTheme } = useTheme();
     return (
         <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
-            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            {theme === 'dark' ? <Sun className="h-5 w-5 text-yellow-300" /> : <Moon className="h-5 w-5" />}
         </button>
     )
 }
@@ -149,11 +147,17 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     };
 
   return (
-    <main className="relative min-h-dvh w-full overflow-hidden bg-gray-900 text-white font-sans">
+    <main className="relative min-h-dvh w-full overflow-hidden bg-gray-950 text-white font-sans">
       <AnimatedGradientBackground />
+      <ThemeToggle />
 
       <div className="relative z-10 flex min-h-dvh w-full items-center justify-center p-4 lg:grid lg:grid-cols-10">
-        <div className="hidden lg:col-span-6 lg:block" />
+        <div className="hidden lg:col-span-6 lg:flex flex-col items-center justify-center p-12">
+           <motion.div variants={itemVariants} className="text-left max-w-lg">
+                <h2 className="text-5xl font-bold tracking-tighter text-white">Unlock Your Inventory's Potential.</h2>
+                <p className="mt-4 text-lg text-gray-300">ARVO provides the clarity you need to make smarter, faster, data-driven decisions.</p>
+           </motion.div>
+        </div>
         <div className="w-full max-w-md lg:col-span-4">
           <motion.div
             variants={containerVariants}
@@ -161,9 +165,18 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             animate="visible"
             className="w-full rounded-2xl border border-white/10 bg-black/20 p-6 shadow-2xl backdrop-blur-lg md:p-8"
           >
-            <motion.div variants={itemVariants} className="flex flex-col items-center justify-center mb-6 text-center">
+            <motion.div 
+                variants={itemVariants} 
+                className="flex flex-col items-center justify-center mb-6 text-center"
+            >
                  <Link href="/" className="group mb-2 flex flex-col items-center justify-center gap-2 text-4xl font-bold">
-                    <ArvoLogo className="h-14 w-14 transition-all duration-300 group-hover:drop-shadow-[0_0_8px_hsl(var(--primary))]"/>
+                    <motion.div 
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.1, type: "spring", stiffness: 260, damping: 20 }}
+                    >
+                         <ArvoLogo className="h-14 w-14 transition-all duration-300 group-hover:[filter:drop-shadow(0_0_8px_hsl(var(--primary)))]"/>
+                    </motion.div>
                     <h1 className="text-white">ARVO</h1>
                 </Link>
                 <p className="text-balance text-gray-300">Intelligent Inventory Management</p>
@@ -180,11 +193,11 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                   placeholder=" " 
                   required
                   autoComplete="email"
-                  className="peer h-12 bg-transparent text-white placeholder-transparent focus:border-purple-500"
+                  className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-purple-500"
                 />
-                 <Label htmlFor="email" className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all 
-                                                 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 
-                                                 peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm">
+                 <Label htmlFor="email" className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all bg-black/20 px-1
+                                                 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0
+                                                 peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
                     Email
                 </Label>
               </motion.div>
@@ -196,7 +209,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
               <motion.div variants={itemVariants} className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                     <Checkbox id="remember" className="border-gray-500 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-500"/>
-                    <Label htmlFor="remember" className="text-sm text-gray-300">Remember me</Label>
+                    <Label htmlFor="remember" className="text-sm text-gray-300 cursor-pointer">Remember me</Label>
                 </div>
                 <Link href="/forgot-password" className="text-sm text-purple-400 hover:text-purple-300 hover:underline">
                     Forgot password?
@@ -218,10 +231,10 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             </motion.div>
 
             <motion.div variants={itemVariants} className="grid grid-cols-2 gap-4">
-                <Button variant="outline" className="h-11 bg-white/5 border-white/20 text-white hover:bg-white/10">
+                <Button variant="outline" className="h-11 bg-white/5 border-white/20 text-white hover:bg-white/10 transition-colors">
                     <GoogleIcon className="mr-2 h-5 w-5" /> Google
                 </Button>
-                <Button variant="outline" className="h-11 bg-white/5 border-white/20 text-white hover:bg-white/10">
+                <Button variant="outline" className="h-11 bg-white/5 border-white/20 text-white hover:bg-white/10 transition-colors">
                     <MicrosoftIcon className="mr-2 h-5 w-5" /> Microsoft
                 </Button>
             </motion.div>
@@ -242,3 +255,5 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     </main>
   );
 }
+
+    
