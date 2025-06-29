@@ -1,6 +1,4 @@
 
-'use server';
-
 // Note: This file does NOT import the Node.js 'crypto' module
 // to ensure compatibility with the Edge runtime (used by middleware).
 
