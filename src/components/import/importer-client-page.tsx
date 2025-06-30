@@ -25,6 +25,16 @@ const importOptions = {
         description: 'Import your supplier information.',
         columns: ['vendor_name', 'contact_info', 'address', 'terms', 'account_number'],
     },
+    supplier_catalogs: {
+        label: 'Supplier Catalogs',
+        description: "Import supplier-specific product info like cost, MOQ, and lead times.",
+        columns: ['supplier_id', 'sku', 'supplier_sku', 'product_name', 'unit_cost', 'moq', 'lead_time_days'],
+    },
+    reorder_rules: {
+        label: 'Reorder Rules',
+        description: "Import your custom reorder rules for products.",
+        columns: ['sku', 'rule_type', 'min_stock', 'max_stock', 'reorder_quantity'],
+    },
 };
 
 type DataType = keyof typeof importOptions;

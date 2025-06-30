@@ -23,3 +23,26 @@ export const SupplierImportSchema = z.object({
   terms: z.string().optional().nullable(),
   account_number: z.string().optional().nullable(),
 });
+
+
+// Schema for validating a row from a supplier catalog CSV.
+export const SupplierCatalogImportSchema = z.object({
+  supplier_id: z.string().uuid('supplier_id must be a valid UUID.'),
+  sku: z.string().min(1, 'sku is required.'),
+  supplier_sku: z.string().optional().nullable(),
+  product_name: z.string().optional().nullable(),
+  unit_cost: z.coerce.number().nonnegative('unit_cost cannot be negative.'),
+  moq: z.coerce.number().int().positive().optional().nullable(),
+  lead_time_days: z.coerce.number().int().nonnegative().optional().nullable(),
+});
+
+
+// Schema for validating a row from a reorder rules CSV.
+export const ReorderRuleImportSchema = z.object({
+  sku: z.string().min(1, 'sku is required.'),
+  rule_type: z.string().optional().nullable().default('manual'),
+  min_stock: z.coerce.number().int().nonnegative().optional().nullable(),
+  max_stock: z.coerce.number().int().nonnegative().optional().nullable(),
+  reorder_quantity: z.coerce.number().int().positive().optional().nullable(),
+});
+

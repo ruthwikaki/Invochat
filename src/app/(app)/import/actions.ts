@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
-import { InventoryImportSchema, SupplierImportSchema } from './schemas';
+import { InventoryImportSchema, SupplierImportSchema, SupplierCatalogImportSchema, ReorderRuleImportSchema } from './schemas';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
@@ -72,10 +72,20 @@ async function processCsv<T extends z.ZodType>(
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
+        // For tables that need it, inject the company_id before validation if it's not in the CSV
+        if (tableName === 'reorder_rules' && !row.company_id) {
+            row.company_id = companyId;
+        }
+
         const result = schema.safeParse(row);
 
         if (result.success) {
-            validRows.push({ ...result.data, company_id: companyId });
+            // For tables that don't get company_id from CSV, add it after validation
+            if (tableName === 'inventory') {
+                validRows.push({ ...result.data, company_id: companyId });
+            } else {
+                 validRows.push(result.data);
+            }
         } else {
             const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
             validationErrors.push({ row: i + 2, message: errorMessage }); // +2 because of header and 0-indexing
@@ -90,6 +100,9 @@ async function processCsv<T extends z.ZodType>(
         let conflictTarget: string[] = [];
         if (tableName === 'inventory') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
+        if (tableName === 'supplier_catalogs') conflictTarget = ['supplier_id', 'sku'];
+        if (tableName === 'reorder_rules') conflictTarget = ['company_id', 'sku'];
+
 
         // Use a transactional RPC to ensure all-or-nothing import.
         const { error: dbError } = await supabase.rpc('batch_upsert_with_transaction', {
@@ -172,6 +185,12 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             case 'suppliers':
                 result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId);
                 if ((result.successCount || 0) > 0) await invalidateCompanyCache(companyId, ['suppliers']);
+                break;
+            case 'supplier_catalogs':
+                result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId);
+                break;
+            case 'reorder_rules':
+                result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId);
                 break;
             default:
                 throw new Error(`Unsupported data type: ${dataType}`);
