@@ -2,10 +2,9 @@ import {genkit, type Genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
 
-// Ensure the GOOGLE_API_KEY is set, otherwise throw a startup error.
-if (!process.env.GOOGLE_API_KEY) {
-  throw new Error('FATAL: GOOGLE_API_KEY environment variable is not set.');
-}
+// Startup validation is now handled centrally in src/config/app-config.ts.
+// This ensures all necessary environment variables (like GOOGLE_API_KEY)
+// are checked in one place before the application starts.
 
 logger.info('[Genkit] Initializing with Google AI plugin');
 

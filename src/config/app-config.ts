@@ -7,13 +7,45 @@
  * operating the application across different environments (dev, staging, prod).
  */
 import { config as dotenvConfig } from 'dotenv';
+import { z } from 'zod';
 
 // Force load .env variables at the earliest point.
-// This is a workaround for cases where Next.js's automatic loading fails.
 dotenvConfig();
 
 
-import { z } from 'zod';
+// --- Environment Variable Validation ---
+// This schema validates all critical environment variables on application startup.
+// If any variable is missing or invalid, the server will refuse to start and
+// log a clear error message.
+const EnvSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
+  GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
+  REDIS_URL: z.string().optional(),
+});
+
+const parsedEnv = EnvSchema.safeParse(process.env);
+
+if (!parsedEnv.success) {
+  const errorDetails = parsedEnv.error.flatten().fieldErrors;
+  const errorMessages = Object.entries(errorDetails)
+    .map(([key, messages]) => `  - ${key}: ${messages.join(', ')}`)
+    .join('\n');
+  
+  // This provides a clear, developer-friendly error message in the server logs
+  // and prevents the application from starting in a misconfigured state.
+  throw new Error(`
+=================================================================
+❌ FATAL: Environment variable validation failed.
+   Please check your .env file and ensure the following
+   variables are set correctly:
+${errorMessages}
+=================================================================
+`);
+}
+// --- End Validation ---
+
 
 // Helper to parse numbers from env vars
 const parseIntWithDefault = (value: string | undefined, defaultValue: number): number => {
@@ -65,24 +97,6 @@ export const config = {
   }
 };
 
-// Runtime validation schema to ensure critical env vars are set
-const ConfigSchema = z.object({
-    app: z.object({
-        name: z.string(),
-        url: z.string().url("The provided NEXT_PUBLIC_SITE_URL is not a valid URL."),
-        environment: z.string(),
-    }),
-    ai: z.object({
-        model: z.string(),
-        maxRetries: z.number().int().min(0),
-        timeout: z.number().int().min(0),
-        historyLimit: z.number().int().min(0),
-    }),
-    database: z.object({
-        serviceRoleKey: z.string().min(1, "Required: `SUPABASE_SERVICE_ROLE_KEY` is not set. This is required for server-side database operations."),
-        queryLimit: z.number().int().min(0),
-    }),
-});
 
 // A type alias for convenience
 export type AppConfig = typeof config;
