@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -1260,6 +1260,79 @@ export async function deleteLocationFromDB(id: string, companyId: string): Promi
             .eq('company_id', companyId);
         if (error) {
             logError(error, { context: `deleteLocationFromDB: ${id}` });
+            throw error;
+        }
+    });
+}
+
+// Supplier DB Functions
+export async function getSupplierByIdFromDB(id: string, companyId: string): Promise<Supplier | null> {
+    if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('getSupplierByIdFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('vendors')
+            .select('*')
+            .eq('id', id)
+            .eq('company_id', companyId)
+            .maybeSingle();
+        if (error) {
+            logError(error, { context: `getSupplierByIdFromDB: ${id}` });
+            throw error;
+        }
+        return data ? SupplierSchema.parse(data) : null;
+    });
+}
+
+export async function createSupplierInDb(companyId: string, supplierData: SupplierFormData): Promise<Supplier> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('createSupplierInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('vendors')
+            .insert({ ...supplierData, company_id: companyId })
+            .select()
+            .single();
+        if (error) {
+            logError(error, { context: 'createSupplierInDb' });
+            if (error.code === '23505') throw new Error('A supplier with this name already exists.');
+            throw error;
+        }
+        return SupplierSchema.parse(data);
+    });
+}
+
+export async function updateSupplierInDb(id: string, companyId: string, supplierData: SupplierFormData): Promise<Supplier> {
+    if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('updateSupplierInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('vendors')
+            .update(supplierData)
+            .eq('id', id)
+            .eq('company_id', companyId)
+            .select()
+            .single();
+        if (error) {
+            logError(error, { context: `updateSupplierInDb: ${id}` });
+            if (error.code === '23505') throw new Error('A supplier with this name already exists.');
+            throw error;
+        }
+        return SupplierSchema.parse(data);
+    });
+}
+
+export async function deleteSupplierFromDb(id: string, companyId: string): Promise<void> {
+    if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('deleteSupplierFromDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase
+            .from('vendors')
+            .delete()
+            .eq('id', id)
+            .eq('company_id', companyId);
+        if (error) {
+            logError(error, { context: `deleteSupplierFromDb: ${id}` });
             throw error;
         }
     });

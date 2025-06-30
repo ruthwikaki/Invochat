@@ -1,4 +1,5 @@
 
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -48,15 +49,20 @@ export const SupplierSchema = z.object({
     terms: z.string().nullable(),
     account_number: z.string().nullable(),
 }).transform(data => ({
-    id: data.id,
+    ...data,
     name: data.vendor_name,
-    email: data.contact_info, // Use contact_info as email for PO sending
-    contact_info: data.contact_info || 'N/A',
-    address: data.address,
-    terms: data.terms,
-    account_number: data.account_number,
+    email: data.contact_info, // For convenience in other parts of the app
 }));
 export type Supplier = z.infer<typeof SupplierSchema>;
+
+export const SupplierFormSchema = z.object({
+    vendor_name: z.string().min(2, "Supplier name must be at least 2 characters."),
+    contact_info: z.string().email({ message: "Please enter a valid email address."}).nullable().optional().or(z.literal('')),
+    address: z.string().nullable().optional(),
+    terms: z.string().nullable().optional(),
+    account_number: z.string().nullable().optional(),
+});
+export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 
 
 export const DeadStockItemSchema = z.object({

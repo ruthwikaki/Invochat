@@ -32,9 +32,13 @@ import {
     updateLocationInDB,
     deleteLocationFromDB,
     getLocationByIdFromDB,
+    getSupplierByIdFromDB,
+    createSupplierInDb,
+    updateSupplierInDb,
+    deleteSupplierFromDb,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -706,6 +710,48 @@ export async function deleteLocation(id: string): Promise<{ success: boolean; er
         return { success: true };
     } catch (e) {
         logError(e, { context: 'deleteLocation action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+// Supplier Data Actions
+export async function getSupplierById(id: string): Promise<Supplier | null> {
+    const { companyId } = await getAuthContext();
+    return getSupplierByIdFromDB(id, companyId);
+}
+
+export async function createSupplier(data: SupplierFormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await createSupplierInDb(companyId, data);
+        revalidatePath('/suppliers');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'createSupplier action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function updateSupplier(id: string, data: SupplierFormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await updateSupplierInDb(id, companyId, data);
+        revalidatePath('/suppliers');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'updateSupplier action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function deleteSupplier(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await deleteSupplierFromDb(id, companyId);
+        revalidatePath('/suppliers');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'deleteSupplier action' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
