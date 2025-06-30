@@ -1326,6 +1326,23 @@ export async function deleteSupplierFromDb(id: string, companyId: string): Promi
     if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('deleteSupplierFromDb', async () => {
         const supabase = getServiceRoleClient();
+
+        // Data integrity check: prevent deletion if supplier has associated POs
+        const { count, error: checkError } = await supabase
+            .from('purchase_orders')
+            .select('*', { count: 'exact', head: true })
+            .eq('supplier_id', id)
+            .eq('company_id', companyId);
+
+        if (checkError) {
+            logError(checkError, { context: `Checking POs for supplier ${id}` });
+            throw new Error('Could not verify supplier before deletion.');
+        }
+
+        if (count && count > 0) {
+            throw new Error(`Cannot delete supplier. They are associated with ${count} purchase order(s). Please reassign or delete the POs first.`);
+        }
+
         const { error } = await supabase
             .from('vendors')
             .delete()

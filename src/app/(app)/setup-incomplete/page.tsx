@@ -272,7 +272,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
 );
 
 -- Add columns idempotently to ensure the table has the correct structure.
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES public.vendors(id) ON DELETE CASCADE;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES public.vendors(id) ON DELETE SET NULL;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS po_number TEXT;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS status po_status;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS order_date DATE;
