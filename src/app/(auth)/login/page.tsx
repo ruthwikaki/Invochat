@@ -4,7 +4,7 @@
 import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Eye, EyeOff, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Sun, Moon, LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useTheme } from 'next-themes';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -57,42 +58,57 @@ function SubmitButton() {
 
 const PasswordInput = ({ id, name, required }: { id: string, name: string, required?: boolean }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   return (
-    <div className="relative">
-      <Input
-        id={id}
-        name={name}
-        type={showPassword ? 'text' : 'password'}
-        placeholder=" "
-        required={required}
-        autoComplete="current-password"
-        className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-purple-500"
-      />
-       <Label htmlFor={id} className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all bg-black/20 px-1
-                                      peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0
-                                      peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
-        Password
-      </Label>
-      <button
-        type="button"
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-        onClick={() => setShowPassword(prev => !prev)}
-        aria-label={showPassword ? 'Hide password' : 'Show password'}
-        tabIndex={-1}
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={showPassword ? 'eye-off' : 'eye'}
-            initial={{ rotate: -45, opacity: 0 }}
-            animate={{ rotate: 0, opacity: 1 }}
-            exit={{ rotate: 45, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-          </motion.div>
-        </AnimatePresence>
-      </button>
-    </div>
+    <Popover open={isFocused} onOpenChange={setIsFocused}>
+        <PopoverTrigger asChild>
+            <div className="relative">
+                <Input
+                    id={id}
+                    name={name}
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder=" "
+                    required={required}
+                    autoComplete="current-password"
+                    className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-purple-500"
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                />
+                <Label htmlFor={id} className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all bg-black/20 px-1
+                                                peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0
+                                                peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
+                    Password
+                </Label>
+                <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    tabIndex={-1}
+                >
+                    <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                        key={showPassword ? 'eye-off' : 'eye'}
+                        initial={{ rotate: -45, opacity: 0 }}
+                        animate={{ rotate: 0, opacity: 1 }}
+                        exit={{ rotate: 45, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </motion.div>
+                    </AnimatePresence>
+                </button>
+            </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+            <div className="space-y-2">
+                <h4 className="font-medium leading-none">Password Requirements</h4>
+                <p className="text-sm text-muted-foreground">
+                    Your password must be at least 6 characters long.
+                </p>
+            </div>
+        </PopoverContent>
+    </Popover>
   );
 };
 
@@ -114,14 +130,19 @@ const ThemeToggle = () => {
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
     const { toast } = useToast();
+    const [hasError, setHasError] = useState(false);
 
     useEffect(() => {
-        if (searchParams?.error) {
+        const error = searchParams?.error;
+        if (error) {
             toast({
                 variant: 'destructive',
                 title: 'Login Failed',
-                description: searchParams.error,
+                description: error,
             });
+            setHasError(true);
+            const timer = setTimeout(() => setHasError(false), 500); // Match animation duration
+            return () => clearTimeout(timer);
         }
          if (searchParams?.message) {
             toast({
@@ -163,7 +184,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className="w-full rounded-2xl border border-white/10 bg-black/20 p-6 shadow-2xl backdrop-blur-lg md:p-8"
+            className={`w-full rounded-2xl border border-white/10 bg-black/10 p-6 shadow-2xl backdrop-blur-lg md:p-8 ${hasError ? 'animate-shake' : ''}`}
           >
             <motion.div 
                 variants={itemVariants} 
@@ -247,6 +268,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             </motion.p>
              <motion.div variants={itemVariants} className="mt-8 flex justify-center items-center gap-4 text-xs text-gray-500">
                 <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3"/> SOC2 Compliant</span>
+                 <span className="flex items-center gap-1"><LockKeyhole className="h-3 w-3"/> 256-bit Encryption</span>
                 <span className="flex items-center gap-1"><ShieldCheck className="h-3 w-3"/> GDPR Ready</span>
             </motion.div>
           </motion.div>
