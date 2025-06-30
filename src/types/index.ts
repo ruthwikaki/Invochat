@@ -116,9 +116,9 @@ export const CompanySettingsSchema = z.object({
   currency: z.string().nullable().optional().default('USD'),
   timezone: z.string().nullable().optional().default('UTC'),
   tax_rate: z.number().nullable().optional().default(0),
-  theme_primary_color: z.string().nullable().optional().default('262 84% 59%'),
-  theme_background_color: z.string().nullable().optional().default('0 0% 96%'),
-  theme_accent_color: z.string().nullable().optional().default('0 0% 90%'),
+  theme_primary_color: z.string().nullable().optional().default('256 47% 52%'),
+  theme_background_color: z.string().nullable().optional().default('0 0% 98%'),
+  theme_accent_color: z.string().nullable().optional().default('256 47% 52% / 0.1'),
   custom_rules: z.record(z.unknown()).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
@@ -140,6 +140,16 @@ export type UnifiedInventoryItem = {
   location_id: string | null;
   location_name: string | null;
 };
+
+export const InventoryUpdateSchema = z.object({
+  name: z.string().min(1, 'Product Name is required.'),
+  category: z.string().optional().nullable(),
+  cost: z.coerce.number().nonnegative('Cost must be a non-negative number.'),
+  reorder_point: z.coerce.number().int().nonnegative('Reorder point must be a non-negative integer.').optional().nullable(),
+  landed_cost: z.coerce.number().nonnegative('Landed cost must be a non-negative number.').optional().nullable(),
+  barcode: z.string().optional().nullable(),
+});
+export type InventoryUpdateData = z.infer<typeof InventoryUpdateSchema>;
 
 export type TeamMember = {
   id: string;

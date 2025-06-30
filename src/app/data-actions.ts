@@ -37,9 +37,10 @@ import {
     updateSupplierInDb,
     deleteSupplierFromDb,
     deleteInventoryItemsFromDb,
+    updateInventoryItemInDb,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -48,7 +49,7 @@ import { invalidateCompanyCache } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema } from '@/types';
+import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
 import { sendPurchaseOrderEmail } from '@/services/email';
 import { redirect } from 'next/navigation';
 
@@ -766,6 +767,26 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
         return { success: true };
     } catch (e) {
         logError(e, { context: 'deleteInventoryItems action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function updateInventoryItem(sku: string, data: InventoryUpdateData): Promise<{ success: boolean; error?: string; updatedItem?: UnifiedInventoryItem }> {
+    try {
+        const parsedData = InventoryUpdateSchema.safeParse(data);
+        if (!parsedData.success) {
+            return { success: false, error: "Invalid form data provided." };
+        }
+        
+        const { companyId } = await getAuthContext();
+        const updatedItem = await updateInventoryItemInDb(companyId, sku, parsedData.data);
+        
+        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+        revalidatePath('/inventory');
+        
+        return { success: true, updatedItem };
+    } catch (e) {
+        logError(e, { context: 'updateInventoryItem action' });
         return { success: false, error: getErrorMessage(e) };
     }
 }

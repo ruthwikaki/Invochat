@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -69,9 +69,9 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             currency: 'USD',
             timezone: 'UTC',
             tax_rate: 0,
-            theme_primary_color: '262 84% 59%',
-            theme_background_color: '0 0% 96%',
-            theme_accent_color: '0 0% 90%',
+            theme_primary_color: '256 47% 52%',
+            theme_background_color: '0 0% 98%',
+            theme_accent_color: '256 47% 52% / 0.1',
             custom_rules: {},
         };
         
@@ -1368,5 +1368,46 @@ export async function deleteInventoryItemsFromDb(companyId: string, skus: string
             logError(error, { context: `deleteInventoryItemsFromDb for company ${companyId}` });
             throw error;
         }
+    });
+}
+
+export async function updateInventoryItemInDb(companyId: string, sku: string, itemData: InventoryUpdateData): Promise<UnifiedInventoryItem> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('updateInventoryItemInDb', async () => {
+        const supabase = getServiceRoleClient();
+
+        const { data, error } = await supabase
+            .from('inventory')
+            .update({
+                name: itemData.name,
+                category: itemData.category,
+                cost: itemData.cost,
+                reorder_point: itemData.reorder_point,
+                landed_cost: itemData.landed_cost,
+                barcode: itemData.barcode,
+            })
+            .eq('company_id', companyId)
+            .eq('sku', sku)
+            .select(`
+                *,
+                location:locations ( name )
+            `)
+            .single();
+
+        if (error) {
+            logError(error, { context: `updateInventoryItemInDb: ${sku}` });
+            throw error;
+        }
+
+        // Transform the result to match UnifiedInventoryItem structure
+        const transformedData = {
+            ...data,
+            product_name: data.name,
+            total_value: data.quantity * data.cost,
+            location_name: data.location?.name || null,
+        };
+        delete (transformedData as any).location;
+        
+        return transformedData as UnifiedInventoryItem;
     });
 }

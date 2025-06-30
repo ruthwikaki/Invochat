@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { deleteInventoryItems } from '@/app/data-actions';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+import { InventoryEditDialog } from './inventory-edit-dialog';
 
 
 interface InventoryClientPageProps {
@@ -80,6 +81,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
   const [expandedRows, setExpandedRows] = useState(new Set<string>());
   const [isDeleting, startDeleteTransition] = useTransition();
   const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
+  const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -143,6 +145,11 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
     }
     setExpandedRows(newExpandedRows);
   };
+
+  const handleSaveItem = (updatedItem: UnifiedInventoryItem) => {
+    setInventory(prev => prev.map(item => item.sku === updatedItem.sku ? updatedItem : item));
+  };
+
 
   const numSelected = selectedRows.size;
   const numInventory = inventory.length;
@@ -219,6 +226,12 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
         </AlertDialogContent>
       </AlertDialog>
 
+      <InventoryEditDialog
+        item={editingItem}
+        onClose={() => setEditingItem(null)}
+        onSave={handleSaveItem}
+      />
+
         {showEmptyState ? <EmptyInventoryState /> : (
             <Card>
                 <CardContent className="p-0">
@@ -284,7 +297,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem disabled><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
                                                 <DropdownMenuItem disabled><Truck className="mr-2 h-4 w-4" />Reorder</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemToDelete([item.sku])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
@@ -305,8 +318,10 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                             {expandedRows.has(item.sku) && (
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
                                     <TableCell colSpan={9} className="p-4">
-                                        <div className="text-sm">
-                                            <p><strong>Detailed Info:</strong> This product costs ${item.cost.toFixed(2)} per unit. With {item.quantity} units in stock, the total value is ${item.total_value.toFixed(2)}. The reorder point is set to {item.reorder_point || 'N/A'}.</p>
+                                        <div className="grid grid-cols-3 gap-4 text-sm">
+                                            <div><strong>Landed Cost:</strong> {item.landed_cost ? `$${item.landed_cost.toFixed(2)}` : 'N/A'}</div>
+                                            <div><strong>On Order:</strong> {item.on_order_quantity} units</div>
+                                            <div><strong>Barcode:</strong> {item.barcode || 'N/A'}</div>
                                         </div>
                                     </TableCell>
                                 </TableRow>
