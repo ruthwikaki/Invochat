@@ -456,7 +456,7 @@ REVOKE EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uui
 GRANT EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uuid, uuid, text, date, date, text, numeric, jsonb) TO service_role;
 
 
--- ========= Part 10: NEW Functions for PO Update and Delete =========
+-- ========= Part 10: Functions for PO Update and Delete =========
 
 -- Function to update a PO and its items transactionally
 create or replace function public.update_purchase_order(
@@ -564,6 +564,23 @@ $delete_po_func$;
 -- Secure the function
 REVOKE EXECUTE ON FUNCTION public.delete_purchase_order(uuid, uuid) FROM public;
 GRANT EXECUTE ON FUNCTION public.delete_purchase_order(uuid, uuid) TO service_role;
+
+-- ========= Part 11: Channel Fees Table for Net Margin Calculation =========
+-- This table stores fees associated with different sales channels (e.g., Shopify, Amazon).
+-- The AI will use this table to calculate net profit margin.
+
+CREATE TABLE IF NOT EXISTS public.channel_fees (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    channel_name TEXT NOT NULL,
+    percentage_fee NUMERIC(5, 4) NOT NULL DEFAULT 0, -- e.g., 0.029 for 2.9%
+    fixed_fee NUMERIC(10, 2) NOT NULL DEFAULT 0, -- e.g., 0.30 for 30 cents
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT unique_channel_per_company UNIQUE (company_id, channel_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_channel_fees_company_id ON public.channel_fees(company_id);
 `;
 
 export default function SetupIncompletePage() {
@@ -630,3 +647,4 @@ export default function SetupIncompletePage() {
     </div>
   );
 }
+

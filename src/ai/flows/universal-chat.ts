@@ -110,6 +110,7 @@ const ENHANCED_SEMANTIC_LAYER = `
   
   FINANCIAL METRICS:
   - "Gross margin": (Revenue - COGS) / Revenue. Use (selling_price - landed_cost) / selling_price.
+  - "Net Margin": The profit after subtracting sales channel fees. It is calculated by first determining Gross Margin for a sale, then subtracting any 'percentage_fee' and 'fixed_fee' from the 'channel_fees' table for the corresponding 'sales_channel'.
   - "Operating margin": Operating Income / Revenue
   - "Cash conversion cycle": DSI + Days Sales Outstanding - Days Payable Outstanding
   - "Working capital": Current Assets - Current Liabilities
@@ -208,6 +209,48 @@ const BUSINESS_QUERY_EXAMPLES = `
      FROM product_sales
      GROUP BY product_name, sales_channel
      ORDER BY total_revenue DESC;
+
+  7. Net Margin Analysis by Channel:
+     User: "What is my net margin for Shopify sales?"
+     SQL:
+     WITH sales_with_costs AS (
+        SELECT
+            o.sales_channel,
+            oi.unit_price as selling_price,
+            oi.quantity,
+            COALESCE(i.landed_cost, i.cost) as cost_of_good
+        FROM order_items oi
+        JOIN orders o ON oi.sale_id = o.id
+        JOIN inventory i ON oi.sku = i.sku AND i.company_id = o.company_id
+        WHERE o.company_id = :company_id
+          AND o.sales_channel = 'Shopify'
+          AND o.sale_date >= CURRENT_DATE - INTERVAL '90 days'
+          AND oi.unit_price > 0
+     ),
+     channel_fees AS (
+        SELECT percentage_fee, fixed_fee
+        FROM channel_fees
+        WHERE company_id = :company_id AND channel_name = 'Shopify'
+        LIMIT 1
+     ),
+     profit_calc AS (
+        SELECT
+            SUM(s.selling_price * s.quantity) as total_revenue,
+            SUM(s.cost_of_good * s.quantity) as total_cogs,
+            -- Calculate total fees based on a percentage of revenue plus a fixed fee per transaction
+            (SUM(s.selling_price * s.quantity) * COALESCE((SELECT percentage_fee FROM channel_fees), 0)) + (COUNT(*) * COALESCE((SELECT fixed_fee FROM channel_fees), 0)) as total_fees
+        FROM sales_with_costs s
+     )
+     SELECT
+        p.total_revenue,
+        p.total_cogs,
+        p.total_fees,
+        (p.total_revenue - p.total_cogs - p.total_fees) as net_profit,
+        CASE
+            WHEN p.total_revenue > 0 THEN ((p.total_revenue - p.total_cogs - p.total_fees) / p.total_revenue) * 100
+            ELSE 0
+        END as net_margin_percentage
+     FROM profit_calc p;
 `;
 
 
@@ -375,9 +418,8 @@ const errorRecoveryPrompt = ai.definePrompt({
         2.  **Refer to the Schema**: Use the provided database schema to verify table and column names.
         3.  **Propose a Fix**: Generate a \`correctedQuery\`. The goal is to fix the error while still answering the user's original question.
         4.  **Do Not Change Intent**: The corrected query must not alter the original intent of the user's question.
-        5.  **Explain Your Reasoning**: Briefly explain what was wrong and how you fixed it in the \`reasoning\` field.
-        6.  **If Unfixable**: If the error is ambiguous or you cannot confidently fix it, do not provide a \`correctedQuery\`. Explain why in the \`reasoning\` field instead.
-        7.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter (\`WHERE company_id = :company_id\`) on all tables. It must not contain SQL comments.
+        5.  **If Unfixable**: If the error is ambiguous or you cannot confidently fix it, do not provide a \`correctedQuery\`. Explain why in the \`reasoning\` field instead.
+        6.  **Security**: The corrected query must still be a read-only SELECT statement and must contain the company_id filter (\`WHERE company_id = :company_id\`) on all tables. It must not contain SQL comments.
     `,
 });
 
@@ -613,3 +655,4 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
+
