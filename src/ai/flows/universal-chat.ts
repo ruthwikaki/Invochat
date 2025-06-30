@@ -65,7 +65,7 @@ const ENHANCED_SEMANTIC_LAYER = `
   E-COMMERCE & INVENTORY CONCEPTS:
   - "Landed Cost": The total cost of a product (cost + shipping + taxes). Use the 'landed_cost' field from the inventory table.
   - "On Order Quantity": Units of an item that have been ordered from a supplier but not yet received. Use 'on_order_quantity'.
-  - "Sales Channel": Where the sale originated (e.g., 'shopify', 'amazon'). Use the 'sales_channel' field in the 'orders' table.
+  - "Sales Channel": Where the sale originated (e.g., 'shopify', 'amazon', 'manual'). Use the 'sales_channel' field in the 'orders' table.
   - "Reordering": The process of ordering more stock. Use the 'getReorderSuggestions' tool to determine what needs to be ordered.
   - "Profit Margin": Calculation of profitability. Can be Gross Margin or Net Margin.
 
@@ -109,7 +109,7 @@ const ENHANCED_SEMANTIC_LAYER = `
   - "Perfect order rate": Orders delivered complete, on time, damage-free
   
   FINANCIAL METRICS:
-  - "Gross margin": (Revenue - COGS) / Revenue
+  - "Gross margin": (Revenue - COGS) / Revenue. Use (selling_price - landed_cost) / selling_price.
   - "Operating margin": Operating Income / Revenue
   - "Cash conversion cycle": DSI + Days Sales Outstanding - Days Payable Outstanding
   - "Working capital": Current Assets - Current Liabilities
@@ -181,6 +181,33 @@ const BUSINESS_QUERY_EXAMPLES = `
             END as abc_category
      FROM revenue_ranking
      ORDER BY rank;
+
+  6. Profit Margin Analysis Query:
+     User: "Analyze my gross profit margins by product and sales channel"
+     SQL:
+     WITH product_sales AS (
+       SELECT
+         i.name as product_name,
+         o.sales_channel,
+         oi.unit_price as selling_price,
+         COALESCE(i.landed_cost, i.cost) as cost_of_good,
+         oi.quantity
+       FROM order_items oi
+       JOIN orders o ON oi.sale_id = o.id
+       JOIN inventory i ON oi.sku = i.sku AND i.company_id = o.company_id
+       WHERE o.company_id = :company_id
+         AND o.sale_date >= CURRENT_DATE - INTERVAL '90 days'
+         AND oi.unit_price > 0
+     )
+     SELECT
+       product_name,
+       COALESCE(sales_channel, 'Unknown') as sales_channel,
+       SUM(selling_price * quantity) as total_revenue,
+       SUM(cost_of_good * quantity) as total_cogs,
+       AVG((selling_price - cost_of_good) / NULLIF(selling_price, 0)) * 100 as avg_gross_margin_percentage
+     FROM product_sales
+     GROUP BY product_name, sales_channel
+     ORDER BY total_revenue DESC;
 `;
 
 
@@ -586,5 +613,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    

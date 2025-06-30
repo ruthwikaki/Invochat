@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2 } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -68,6 +68,14 @@ const availableAnalyses = [
         description: 'Identify your fastest and slowest-selling products over the last 90 days.',
         prompt: 'Identify my 10 fastest and 10 slowest-moving products over the last 90 days based on units sold.',
         details: "This report shows you which products are moving quickly ('fast-movers') and which are not ('slow-movers'), allowing you to adjust marketing or consider discontinuing items."
+    },
+    {
+        key: 'profit_margin',
+        title: 'Profit Margin Analysis',
+        icon: Banknote,
+        description: 'Analyze gross profit margin by product and sales channel.',
+        prompt: 'Analyze my gross profit margin by product and sales channel for the last 90 days.',
+        details: "This report calculates your gross margin for each product, breaking it down by where the sale originated (e.g., Shopify, Amazon, Manual). It uses `(Selling Price - Landed Cost) / Selling Price` to determine profitability."
     }
 ];
 
@@ -160,7 +168,7 @@ function StrategicReports() {
                     </CardDescription>
                 </CardHeader>
             </Card>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                 {availableAnalyses.map((analysis) => (
                     <Card key={analysis.key} className="flex flex-col hover:shadow-lg transition-shadow duration-300">
                         <CardHeader className="flex-grow">

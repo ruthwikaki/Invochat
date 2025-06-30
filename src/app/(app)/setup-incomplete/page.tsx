@@ -253,6 +253,7 @@ GRANT EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS on_order_quantity INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS landed_cost NUMERIC(10, 2);
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS barcode TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS sales_channel TEXT;
 
 -- Define a type for Purchase Order status for data integrity.
 DO $$
