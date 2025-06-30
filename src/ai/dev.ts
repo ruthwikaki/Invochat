@@ -8,6 +8,6 @@ import '@/ai/flows/reorder-tool.ts';
 import '@/ai/flows/supplier-performance-tool.ts';
 import '@/ai/flows/create-po-tool.ts';
 import '@/ai/flows/economic-tool.ts';
+import '@/ai/flows/dead-stock-tool.ts';
 
     
-

@@ -19,6 +19,7 @@ import { getEconomicIndicators } from './economic-tool';
 import { getReorderSuggestions } from './reorder-tool';
 import { getSupplierPerformanceReport } from './supplier-performance-tool';
 import { createPurchaseOrdersTool } from './create-po-tool';
+import { getDeadStockReport } from './dead-stock-tool';
 import { logError } from '@/lib/error-handler';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -330,7 +331,7 @@ const FEW_SHOT_EXAMPLES = `
   ${BUSINESS_QUERY_EXAMPLES}
 `;
 
-const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport, createPurchaseOrdersTool];
+const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport, createPurchaseOrdersTool, getDeadStockReport];
 
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
@@ -375,6 +376,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     11. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool.
     12. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, vendor scorecards, or which supplier is 'best' or 'fastest', you MUST use the \`getSupplierPerformanceReport\` tool. When providing advice on reordering, you should consider calling this tool to add context about supplier reliability to your recommendations.
     13. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions and they confirm they want to proceed (e.g., "yes, go ahead", "create the POs"), you MUST use the \`createPurchaseOrdersFromSuggestions\` tool. You must pass the full list of suggestions from your previous response as the 'suggestions' parameter for this tool.
+    14. **Dead Stock**: If the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products', you MUST use the \`getDeadStockReport\` tool.
     
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style. Your primary source of inspiration should be the COMPANY-SPECIFIC EXAMPLES if they exist, as they reflect what has worked for this user before.

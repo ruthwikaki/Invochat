@@ -3,7 +3,7 @@
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { UniversalChatOutputSchema } from '@/types/ai-schemas';
-import type { Message, Conversation } from '@/types';
+import type { Message, Conversation, DeadStockItem, SupplierPerformanceReport } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
@@ -239,7 +239,11 @@ export async function handleUserMessage(
                 break;
             case 'getSupplierPerformanceReport':
                 assistantMessage.component = 'supplierPerformanceTable';
-                assistantMessage.componentProps = { data: responseData.data };
+                assistantMessage.componentProps = { data: responseData.data as SupplierPerformanceReport[] };
+                break;
+            case 'getDeadStockReport':
+                assistantMessage.component = 'deadStockTable';
+                assistantMessage.componentProps = { data: responseData.data as DeadStockItem[] };
                 break;
         }
     } else if (responseData.visualization && responseData.visualization.type !== 'none' && Array.isArray(responseData.data) && responseData.data.length > 0) {
