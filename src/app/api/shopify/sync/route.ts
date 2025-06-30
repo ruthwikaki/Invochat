@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { decrypt } from '@/features/integrations/services/encryption';
-import { syncProducts } from '@/features/integrations/services/shopify-sync';
+import { runFullSync } from '@/features/integrations/services/shopify-sync';
 import { logError } from '@/lib/error-handler';
 
 const syncSchema = z.object({
@@ -42,8 +42,9 @@ export async function POST(request: Request) {
         await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
 
         // Intentionally not awaiting this to allow for a quick response to the client.
-        // In a production app, this would be offloaded to a background worker/queue.
-        syncProducts(integration, accessToken).catch(err => {
+        // This process runs in the background. In a production app with very large stores,
+        // this would be offloaded to a dedicated background worker/queue system (e.g., BullMQ, Inngest).
+        runFullSync(integration, accessToken).catch(err => {
              logError(err, { context: 'Background Shopify sync failed' });
         });
 

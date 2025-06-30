@@ -215,7 +215,7 @@ declare
   query text;
 begin
   -- Ensure the function only works on specific, whitelisted tables to prevent misuse.
-  if p_table_name not in ('inventory', 'vendors', 'supplier_catalogs', 'reorder_rules', 'locations') then
+  if p_table_name not in ('inventory', 'vendors', 'supplier_catalogs', 'reorder_rules', 'locations', 'customers', 'orders', 'order_items') then
     raise exception 'Invalid table name provided for batch upsert: %', p_table_name;
   end if;
 
@@ -253,7 +253,6 @@ GRANT EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS on_order_quantity INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS landed_cost NUMERIC(10, 2);
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS barcode TEXT;
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS sales_channel TEXT;
 
 -- Define a type for Purchase Order status for data integrity.
 DO $type_block$
@@ -602,6 +601,86 @@ CREATE INDEX IF NOT EXISTS idx_locations_company_id ON public.locations(company_
 -- ON DELETE SET NULL means if a location is deleted, the inventory items become "unassigned" instead of being deleted.
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES public.locations(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_inventory_location_id ON public.inventory(location_id);
+
+
+-- ========= Part 13: Core E-Commerce & Integration Tables =========
+
+-- Add shopify-specific columns to existing tables
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS shopify_product_id BIGINT;
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS shopify_variant_id BIGINT;
+ALTER TABLE public.inventory ADD CONSTRAINT unique_shopify_variant_per_company UNIQUE (company_id, shopify_variant_id);
+
+
+-- Table for customers
+CREATE TABLE IF NOT EXISTS public.customers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    customer_name TEXT NOT NULL,
+    email TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_customer_name_per_company UNIQUE (company_id, customer_name)
+);
+CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
+
+
+-- Table for sales orders
+CREATE TABLE IF NOT EXISTS public.orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    customer_name TEXT NOT NULL,
+    total_amount NUMERIC(10, 2) NOT NULL,
+    sales_channel TEXT,
+    shopify_order_id BIGINT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_shopify_order_per_company UNIQUE (company_id, shopify_order_id)
+);
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS sales_channel TEXT;
+CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
+CREATE INDEX IF NOT EXISTS idx_orders_sale_date ON public.orders(sale_date);
+
+-- Table for items within a sales order
+CREATE TABLE IF NOT EXISTS public.order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sale_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    sku TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    unit_price NUMERIC(10, 2) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_order_items_sale_id ON public.order_items(sale_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_sku ON public.order_items(sku);
+
+
+-- Table for integrations (e.g., Shopify)
+CREATE TABLE IF NOT EXISTS public.integrations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL, -- e.g., 'shopify'
+    shop_domain TEXT,
+    access_token TEXT, -- Encrypted
+    shop_name TEXT,
+    is_active BOOLEAN DEFAULT false,
+    last_sync_at TIMESTAMP WITH TIME ZONE,
+    sync_status TEXT, -- e.g., 'syncing', 'success', 'failed', 'idle'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE,
+    CONSTRAINT unique_platform_per_company UNIQUE (company_id, platform)
+);
+CREATE INDEX IF NOT EXISTS idx_integrations_company_id ON public.integrations(company_id);
+
+-- Table to log sync history
+CREATE TABLE IF NOT EXISTS public.sync_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
+    sync_type TEXT NOT NULL, -- e.g., 'products', 'orders'
+    status TEXT NOT NULL, -- 'started', 'completed', 'failed'
+    records_synced INTEGER,
+    error_message TEXT,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    completed_at TIMESTAMP WITH TIME ZONE
+);
+CREATE INDEX IF NOT EXISTS idx_sync_logs_integration_id ON public.sync_logs(integration_id);
 `;
 
 export default function SetupIncompletePage() {
