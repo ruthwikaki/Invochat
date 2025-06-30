@@ -64,7 +64,7 @@ export const DeadStockItemSchema = z.object({
     quantity: z.coerce.number(),
     cost: z.coerce.number(),
     total_value: z.coerce.number(),
-    last_sale_date: z.string().nullable(),
+    last_sale_date: z.string().nullable().optional(),
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
