@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, Fragment, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Location } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles, Warehouse } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles, Loader2, Warehouse } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { deleteInventoryItems } from '@/app/data-actions';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 
 
 interface InventoryClientPageProps {
@@ -70,9 +73,13 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace } = useRouter();
+  const { toast } = useToast();
 
+  const [inventory, setInventory] = useState(initialInventory);
   const [selectedRows, setSelectedRows] = useState(new Set<string>());
   const [expandedRows, setExpandedRows] = useState(new Set<string>());
+  const [isDeleting, startDeleteTransition] = useTransition();
+  const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -96,7 +103,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
     if (checked === true) {
-      setSelectedRows(new Set(initialInventory.map(item => item.sku)));
+      setSelectedRows(new Set(inventory.map(item => item.sku)));
     } else {
       setSelectedRows(new Set());
     }
@@ -111,6 +118,21 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
     }
     setSelectedRows(newSelectedRows);
   };
+  
+  const handleDelete = () => {
+    if (!itemToDelete) return;
+    startDeleteTransition(async () => {
+      const result = await deleteInventoryItems(itemToDelete);
+      if (result.success) {
+        setInventory(prev => prev.filter(item => !itemToDelete.includes(item.sku)));
+        setSelectedRows(new Set());
+        toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
+      } else {
+        toast({ variant: 'destructive', title: 'Error', description: result.error });
+      }
+      setItemToDelete(null);
+    });
+  };
 
   const toggleExpandRow = (sku: string) => {
     const newExpandedRows = new Set(expandedRows);
@@ -123,13 +145,13 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
   };
 
   const numSelected = selectedRows.size;
-  const numInventory = initialInventory.length;
+  const numInventory = inventory.length;
   const isAllSelected = numSelected > 0 && numSelected === numInventory;
   const isSomeSelected = numSelected > 0 && numSelected < numInventory;
   
   const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('location');
-  const showEmptyState = initialInventory.length === 0 && !isFiltered;
-  const showNoResultsState = initialInventory.length === 0 && isFiltered;
+  const showEmptyState = inventory.length === 0 && !isFiltered;
+  const showNoResultsState = inventory.length === 0 && isFiltered;
   
   return (
     <div className="space-y-4">
@@ -178,6 +200,24 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
             </Select>
         </div>
       </div>
+      
+      <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will permanently delete the selected {itemToDelete?.length} item(s). This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Yes, delete
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
         {showEmptyState ? <EmptyInventoryState /> : (
             <Card>
@@ -209,7 +249,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                     No inventory found matching your criteria.
                                 </TableCell>
                             </TableRow>
-                        ) : initialInventory.map(item => (
+                        ) : inventory.map(item => (
                             <Fragment key={item.sku}>
                             <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
                                 <TableCell>
@@ -244,9 +284,11 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                                                <DropdownMenuItem><Truck className="mr-2 h-4 w-4" />Reorder</DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+                                                <DropdownMenuItem disabled><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                                <DropdownMenuItem disabled><Truck className="mr-2 h-4 w-4" />Reorder</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setItemToDelete([item.sku])} className="text-destructive">
+                                                  <Trash2 className="mr-2 h-4 w-4" />Delete
+                                                </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                         <Button
@@ -289,8 +331,8 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                 >
                     <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
                         <p className="text-sm font-medium">{numSelected} item(s) selected</p>
-                        <Button variant="outline" size="sm">Edit Selected</Button>
-                        <Button variant="destructive" size="sm">Delete Selected</Button>
+                        <Button variant="outline" size="sm" disabled>Edit Selected</Button>
+                        <Button variant="destructive" size="sm" onClick={() => setItemToDelete(Array.from(selectedRows))}>Delete Selected</Button>
                         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
                             <X className="h-4 w-4"/>
                         </Button>

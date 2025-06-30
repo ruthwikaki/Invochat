@@ -36,6 +36,7 @@ import {
     createSupplierInDb,
     updateSupplierInDb,
     deleteSupplierFromDb,
+    deleteInventoryItemsFromDb,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier } from '@/types';
@@ -752,6 +753,19 @@ export async function deleteSupplier(id: string): Promise<{ success: boolean; er
         return { success: true };
     } catch (e) {
         logError(e, { context: 'deleteSupplier action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function deleteInventoryItems(skus: string[]): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await deleteInventoryItemsFromDb(companyId, skus);
+        revalidatePath('/inventory');
+        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'deleteInventoryItems action' });
         return { success: false, error: getErrorMessage(e) };
     }
 }

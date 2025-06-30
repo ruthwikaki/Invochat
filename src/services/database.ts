@@ -1337,3 +1337,19 @@ export async function deleteSupplierFromDb(id: string, companyId: string): Promi
         }
     });
 }
+
+export async function deleteInventoryItemsFromDb(companyId: string, skus: string[]): Promise<void> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('deleteInventoryItemsFromDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase
+            .from('inventory')
+            .delete()
+            .eq('company_id', companyId)
+            .in('sku', skus);
+        if (error) {
+            logError(error, { context: `deleteInventoryItemsFromDb for company ${companyId}` });
+            throw error;
+        }
+    });
+}
