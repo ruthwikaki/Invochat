@@ -23,8 +23,6 @@ import {
   YAxis,
 } from 'recharts';
 
-type DynamicChartProps = ChartConfig & { isExpanded?: boolean };
-
 // A new component to render the content of each treemap rectangle
 // This provides better visual styling than the default.
 const TreemapContent = (props: any) => {
@@ -79,7 +77,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Bar dataKey={config.dataKey} radius={[4, 4, 0, 0]} animationDuration={isInView ? 900 : 0}>
+                    <Bar dataKey={config.dataKey} radius={[4, 4, 0, 0]} isAnimationActive={isInView}>
                         {data.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
                         ))}
@@ -98,7 +96,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                         outerRadius="80%"
                         innerRadius="50%"
                         paddingAngle={5}
-                        animationDuration={isInView ? 900 : 0}
+                        isAnimationActive={isInView}
                         labelLine={false}
                         label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                     >
@@ -126,7 +124,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Line type="monotone" dataKey={config.dataKey} stroke="hsl(var(--primary))" animationDuration={isInView ? 900 : 0} />
+                    <Line type="monotone" dataKey={config.dataKey} stroke="hsl(var(--primary))" isAnimationActive={isInView} />
                 </LineChart>
             );
         case 'treemap':
@@ -181,7 +179,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.yAxisKey} fill="hsl(var(--primary))" animationDuration={isInView ? 900 : 0} />
+                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.yAxisKey} fill="hsl(var(--primary))" isAnimationActive={isInView} />
                 </ScatterChart>
             );
         default:
