@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Mail, Briefcase, FileText, Truck, Search, AlertTriangle } from 'lucide-react';
 import { getSuppliersData } from '@/app/data-actions';
 import type { Supplier } from '@/types';
@@ -18,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getErrorMessage } from '@/lib/error-handler';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 function SupplierCard({ supplier }: { supplier: Supplier }) {
   return (
@@ -108,12 +108,8 @@ export default function SuppliersPage() {
   }, [suppliers, searchTerm]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-       <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <SidebarTrigger className="md:hidden" />
-            <h1 className="text-2xl font-semibold">Suppliers</h1>
-          </div>
+    <AppPage>
+       <AppPageHeader title="Suppliers">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -123,7 +119,7 @@ export default function SuppliersPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-      </div>
+      </AppPageHeader>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {loading ? (
@@ -162,6 +158,6 @@ export default function SuppliersPage() {
                 </ul>
             </CardContent>
         </Card>
-    </div>
+    </AppPage>
   );
 }

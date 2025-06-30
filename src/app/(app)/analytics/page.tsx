@@ -4,7 +4,6 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
 import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2 } from 'lucide-react';
@@ -12,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
 import { getErrorMessage } from '@/lib/error-handler';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 function LoadingState() {
   return (
@@ -188,20 +188,14 @@ function StrategicReports() {
 
 export default function AnalyticsPage() {
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6 flex flex-col h-full">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <SidebarTrigger className="md:hidden" />
-                <div>
-                    <h1 className="text-2xl font-semibold">Strategic Reports</h1>
-                    <p className="text-muted-foreground text-sm">Generate deep-dive analyses with a single click.</p>
-                </div>
-              </div>
-            </div>
-
+        <AppPage className="flex flex-col h-full">
+            <AppPageHeader 
+                title="Strategic Reports"
+                description="Generate deep-dive analyses with a single click."
+            />
             <div className="flex-grow">
                 <StrategicReports />
             </div>
-        </div>
+        </AppPage>
     );
 }

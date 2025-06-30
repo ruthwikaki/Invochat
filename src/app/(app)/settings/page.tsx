@@ -13,13 +13,13 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings } from '@/types';
 import { getCompanySettings, updateCompanySettings } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info } from 'lucide-react';
 import Link from 'next/link';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 const businessRulesFields: { key: keyof CompanySettings; label: string; description: string, type: string }[] = [
     { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".', type: 'number' },
@@ -105,13 +105,8 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <SidebarTrigger className="md:hidden" />
-                    <h1 className="text-2xl font-semibold">Settings</h1>
-                </div>
-            </div>
+        <AppPage>
+            <AppPageHeader title="Settings" />
             
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                 <div className="lg:col-span-2 space-y-6">
@@ -246,6 +241,6 @@ export default function SettingsPage() {
                     </Card>
                 </div>
             </form>
-        </div>
+        </AppPage>
     );
 }

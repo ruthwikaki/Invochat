@@ -8,11 +8,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { DollarSign, Package, TrendingDown, Bot, Settings } from 'lucide-react';
 import { getDeadStockData } from '@/app/data-actions';
 import { DataTable } from '@/components/ai-response/data-table';
 import Link from 'next/link';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 function MetricCard({ title, value, icon: Icon, label }: { title: string, value: string, icon: React.ElementType, label?: string }) {
   return (
@@ -41,13 +41,8 @@ export default async function DeadStockPage() {
   }));
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="md:hidden" />
-          <h1 className="text-2xl font-semibold">Dead Stock Report</h1>
-        </div>
-      </div>
+    <AppPage>
+       <AppPageHeader title="Dead Stock Report" />
       
       <div className="grid gap-4 md:grid-cols-2">
         <MetricCard
@@ -114,6 +109,6 @@ export default async function DeadStockPage() {
         </CardFooter>
       </Card>
       
-    </div>
+    </AppPage>
   );
 }

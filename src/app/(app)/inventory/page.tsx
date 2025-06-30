@@ -1,8 +1,8 @@
 
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { getUnifiedInventory, getInventoryCategories } from '@/app/data-actions';
 import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
 import { Package } from 'lucide-react';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 export default async function InventoryPage({
   searchParams,
@@ -22,22 +22,12 @@ export default async function InventoryPage({
   ]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 flex flex-col h-full">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="md:hidden" />
-          <div>
-            <h1 className="text-2xl font-semibold flex items-center gap-2">
-              <Package className="h-6 w-6" />
-              Inventory Management
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Search, filter, and view your entire inventory.
-            </p>
-          </div>
-        </div>
-      </div>
+    <AppPage className="flex flex-col h-full">
+      <AppPageHeader
+        title="Inventory Management"
+        description="Search, filter, and view your entire inventory."
+      />
       <InventoryClientPage initialInventory={inventory} categories={categories} />
-    </div>
+    </AppPage>
   );
 }

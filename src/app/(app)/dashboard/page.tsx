@@ -1,7 +1,6 @@
 
 import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, AlertCircle, TrendingUp, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { getDashboardData } from '@/app/data-actions';
 import Link from 'next/link';
@@ -9,6 +8,7 @@ import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
 import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';
 import { TopCustomersChart } from '@/components/dashboard/top-customers-chart';
 import { DashboardHeaderControls } from '@/components/dashboard/header-controls';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 function formatCurrency(value: number) {
     if (Math.abs(value) >= 1_000_000) {
@@ -96,14 +96,10 @@ export default async function DashboardPage({
     }
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <SidebarTrigger className="md:hidden" />
-                    <h1 className="text-2xl font-semibold">Dashboard</h1>
-                </div>
+        <AppPage>
+            <AppPageHeader title="Dashboard">
                 <DashboardHeaderControls />
-            </div>
+            </AppPageHeader>
 
             {fetchError ? (
                 <ErrorDisplay error={fetchError} />
@@ -163,6 +159,6 @@ export default async function DashboardPage({
                     </div>
                 </div>
             ) : null}
-        </div>
+        </AppPage>
     );
 }

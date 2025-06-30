@@ -2,8 +2,8 @@
 import { testSupabaseConnection, testDatabaseQuery, testGenkitConnection, testMaterializedView, testRedisConnection } from '@/app/data-actions';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import { AlertCircle, CheckCircle, Database, HelpCircle, Bot, Zap, Redis } from 'lucide-react';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 async function TestResultItem({ title, success, helpText, testId, errorText, isEnabled = true }: { title: string, success: boolean, helpText?: string, testId: number, errorText?: string | null, isEnabled?: boolean }) {
   let status: 'pass' | 'fail' | 'skipped' = 'fail';
@@ -50,15 +50,12 @@ export default async function SystemHealthPage() {
   const redisConnection = await testRedisConnection();
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div className="flex items-center gap-2">
-        <SidebarTrigger className="md:hidden" />
-        <h1 className="text-2xl font-semibold">System Health Check</h1>
-      </div>
-      <CardDescription>
-        This page runs a series of tests to diagnose the health of your application's core services.
-      </CardDescription>
-
+    <AppPage>
+      <AppPageHeader 
+        title="System Health Check"
+        description="This page runs a series of tests to diagnose the health of your application's core services."
+      />
+      
       {/* Supabase Tests */}
       <Card>
         <CardHeader>
@@ -165,6 +162,6 @@ export default async function SystemHealthPage() {
             </div>
         </CardFooter>
       </Card>
-    </div>
+    </AppPage>
   );
 }

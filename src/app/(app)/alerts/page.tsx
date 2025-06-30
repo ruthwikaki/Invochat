@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SidebarTrigger } from '@/components/ui/sidebar';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
 import { AlertCircle, CheckCircle, Info, Bot, Settings, History } from 'lucide-react';
@@ -27,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 
 function AlertCard({ alert }: { alert: Alert }) {
@@ -103,15 +103,11 @@ export default function AlertsPage() {
   }, [alerts, filter]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="md:hidden" />
-           <div>
-            <h1 className="text-2xl font-semibold">Alerts</h1>
-            <p className="text-sm text-muted-foreground">Proactive notifications based on your business rules.</p>
-           </div>
-        </div>
+    <AppPage>
+      <AppPageHeader
+        title="Alerts"
+        description="Proactive notifications based on your business rules."
+      >
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-full md:w-[180px]">
             <SelectValue placeholder="Filter by type" />
@@ -122,7 +118,7 @@ export default function AlertsPage() {
             <SelectItem value="dead_stock">Dead Stock</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </AppPageHeader>
 
       <div className="space-y-4">
         {loading ? (
@@ -183,6 +179,6 @@ export default function AlertsPage() {
         </CardFooter>
       </Card>
 
-    </div>
+    </AppPage>
   );
 }
