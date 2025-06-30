@@ -15,7 +15,7 @@ body {
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 262 84% 58%; /* New Violet/Purple */
+    --primary: 257 57% 52%; /* Deep Purple #6B46C1 */
     --primary-foreground: 0 0% 98%;
     --secondary: 222 22% 45%; /* Slate #475569 */
     --secondary-foreground: 0 0% 98%;
@@ -31,10 +31,10 @@ body {
     --success-foreground: 0 0% 98%;
     --border: 220 13% 89%;
     --input: 220 13% 89%;
-    --ring: 262 84% 58%; /* New Violet/Purple */
+    --ring: 257 57% 52%; /* Deep Purple #6B46C1 */
     --radius: 0.75rem;
 
-    --chart-1: 262 84% 58%; /* New Violet/Purple */
+    --chart-1: 257 57% 52%; /* Deep Purple #6B46C1 */
     --chart-2: 222 22% 45%;
     --chart-3: 160 84% 39%;
     --chart-4: 38 92% 50%;
@@ -42,12 +42,12 @@ body {
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 262 84% 58%; /* New Violet/Purple */
+    --sidebar-primary: 257 57% 52%; /* Deep Purple #6B46C1 */
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 220 14% 96%;
     --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 220 13% 89%;
-    --sidebar-ring: 262 84% 58%; /* New Violet/Purple */
+    --sidebar-ring: 257 57% 52%; /* Deep Purple #6B46C1 */
   }
 
   .dark {
@@ -57,7 +57,7 @@ body {
     --card-foreground: 0 0% 98%;
     --popover: 224 30% 15%;
     --popover-foreground: 0 0% 98%;
-    --primary: 262 84% 58%; /* New Violet/Purple */
+    --primary: 257 57% 52%; /* Deep Purple #6B46C1 */
     --primary-foreground: 0 0% 98%;
     --secondary: 222 22% 45%;
     --secondary-foreground: 0 0% 98%;
@@ -73,7 +73,7 @@ body {
     --success-foreground: 0 0% 98%;
     --border: 223 22% 19%;
     --input: 223 22% 19%;
-    --ring: 262 84% 58%; /* New Violet/Purple */
+    --ring: 257 57% 52%; /* Deep Purple #6B46C1 */
     
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 0 0% 98%;
@@ -82,7 +82,7 @@ body {
     --sidebar-accent: 223 22% 19%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 223 22% 19%;
-    --sidebar-ring: 262 84% 58%; /* New Violet/Purple */
+    --sidebar-ring: 257 57% 52%; /* Deep Purple #6B46C1 */
   }
 }
 
