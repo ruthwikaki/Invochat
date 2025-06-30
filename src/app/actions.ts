@@ -241,35 +241,15 @@ export async function handleUserMessage(
         content: userQuery,
     });
     
-    let flowResponse;
-    const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
-    const cacheKey = `company:${companyId}:query:${queryHash}`;
-
-    if (isRedisEnabled) {
-        try {
-            const cachedResponse = await redisClient.get(cacheKey);
-            if (cachedResponse) {
-                logger.info(`[Cache] HIT for AI query: ${cacheKey}`);
-                await incrementCacheHit('ai_query');
-                flowResponse = JSON.parse(cachedResponse);
-            } else {
-                logger.info(`[Cache] MISS for AI query: ${cacheKey}`);
-                await incrementCacheMiss('ai_query');
-            }
-        } catch (e) {
-            logError(e, { context: `Redis error getting cached query for ${cacheKey}` });
-        }
-    }
-
-    if (!flowResponse) {
-        const aiStartTime = performance.now();
-        flowResponse = await universalChatFlow({
-          companyId,
-          conversationHistory: historyForAI,
-        });
-        const aiEndTime = performance.now();
-        await trackAiQueryPerformance(userQuery, aiEndTime - aiStartTime);
-    }
+    // AI query caching has been removed to ensure data freshness.
+    // The AI will now always query the live database.
+    const aiStartTime = performance.now();
+    const flowResponse = await universalChatFlow({
+      companyId,
+      conversationHistory: historyForAI,
+    });
+    const aiEndTime = performance.now();
+    await trackAiQueryPerformance(userQuery, aiEndTime - aiStartTime);
     
     const parsedResponse = UniversalChatOutputSchema.safeParse(flowResponse);
     if (!parsedResponse.success) {
@@ -329,15 +309,6 @@ export async function handleUserMessage(
     if (saveMsgError) {
       logError(saveMsgError, { context: 'Error saving assistant message' });
       throw new Error(`Could not save assistant message: ${saveMsgError.message}`);
-    }
-    
-    if (isRedisEnabled && !(await redisClient.get(cacheKey)) && assistantMessage.content && !assistantMessage.content.toLowerCase().includes('error')) {
-        try {
-            await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', config.redis.ttl.aiQuery);
-            logger.info(`[Cache] SET for AI query: ${cacheKey}`);
-        } catch (e) {
-            logError(e, { context: `Redis error setting cached query for ${cacheKey}` });
-        }
     }
     
     if (parsedPayload.data.conversationId) {
