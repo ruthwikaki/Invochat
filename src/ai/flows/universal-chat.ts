@@ -354,20 +354,21 @@ const sqlGenerationPrompt = ai.definePrompt({
     **A) For ALL Queries (NON-NEGOTIABLE SECURITY RULES):**
     1.  **Security is PARAMOUNT**: The query MUST be a read-only \`SELECT\` statement. You are FORBIDDEN from generating \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`DROP\`, \`GRANT\`, or any other data-modifying or access-control statements.
     2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company using a placeholder: \`company_id = :company_id\`. This is a non-negotiable security requirement. There are no exceptions.
-    3.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
-    4.  **NO SQL Comments**: The final query MUST NOT contain any SQL comments (e.g., --, /* */).
-    5.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    6.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM orders JOIN customers ON orders.customer_name = customers.customer_name\`).
+    3.  **Data Sanitization**: When incorporating user-provided text (like product names, categories, or customer names) into a \`WHERE\` clause, you MUST sanitize it to prevent SQL errors. The most common issue is a single quote (\`'\`). To handle this, you MUST replace every single quote in the user's text with two single quotes (e.g., a customer named \`O'Malley\` must be written in the SQL as \`WHERE customer_name = 'O''Malley'\`).
+    4.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
+    5.  **NO SQL Comments**: The final query MUST NOT contain any SQL comments (e.g., --, /* */).
+    6.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
+    7.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM orders JOIN customers ON orders.customer_name = customers.customer_name\`).
 
     **B) For COMPLEX ANALYTICAL Queries:**
-    7.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
+    8.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
         - **Common Table Expressions (CTEs)** are REQUIRED to break down complex logic. Do not use nested subqueries where a CTE would be clearer.
         - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
-    8.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
+    9.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
 
     **C) For QUESTIONS THAT REQUIRE TOOLS:**
-    9.  **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool. You MUST pass the user's Company ID to this tool.
-    10. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
+    10. **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool. You MUST pass the user's Company ID to this tool.
+    11. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
     
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style. Your primary source of inspiration should be the COMPANY-SPECIFIC EXAMPLES if they exist, as they reflect what has worked for this user before.
