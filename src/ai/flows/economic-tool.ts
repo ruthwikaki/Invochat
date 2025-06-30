@@ -6,6 +6,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
+import { logError } from '@/lib/error-handler';
 
 export const getEconomicIndicators = ai.defineTool(
   {
@@ -38,8 +39,8 @@ export const getEconomicIndicators = ai.defineTool(
             value: text
         };
 
-    } catch (e: any) {
-        logger.error(`[Economic Tool] Failed to get data for ${input.indicator}`, e);
+    } catch (e) {
+        logError(e, { context: `[Economic Tool] Failed to get data for ${input.indicator}` });
         return {
             indicator: input.indicator,
             value: "Could not retrieve information."

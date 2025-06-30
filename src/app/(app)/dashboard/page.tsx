@@ -91,8 +91,8 @@ export default async function DashboardPage({
     
     try {
         data = await getDashboardData(dateRange);
-    } catch (e: any) {
-        fetchError = e;
+    } catch (e) {
+        fetchError = e as Error;
     }
 
     return (

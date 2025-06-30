@@ -219,22 +219,22 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             throw combinedError;
         }
 
-        const metrics = combinedData[0]?.metrics || {};
+        const metrics = (combinedData as { metrics: Record<string, unknown> }[])[0]?.metrics || {};
 
         const { data: customers } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
         const finalMetrics: DashboardMetrics = {
-            totalSalesValue: Math.round(metrics.totalSalesValue || 0),
-            totalProfit: Math.round(metrics.totalProfit || 0),
-            returnRate: metrics.returnRate || 0,
+            totalSalesValue: Math.round((metrics.totalSalesValue as number) || 0),
+            totalProfit: Math.round((metrics.totalProfit as number) || 0),
+            returnRate: (metrics.returnRate as number) || 0,
             totalInventoryValue: Math.round(mvData?.inventory_value || 0),
             lowStockItemsCount: mvData?.low_stock_count || 0,
-            totalOrders: metrics.totalOrders || 0,
+            totalOrders: (metrics.totalOrders as number) || 0,
             totalCustomers: customers?.count || 0,
-            averageOrderValue: metrics.averageOrderValue || 0,
-            salesTrendData: metrics.salesTrendData || [],
-            inventoryByCategoryData: metrics.inventoryByCategoryData || [],
-            topCustomersData: metrics.topCustomersData || [],
+            averageOrderValue: (metrics.averageOrderValue as number) || 0,
+            salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[]) || [],
+            inventoryByCategoryData: (metrics.inventoryByCategoryData as { name: string; value: number }[]) || [],
+            topCustomersData: (metrics.topCustomersData as { name: string; value: number }[]) || [],
         };
         
         if (isRedisEnabled) {
@@ -474,11 +474,11 @@ const USER_FACING_TABLES = [
     'product_attributes'
 ];
 
-export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: any[] }[]> {
+export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: unknown[] }[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getDatabaseSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
-        const results: { tableName: string; rows: any[] }[] = [];
+        const results: { tableName: string; rows: unknown[] }[] = [];
 
         // Tables that can be filtered directly by company_id
         const directFilterTables = [
@@ -730,7 +730,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
             return [];
         }
         
-        return data.map((item: any) => item.category) || [];
+        return data.map((item: { category: string }) => item.category) || [];
     });
 }
 

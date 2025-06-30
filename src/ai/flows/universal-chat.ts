@@ -16,6 +16,7 @@ import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, sa
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
+import { logError } from '@/lib/error-handler';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -455,9 +456,28 @@ const universalChatOrchestrator = ai.defineFlow(
         let finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { companyId });
 
         logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${finalSqlQuery}"`);
-        let { data: queryData, error: queryError } = await supabaseAdmin.rpc('execute_dynamic_query', {
-          query_text: finalSqlQuery.replace(/;/g, '')
-        });
+
+        const QUERY_TIMEOUT = 30000;
+        let queryData: unknown[] | null = null;
+        let queryError: { message: string } | null = null;
+
+        try {
+            const queryPromise = supabaseAdmin.rpc('execute_dynamic_query', {
+              query_text: finalSqlQuery.replace(/;/g, '')
+            });
+
+            const timeoutPromise = new Promise<{data: null, error: Error}>((resolve) =>
+                setTimeout(() => resolve({ data: null, error: new Error('Query timed out after 30 seconds.') }), QUERY_TIMEOUT)
+            );
+
+            const result = await Promise.race([queryPromise, timeoutPromise]);
+            queryData = result.data;
+            queryError = result.error;
+        } catch(e) {
+            logError(e, {context: 'Unexpected error during query execution with timeout'});
+            queryError = e as Error;
+        }
+
         
         if (queryError) {
             logger.warn(`[UniversalChat:Flow] Initial query failed: "${queryError.message}". Attempting recovery...`);
@@ -481,13 +501,24 @@ const universalChatOrchestrator = ai.defineFlow(
                 finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { companyId });
 
                 logger.info(`[Audit Trail] Executing re-validated SQL for company ${companyId}: "${finalSqlQuery}"`);
-                const retryResult = await supabaseAdmin.rpc('execute_dynamic_query', {
-                    query_text: finalSqlQuery.replace(/;/g, '')
-                });
-                
-                queryData = retryResult.data;
-                queryError = retryResult.error;
 
+                 try {
+                    const retryQueryPromise = supabaseAdmin.rpc('execute_dynamic_query', {
+                        query_text: finalSqlQuery.replace(/;/g, '')
+                    });
+
+                    const retryTimeoutPromise = new Promise<{data: null, error: Error}>((resolve) =>
+                        setTimeout(() => resolve({ data: null, error: new Error('Query timed out after 30 seconds.') }), QUERY_TIMEOUT)
+                    );
+                    
+                    const retryResult = await Promise.race([retryQueryPromise, retryTimeoutPromise]);
+                    queryData = retryResult.data;
+                    queryError = retryResult.error;
+                } catch(e) {
+                    logError(e, {context: 'Unexpected error during retry query execution with timeout'});
+                    queryError = e as Error;
+                }
+                
                 if (queryError) {
                     logger.error('[UniversalChat:Flow] Corrected query also failed:', queryError.message);
                     throw new Error(`I tried to automatically fix a query error, but the correction also failed. The original error was: ${queryError.message}`);

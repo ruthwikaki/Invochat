@@ -1,7 +1,7 @@
 
 'use server';
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { 
     getDashboardMetrics, 
@@ -25,7 +25,7 @@ import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import { invalidateCompanyCache } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -357,7 +357,7 @@ export async function testGenkitConnection(): Promise<{
         const errorMessage = getErrorMessage(e);
         let detailedMessage = errorMessage;
 
-        if ((e as any)?.status === 'NOT_FOUND' || errorMessage?.includes('NOT_FOUND') || errorMessage?.includes('Model not found')) {
+        if ((e as { status?: string })?.status === 'NOT_FOUND' || errorMessage?.includes('NOT_FOUND') || errorMessage?.includes('Model not found')) {
             detailedMessage = `The configured AI model ('${config.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
         } else if (errorMessage?.includes('API key not valid')) {
             detailedMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'

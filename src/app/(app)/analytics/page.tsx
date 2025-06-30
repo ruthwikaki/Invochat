@@ -11,6 +11,7 @@ import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
+import { getErrorMessage } from '@/lib/error-handler';
 
 function LoadingState() {
   return (
@@ -98,8 +99,8 @@ function StrategicReports() {
                     setConversationId(response.conversationId || null);
                     setError(null);
                 }
-            } catch (e: any) {
-                setError(e.message || 'An unexpected error occurred.');
+            } catch (e) {
+                setError(getErrorMessage(e) || 'An unexpected error occurred.');
                 setAnalysisResult(null);
             }
         });

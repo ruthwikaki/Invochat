@@ -141,7 +141,7 @@ function transformDataForChart(data: Record<string, unknown>[] | null | undefine
 
 function getFlowErrorMessage(error: unknown): string {
     const message = getErrorMessage(error);
-    const status = (error as any)?.status || '';
+    const status = (error as { status?: string })?.status || '';
 
     if (message.includes('Query timed out')) {
         return "The database query took too long to respond. This can happen with very complex questions. Please try simplifying your request.";

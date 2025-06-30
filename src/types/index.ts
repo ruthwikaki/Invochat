@@ -40,19 +40,6 @@ export type Message = {
   isError?: boolean;
 };
 
-export type ChartConfig = {
-    chartType: 'bar' | 'pie' | 'line' | 'treemap' | 'scatter';
-    title?: string;
-    data: Record<string, unknown>[];
-    config: {
-        dataKey: string;
-        nameKey: string;
-        xAxisKey?: string;
-        yAxisKey?: string;
-        [key: string]: unknown;
-    }
-}
-
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
     vendor_name: z.string().min(1),

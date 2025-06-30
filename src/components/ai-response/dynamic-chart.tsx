@@ -2,7 +2,6 @@
 'use client';
 
 import { useRef } from 'react';
-import type { ChartConfig } from '@/types';
 import { motion, useInView } from 'framer-motion';
 import {
   Bar,
@@ -23,9 +22,34 @@ import {
   YAxis,
 } from 'recharts';
 
+interface DynamicChartProps {
+    chartType: 'bar' | 'pie' | 'line' | 'treemap' | 'scatter';
+    data: Record<string, unknown>[];
+    config: {
+        dataKey: string;
+        nameKey: string;
+        xAxisKey?: string;
+        yAxisKey?: string;
+        [key: string]: unknown;
+    };
+    isExpanded?: boolean;
+}
+
+interface TreemapContentProps {
+  depth: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  index: number;
+  name: string;
+  value: number;
+}
+
+
 // A new component to render the content of each treemap rectangle
 // This provides better visual styling than the default.
-const TreemapContent = (props: any) => {
+const TreemapContent = (props: TreemapContentProps) => {
   const { depth, x, y, width, height, index, name, value } = props;
 
   // Don't render text for very small boxes
