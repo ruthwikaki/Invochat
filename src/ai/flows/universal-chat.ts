@@ -18,6 +18,7 @@ import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
 import { getReorderSuggestions } from './reorder-tool';
 import { getSupplierPerformanceReport } from './supplier-performance-tool';
+import { createPurchaseOrdersTool } from './create-po-tool';
 import { logError } from '@/lib/error-handler';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -329,7 +330,7 @@ const FEW_SHOT_EXAMPLES = `
   ${BUSINESS_QUERY_EXAMPLES}
 `;
 
-const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport];
+const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport, createPurchaseOrdersTool];
 
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
@@ -373,6 +374,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     10. **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool. You MUST pass the user's Company ID to this tool.
     11. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool.
     12. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, vendor scorecards, or which supplier is 'best' or 'fastest', you MUST use the \`getSupplierPerformanceReport\` tool. You MUST pass the user's Company ID to this tool.
+    13. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions and they confirm they want to proceed (e.g., "yes, go ahead", "create the POs"), you MUST use the \`createPurchaseOrdersFromSuggestions\` tool. You must pass the full list of suggestions from your previous response as the 'suggestions' parameter for this tool.
     
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style. Your primary source of inspiration should be the COMPANY-SPECIFIC EXAMPLES if they exist, as they reflect what has worked for this user before.
@@ -474,6 +476,7 @@ const finalResponsePrompt = ai.definePrompt({
     YOUR TASK:
     1.  **Analyze Data**:
         - Review the JSON data. If it's empty or null, state that you found no information.
+        - **Special Case:** If the JSON data contains a "createdPoCount" key, your main task is to confirm the action. Your response should be a success message, for example: "Done! I've created 2 new purchase orders. You can view them on the Purchase Orders page." In this case, you should also suggest a 'none' visualization type.
         - Your analysis should be based *only* on the data provided.
     2.  **Formulate Response**:
         - Provide a concise, natural language response based on the database data.
@@ -525,11 +528,28 @@ const universalChatOrchestrator = ai.defineFlow(
       model: aiModel,
       prompt: sqlGenerationPrompt,
       input: { userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns, companyId },
+      history: conversationHistory.slice(0, -1) // Pass previous messages as history context
     });
     
     if (toolCalls && toolCalls.length > 0) {
         logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCalls[0].name}`);
         const toolCall = toolCalls[0];
+        
+        // If the tool is `createPurchaseOrdersFromSuggestions`, we need to get the suggestions
+        // from the previous AI response in the conversation history.
+        if (toolCall.name === 'createPurchaseOrdersFromSuggestions' && !toolCall.input.suggestions) {
+            const lastAiMessage = conversationHistory.reverse().find(m => m.role === 'assistant');
+            if (lastAiMessage) {
+                // This is a bit of a hack, but we can assume the tool output is what we need.
+                // In a more complex system, we might store tool outputs more explicitly.
+                const potentialSuggestions = (lastAiMessage as any).tool_response?.output;
+                 if (Array.isArray(potentialSuggestions)) {
+                    logger.info(`[UniversalChat:Flow] Found suggestions in previous turn for createPurchaseOrdersTool.`);
+                    toolCall.input.suggestions = potentialSuggestions;
+                }
+            }
+        }
+        
         const toolResult = await ai.runTool(toolCall);
         
         const queryDataJson = JSON.stringify([toolResult.output]);
