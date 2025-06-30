@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -268,7 +268,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
       logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
       await incrementCacheMiss('dashboard');
     } catch (error) {
-      logError(error, { context: `Redis error getting cache for ${cacheKey}. Fetching directly from DB.` });
+      logError(error, { context: `Redis error getting cache for ${cacheKey}`. Fetching directly from DB.` });
     }
   }
   return fetchAndCacheMetrics();
@@ -862,11 +862,11 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     });
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string }): Promise<UnifiedInventoryItem[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const { query, category } = params;
+        const { query, category, location } = params;
 
         let sqlQuery = `
             SELECT
@@ -879,8 +879,11 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
                 i.reorder_point,
                 i.on_order_quantity,
                 i.landed_cost,
-                i.barcode
+                i.barcode,
+                i.location_id,
+                l.name as location_name
             FROM inventory i
+            LEFT JOIN locations l ON i.location_id = l.id
             WHERE i.company_id = '${companyId}'
         `;
 
@@ -889,6 +892,9 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         }
         if (category) {
             sqlQuery += ` AND i.category = '${category.replace(/'/g, "''")}'`;
+        }
+        if (location) {
+            sqlQuery += ` AND i.location_id = '${location.replace(/'/g, "''")}'`;
         }
         sqlQuery += ` ORDER BY i.name;`;
 
@@ -1168,4 +1174,93 @@ export async function upsertChannelFeeInDB(companyId: string, fee: { channel_nam
         return ChannelFeeSchema.parse(data);
     });
 }
-    
+
+// Location DB Functions
+export async function getLocationsFromDB(companyId: string): Promise<Location[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getLocationsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('locations')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('name');
+        if (error) {
+            logError(error, { context: 'getLocationsFromDB' });
+            throw error;
+        }
+        return z.array(LocationSchema).parse(data || []);
+    });
+}
+
+export async function getLocationByIdFromDB(id: string, companyId: string): Promise<Location | null> {
+    if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('getLocationByIdFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('locations')
+            .select('*')
+            .eq('id', id)
+            .eq('company_id', companyId)
+            .maybeSingle();
+        if (error) {
+            logError(error, { context: `getLocationByIdFromDB: ${id}` });
+            throw error;
+        }
+        return data ? LocationSchema.parse(data) : null;
+    });
+}
+
+export async function createLocationInDB(companyId: string, locationData: LocationFormData): Promise<Location> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('createLocationInDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('locations')
+            .insert({ ...locationData, company_id: companyId })
+            .select()
+            .single();
+        if (error) {
+            logError(error, { context: 'createLocationInDB' });
+            if (error.code === '23505') throw new Error('A location with this name already exists.');
+            throw error;
+        }
+        return LocationSchema.parse(data);
+    });
+}
+
+export async function updateLocationInDB(id: string, companyId: string, locationData: LocationFormData): Promise<Location> {
+    if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('updateLocationInDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('locations')
+            .update(locationData)
+            .eq('id', id)
+            .eq('company_id', companyId)
+            .select()
+            .single();
+        if (error) {
+            logError(error, { context: `updateLocationInDB: ${id}` });
+            if (error.code === '23505') throw new Error('A location with this name already exists.');
+            throw error;
+        }
+        return LocationSchema.parse(data);
+    });
+}
+
+export async function deleteLocationFromDB(id: string, companyId: string): Promise<void> {
+    if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('deleteLocationFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase
+            .from('locations')
+            .delete()
+            .eq('id', id)
+            .eq('company_id', companyId);
+        if (error) {
+            logError(error, { context: `deleteLocationFromDB: ${id}` });
+            throw error;
+        }
+    });
+}

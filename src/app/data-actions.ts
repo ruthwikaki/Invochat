@@ -27,9 +27,14 @@ import {
     getReorderSuggestionsFromDB,
     getChannelFeesFromDB,
     upsertChannelFeeInDB,
+    getLocationsFromDB,
+    createLocationInDB,
+    updateLocationInDB,
+    deleteLocationFromDB,
+    getLocationByIdFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -95,7 +100,7 @@ export async function getDashboardData(dateRange: string = '30d') {
     }
 }
 
-export async function getUnifiedInventory(params: { query?: string; category?: string }): Promise<UnifiedInventoryItem[]> {
+export async function getUnifiedInventory(params: { query?: string; category?: string, location?: string }): Promise<UnifiedInventoryItem[]> {
     const { companyId } = await getAuthContext();
     return getUnifiedInventoryFromDB(companyId, params);
 }
@@ -653,6 +658,54 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         return { success: true };
     } catch(e) {
         logError(e, { context: 'upsertChannelFee action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+// Location Data Actions
+export async function getLocations(): Promise<Location[]> {
+    const { companyId } = await getAuthContext();
+    return getLocationsFromDB(companyId);
+}
+
+export async function getLocationById(id: string): Promise<Location | null> {
+    const { companyId } = await getAuthContext();
+    return getLocationByIdFromDB(id, companyId);
+}
+
+export async function createLocation(data: LocationFormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await createLocationInDB(companyId, data);
+        revalidatePath('/locations');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'createLocation action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function updateLocation(id: string, data: LocationFormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await updateLocationInDB(id, companyId, data);
+        revalidatePath('/locations');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'updateLocation action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function deleteLocation(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await deleteLocationFromDB(id, companyId);
+        revalidatePath('/locations');
+        revalidatePath('/inventory');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'deleteLocation action' });
         return { success: false, error: getErrorMessage(e) };
     }
 }

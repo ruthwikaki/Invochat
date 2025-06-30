@@ -215,7 +215,7 @@ declare
   query text;
 begin
   -- Ensure the function only works on specific, whitelisted tables to prevent misuse.
-  if p_table_name not in ('inventory', 'vendors', 'supplier_catalogs', 'reorder_rules') then
+  if p_table_name not in ('inventory', 'vendors', 'supplier_catalogs', 'reorder_rules', 'locations') then
     raise exception 'Invalid table name provided for batch upsert: %', p_table_name;
   end if;
 
@@ -581,6 +581,27 @@ CREATE TABLE IF NOT EXISTS public.channel_fees (
 );
 
 CREATE INDEX IF NOT EXISTS idx_channel_fees_company_id ON public.channel_fees(company_id);
+
+
+-- ========= Part 12: Multi-Location Inventory =========
+
+-- Create the locations table to store warehouse information.
+CREATE TABLE IF NOT EXISTS public.locations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    address TEXT,
+    is_default BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_location_name_per_company UNIQUE (company_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_locations_company_id ON public.locations(company_id);
+
+-- Add a location_id to the inventory table to track stock per location.
+-- It's nullable to support existing setups and allows assigning items to locations over time.
+-- ON DELETE SET NULL means if a location is deleted, the inventory items become "unassigned" instead of being deleted.
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES public.locations(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_inventory_location_id ON public.inventory(location_id);
 `;
 
 export default function SetupIncompletePage() {
@@ -647,4 +668,3 @@ export default function SetupIncompletePage() {
     </div>
   );
 }
-

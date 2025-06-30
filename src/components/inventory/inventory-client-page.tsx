@@ -7,9 +7,9 @@ import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { UnifiedInventoryItem } from '@/types';
+import type { UnifiedInventoryItem, Location } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles, Warehouse } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
   categories: string[];
+  locations: Location[];
 }
 
 const StatusBadge = ({ quantity, reorderPoint }: { quantity: number, reorderPoint: number | null }) => {
@@ -65,7 +66,7 @@ function EmptyInventoryState() {
 }
 
 
-export function InventoryClientPage({ initialInventory, categories }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, categories, locations }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace } = useRouter();
@@ -83,12 +84,12 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
     replace(`${pathname}?${params.toString()}`);
   }, 300);
 
-  const handleCategoryChange = (category: string) => {
+  const handleFilterChange = (type: 'category' | 'location', value: string) => {
     const params = new URLSearchParams(searchParams);
-    if (category && category !== 'all') {
-      params.set('category', category);
+    if (value && value !== 'all') {
+      params.set(type, value);
     } else {
-      params.delete('category');
+      params.delete(type);
     }
     replace(`${pathname}?${params.toString()}`);
   };
@@ -126,14 +127,14 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
   const isAllSelected = numSelected > 0 && numSelected === numInventory;
   const isSomeSelected = numSelected > 0 && numSelected < numInventory;
   
-  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category');
+  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('location');
   const showEmptyState = initialInventory.length === 0 && !isFiltered;
   const showNoResultsState = initialInventory.length === 0 && isFiltered;
   
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col md:flex-row items-center gap-2">
+        <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
                 placeholder="Search by product name or SKU..."
@@ -142,22 +143,40 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
                 className="pl-10"
             />
         </div>
-        <Select
-            onValueChange={handleCategoryChange}
-            defaultValue={searchParams.get('category') || 'all'}
-        >
-          <SelectTrigger className="w-full md:w-[240px]">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex w-full md:w-auto gap-2">
+            <Select
+                onValueChange={(value) => handleFilterChange('location', value)}
+                defaultValue={searchParams.get('location') || 'all'}
+            >
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Filter by location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations.map((location) => (
+                  <SelectItem key={location.id} value={location.id}>
+                    {location.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+                onValueChange={(value) => handleFilterChange('category', value)}
+                defaultValue={searchParams.get('category') || 'all'}
+            >
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+        </div>
       </div>
 
         {showEmptyState ? <EmptyInventoryState /> : (
@@ -174,6 +193,7 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
                             />
                             </TableHead>
                             <TableHead>Product</TableHead>
+                            <TableHead>Location</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead className="text-right">Quantity</TableHead>
                             <TableHead className="text-right">Unit Cost</TableHead>
@@ -185,7 +205,7 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
                         <TableBody>
                         {showNoResultsState ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="h-24 text-center">
+                                <TableCell colSpan={9} className="h-24 text-center">
                                     No inventory found matching your criteria.
                                 </TableCell>
                             </TableRow>
@@ -201,6 +221,12 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
                                 <TableCell>
                                 <div className="font-medium">{item.product_name}</div>
                                 <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <Warehouse className="h-4 w-4 text-muted-foreground" />
+                                        {item.location_name || 'Unassigned'}
+                                    </div>
                                 </TableCell>
                                 <TableCell>{item.category || 'N/A'}</TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
@@ -236,7 +262,7 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
                             </TableRow>
                             {expandedRows.has(item.sku) && (
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
-                                    <TableCell colSpan={8} className="p-4">
+                                    <TableCell colSpan={9} className="p-4">
                                         <div className="text-sm">
                                             <p><strong>Detailed Info:</strong> This product costs ${item.cost.toFixed(2)} per unit. With {item.quantity} units in stock, the total value is ${item.total_value.toFixed(2)}. The reorder point is set to {item.reorder_point || 'N/A'}.</p>
                                         </div>

@@ -35,6 +35,11 @@ const importOptions = {
         description: "Import your custom reorder rules for products.",
         columns: ['sku', 'rule_type', 'min_stock', 'max_stock', 'reorder_quantity'],
     },
+    locations: {
+        label: 'Locations',
+        description: "Import your warehouses or other stock locations.",
+        columns: ['name', 'address', 'is_default'],
+    },
 };
 
 type DataType = keyof typeof importOptions;

@@ -131,6 +131,8 @@ export type UnifiedInventoryItem = {
   on_order_quantity: number;
   landed_cost?: number | null;
   barcode?: string | null;
+  location_id: string | null;
+  location_name: string | null;
 };
 
 export type TeamMember = {
@@ -268,3 +270,19 @@ export const ChannelFeeSchema = z.object({
   updated_at: z.string().nullable(),
 });
 export type ChannelFee = z.infer<typeof ChannelFeeSchema>;
+
+export const LocationSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  name: z.string(),
+  address: z.string().nullable(),
+  is_default: z.boolean().default(false),
+});
+export type Location = z.infer<typeof LocationSchema>;
+
+export const LocationFormSchema = z.object({
+  name: z.string().min(2, { message: "Location name must be at least 2 characters." }),
+  address: z.string().optional(),
+  is_default: z.boolean().optional(),
+});
+export type LocationFormData = z.infer<typeof LocationFormSchema>;

@@ -46,3 +46,9 @@ export const ReorderRuleImportSchema = z.object({
   reorder_quantity: z.coerce.number().int().positive().optional().nullable(),
 });
 
+// Schema for validating a row from a locations CSV.
+export const LocationImportSchema = z.object({
+    name: z.string().min(1, 'Location Name is required.'),
+    address: z.string().optional().nullable(),
+    is_default: z.coerce.boolean().optional().default(false),
+});
