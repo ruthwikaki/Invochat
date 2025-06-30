@@ -32,12 +32,28 @@ function WooCommerceLogo({ className }: { className?: string }) {
     );
 }
 
+function AmazonFbaLogo({ className }: { className?: string }) {
+    return (
+        <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            viewBox="0 0 512 512"
+            className={cn(className)}
+            role="img"
+            aria-label="Amazon Logo"
+        >
+            <path fill="currentColor" d="M336.4 448H175.6c-11.4 0-21.9-6-27.4-15.8L64 256.3V128h44.8l70.8 112.3 44.8-112.3H512v128.3L448 332.2c-5.5 9.8-16 15.8-27.4 15.8zM256 64C149.9 64 64 149.9 64 256s85.9 192 192 192 192-85.9 192-192S362.1 64 256 64zm164.8 320h-51.2l-64-102.4-64 102.4H87.2l116.8-185.6-112-179.2h51.2l84.8 136 84.8-136h51.2L299.2 200.8l121.6 183.2z"/>
+        </svg>
+    )
+}
+
 export function PlatformLogo({ platform, className }: { platform: Platform, className?: string }) {
     switch(platform) {
         case 'shopify':
             return <ShopifyLogo className={className} />;
         case 'woocommerce':
             return <WooCommerceLogo className={className} />;
+        case 'amazon_fba':
+             return <AmazonFbaLogo className={className} />;
         default:
             return null;
     }

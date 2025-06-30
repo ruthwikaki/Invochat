@@ -41,13 +41,22 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
         }
     };
 
+    const getBrandColor = () => {
+        switch(integration.platform) {
+            case 'shopify': return 'border-green-500/20';
+            case 'woocommerce': return 'border-purple-500/20';
+            case 'amazon_fba': return 'border-orange-500/20';
+            default: return 'border-border';
+        }
+    }
+
     return (
-        <Card className="bg-gradient-to-br from-card to-muted/50 border-green-500/20 shadow-lg">
+        <Card className={`bg-gradient-to-br from-card to-muted/50 shadow-lg ${getBrandColor()}`}>
             <div className="p-6 flex flex-col md:flex-row items-center gap-6">
                  <PlatformLogo platform={integration.platform} className="h-16 w-16" />
                 <div className="flex-1 text-center md:text-left">
                     <h3 className="text-lg font-semibold">{integration.shop_name}</h3>
-                    <p className="text-sm text-muted-foreground">{integration.shop_domain?.replace('https://', '')}</p>
+                    <p className="text-sm text-muted-foreground">{integration.shop_domain?.replace('https://', '') || 'Integration'}</p>
                     {renderStatus()}
                 </div>
                 <div className="flex items-center gap-2">

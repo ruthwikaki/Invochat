@@ -1,6 +1,6 @@
 
 
-export type Platform = 'shopify' | 'woocommerce';
+export type Platform = 'shopify' | 'woocommerce' | 'amazon_fba';
 
 export type Integration = {
   id: string;

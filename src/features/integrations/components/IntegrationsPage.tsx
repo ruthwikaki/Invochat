@@ -10,6 +10,7 @@ import { IntegrationCard } from './IntegrationCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { PlatformLogo } from './platform-logos';
+import type { Platform } from '../types';
 
 function PlatformConnectCard({
     platform,
@@ -18,7 +19,7 @@ function PlatformConnectCard({
     comingSoon = false,
     brandColor,
 }: {
-    platform: 'shopify' | 'woocommerce';
+    platform: Platform;
     description: string;
     onConnectClick: () => void;
     comingSoon?: boolean;
@@ -31,10 +32,10 @@ function PlatformConnectCard({
                     <PlatformLogo platform={platform} className="h-16 w-16" />
                 </motion.div>
                 <div className="flex-1 text-center md:text-left">
-                    <h3 className="text-lg font-semibold capitalize">{platform}</h3>
+                    <h3 className="text-lg font-semibold capitalize">{platform.replace('_', ' ')}</h3>
                     <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
-                <Button onClick={onConnectClick} disabled={comingSoon} style={brandColor ? { backgroundColor: brandColor } : {}}>
+                <Button onClick={onConnectClick} disabled={comingSoon} style={brandColor ? { backgroundColor: brandColor, color: 'white' } : {}}>
                     {comingSoon ? 'Coming Soon' : 'Connect Store'}
                 </Button>
             </div>
@@ -44,7 +45,7 @@ function PlatformConnectCard({
 
 
 export function IntegrationsClientPage() {
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
     const { integrations, loading, error, triggerSync, disconnect } = useIntegrations();
 
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
@@ -65,8 +66,8 @@ export function IntegrationsClientPage() {
     return (
         <div className="space-y-8">
             <ShopifyConnectModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                isOpen={isShopifyModalOpen}
+                onClose={() => setIsShopifyModalOpen(false)}
             />
             
             <div>
@@ -97,7 +98,7 @@ export function IntegrationsClientPage() {
                          <PlatformConnectCard 
                             platform="shopify"
                             description="Sync your products, inventory levels, and orders directly from your Shopify store."
-                            onConnectClick={() => setIsModalOpen(true)}
+                            onConnectClick={() => setIsShopifyModalOpen(true)}
                             brandColor="#78AB43"
                          />
                     )}
@@ -107,6 +108,15 @@ export function IntegrationsClientPage() {
                             description="Sync your products, inventory, and orders from your WooCommerce-powered site."
                             onConnectClick={() => {}}
                             brandColor="#96588A"
+                            comingSoon
+                         />
+                    )}
+                     {!connectedPlatforms.has('amazon_fba') && (
+                         <PlatformConnectCard 
+                            platform="amazon_fba"
+                            description="Connect your Amazon Seller Central account to manage FBA inventory."
+                            onConnectClick={() => {}}
+                            brandColor="#FF9900"
                             comingSoon
                          />
                     )}
