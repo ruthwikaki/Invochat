@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import type { PurchaseOrder } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, Plus } from 'lucide-react';
+import { Search, MoreHorizontal, Plus, PackagePlus } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +62,7 @@ function EmptyPOState() {
         transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
         className="relative bg-primary/10 rounded-full p-6"
       >
-        <ClipboardList className="h-16 w-16 text-primary" />
+        <PackagePlus className="h-16 w-16 text-primary" />
       </motion.div>
       <h3 className="mt-6 text-xl font-semibold">No Purchase Orders Yet</h3>
       <p className="mt-2 text-muted-foreground">

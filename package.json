@@ -53,6 +53,7 @@
     "react-confetti": "^6.1.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
+    "react-hook-form": "^7.52.1",
     "recharts": "^2.15.1",
     "tailwind-merge": "^3.0.1",
     "tailwindcss-animate": "^1.0.7",
@@ -61,6 +62,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@hookform/resolvers": "^3.9.0",
     "@types/cookie": "^0.6.0",
     "@types/dompurify": "^3.0.5",
     "@types/dotenv": "^6.1.1",

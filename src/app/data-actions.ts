@@ -19,9 +19,10 @@ import {
     removeTeamMemberFromDb,
     updateTeamMemberRoleInDb,
     getPurchaseOrdersFromDB,
+    createPurchaseOrderInDb,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -30,6 +31,8 @@ import { invalidateCompanyCache } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
+import { PurchaseOrderCreateSchema } from '@/types';
+import { redirect } from 'next/navigation';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
@@ -482,4 +485,26 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         logError(e, { context: 'updateTeamMemberRole' });
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+
+export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
+  const parsedData = PurchaseOrderCreateSchema.safeParse(data);
+  if (!parsedData.success) {
+    return { success: false, error: "Invalid form data provided." };
+  }
+  
+  try {
+    const { companyId } = await getAuthContext();
+    const newPo = await createPurchaseOrderInDb(companyId, parsedData.data);
+    revalidatePath('/purchase-orders');
+    return { success: true, data: newPo };
+  } catch (e) {
+    logError(e, { context: 'createPurchaseOrder action' });
+    const message = getErrorMessage(e);
+    if (message.includes('unique_po_number_per_company')) {
+        return { success: false, error: 'This Purchase Order number already exists. Please use a unique PO number.' };
+    }
+    return { success: false, error: message };
+  }
 }

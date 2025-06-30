@@ -165,12 +165,27 @@ export const PurchaseOrderSchema = z.object({
   status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']),
   order_date: z.string(),
   expected_date: z.string().nullable(),
-  total_amount: z.number(),
+  total_amount: z.coerce.number(),
   notes: z.string().nullable(),
   created_at: z.string(),
-  updated_at: z.string(),
+  updated_at: z.string().nullable(),
   // For UI display
   supplier_name: z.string().optional(),
   items: z.array(PurchaseOrderItemSchema).optional(),
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
+
+export const PurchaseOrderCreateSchema = z.object({
+  supplier_id: z.string().uuid({ message: "Please select a supplier." }),
+  po_number: z.string().min(1, 'PO Number is required.'),
+  order_date: z.date(),
+  expected_date: z.date().optional().nullable(),
+  notes: z.string().optional(),
+  items: z.array(z.object({
+    sku: z.string().min(1, 'SKU is required.'),
+    product_name: z.string().optional(), // Not strictly needed for submission
+    quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
+    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
+  })).min(1, 'At least one item is required.'),
+});
+export type PurchaseOrderCreateInput = z.infer<typeof PurchaseOrderCreateSchema>;

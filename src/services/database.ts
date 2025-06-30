@@ -9,7 +9,7 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -393,7 +393,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
                 po.*,
                 v.vendor_name as supplier_name
             FROM purchase_orders po
-            JOIN vendors v ON po.supplier_id = v.id
+            LEFT JOIN vendors v ON po.supplier_id = v.id
             WHERE po.company_id = '${companyId}'
             ORDER BY po.order_date DESC;
         `;
@@ -409,6 +409,56 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
 
         return z.array(PurchaseOrderSchema).parse(data || []);
      });
+}
+
+export async function createPurchaseOrderInDb(companyId: string, poData: PurchaseOrderCreateInput): Promise<PurchaseOrder> {
+    return withPerformanceTracking('createPurchaseOrderInDb', async () => {
+        const supabase = getServiceRoleClient();
+        
+        // 1. Calculate total amount
+        const totalAmount = poData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0);
+
+        // 2. Insert into purchase_orders table
+        const { data: newPo, error: poError } = await supabase.from('purchase_orders').insert({
+            company_id: companyId,
+            supplier_id: poData.supplier_id,
+            po_number: poData.po_number,
+            order_date: poData.order_date.toISOString(),
+            expected_date: poData.expected_date?.toISOString(),
+            notes: poData.notes,
+            status: 'draft',
+            total_amount: totalAmount,
+        }).select().single();
+
+        if (poError) {
+            logError(poError, { context: 'Failed to insert new purchase order' });
+            throw poError;
+        }
+
+        // 3. Insert items into purchase_order_items table
+        const poItemsData = poData.items.map(item => ({
+            po_id: newPo.id,
+            sku: item.sku,
+            quantity_ordered: item.quantity_ordered,
+            unit_cost: item.unit_cost,
+            quantity_received: 0,
+            tax_rate: 0, // Assuming 0 for now
+        }));
+
+        const { error: itemsError } = await supabase.from('purchase_order_items').insert(poItemsData);
+
+        if (itemsError) {
+            logError(itemsError, { context: `Failed to insert items for PO ${newPo.id}` });
+            // Attempt to clean up the orphaned PO header
+            await supabase.from('purchase_orders').delete().eq('id', newPo.id);
+            throw itemsError;
+        }
+        
+        // TODO: Update on_order_quantity in inventory table
+        logger.info(`[DB Service] Successfully created PO ${newPo.po_number}. Inventory update is a future step.`);
+
+        return { ...newPo, items: poItemsData };
+    });
 }
 
 
@@ -787,7 +837,7 @@ export async function getTeamMembersFromDB(companyId: string): Promise<TeamMembe
     });
 }
 
-export async function inviteUserToCompany(companyId: string, companyName: string, email: string) {
+export async function inviteUserToCompanyInDb(companyId: string, companyName: string, email: string) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('inviteUserToCompany', async () => {
         const supabase = getServiceRoleClient();
