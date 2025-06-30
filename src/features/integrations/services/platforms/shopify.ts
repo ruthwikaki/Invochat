@@ -144,13 +144,16 @@ export async function syncOrders(integration: Integration, accessToken: string) 
         company_id: integration.company_id,
         customer_name: `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || 'Unknown Customer',
         email: order.customer.email
-    }));
-    await supabase.rpc('batch_upsert_with_transaction', {
-        p_table_name: 'customers',
-        p_records: customersToUpsert,
-        p_conflict_columns: ['company_id', 'customer_name'],
-    });
-    
+    })).filter(c => c.customer_name); // Filter out orders without customer names
+
+    if (customersToUpsert.length > 0) {
+        await supabase.rpc('batch_upsert_with_transaction', {
+            p_table_name: 'customers',
+            p_records: customersToUpsert,
+            p_conflict_columns: ['company_id', 'customer_name'],
+        });
+    }
+
     // Create orders and order_items
     const ordersToInsert = allOrders.map(order => ({
         company_id: integration.company_id,
@@ -159,7 +162,7 @@ export async function syncOrders(integration: Integration, accessToken: string) 
         total_amount: order.total_price,
         sales_channel: 'shopify',
         shopify_order_id: order.id,
-    }));
+    })).filter(o => o.customer_name); // Ensure we only create orders with customers
     
     // We must use a direct upsert here because the batch function cannot return IDs needed for foreign keys.
     const { data: createdOrders, error: orderError } = await supabase

@@ -41,10 +41,9 @@ import {
     refreshMaterializedViews,
     getIntegrationsByCompanyId,
     deleteIntegrationFromDb,
-    getSupplierPerformanceFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';

@@ -3,6 +3,7 @@
 
 import { cn } from '@/lib/utils';
 import type { Platform } from '../types';
+import { Bot } from 'lucide-react';
 
 function ShopifyLogo({ className }: { className?: string }) {
     return (
@@ -55,6 +56,6 @@ export function PlatformLogo({ platform, className }: { platform: Platform, clas
         case 'amazon_fba':
              return <AmazonFbaLogo className={className} />;
         default:
-            return null;
+            return <Bot className={className} />;
     }
 }

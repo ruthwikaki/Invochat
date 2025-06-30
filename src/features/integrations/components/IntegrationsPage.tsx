@@ -32,7 +32,7 @@ function PlatformConnectCard({
                     <PlatformLogo platform={platform} className="h-16 w-16" />
                 </motion.div>
                 <div className="flex-1 text-center md:text-left">
-                    <h3 className="text-lg font-semibold capitalize">{platform.replace('_', ' ')}</h3>
+                    <h3 className="text-lg font-semibold capitalize">{platform.replace(/_/g, ' ')}</h3>
                     <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
                 <Button onClick={onConnectClick} disabled={comingSoon} style={brandColor ? { backgroundColor: brandColor, color: 'white' } : {}}>

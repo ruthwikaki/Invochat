@@ -49,7 +49,7 @@ export type Message = {
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
     vendor_name: z.string().min(1),
-    contact_info: z.string().nullable(),
+    contact_info: z.string().email().nullable(),
     address: z.string().nullable(),
     terms: z.string().nullable(),
     account_number: z.string().nullable(),
@@ -304,10 +304,10 @@ export type Location = z.infer<typeof LocationSchema>;
 
 export const LocationFormSchema = z.object({
   name: z.string().min(2, { message: "Location name must be at least 2 characters." }),
-  address: z.string().optional(),
+  address: z.string().optional().nullable(),
   is_default: z.boolean().optional(),
 });
-export type LocationFormData = z.infer<typeof LocationFormData>;
+export type LocationFormData = z.infer<typeof LocationFormSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),

@@ -14,7 +14,7 @@ const connectSchema = z.object({
 
 // A helper to make authenticated requests to the Shopify Admin API
 async function shopifyFetch(shopDomain: string, accessToken: string, endpoint: string) {
-    const url = `${shopDomain}/admin/api/2023-10/${endpoint}`;
+    const url = `${shopDomain}/admin/api/2024-04/${endpoint}`;
     const response = await fetch(url, {
         method: 'GET',
         headers: {

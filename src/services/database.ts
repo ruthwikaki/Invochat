@@ -10,7 +10,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, SupplierPerformanceReportSchema } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -686,7 +686,6 @@ const USER_FACING_TABLES = [
     'vendors', 
     'orders', 
     'customers', 
-    'returns', 
     'inventory',
     'purchase_orders',
     'purchase_order_items'
@@ -1434,48 +1433,6 @@ export async function updateInventoryItemInDb(companyId: string, sku: string, it
     });
 }
 
-export async function getSupplierPerformanceFromDB(companyId: string): Promise<SupplierPerformanceReport[]> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getSupplierPerformanceFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const query = `
-            SELECT
-                v.vendor_name as supplier_name,
-                COUNT(po.id) as total_completed_orders,
-                ROUND(
-                    (SUM(CASE WHEN po.updated_at <= po.expected_date + INTERVAL '1 day' THEN 1 ELSE 0 END)::decimal / COUNT(po.id)) * 100,
-                    2
-                ) as on_time_delivery_rate,
-                ROUND(AVG(EXTRACT(DAY FROM po.updated_at - po.expected_date))) as average_delivery_variance_days,
-                ROUND(AVG(EXTRACT(DAY FROM po.updated_at - po.order_date))) as average_lead_time_days
-            FROM purchase_orders po
-            JOIN vendors v ON po.supplier_id = v.id
-            WHERE po.company_id = '${companyId}'
-              AND po.status = 'received'
-              AND po.expected_date IS NOT NULL
-              AND po.updated_at IS NOT NULL
-            GROUP BY v.vendor_name
-            ORDER BY on_time_delivery_rate DESC, average_delivery_variance_days ASC;
-        `;
-        
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
-            query_text: query.trim().replace(/;/g, '')
-        });
-        
-        if (error) {
-            logError(error, { context: `Error fetching supplier performance for company ${companyId}` });
-            throw new Error(`Could not fetch supplier performance data: ${error.message}`);
-        }
-
-        const parsedData = z.array(SupplierPerformanceReportSchema).safeParse(data || []);
-        if (!parsedData.success) {
-            logError(parsedData.error, { context: 'Zod parsing error for supplier performance data' });
-            return [];
-        }
-        return parsedData.data;
-    });
-}
-
 // Integration Functions
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
@@ -1509,5 +1466,3 @@ export async function deleteIntegrationFromDb(integrationId: string, companyId: 
         }
     });
 }
-
-    

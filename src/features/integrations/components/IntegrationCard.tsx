@@ -33,7 +33,7 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
             case 'syncing':
                 return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Syncing now...</span>;
             case 'success':
-                return <span className="flex items-center gap-2 text-sm text-success"><CheckCircle className="h-4 w-4" /> Last synced {formatDistanceToNow(new Date(integration.last_sync_at!), { addSuffix: true })}</span>;
+                return <span className="flex items-center gap-2 text-sm text-success"><CheckCircle className="h-4 w-4" /> Last synced {integration.last_sync_at ? formatDistanceToNow(new Date(integration.last_sync_at), { addSuffix: true }) : 'never'}</span>;
             case 'failed':
                 return <span className="flex items-center gap-2 text-sm text-destructive"><AlertTriangle className="h-4 w-4" /> Sync failed</span>;
             default:
