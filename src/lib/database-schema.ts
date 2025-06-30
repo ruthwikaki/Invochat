@@ -1,5 +1,5 @@
--- This file contains all the necessary SQL to set up your database.
--- It should be run once in your Supabase project's SQL Editor.
+
+-- InvoChat Database Setup Script
 -- This script is idempotent and can be safely re-run on an existing database.
 
 -- ========= Part 1: New User Trigger =========
@@ -91,64 +91,8 @@ begin
 end;
 $dyn_query_func$;
 
--- ========= SECURITY NOTE FOR PRODUCTION =========
--- The 'execute_dynamic_query' function is powerful. In a production environment,
--- it is highly recommended to restrict its usage to prevent misuse.
--- You should revoke the default public execute permission and grant it only
--- to the roles that need it (like 'service_role' for the backend).
---
--- Run these commands in your SQL Editor after the initial setup:
---
--- REVOKE EXECUTE ON FUNCTION public.execute_dynamic_query FROM public;
--- GRANT EXECUTE ON FUNCTION public.execute_dynamic_query TO service_role;
---
 
--- ========= Part 3: Core Application Tables =========
--- This section defines core tables required for application functionality, like 'returns'.
-
--- The 'returns' table stores information about product returns.
--- The 'created_at' column is essential for time-based analysis.
-CREATE TABLE IF NOT EXISTS public.returns (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    order_id UUID REFERENCES public.orders(id),
-    requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Add an index for performance on common queries.
-CREATE INDEX IF NOT EXISTS idx_returns_company_created ON public.returns(company_id, requested_at);
-
-
--- ========= Part 4: Performance Optimization (Materialized View) =========
--- This creates a materialized view, which is a pre-calculated snapshot of key metrics.
--- This makes the dashboard load much faster for large datasets.
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
-SELECT
-  i.company_id,
-  COUNT(DISTINCT i.sku) as total_skus,
-  SUM(i.quantity * i.cost) as inventory_value,
-  COUNT(CASE WHEN i.quantity <= i.reorder_point AND i.reorder_point > 0 THEN 1 END) as low_stock_count
-FROM inventory i
-GROUP BY i.company_id
-WITH DATA;
-
--- Create an index to make lookups on the view lightning-fast.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_company_dashboard_metrics_company_id
-ON public.company_dashboard_metrics(company_id);
-
--- This function is used to refresh the view with the latest data.
--- You can schedule this to run periodically (e.g., every 5 minutes)
--- using Supabase's pg_cron extension.
--- Example cron job: SELECT cron.schedule('refresh_dashboard_metrics', '*/5 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics');
-CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics()
-RETURNS void
-LANGUAGE sql
-AS $refresh_func$
-  REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
-$refresh_func$;
-
-
--- ========= Part 5: AI Query Learning Table =========
+-- ========= Part 3: AI Query Learning Table =========
 -- This table stores successful query patterns for each company.
 -- The AI uses these as dynamic few-shot examples to learn from
 -- past interactions and improve the accuracy of its generated SQL
@@ -172,7 +116,7 @@ CREATE TABLE IF NOT EXISTS public.query_patterns (
 CREATE INDEX IF NOT EXISTS idx_query_patterns_company_id ON public.query_patterns(company_id);
 
 
--- ========= Part 6: Transactional Data Import =========
+-- ========= Part 4: Transactional Data Import =========
 -- This function is used by the Data Importer to perform bulk upserts
 -- within a single database transaction. This ensures that if any row
 -- in a CSV fails to import, the entire operation is rolled back,
@@ -228,375 +172,8 @@ begin
 end;
 $batch_upsert_func$;
 
--- Secure the function so it can only be called by authenticated service roles
-REVOKE EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) FROM public;
-GRANT EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) TO service_role;
 
-
--- ========= Part 7: E-Commerce Features (Purchase Orders, Catalogs, Reordering) =========
-
--- Add new columns to the inventory table.
-ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS on_order_quantity INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS landed_cost NUMERIC(10, 2);
-ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS barcode TEXT;
-
--- Define a type for Purchase Order status for data integrity.
-DO $type_block$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'po_status') THEN
-        CREATE TYPE po_status AS ENUM ('draft', 'sent', 'partial', 'received', 'cancelled');
-    END IF;
-END $type_block$;
-
-
--- Create the main purchase_orders table if it doesn't exist.
-CREATE TABLE IF NOT EXISTS public.purchase_orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Add columns idempotently to ensure the table has the correct structure.
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES public.vendors(id) ON DELETE SET NULL;
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS po_number TEXT;
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS status po_status;
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS order_date DATE;
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS expected_date DATE;
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2);
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS notes TEXT;
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
-
--- Cleanup: Drop redundant, denormalized columns from older designs.
-ALTER TABLE public.purchase_orders 
-    DROP COLUMN IF EXISTS vendor, 
-    DROP COLUMN IF EXISTS item, 
-    DROP COLUMN IF EXISTS quantity, 
-    DROP COLUMN IF EXISTS cost;
-
-
--- Add unique constraint if it doesn't exist.
-DO $constraint_block$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'unique_po_number_per_company'
-        AND conrelid = 'public.purchase_orders'::regclass
-    ) THEN
-        ALTER TABLE public.purchase_orders ADD CONSTRAINT unique_po_number_per_company UNIQUE (company_id, po_number);
-    END IF;
-END $constraint_block$;
-
-
-CREATE INDEX IF NOT EXISTS idx_po_company_supplier ON public.purchase_orders(company_id, supplier_id);
-CREATE INDEX IF NOT EXISTS idx_po_company_status ON public.purchase_orders(company_id, status);
-
--- Create the table for items within each purchase order.
-CREATE TABLE IF NOT EXISTS public.purchase_order_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    po_id UUID NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
-    sku TEXT NOT NULL,
-    quantity_ordered INTEGER NOT NULL CHECK (quantity_ordered > 0),
-    quantity_received INTEGER NOT NULL DEFAULT 0 CHECK (quantity_received >= 0),
-    unit_cost NUMERIC(10, 2) NOT NULL,
-    tax_rate NUMERIC(5, 4) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_po_items_po_id ON public.purchase_order_items(po_id);
-CREATE INDEX IF NOT EXISTS idx_po_items_sku ON public.purchase_order_items(sku);
-
-
--- Create table for supplier-specific product catalogs
-CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  supplier_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
-  sku TEXT NOT NULL, -- The internal SKU in the inventory table
-  supplier_sku TEXT, -- The supplier's own SKU for the product
-  product_name TEXT,
-  unit_cost NUMERIC(10, 2) NOT NULL,
-  moq INTEGER DEFAULT 1, -- Minimum Order Quantity
-  lead_time_days INTEGER,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT unique_supplier_sku_per_supplier UNIQUE (supplier_id, sku)
-);
-CREATE INDEX IF NOT EXISTS idx_supplier_catalogs_supplier_sku ON public.supplier_catalogs(supplier_id, sku);
-
--- Create table for inventory reorder rules
-CREATE TABLE IF NOT EXISTS public.reorder_rules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  sku TEXT NOT NULL,
-  rule_type TEXT NOT NULL DEFAULT 'manual', -- e.g., 'manual', 'automatic'
-  min_stock INTEGER, -- Reorder when stock falls below this
-  max_stock INTEGER, -- Order up to this level
-  reorder_quantity INTEGER, -- Fixed quantity to order
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT unique_reorder_rule_per_sku UNIQUE (company_id, sku)
-);
-CREATE INDEX IF NOT EXISTS idx_reorder_rules_company_sku ON public.reorder_rules(company_id, sku);
-
--- ========= Part 8: Function to Receive PO Items =========
--- This transactional function updates inventory when items from a PO are received.
-create or replace function public.receive_purchase_order_items(
-  p_po_id uuid,
-  p_items_to_receive jsonb, -- e.g., '[{"sku": "SKU123", "quantity_to_receive": 10}, ...]'
-  p_company_id uuid
-)
-returns void
-language plpgsql
-as $receive_items_func$
-declare
-  item_record record;
-  po_status_current po_status;
-  total_ordered int;
-  total_received_after_update int;
-begin
-  -- Loop through each item in the JSON array
-  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items_to_receive) AS x(sku text, quantity_to_receive int)
-  LOOP
-    -- Ensure we don't receive more than ordered
-    IF item_record.quantity_to_receive > 0 THEN
-      -- Update the received quantity on the PO item
-      UPDATE purchase_order_items
-      SET quantity_received = quantity_received + item_record.quantity_to_receive
-      WHERE po_id = p_po_id AND sku = item_record.sku;
-
-      -- Update the main inventory table
-      UPDATE inventory
-      SET 
-        quantity = quantity + item_record.quantity_to_receive,
-        on_order_quantity = on_order_quantity - item_record.quantity_to_receive
-      WHERE sku = item_record.sku AND company_id = p_company_id;
-    END IF;
-  END LOOP;
-
-  -- After updating all items, check if the PO is fully received
-  SELECT status INTO po_status_current FROM purchase_orders WHERE id = p_po_id;
-
-  IF po_status_current != 'cancelled' THEN
-    SELECT 
-      SUM(quantity_ordered), SUM(quantity_received)
-    INTO 
-      total_ordered, total_received_after_update
-    FROM purchase_order_items
-    WHERE po_id = p_po_id;
-
-    IF total_received_after_update >= total_ordered THEN
-      UPDATE purchase_orders SET status = 'received', updated_at = now() WHERE id = p_po_id;
-    ELSIF total_received_after_update > 0 THEN
-      UPDATE purchase_orders SET status = 'partial', updated_at = now() WHERE id = p_po_id;
-    END IF;
-  END IF;
-
-end;
-$receive_items_func$;
-
--- Secure the function so it can only be called by authenticated service roles
-REVOKE EXECUTE ON FUNCTION public.receive_purchase_order_items(uuid, jsonb, uuid) FROM public;
-GRANT EXECUTE ON FUNCTION public.receive_purchase_order_items(uuid, jsonb, uuid) TO service_role;
-
-
--- ========= Part 9: Function to Create POs =========
--- This transactional function creates a PO, its items, and updates inventory all at once.
-create or replace function public.create_purchase_order_and_update_inventory(
-  p_company_id uuid,
-  p_supplier_id uuid,
-  p_po_number text,
-  p_order_date date,
-  p_expected_date date,
-  p_notes text,
-  p_total_amount numeric,
-  p_items jsonb -- e.g., '[{"sku": "SKU123", "quantity_ordered": 10, "unit_cost": 5.50}, ...]'
-)
-returns purchase_orders
-language plpgsql
-security definer
-as $create_po_func$
-declare
-  new_po purchase_orders;
-  item_record record;
-begin
-  -- 1. Create the main purchase order record
-  INSERT INTO public.purchase_orders
-    (company_id, supplier_id, po_number, status, order_date, expected_date, notes, total_amount)
-  VALUES
-    (p_company_id, p_supplier_id, p_po_number, 'draft', p_order_date, p_expected_date, p_notes, p_total_amount)
-  RETURNING * INTO new_po;
-
-  -- 2. Insert all items and update inventory on_order_quantity in a loop
-  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
-  LOOP
-    -- Insert the item into purchase_order_items
-    INSERT INTO public.purchase_order_items
-      (po_id, sku, quantity_ordered, unit_cost)
-    VALUES
-      (new_po.id, item_record.sku, item_record.quantity_ordered, item_record.unit_cost);
-
-    -- Increment the on_order_quantity for the corresponding inventory item
-    UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity + item_record.quantity_ordered
-    WHERE sku = item_record.sku AND company_id = p_company_id;
-  END LOOP;
-
-  -- 3. Return the newly created PO
-  return new_po;
-end;
-$create_po_func$;
-
--- Secure the function
-REVOKE EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uuid, uuid, text, date, date, text, numeric, jsonb) FROM public;
-GRANT EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uuid, uuid, text, date, date, text, numeric, jsonb) TO service_role;
-
-
--- ========= Part 10: Functions for PO Update and Delete =========
-
--- Function to update a PO and its items transactionally
-create or replace function public.update_purchase_order(
-  p_po_id uuid,
-  p_company_id uuid,
-  p_supplier_id uuid,
-  p_po_number text,
-  p_status po_status,
-  p_order_date date,
-  p_expected_date date,
-  p_notes text,
-  p_items jsonb -- e.g., '[{"sku": "SKU123", "quantity_ordered": 10, "unit_cost": 5.50}, ...]'
-)
-returns void
-language plpgsql
-security definer
-as $update_po_func$
-declare
-  old_item record;
-  new_item_record record;
-  new_total_amount numeric := 0;
-begin
-  -- 1. Adjust inventory for items that are being removed or changed
-  FOR old_item IN
-    SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
-  LOOP
-    -- Decrement the on_order_quantity for all old items
-    UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity - old_item.quantity_ordered
-    WHERE sku = old_item.sku AND company_id = p_company_id;
-  END LOOP;
-  
-  -- 2. Delete all existing items for this PO
-  DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
-
-  -- 3. Insert all new items and update inventory on_order_quantity
-  FOR new_item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
-  LOOP
-    -- Insert the new item
-    INSERT INTO public.purchase_order_items
-      (po_id, sku, quantity_ordered, unit_cost)
-    VALUES
-      (p_po_id, new_item_record.sku, new_item_record.quantity_ordered, new_item_record.unit_cost);
-
-    -- Increment the on_order_quantity for the new item
-    UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity + new_item_record.quantity_ordered
-    WHERE sku = new_item_record.sku AND company_id = p_company_id;
-    
-    -- Calculate new total amount
-    new_total_amount := new_total_amount + (new_item_record.quantity_ordered * new_item_record.unit_cost);
-  END LOOP;
-
-  -- 4. Update the main purchase order record with new total and details
-  UPDATE public.purchase_orders
-  SET
-    supplier_id = p_supplier_id,
-    po_number = p_po_number,
-    order_date = p_order_date,
-    expected_date = p_expected_date,
-    notes = p_notes,
-    total_amount = new_total_amount,
-    status = p_status,
-    updated_at = now()
-  WHERE id = p_po_id AND company_id = p_company_id;
-end;
-$update_po_func$;
-
--- Secure the function
-REVOKE EXECUTE ON FUNCTION public.update_purchase_order(uuid, uuid, uuid, text, po_status, date, date, text, jsonb) FROM public;
-GRANT EXECUTE ON FUNCTION public.update_purchase_order(uuid, uuid, uuid, text, po_status, date, date, text, jsonb) TO service_role;
-
-
--- Function to delete a PO and adjust inventory transactionally
-create or replace function public.delete_purchase_order(
-    p_po_id uuid,
-    p_company_id uuid
-)
-returns void
-language plpgsql
-security definer
-as $delete_po_func$
-declare
-  item_record record;
-begin
-  -- First, check if the PO belongs to the company to prevent unauthorized deletion
-  IF NOT EXISTS (SELECT 1 FROM public.purchase_orders WHERE id = p_po_id AND company_id = p_company_id) THEN
-    RAISE EXCEPTION 'Purchase order not found or permission denied';
-  END IF;
-
-  -- Loop through items to adjust inventory before deleting
-  FOR item_record IN
-    SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
-  LOOP
-    UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity - item_record.quantity_ordered
-    WHERE sku = item_record.sku AND company_id = p_company_id;
-  END LOOP;
-  
-  -- The DELETE CASCADE on the purchase_order_items table will handle item deletion
-  DELETE FROM public.purchase_orders WHERE id = p_po_id;
-end;
-$delete_po_func$;
-
--- Secure the function
-REVOKE EXECUTE ON FUNCTION public.delete_purchase_order(uuid, uuid) FROM public;
-GRANT EXECUTE ON FUNCTION public.delete_purchase_order(uuid, uuid) TO service_role;
-
--- ========= Part 11: Channel Fees Table for Net Margin Calculation =========
--- This table stores fees associated with different sales channels (e.g., Shopify, Amazon).
--- The AI will use this table to calculate net profit margin.
-
-CREATE TABLE IF NOT EXISTS public.channel_fees (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    channel_name TEXT NOT NULL,
-    percentage_fee NUMERIC(5, 4) NOT NULL DEFAULT 0, -- e.g., 0.029 for 2.9%
-    fixed_fee NUMERIC(10, 2) NOT NULL DEFAULT 0, -- e.g., 0.30 for 30 cents
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE,
-    CONSTRAINT unique_channel_per_company UNIQUE (company_id, channel_name)
-);
-
-CREATE INDEX IF NOT EXISTS idx_channel_fees_company_id ON public.channel_fees(company_id);
-
-
--- ========= Part 12: Multi-Location Inventory =========
-
--- Create the locations table to store warehouse information.
-CREATE TABLE IF NOT EXISTS public.locations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    address TEXT,
-    is_default BOOLEAN DEFAULT false,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_location_name_per_company UNIQUE (company_id, name)
-);
-CREATE INDEX IF NOT EXISTS idx_locations_company_id ON public.locations(company_id);
-
--- Add a location_id to the inventory table to track stock per location.
--- It's nullable to support existing setups and allows assigning items to locations over time.
--- ON DELETE SET NULL means if a location is deleted, the inventory items become "unassigned" instead of being deleted.
-ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES public.locations(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_inventory_location_id ON public.inventory(location_id);
-
-
--- ========= Part 13: Core E-Commerce & Integration Tables =========
+-- ========= Part 5: E-Commerce & Integration Tables =========
 
 -- Add shopify-specific columns to existing tables
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS shopify_product_id BIGINT;
@@ -640,11 +217,6 @@ CREATE TABLE IF NOT EXISTS public.order_items (
     unit_price NUMERIC(10, 2) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
--- Cleanup: Drop unused columns from older designs
-ALTER TABLE public.order_items 
-    DROP COLUMN IF EXISTS product_id, 
-    DROP COLUMN IF EXISTS total_price;
-
 CREATE INDEX IF NOT EXISTS idx_order_items_sale_id ON public.order_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_sku ON public.order_items(sku);
 
@@ -678,3 +250,32 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 CREATE INDEX IF NOT EXISTS idx_sync_logs_integration_id ON public.sync_logs(integration_id);
+
+
+-- ========= Part 6: Performance Optimization (Materialized View) =========
+-- This creates a materialized view, which is a pre-calculated snapshot of key metrics.
+-- This makes the dashboard load much faster for large datasets.
+CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
+SELECT
+  i.company_id,
+  COUNT(DISTINCT i.sku) as total_skus,
+  SUM(i.quantity * i.cost) as inventory_value,
+  COUNT(CASE WHEN i.quantity <= i.reorder_point AND i.reorder_point > 0 THEN 1 END) as low_stock_count
+FROM inventory i
+GROUP BY i.company_id
+WITH DATA;
+
+-- Create an index to make lookups on the view lightning-fast.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_company_dashboard_metrics_company_id
+ON public.company_dashboard_metrics(company_id);
+
+-- This function is used to refresh the view with the latest data.
+-- You can schedule this to run periodically (e.g., every 5 minutes)
+-- using Supabase's pg_cron extension.
+-- Example cron job: SELECT cron.schedule('refresh_dashboard_metrics', '*/5 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics');
+CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics()
+RETURNS void
+LANGUAGE sql
+AS $refresh_func$
+  REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
+$refresh_func$;

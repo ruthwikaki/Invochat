@@ -1466,3 +1466,56 @@ export async function deleteIntegrationFromDb(integrationId: string, companyId: 
         }
     });
 }
+
+export async function getSupplierPerformanceFromDB(companyId: string): Promise<SupplierPerformanceReport[]> {
+  if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+
+  return withPerformanceTracking('getSupplierPerformanceFromDB', async () => {
+    const supabase = getServiceRoleClient();
+    
+    // This query calculates supplier performance metrics from historical purchase orders.
+    const query = `
+      SELECT
+          v.vendor_name as supplier_name,
+          COUNT(po.id) as total_completed_orders,
+          -- Calculate the on-time delivery rate as a percentage
+          (AVG(CASE WHEN po.updated_at <= po.expected_date THEN 1 ELSE 0 END) * 100) as on_time_delivery_rate,
+          -- Calculate the average variance from the expected date in days
+          AVG(DATE_PART('day', po.updated_at - po.expected_date)) as average_delivery_variance_days,
+          -- Calculate the average lead time from order date to received date
+          AVG(DATE_PART('day', po.updated_at - po.order_date)) as average_lead_time_days
+      FROM purchase_orders po
+      JOIN vendors v ON po.supplier_id = v.id
+      WHERE po.company_id = '${companyId}'
+        AND po.status = 'received' -- Only consider completed orders for performance metrics
+        AND po.expected_date IS NOT NULL
+        AND po.updated_at IS NOT NULL
+      GROUP BY v.vendor_name
+      ORDER BY on_time_delivery_rate DESC;
+    `;
+        
+    const { data, error } = await supabase.rpc('execute_dynamic_query', {
+        query_text: query.trim().replace(/;/g, '')
+    });
+    
+    if (error) {
+        logError(error, { context: `Error getting supplier performance for company ${companyId}` });
+        throw new Error(`Could not generate supplier performance report: ${error.message}`);
+    }
+
+    // Since the query returns numbers as strings from json_agg, we need to parse them.
+    const parsedData = z.array(z.object({
+        supplier_name: z.string(),
+        total_completed_orders: z.coerce.number(),
+        on_time_delivery_rate: z.coerce.number(),
+        average_delivery_variance_days: z.coerce.number(),
+        average_lead_time_days: z.coerce.number(),
+    })).safeParse(data || []);
+
+    if (!parsedData.success) {
+        logError(parsedData.error, { context: 'Zod parsing error for supplier performance report' });
+        return [];
+    }
+    return parsedData.data;
+  });
+}
