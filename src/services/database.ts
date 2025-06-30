@@ -1081,4 +1081,44 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     });
 }
 
+export async function getHistoricalSalesForSkus(
+    companyId: string, 
+    skus: string[]
+): Promise<{ sku: string; monthly_sales: { month: string; total_quantity: number }[] }[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    if (skus.length === 0) return [];
+
+    return withPerformanceTracking('getHistoricalSalesForSkus', async () => {
+        const supabase = getServiceRoleClient();
+        const escapedSkus = skus.map(s => `'${s.replace(/'/g, "''")}'`).join(',');
+        
+        const safeQuery = `
+            SELECT
+                sku,
+                json_agg(json_build_object('month', sales_month, 'total_quantity', total_quantity) ORDER BY sales_month) as monthly_sales
+            FROM (
+                SELECT
+                    oi.sku,
+                    TO_CHAR(DATE_TRUNC('month', o.sale_date), 'YYYY-MM') as sales_month,
+                    SUM(oi.quantity) as total_quantity
+                FROM order_items oi
+                JOIN orders o ON oi.sale_id = o.id
+                WHERE o.company_id = '${companyId}'
+                AND oi.sku IN (${escapedSkus})
+                AND o.sale_date >= CURRENT_DATE - INTERVAL '24 months'
+                GROUP BY oi.sku, DATE_TRUNC('month', o.sale_date)
+            ) as monthly_data
+            GROUP BY sku;
+        `;
+
+        const { data, error } = await supabase.rpc('execute_dynamic_query', { query_text: safeQuery.trim().replace(/;/g, '') });
+        
+        if (error) {
+            logError(error, { context: `Error fetching historical sales for SKUs in company ${companyId}` });
+            throw error;
+        }
+
+        return data || [];
+    });
+}
     
