@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -18,6 +18,8 @@ import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
+import { PurchaseOrderCreateSchema } from '@/types';
+import { redirect } from 'next/navigation';
 
 // Simple regex to validate a string is in UUID format.
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -769,7 +771,10 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
                 i.quantity,
                 i.cost,
                 (i.quantity * i.cost) as total_value,
-                i.reorder_point
+                i.reorder_point,
+                i.on_order_quantity,
+                i.landed_cost,
+                i.barcode
             FROM inventory i
             WHERE i.company_id = '${companyId}'
         `;
@@ -908,3 +913,62 @@ export async function updateTeamMemberRoleInDb(
         return { success: true };
     });
 }
+
+
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getReorderSuggestionsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const settings = await getCompanySettings(companyId);
+
+        // This query identifies items that are below their reorder point and suggests an order quantity.
+        const query = `
+            WITH sales_velocity AS (
+                -- Calculate recent sales velocity (units sold in the last X days)
+                SELECT 
+                    oi.sku,
+                    SUM(oi.quantity) / ${settings.fast_moving_days}.0 as daily_sales_velocity
+                FROM order_items oi
+                JOIN orders o ON oi.sale_id = o.id
+                WHERE o.company_id = '${companyId}'
+                  AND o.sale_date >= CURRENT_DATE - INTERVAL '${settings.fast_moving_days} days'
+                GROUP BY oi.sku
+            ),
+            reorder_points AS (
+                -- Determine the reorder point: either from a manual rule or calculated
+                SELECT
+                    i.sku,
+                    i.name as product_name,
+                    i.quantity as current_quantity,
+                    COALESCE(rr.min_stock, i.reorder_point, 0) as reorder_point,
+                    -- Suggest ordering up to the max_stock level, or a fixed reorder quantity, or enough for 30 days of sales
+                    COALESCE(rr.max_stock - i.quantity, rr.reorder_quantity, ceil(sv.daily_sales_velocity * 30)) as suggested_reorder_quantity,
+                    -- Find the best supplier for this item
+                    (SELECT v.vendor_name FROM supplier_catalogs sc JOIN vendors v ON sc.supplier_id = v.id WHERE sc.sku = i.sku ORDER BY sc.unit_cost ASC LIMIT 1) as supplier_name,
+                    (SELECT sc.supplier_id FROM supplier_catalogs sc WHERE sc.sku = i.sku ORDER BY sc.unit_cost ASC LIMIT 1) as supplier_id,
+                    (SELECT sc.unit_cost FROM supplier_catalogs sc WHERE sc.sku = i.sku ORDER BY sc.unit_cost ASC LIMIT 1) as unit_cost
+                FROM inventory i
+                LEFT JOIN reorder_rules rr ON i.sku = rr.sku AND i.company_id = rr.company_id
+                LEFT JOIN sales_velocity sv ON i.sku = sv.sku
+                WHERE i.company_id = '${companyId}'
+            )
+            SELECT *
+            FROM reorder_points
+            WHERE current_quantity < reorder_point
+            AND suggested_reorder_quantity > 0;
+        `;
+        
+        const { data, error } = await supabase.rpc('execute_dynamic_query', {
+            query_text: query.trim().replace(/;/g, '')
+        });
+        
+        if (error) {
+            logError(error, { context: `Error getting reorder suggestions for company ${companyId}` });
+            throw new Error(`Could not generate reorder suggestions: ${error.message}`);
+        }
+
+        return z.array(ReorderSuggestionSchema).parse(data || []);
+    });
+}
+
+    

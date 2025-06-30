@@ -16,6 +16,7 @@ import { getDatabaseSchemaAndData as getDbSchema, getQueryPatternsForCompany, sa
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
+import { getReorderSuggestions } from './reorder-tool';
 import { logError } from '@/lib/error-handler';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -61,6 +62,13 @@ function parameterizeQuery(query: string, params: Record<string, unknown>): stri
 
 
 const ENHANCED_SEMANTIC_LAYER = `
+  E-COMMERCE & INVENTORY CONCEPTS:
+  - "Landed Cost": The total cost of a product (cost + shipping + taxes). Use the 'landed_cost' field from the inventory table.
+  - "On Order Quantity": Units of an item that have been ordered from a supplier but not yet received. Use 'on_order_quantity'.
+  - "Sales Channel": Where the sale originated (e.g., 'shopify', 'amazon'). Use the 'sales_channel' field in the 'orders' table.
+  - "Reordering": The process of ordering more stock. Use the 'getReorderSuggestions' tool to determine what needs to be ordered.
+  - "Profit Margin": Calculation of profitability. Can be Gross Margin or Net Margin.
+
   BUSINESS METRICS:
   - "Inventory turnover rate": COGS / Average Inventory Value (industry standard: 5-10x/year)
   - "Sell-through rate": (Units Sold / Units Received) * 100
@@ -255,8 +263,9 @@ const sqlGenerationPrompt = ai.definePrompt({
         - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
     8.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
 
-    **C) For ECONOMIC Questions:**
-    9.  **Use Tools**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
+    **C) For QUESTIONS THAT REQUIRE TOOLS:**
+    9.  **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool.
+    10. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
     
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style. Your primary source of inspiration should be the COMPANY-SPECIFIC EXAMPLES if they exist, as they reflect what has worked for this user before.
@@ -272,7 +281,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     **Step 4: Generate the Response.**
     Based on the analysis, rules, and examples, decide the best course of action.
     - If the question can be answered with SQL, generate the query.
-    - If the question requires economic data, call the \`getEconomicIndicators\` tool.
+    - If the question requires a tool, call the appropriate tool.
 
     **Step 5: Formulate the Final Output.**
     - If you are generating a query, respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
@@ -406,17 +415,22 @@ const universalChatOrchestrator = ai.defineFlow(
 
     const aiModel = config.ai.model;
 
+    // By passing the companyId in the input to the tool, we avoid having to manage it separately.
+    const tools = [getEconomicIndicators, getReorderSuggestions].map(tool =>
+        ai.waitForTool(tool.name, { companyId })
+    );
+
     const { output: generationOutput, toolCalls } = await ai.generate({
       model: aiModel,
       prompt: sqlGenerationPrompt,
       input: { userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
-      tools: [getEconomicIndicators],
+      tools,
     });
     
     if (toolCalls && toolCalls.length > 0) {
-        logger.info('[UniversalChat:Flow] AI chose to use the economic indicator tool.');
-        const toolCall = toolCalls[0];
-        const toolResult = await ai.runTool(toolCall);
+        logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCalls[0].name}`);
+        // Let Genkit handle running the tool and getting the result.
+        const toolResult = await ai.runTool(toolCalls[0]);
         
         const queryDataJson = JSON.stringify([toolResult]);
         
@@ -572,3 +586,5 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
+
+    

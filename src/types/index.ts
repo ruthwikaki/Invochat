@@ -127,6 +127,9 @@ export type UnifiedInventoryItem = {
   cost: number;
   total_value: number;
   reorder_point: number | null;
+  on_order_quantity: number;
+  landed_cost?: number | null;
+  barcode?: string | null;
 };
 
 export type TeamMember = {
@@ -189,3 +192,43 @@ export const PurchaseOrderCreateSchema = z.object({
   })).min(1, 'At least one item is required.'),
 });
 export type PurchaseOrderCreateInput = z.infer<typeof PurchaseOrderCreateSchema>;
+
+
+// New types for Supplier Catalogs and Reordering
+export const SupplierCatalogSchema = z.object({
+  id: z.string().uuid(),
+  supplier_id: z.string().uuid(),
+  sku: z.string(),
+  supplier_sku: z.string().nullable(),
+  product_name: z.string().nullable(),
+  unit_cost: z.number(),
+  moq: z.number().int().optional().default(1),
+  lead_time_days: z.number().int().nullable(),
+  is_active: z.boolean().default(true),
+});
+export type SupplierCatalog = z.infer<typeof SupplierCatalogSchema>;
+
+export const ReorderRuleSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  sku: z.string(),
+  rule_type: z.string().default('manual'),
+  min_stock: z.number().int().nullable(),
+  max_stock: z.number().int().nullable(),
+  reorder_quantity: z.number().int().nullable(),
+});
+export type ReorderRule = z.infer<typeof ReorderRuleSchema>;
+
+export const ReorderSuggestionSchema = z.object({
+    sku: z.string(),
+    product_name: z.string(),
+    current_quantity: z.number(),
+    reorder_point: z.number(),
+    suggested_reorder_quantity: z.number(),
+    supplier_name: z.string(),
+    supplier_id: z.string().uuid(),
+    unit_cost: z.number(),
+});
+export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+
+    

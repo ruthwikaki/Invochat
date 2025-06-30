@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useAuth } from '@/context/auth-context';
@@ -246,10 +247,12 @@ REVOKE EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, tex
 GRANT EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) TO service_role;
 
 
--- ========= Part 7: E-Commerce Features (Purchase Orders) =========
+-- ========= Part 7: E-Commerce Features (Purchase Orders, Catalogs, Reordering) =========
 
--- Add a column to the inventory table to track units currently on order.
+-- Add new columns to the inventory table.
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS on_order_quantity INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS landed_cost NUMERIC(10, 2);
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS barcode TEXT;
 
 -- Define a type for Purchase Order status for data integrity.
 DO $$
@@ -268,7 +271,6 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
 );
 
 -- Add columns idempotently to ensure the table has the correct structure.
--- This prevents errors if the table was created with an older schema.
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES public.vendors(id) ON DELETE CASCADE;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS po_number TEXT;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS status po_status;
@@ -279,7 +281,7 @@ ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
 
 
--- Add unique constraint if it doesn't exist. This is safer for re-running the script.
+-- Add unique constraint if it doesn't exist.
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -308,6 +310,37 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
 );
 CREATE INDEX IF NOT EXISTS idx_po_items_po_id ON public.purchase_order_items(po_id);
 CREATE INDEX IF NOT EXISTS idx_po_items_sku ON public.purchase_order_items(sku);
+
+
+-- Create table for supplier-specific product catalogs
+CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  supplier_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
+  sku TEXT NOT NULL, -- The internal SKU in the inventory table
+  supplier_sku TEXT, -- The supplier's own SKU for the product
+  product_name TEXT,
+  unit_cost NUMERIC(10, 2) NOT NULL,
+  moq INTEGER DEFAULT 1, -- Minimum Order Quantity
+  lead_time_days INTEGER,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT unique_supplier_sku_per_supplier UNIQUE (supplier_id, sku)
+);
+CREATE INDEX IF NOT EXISTS idx_supplier_catalogs_supplier_sku ON public.supplier_catalogs(supplier_id, sku);
+
+-- Create table for inventory reorder rules
+CREATE TABLE IF NOT EXISTS public.reorder_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  sku TEXT NOT NULL,
+  rule_type TEXT NOT NULL DEFAULT 'manual', -- e.g., 'manual', 'automatic'
+  min_stock INTEGER, -- Reorder when stock falls below this
+  max_stock INTEGER, -- Order up to this level
+  reorder_quantity INTEGER, -- Fixed quantity to reorder
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT unique_reorder_rule_per_sku UNIQUE (company_id, sku)
+);
+CREATE INDEX IF NOT EXISTS idx_reorder_rules_company_sku ON public.reorder_rules(company_id, sku);
 `;
 
 export default function SetupIncompletePage() {
@@ -374,3 +407,5 @@ export default function SetupIncompletePage() {
     </div>
   );
 }
+
+    
