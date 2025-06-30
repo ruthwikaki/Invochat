@@ -33,5 +33,7 @@ export const UniversalChatOutputSchema = z.object({
   }).optional().describe("A suggested visualization for the data."),
   confidence: z.number().min(0).max(1).describe("A score from 0.0 (low) to 1.0 (high) indicating the AI's confidence in the generated SQL query and response."),
   assumptions: z.array(z.string()).optional().describe("A list of any assumptions the AI had to make to answer the query."),
+  // Add a field to specify which tool was called, if any.
+  toolName: z.string().optional().describe("The name of the tool that was called, if any."),
 });
 export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;

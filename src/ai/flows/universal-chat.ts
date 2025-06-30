@@ -460,7 +460,7 @@ const errorRecoveryPrompt = ai.definePrompt({
     `,
 });
 
-const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true });
+const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
   input: { schema: z.object({ userQuery: z.string(), queryDataJson: z.string() }) },
@@ -468,7 +468,7 @@ const finalResponsePrompt = ai.definePrompt({
   prompt: `
     You are InvoChat, an expert AI inventory analyst.
     The user asked: "{{userQuery}}"
-    You have executed a database query and received this JSON data:
+    You have executed a database query or tool and received this JSON data:
     {{{queryDataJson}}}
 
     YOUR TASK:
@@ -529,10 +529,10 @@ const universalChatOrchestrator = ai.defineFlow(
     
     if (toolCalls && toolCalls.length > 0) {
         logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCalls[0].name}`);
-        // Let Genkit handle running the tool and getting the result.
-        const toolResult = await ai.runTool(toolCalls[0]);
+        const toolCall = toolCalls[0];
+        const toolResult = await ai.runTool(toolCall);
         
-        const queryDataJson = JSON.stringify([toolResult]);
+        const queryDataJson = JSON.stringify([toolResult.output]);
         
         const { output: finalOutput } = await finalResponsePrompt(
             { userQuery, queryDataJson },
@@ -545,7 +545,8 @@ const universalChatOrchestrator = ai.defineFlow(
         
         return {
             ...finalOutput,
-            data: [toolResult],
+            data: toolResult.output as any[],
+            toolName: toolCall.name,
         };
     }
 

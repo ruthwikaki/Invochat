@@ -27,6 +27,8 @@ export type Message = {
   company_id: string;
   role: 'user' | 'assistant';
   content: string;
+  component?: 'deadStockTable' | 'reorderList' | 'supplierPerformanceTable';
+  componentProps?: Record<string, any>;
   visualization?: {
     type: 'table' | 'chart' | 'alert';
     data: Record<string, unknown>[];

@@ -230,7 +230,20 @@ export async function handleUserMessage(
       assumptions: responseData.assumptions,
     };
     
-    if (responseData.visualization && responseData.visualization.type !== 'none' && Array.isArray(responseData.data) && responseData.data.length > 0) {
+    // Handle custom components from tool calls
+    if (responseData.toolName) {
+        switch(responseData.toolName) {
+            case 'getReorderSuggestions':
+                assistantMessage.component = 'reorderList';
+                assistantMessage.componentProps = { items: responseData.data };
+                break;
+            case 'getSupplierPerformanceReport':
+                assistantMessage.component = 'supplierPerformanceTable';
+                assistantMessage.componentProps = { data: responseData.data };
+                break;
+        }
+    } else if (responseData.visualization && responseData.visualization.type !== 'none' && Array.isArray(responseData.data) && responseData.data.length > 0) {
+      // Handle generic visualizations from SQL queries
       const vizType = responseData.visualization.type;
       const vizTitle = responseData.visualization.title;
       let vizData = transformDataForChart(responseData.data, vizType);

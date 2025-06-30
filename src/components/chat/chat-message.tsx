@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/tooltip"
 import DOMPurify from 'isomorphic-dompurify';
 import { motion } from 'framer-motion';
+import { DeadStockTable } from '@/components/ai-response/dead-stock-table';
+import { ReorderList } from '@/components/ai-response/reorder-list';
+import { SupplierPerformanceTable } from '@/components/ai-response/supplier-performance-table';
+import React from 'react';
 
 // New futuristic loading indicator
 function LoadingIndicator() {
@@ -94,6 +98,12 @@ function BotAvatar({ isError }: { isError?: boolean }) {
     );
 }
 
+// Map component names to actual components
+const componentMap: { [key: string]: React.ElementType } = {
+    deadStockTable: DeadStockTable,
+    reorderList: ReorderList,
+    supplierPerformanceTable: SupplierPerformanceTable,
+};
 
 export function ChatMessage({
   message,
@@ -117,6 +127,8 @@ export function ChatMessage({
       hidden: { opacity: 0, y: 20 },
       visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
   };
+
+  const CustomComponent = message.component ? componentMap[message.component] : null;
 
   return (
     <motion.div
@@ -162,7 +174,13 @@ export function ChatMessage({
         )}
       </div>
       
-      {message.visualization && (
+      {CustomComponent && (
+          <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
+            <CustomComponent {...message.componentProps} />
+          </div>
+      )}
+
+      {message.visualization && !CustomComponent && (
         <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
           <DataVisualization
             visualization={message.visualization}
