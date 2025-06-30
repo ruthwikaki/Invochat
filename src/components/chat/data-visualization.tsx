@@ -1,13 +1,13 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable } from '@/components/ai-response/data-table';
 import { DynamicChart } from '@/components/ai-response/dynamic-chart';
 import { Button } from '@/components/ui/button';
-import { Expand, Download } from 'lucide-react';
+import { Expand, Download, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import { useState } from 'react';
-import { X } from 'lucide-react';
 
 type DataVisualizationProps = {
   visualization: {
@@ -50,10 +50,11 @@ export function DataVisualization({ visualization, title }: DataVisualizationPro
               size="icon"
               className="h-6 w-6"
               onClick={() => setIsExpanded(true)}
+              aria-label="Expand chart"
             >
               <Expand className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled>
+            <Button variant="ghost" size="icon" className="h-6 w-6" disabled aria-label="Download chart">
               <Download className="h-4 w-4" />
             </Button>
           </div>
