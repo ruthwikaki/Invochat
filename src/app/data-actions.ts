@@ -38,6 +38,7 @@ import {
     deleteSupplierFromDb,
     deleteInventoryItemsFromDb,
     updateInventoryItemInDb,
+    refreshMaterializedViews,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData } from '@/types';
@@ -568,6 +569,7 @@ export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Pr
     try {
         const { companyId } = await getAuthContext();
         await receivePurchaseOrderItemsInDB(data.poId, companyId, data.items);
+        await refreshMaterializedViews(companyId);
         revalidatePath(`/purchase-orders/${data.poId}`);
         revalidatePath('/inventory');
         return { success: true };
@@ -764,6 +766,7 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
         await deleteInventoryItemsFromDb(companyId, skus);
         revalidatePath('/inventory');
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+        await refreshMaterializedViews(companyId);
         return { success: true };
     } catch (e) {
         logError(e, { context: 'deleteInventoryItems action' });
@@ -782,6 +785,7 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
         const updatedItem = await updateInventoryItemInDb(companyId, sku, parsedData.data);
         
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+        await refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
         
         return { success: true, updatedItem };

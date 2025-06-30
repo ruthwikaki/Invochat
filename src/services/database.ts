@@ -38,6 +38,20 @@ async function withPerformanceTracking<T>(
     }
 }
 
+export async function refreshMaterializedViews(companyId: string): Promise<void> {
+    if (!isValidUuid(companyId)) return;
+    await withPerformanceTracking('refreshMaterializedViews', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.rpc('refresh_dashboard_metrics');
+        if (error) {
+            logError(error, { context: `Failed to refresh materialized views for company ${companyId}` });
+            // Don't throw, as this is a background optimization, not a critical failure
+        } else {
+            logger.info(`[DB Service] Refreshed materialized views for company ${companyId}`);
+        }
+    });
+}
+
 export async function getCompanySettings(companyId: string): Promise<CompanySettings> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     
