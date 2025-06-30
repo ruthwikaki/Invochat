@@ -21,7 +21,7 @@ import {
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember } from '@/types';
-import { getAiClient } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -344,7 +344,7 @@ export async function testGenkitConnection(): Promise<{
         // Use the model from the app config for an accurate test
         const model = config.ai.model;
         
-        await getAiClient().generate({
+        await ai.generate({
             model: model,
             prompt: 'Test prompt: say "hello".',
             config: {

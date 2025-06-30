@@ -1,12 +1,13 @@
+
 'use server';
 /**
  * @fileOverview Defines a Genkit tool for fetching real-time economic indicators.
  */
-import { getAiClient } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 
-export const getEconomicIndicators = getAiClient().defineTool(
+export const getEconomicIndicators = ai.defineTool(
   {
     name: 'getEconomicIndicators',
     description:
@@ -26,7 +27,7 @@ export const getEconomicIndicators = getAiClient().defineTool(
   async (input) => {
     logger.info(`[Economic Tool] Looking up indicator: ${input.indicator}`);
     try {
-        const { text } = await getAiClient().generate({
+        const { text } = await ai.generate({
             model: 'googleai/gemini-1.5-flash',
             prompt: `You are a financial data assistant. Provide a concise, factual answer for the following economic indicator: "${input.indicator}". State only the value and the period it applies to. Example: "3.3% (May 2024)"`,
             temperature: 0,
