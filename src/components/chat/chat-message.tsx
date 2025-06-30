@@ -13,6 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import DOMPurify from 'isomorphic-dompurify';
 
 function LoadingIndicator() {
     return (
@@ -69,6 +70,12 @@ export function ChatMessage({
     if (!email) return 'U';
     return email.charAt(0).toUpperCase();
   };
+  
+  const sanitizedContent = !isLoading ? DOMPurify.sanitize(message.content, {
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a'],
+    ALLOWED_ATTR: ['href']
+  }) : '';
+
 
   return (
     <div className={cn("flex flex-col gap-2", isUserMessage && "items-end")}>
@@ -89,8 +96,11 @@ export function ChatMessage({
             message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
           )}
         >
-          <div className="text-base whitespace-pre-wrap">
-            {isLoading ? <LoadingIndicator /> : message.content}
+          <div
+            className="text-base whitespace-pre-wrap"
+            dangerouslySetInnerHTML={!isLoading ? { __html: sanitizedContent } : undefined}
+          >
+            {isLoading ? <LoadingIndicator /> : null}
           </div>
           {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
