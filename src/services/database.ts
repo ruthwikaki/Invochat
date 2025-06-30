@@ -282,7 +282,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
       logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
       await incrementCacheMiss('dashboard');
     } catch (error) {
-      logError(error, { context: `Redis error getting cache for ${cacheKey}`. Fetching directly from DB.` });
+      logError(error, { context: `Redis error getting cache for ${cacheKey}. Fetching directly from DB.` });
     }
   }
   return fetchAndCacheMetrics();
@@ -595,7 +595,7 @@ export async function receivePurchaseOrderItemsInDB(
         }
 
         logger.info(`[DB Service] Successfully received items for PO ${poId}.`);
-        await invalidateCompanyCache(companyId, ['dashboard']);
+        await refreshMaterializedViews(companyId);
         revalidatePath(`/purchase-orders/${poId}`);
         revalidatePath('/inventory');
     });
