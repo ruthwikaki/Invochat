@@ -1,8 +1,11 @@
 
 import Redis from 'ioredis';
 import { logger } from './logger';
+import { getErrorMessage } from './error-handler';
 
+// A private, module-level variable to hold the singleton instance.
 let redis: Redis | null = null;
+let isInitializing = false;
 
 // Mock client to be used when Redis is not configured.
 // It mimics the Redis methods we use so the app doesn't crash.
@@ -10,23 +13,58 @@ const mockRedisClient = {
     get: async (key: string) => null,
     set: async (key: string, value: string, ...args: any[]) => 'OK' as const,
     del: async (...keys: string[]) => 1 as const,
-    pipeline: () => mockRedisClient, // Return self for pipeline chaining
-    zremrangebyscore: () => mockRedisClient,
-    zadd: () => mockRedisClient,
-    expire: () => mockRedisClient,
-    exec: async () => [[null, 0], [null, 0], [null, 0]], // Mock exec response
+    pipeline: function () { // The pipeline function needs to return an object with the chained methods
+        const pipeline = {
+            zremrangebyscore: () => pipeline,
+            zadd: () => pipeline,
+            zcard: () => pipeline,
+            expire: () => pipeline,
+            exec: async () => [[null, 0], [null, 0], [null, 0], [null, 1]],
+        };
+        return pipeline;
+    },
     ping: async () => 'PONG' as const,
     incr: async (key: string) => 1,
     incrbyfloat: async (key: string, inc: number) => String(inc),
     zcard: async (key: string) => 0,
 };
 
-if (process.env.REDIS_URL) {
-    logger.info('[Redis] Attempting to connect to Redis instance...');
+
+/**
+ * Initializes and returns a singleton Redis client instance.
+ * This function is designed to be safe to call multiple times, but it will
+ * only ever create one underlying Redis connection.
+ */
+function initializeRedis(): Redis | null {
+    // If an instance already exists, just return it. This is the most common path.
+    if (redis) {
+        return redis;
+    }
+
+    // Prevent re-entrant calls while the first initialization is in progress.
+    if (isInitializing) {
+        logger.warn('[Redis] Initialization already in progress, returning null for this call.');
+        return null;
+    }
+
+    if (!process.env.REDIS_URL) {
+        // No need to log here; the final export block will handle it.
+        return null;
+    }
+    
+    isInitializing = true;
+    logger.info('[Redis] Initializing new singleton Redis client...');
+
     try {
         const client = new Redis(process.env.REDIS_URL, {
-            maxRetriesPerRequest: 2,
-            connectTimeout: 5000,
+            maxRetriesPerRequest: 3,
+            connectTimeout: 10000,
+            // As recommended, implement an exponential backoff retry strategy to prevent "reconnect storms".
+            retryStrategy(times) {
+                const delay = Math.min(times * 100, 5000); 
+                logger.warn(`[Redis] Reconnecting... attempt ${times}. Retrying in ${delay}ms`);
+                return delay;
+            },
         });
 
         client.on('connect', () => {
@@ -34,21 +72,48 @@ if (process.env.REDIS_URL) {
         });
 
         client.on('error', (err) => {
-            // Log the error. The client will attempt to reconnect automatically.
-            // Calls to redis during this time will fail and should be handled by try/catch blocks.
-            logger.error(`[Redis] Connection error: ${err.message}. The client will attempt to reconnect.`);
+            logger.error(`[Redis] Connection error: ${err.message}. The client will attempt to reconnect based on the retry strategy.`);
         });
         
-        redis = client;
+        client.on('close', () => {
+            logger.warn('[Redis] Connection closed.');
+        });
 
-    } catch (e: any) {
-        logger.error(`[Redis] Failed to initialize client: ${e.message}`);
+        // Cache the singleton instance.
+        redis = client;
+        return redis;
+    } catch (e) {
+        logger.error(`[Redis] Failed to initialize client instance: ${getErrorMessage(e)}`);
+        return null; // Return null on catastrophic failure
+    } finally {
+        isInitializing = false;
     }
-} else {
-    logger.warn('[Redis] REDIS_URL is not set. Caching and rate limiting are disabled.');
 }
 
-// If connection failed or was not configured, use the mock client.
+
+// --- SINGLETON INITIALIZATION ---
+// This block ensures that we only ever have one Redis client for the lifetime of the process.
+const globalForRedis = global as unknown as { redis: Redis | null };
+
+if (process.env.NODE_ENV !== 'production') {
+    // In development, hot-reloading can cause modules to be re-evaluated, leading to new instances.
+    // We store the instance on the global object to persist it across reloads.
+    if (!globalForRedis.redis) {
+        globalForRedis.redis = initializeRedis();
+    }
+    redis = globalForRedis.redis;
+} else {
+    // In production, the module is only evaluated once per process.
+    redis = initializeRedis();
+}
+
+if (!redis) {
+    logger.warn('[Redis] Singleton client not initialized. Caching and rate limiting are disabled.');
+}
+// ------------------------------------
+
+
+// Export the singleton instance (or the mock if initialization failed).
 export const redisClient = redis || mockRedisClient;
 export const isRedisEnabled = !!redis;
 
@@ -60,17 +125,16 @@ export const isRedisEnabled = !!redis;
  * @param types An array of cache types to invalidate (e.g., 'dashboard', 'alerts').
  */
 export async function invalidateCompanyCache(companyId: string, types: ('dashboard' | 'alerts' | 'deadstock' | 'suppliers')[]): Promise<void> {
-    if (!isRedisEnabled || !redis) {
+    if (!isRedisEnabled) {
         return;
     }
     
-    // Construct the full cache keys to be deleted.
     const keysToInvalidate = types.map(type => `company:${companyId}:${type}`);
     
     if (keysToInvalidate.length > 0) {
         try {
             logger.info(`[Redis] Invalidating cache for company ${companyId}. Keys: ${keysToInvalidate.join(', ')}`);
-            await redis.del(keysToInvalidate);
+            await redisClient.del(keysToInvalidate);
         } catch (e) {
             logger.error(`[Redis] Cache invalidation failed for company ${companyId}:`, e);
         }
@@ -91,7 +155,7 @@ export async function rateLimit(
     limit: number,
     windowSeconds: number
 ): Promise<{ limited: boolean; remaining: number }> {
-    if (!isRedisEnabled || !redis) {
+    if (!isRedisEnabled) {
         return { limited: false, remaining: limit };
     }
 
@@ -100,7 +164,7 @@ export async function rateLimit(
         const now = Date.now();
         const windowStart = now - windowSeconds * 1000;
 
-        const pipeline = redis.pipeline();
+        const pipeline = redisClient.pipeline();
         // Remove timestamps that are older than the window
         pipeline.zremrangebyscore(key, 0, windowStart);
         // Add the current request's timestamp
