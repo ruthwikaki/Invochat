@@ -8,8 +8,10 @@ import { z } from 'zod';
 import { InventoryImportSchema, SupplierImportSchema } from './schemas';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
-import { invalidateCompanyCache } from '@/lib/redis';
+import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getErrorMessage, logError } from '@/lib/error-handler';
+import type { User } from '@/types';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -26,7 +28,7 @@ export type ImportResult = {
 };
 
 // A helper function to get the current user's company ID.
-async function getCompanyIdForCurrentUser(): Promise<string> {
+async function getAuthContextForImport(): Promise<{ user: User, companyId: string }> {
   const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,17 +42,17 @@ async function getCompanyIdForCurrentUser(): Promise<string> {
   if (!user || !companyId) {
     throw new Error('Authentication error: User or company not found.');
   }
-  return companyId;
+  return { user, companyId };
 }
 
 // A generic function to process any CSV file with a given schema and table name.
-async function processCsv<T extends z.ZodType<any, any>>(
+async function processCsv<T extends z.ZodType>(
     fileContent: string,
     schema: T,
     tableName: string,
     companyId: string
 ): Promise<Omit<ImportResult, 'success'>> {
-    const { data: rows, errors: parsingErrors } = Papa.parse(fileContent, {
+    const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(fileContent, {
         header: true,
         skipEmptyLines: true,
         transformHeader: header => header.trim(),
@@ -69,7 +71,7 @@ async function processCsv<T extends z.ZodType<any, any>>(
     const validRows: z.infer<T>[] = [];
 
     for (let i = 0; i < rows.length; i++) {
-        const row = rows[i] as any;
+        const row = rows[i];
         const result = schema.safeParse(row);
 
         if (result.success) {
@@ -97,7 +99,7 @@ async function processCsv<T extends z.ZodType<any, any>>(
         });
 
         if (dbError) {
-            logger.error(`[Data Import] Transactional database error for ${tableName}:`, dbError);
+            logError(dbError, { context: `Transactional database error for ${tableName}` });
             const errorMessage = dbError.message.includes('function public.batch_upsert_with_transaction') 
               ? `Database error: The transactional import function is missing. Please run the latest SQL from the Setup page.`
               : `Database error: ${dbError.message}. The import was rolled back.`;
@@ -123,6 +125,14 @@ async function processCsv<T extends z.ZodType<any, any>>(
 // The main server action that the client calls.
 export async function handleDataImport(formData: FormData): Promise<ImportResult> {
     try {
+        const { user, companyId } = await getAuthContextForImport();
+        
+        // Apply rate limiting: 5 imports per hour per user.
+        const { limited } = await rateLimit(user.id, 'data_import', 5, 3600);
+        if (limited) {
+            return { success: false, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
+        }
+
         const cookieStore = cookies();
         const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
         const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
@@ -151,8 +161,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         }
         
         const fileContent = await file.text();
-        const companyId = await getCompanyIdForCurrentUser();
-
+        
         let result: Omit<ImportResult, 'success'>;
 
         switch (dataType) {
@@ -170,10 +179,8 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
 
         return { success: true, ...result };
 
-    } catch (e: any) {
-        logger.error('[Data Import] An unexpected error occurred:', e);
-        return { success: false, summaryMessage: `An unexpected server error occurred: ${e.message}` };
+    } catch (error) {
+        logError(error, { context: 'handleDataImport action' });
+        return { success: false, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
     }
 }
-
-    

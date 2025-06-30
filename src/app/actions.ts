@@ -14,6 +14,7 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
+import { getErrorMessage, logError } from '@/lib/error-handler';
 
 async function getAuthContext(): Promise<{ userId: string; companyId: string }> {
     logger.debug('[getAuthContext] Attempting to determine Company ID...');
@@ -46,8 +47,8 @@ async function getAuthContext(): Promise<{ userId: string; companyId: string }> 
         
         logger.debug(`[getAuthContext] Success. Company ID: ${companyId}`);
         return { userId: user.id, companyId };
-    } catch (e: any) {
-        logger.error('[getAuthContext] Caught exception:', e.message);
+    } catch (e) {
+        logError(e, { context: 'getAuthContext' });
         throw e;
     }
 }
@@ -64,12 +65,12 @@ export async function getConversations(): Promise<Conversation[]> {
             .order('last_accessed_at', { ascending: false });
 
         if (error) {
-            logger.error("Error fetching conversations:", error);
+            logError(error, { context: 'getConversations' });
             return [];
         }
         return data as Conversation[];
     } catch (error) {
-        logger.error("Failed to get auth context in getConversations:", error);
+        logError(error, { context: 'getAuthContext in getConversations' });
         return [];
     }
 }
@@ -86,7 +87,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
             .order('created_at', { ascending: true });
         
         if (error) {
-            logger.error(`Error fetching messages for convo ${conversationId}:`, error);
+            logError(error, { context: `getMessages for convo ${conversationId}` });
             return [];
         }
 
@@ -94,13 +95,13 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
 
         return data as Message[];
     } catch (error) {
-        logger.error("Failed to get auth context in getMessages:", error);
+        logError(error, { context: 'getAuthContext in getMessages' });
         return [];
     }
 }
 
 
-function transformDataForChart(data: any[] | null | undefined, chartType: string): { name: string; value: number }[] | any[] {
+function transformDataForChart(data: Record<string, unknown>[] | null | undefined, chartType: string): Record<string, unknown>[] {
     if (!Array.isArray(data) || data.length === 0) return [];
     const firstItem = data[0];
     if (typeof firstItem !== 'object' || firstItem === null) return [];
@@ -124,7 +125,7 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
         
         // Coerce value to a number and check if it's valid.
         const rawValue = item[valueKey];
-        const numericValue = parseFloat(rawValue);
+        const numericValue = parseFloat(String(rawValue));
         if (isNaN(numericValue)) return null;
         
         return { name: String(item[nameKey] ?? 'Unnamed'), value: numericValue };
@@ -138,33 +139,31 @@ function transformDataForChart(data: any[] | null | undefined, chartType: string
     return transformed;
 }
 
-function getErrorMessage(error: any): string {
-    let errorMessage = `An unexpected error occurred. Please try again.`;
-    
-    const message = error.message || '';
-    const status = error.status || '';
+function getFlowErrorMessage(error: unknown): string {
+    const message = getErrorMessage(error);
+    const status = (error as any)?.status || '';
 
     if (message.includes('Query timed out')) {
-        errorMessage = "The database query took too long to respond. This can happen with very complex questions. Please try simplifying your request.";
+        return "The database query took too long to respond. This can happen with very complex questions. Please try simplifying your request.";
     } else if (message.includes('The database query failed')) {
-        errorMessage = "I tried to query the database, but the query failed. This may be because the AI generated an invalid SQL query or requested a non-existent column. Please try rephrasing your request.";
+        return "I tried to query the database, but the query failed. This may be because the AI generated an invalid SQL query or requested a non-existent column. Please try rephrasing your request.";
     } else if (message.includes('The generated query was invalid')) {
-        errorMessage = `For security, the AI-generated query was blocked. Reason: ${message.split('Reason: ')[1]}`;
+        return `For security, the AI-generated query was blocked. Reason: ${message.split('Reason: ')[1]}`;
     } else if (message.includes('The AI model did not return a valid final response object')) {
-        errorMessage = "The AI returned an unexpected or empty response. This might be a temporary issue. Please try again.";
+        return "The AI returned an unexpected or empty response. This might be a temporary issue. Please try again.";
     } else if (status === 'NOT_FOUND' || message.includes('NOT_FOUND') || message.includes('Model not found') || message.includes('INVALID_ARGUMENT')) {
-        errorMessage = `The AI model encountered an error. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, an invalid API key, or a malformed request. Please check the System Health page for more details.`;
+        return `The AI model encountered an error. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, an invalid API key, or a malformed request. Please check the System Health page for more details.`;
     } else if (message.includes('API key not valid')) {
-        errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file and ensure it is correct.';
+        return 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file and ensure it is correct.';
     } else if (message.includes('Your user session is invalid or not fully configured')) {
-        errorMessage = message;
+        return message;
     } else if (message.includes('violates not-null constraint')) {
-        errorMessage = 'A critical database error occurred while trying to save data. This may indicate an issue with the application setup.';
+        return 'A critical database error occurred while trying to save data. This may indicate an issue with the application setup.';
     } else if (message.includes('Rate limited')) {
-        errorMessage = 'You are sending messages too quickly. Please wait a moment before trying again.';
+        return 'You are sending messages too quickly. Please wait a moment before trying again.';
     }
     
-    return errorMessage;
+    return `An unexpected error occurred. Please try again.`;
 }
 
 const UserMessagePayloadSchema = z.object({
@@ -258,7 +257,7 @@ export async function handleUserMessage(
                 await incrementCacheMiss('ai_query');
             }
         } catch (e) {
-            logger.error(`[Redis] Error getting cached query for ${cacheKey}:`, e);
+            logError(e, { context: `Redis error getting cached query for ${cacheKey}` });
         }
     }
 
@@ -274,7 +273,7 @@ export async function handleUserMessage(
     
     const parsedResponse = UniversalChatOutputSchema.safeParse(flowResponse);
     if (!parsedResponse.success) {
-      logger.error("AI response validation error:", parsedResponse.error);
+      logError(parsedResponse.error, { context: "AI response validation error" });
       throw new Error('The AI returned data in an unexpected format.');
     }
     const responseData = parsedResponse.data;
@@ -297,7 +296,7 @@ export async function handleUserMessage(
         if (vizType === 'table') {
           assistantMessage.visualization = { type: 'table', data: vizData, config: { title: vizTitle || 'Data Table' }};
         } else if (['bar', 'pie', 'line', 'treemap', 'scatter'].includes(vizType)) {
-            const firstItem = vizData[0];
+            const firstItem = vizData[0] as Record<string, unknown>;
             const nameKey = (vizType === 'scatter') 
                 ? 'name' 
                 : Object.keys(firstItem).find(k => typeof firstItem[k] === 'string') || 'name';
@@ -328,7 +327,7 @@ export async function handleUserMessage(
         .single();
     
     if (saveMsgError) {
-      logger.error('Error saving assistant message:', saveMsgError);
+      logError(saveMsgError, { context: 'Error saving assistant message' });
       throw new Error(`Could not save assistant message: ${saveMsgError.message}`);
     }
     
@@ -337,7 +336,7 @@ export async function handleUserMessage(
             await redisClient.set(cacheKey, JSON.stringify(flowResponse), 'EX', config.redis.ttl.aiQuery);
             logger.info(`[Cache] SET for AI query: ${cacheKey}`);
         } catch (e) {
-            logger.error(`[Redis] Error setting cached query for ${cacheKey}:`, e);
+            logError(e, { context: `Redis error setting cached query for ${cacheKey}` });
         }
     }
     
@@ -353,13 +352,13 @@ export async function handleUserMessage(
 
     return { conversationId: currentConversationId, newMessage: savedAssistantMessage as Message };
     
-  } catch (error: any) {
-    logger.error('[handleUserMessage] Error caught', {
+  } catch (error) {
+    logError(error, {
         payload,
         conversationId: currentConversationId,
-        error: error.message
+        context: 'handleUserMessage'
     });
-    return { error: getErrorMessage(error) };
+    return { error: getFlowErrorMessage(error) };
   } finally {
       const endTime = performance.now();
       await trackEndpointPerformance('handleUserMessage', endTime - startTime);

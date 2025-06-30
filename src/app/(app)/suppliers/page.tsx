@@ -17,6 +17,7 @@ import type { Supplier } from '@/types';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getErrorMessage } from '@/lib/error-handler';
 
 function SupplierCard({ supplier }: { supplier: Supplier }) {
   return (
@@ -84,11 +85,11 @@ export default function SuppliersPage() {
         setLoading(true);
         const data = await getSuppliersData();
         setSuppliers(data);
-      } catch (error: any) {
+      } catch (error) {
         toast({
           variant: 'destructive',
           title: 'Error Loading Suppliers',
-          description: error.message || 'Could not load supplier data.',
+          description: getErrorMessage(error) || 'Could not load supplier data.',
         });
       } finally {
         setLoading(false);
@@ -101,7 +102,7 @@ export default function SuppliersPage() {
     if (!searchTerm) return suppliers;
     return suppliers.filter(supplier =>
       supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.contact_info.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplier.contact_info && supplier.contact_info.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (supplier.account_number && supplier.account_number.includes(searchTerm))
     );
   }, [suppliers, searchTerm]);

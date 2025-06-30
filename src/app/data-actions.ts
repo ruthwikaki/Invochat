@@ -28,6 +28,7 @@ import { z } from 'zod';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getErrorMessage, logError } from '@/lib/error-handler';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
@@ -63,8 +64,8 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
         
         logger.debug(`[getCompanyIdForCurrentUser] Success. Company ID: ${companyId}`);
         return { userId: user.id, companyId };
-    } catch (e: any) {
-        logger.error('[getCompanyIdForCurrentUser] Caught exception:', e.message);
+    } catch (e) {
+        logError(e, { context: 'getAuthContext' });
         // Re-throw the error to be caught by the calling function's error boundary.
         throw e;
     }
@@ -76,7 +77,7 @@ export async function getDashboardData(dateRange: string = '30d') {
         const { companyId } = await getAuthContext();
         return getDashboardMetrics(companyId, dateRange);
     } catch (error) {
-        logger.error('[Data Action Error] Failed to get dashboard data:', error);
+        logError(error, { context: 'getDashboardData' });
         // Re-throw the error so the calling page's error boundary can catch it.
         throw error;
     }
@@ -212,16 +213,16 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         await inviteUserToCompanyInDb(companyId, companyData.name, email);
         revalidatePath('/settings/team');
         return { success: true };
-    } catch (e: any) {
-        logger.error('[Invite Action] Failed to invite team member:', e);
-        return { success: false, error: e.message };
+    } catch (e) {
+        logError(e, { context: 'inviteTeamMember' });
+        return { success: false, error: getErrorMessage(e) };
     }
 }
 
 
 export async function testSupabaseConnection(): Promise<{
     success: boolean;
-    error: { message: string; details?: any; } | null;
+    error: { message: string; details?: unknown; } | null;
     user: User | null;
     isConfigured: boolean;
 }> {
@@ -261,8 +262,8 @@ export async function testSupabaseConnection(): Promise<{
         
         return { success: true, error: null, user, isConfigured };
 
-    } catch (e: any) {
-        return { success: false, error: { message: e.message, details: e }, user: null, isConfigured };
+    } catch (e) {
+        return { success: false, error: { message: getErrorMessage(e), details: e }, user: null, isConfigured };
     }
 }
 
@@ -286,12 +287,12 @@ export async function testDatabaseQuery(): Promise<{
     if (error) throw error;
 
     return { success: true, count: count, error: null };
-  } catch (e: any) {
+  } catch (e) {
     // If getCompanyId throws, its error message is more informative.
-    let errorMessage = e.message;
-    if (e.message?.includes('database')) { // Supabase-specific error
-        errorMessage = `Database query failed: ${e.message}`;
-    } else if (e.message?.includes('relation "public.company_settings" does not exist')) {
+    let errorMessage = getErrorMessage(e);
+    if (errorMessage?.includes('database')) { // Supabase-specific error
+        errorMessage = `Database query failed: ${errorMessage}`;
+    } else if (errorMessage?.includes('relation "public.company_settings" does not exist')) {
         errorMessage = "Database query failed: The 'company_settings' table could not be found. Please ensure your database schema is set up correctly by running the SQL in the setup page.";
     }
     return { success: false, count: null, error: errorMessage };
@@ -318,8 +319,8 @@ export async function testMaterializedView(): Promise<{ success: boolean; error:
         }
 
         return { success: !!data, error: null };
-    } catch(e: any) {
-        return { success: false, error: e.message };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
     }
 }
 
@@ -352,14 +353,16 @@ export async function testGenkitConnection(): Promise<{
         });
 
         return { success: true, error: null, isConfigured };
-    } catch (e: any) {
-        let errorMessage = e.message || 'An unknown error occurred.';
-        if (e.status === 'NOT_FOUND' || e.message?.includes('NOT_FOUND') || e.message?.includes('Model not found')) {
-            errorMessage = `The configured AI model ('${config.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
-        } else if (e.message?.includes('API key not valid')) {
-            errorMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
+    } catch (e) {
+        const errorMessage = getErrorMessage(e);
+        let detailedMessage = errorMessage;
+
+        if ((e as any)?.status === 'NOT_FOUND' || errorMessage?.includes('NOT_FOUND') || errorMessage?.includes('Model not found')) {
+            detailedMessage = `The configured AI model ('${config.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
+        } else if (errorMessage?.includes('API key not valid')) {
+            detailedMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
         }
-        return { success: false, error: errorMessage, isConfigured };
+        return { success: false, error: detailedMessage, isConfigured };
     }
 }
 
@@ -377,8 +380,8 @@ export async function testRedisConnection(): Promise<{
             throw new Error('Redis PING command did not return PONG.');
         }
         return { success: true, error: null, isEnabled: true };
-    } catch (e: any) {
-        return { success: false, error: e.message, isEnabled: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e), isEnabled: true };
     }
 }
 
@@ -415,9 +418,9 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
         
         return result;
 
-    } catch (e: any) {
-        logger.error('[Remove Action] Caught exception:', e);
-        return { success: false, error: e.message };
+    } catch (e) {
+        logError(e, { context: 'removeTeamMember' });
+        return { success: false, error: getErrorMessage(e) };
     }
 }
 
@@ -469,8 +472,8 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
        
         return result;
 
-    } catch (e: any) {
-        logger.error('[Role Update Action] Caught exception:', e);
-        return { success: false, error: e.message };
+    } catch (e) {
+        logError(e, { context: 'updateTeamMemberRole' });
+        return { success: false, error: getErrorMessage(e) };
     }
 }

@@ -28,10 +28,10 @@ export type Message = {
   content: string;
   visualization?: {
     type: 'table' | 'chart' | 'alert';
-    data: any;
+    data: Record<string, unknown>[];
     config?: {
         title?: string;
-        [key: string]: any;
+        [key: string]: unknown;
     };
   } | null;
   confidence?: number | null;
@@ -43,12 +43,13 @@ export type Message = {
 export type ChartConfig = {
     chartType: 'bar' | 'pie' | 'line' | 'treemap' | 'scatter';
     title?: string;
-    data: any[];
+    data: Record<string, unknown>[];
     config: {
         dataKey: string;
         nameKey: string;
         xAxisKey?: string;
         yAxisKey?: string;
+        [key: string]: unknown;
     }
 }
 
@@ -124,7 +125,7 @@ export const CompanySettingsSchema = z.object({
   theme_primary_color: z.string().nullable().optional().default('262 84% 59%'),
   theme_background_color: z.string().nullable().optional().default('0 0% 96%'),
   theme_accent_color: z.string().nullable().optional().default('0 0% 90%'),
-  custom_rules: z.any().nullable().optional(),
+  custom_rules: z.record(z.unknown()).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 });

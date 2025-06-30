@@ -14,8 +14,18 @@ import { Lightbulb, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/error-handler';
 
-function AnomalyCard({ anomaly }: { anomaly: any }) {
+interface Anomaly {
+    anomaly_type: string;
+    date: string;
+    daily_revenue: number;
+    avg_revenue: number;
+    daily_customers: number;
+    avg_customers: number;
+}
+
+function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
   const isRevenue = anomaly.anomaly_type === 'Revenue Anomaly';
   const currentValue = isRevenue ? anomaly.daily_revenue : anomaly.daily_customers;
   const averageValue = isRevenue ? anomaly.avg_revenue : anomaly.avg_customers;
@@ -37,7 +47,7 @@ function AnomalyCard({ anomaly }: { anomaly: any }) {
         <p>
           On this day, the {isRevenue ? 'daily revenue' : 'customer count'} was{' '}
           <strong>{isRevenue ? `$${Number(currentValue).toLocaleString()}` : currentValue}</strong>, which is{' '}
-          {((deviation / averageValue) * 100).toFixed(1)}% {direction} than the average of{' '}
+          {averageValue > 0 ? ((deviation / averageValue) * 100).toFixed(1) : '100'}% {direction} than the average of{' '}
           {isRevenue ? `$${Number(averageValue).toLocaleString(undefined, {maximumFractionDigits: 0})}` : Number(averageValue).toLocaleString(undefined, {maximumFractionDigits: 0})}.
         </p>
       </CardContent>
@@ -46,7 +56,7 @@ function AnomalyCard({ anomaly }: { anomaly: any }) {
 }
 
 export default function InsightsPage() {
-  const [anomalies, setAnomalies] = useState<any[]>([]);
+  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -56,11 +66,11 @@ export default function InsightsPage() {
         setLoading(true);
         const data = await getAnomalyInsights();
         setAnomalies(data);
-      } catch (error: any) {
+      } catch (error) {
         toast({
           variant: 'destructive',
           title: 'Error Fetching Insights',
-          description: error.message || 'Could not load anomaly data.'
+          description: getErrorMessage(error) || 'Could not load anomaly data.'
         });
       } finally {
         setLoading(false);
