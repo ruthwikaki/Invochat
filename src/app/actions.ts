@@ -16,15 +16,36 @@ import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 
+// Securely gets the user and company ID from the current session.
+async function getAuthContext(): Promise<{ userId: string, companyId: string }> {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: { get: (name: string) => cookieStore.get(name)?.value },
+        }
+    );
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    if (error || !user) {
+        throw new Error('Authentication error: Could not get user.');
+    }
+    const companyId = user.app_metadata?.company_id;
+    if (!companyId) {
+        throw new Error('User is not associated with a company.');
+    }
+    return { userId: user.id, companyId };
+}
+
 export async function getConversations(): Promise<Conversation[]> {
     try {
+        const { userId } = await getAuthContext();
         const supabase = getServiceRoleClient();
-        // This will fail until auth is restored, but for now, we return an empty array.
         const { data, error } = await supabase
             .from('conversations')
             .select('*')
-            .eq('user_id', 'default-user-id') // Placeholder
-            .eq('company_id', 'default-company-id') // Placeholder
+            .eq('user_id', userId)
             .order('last_accessed_at', { ascending: false });
 
         if (error) {
@@ -40,12 +61,26 @@ export async function getConversations(): Promise<Conversation[]> {
 
 export async function getMessages(conversationId: string): Promise<Message[]> {
     try {
+        const { userId } = await getAuthContext();
         const supabase = getServiceRoleClient();
+        
+        // Verify the user has access to this conversation
+        const { error: accessError } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('id', conversationId)
+            .eq('user_id', userId)
+            .single();
+
+        if (accessError) {
+             logError(accessError, { context: `Access denied or not found for convo ${conversationId}` });
+             return [];
+        }
+
         const { data, error } = await supabase
             .from('messages')
             .select('*')
             .eq('conversation_id', conversationId)
-            .eq('company_id', 'default-company-id') // Placeholder
             .order('created_at', { ascending: true });
         
         if (error) {
@@ -148,12 +183,10 @@ export async function handleUserMessage(
     
     const { content: userQuery, source } = parsedPayload.data;
     currentConversationId = parsedPayload.data.conversationId;
-    const supabase = getServiceRoleClient();
     
-    // Placeholder auth context until it's properly implemented with Supabase
-    const userId = 'default-user-id';
-    const companyId = 'default-company-id';
-
+    // This is now the single source of truth for auth context.
+    const { userId, companyId } = await getAuthContext();
+    
     const { limited } = await rateLimit(userId, 'ai_chat', 30, 60);
     if (limited) {
       logger.warn(`[Rate Limit] User ${userId} exceeded AI chat limit.`);
@@ -167,7 +200,7 @@ export async function handleUserMessage(
             ? `Report: ${userQuery.substring(0, 40)}...`
             : userQuery.substring(0, 50);
 
-        const { data: newConvo, error: convoError } = await supabase
+        const { data: newConvo, error: convoError } = await getServiceRoleClient()
             .from('conversations')
             .insert({ user_id: userId, company_id: companyId, title })
             .select()
@@ -177,10 +210,11 @@ export async function handleUserMessage(
         currentConversationId = newConvo.id;
         historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
     } else {
-        const { data: history, error: historyError } = await supabase
+        const { data: history, error: historyError } = await getServiceRoleClient()
             .from('messages')
             .select('role, content')
             .eq('conversation_id', currentConversationId)
+            // Note: The RLS policy on 'messages' table should enforce company_id check.
             .order('created_at', { ascending: false })
             .limit(config.ai.historyLimit);
 
@@ -199,7 +233,7 @@ export async function handleUserMessage(
     }
 
 
-    await supabase.from('messages').insert({
+    await getServiceRoleClient().from('messages').insert({
         conversation_id: currentConversationId,
         company_id: companyId,
         role: 'user',
@@ -280,7 +314,7 @@ export async function handleUserMessage(
       }
     }
     
-    const { data: savedAssistantMessage, error: saveMsgError } = await supabase
+    const { data: savedAssistantMessage, error: saveMsgError } = await getServiceRoleClient()
         .from('messages')
         .insert(assistantMessage)
         .select()
