@@ -241,8 +241,6 @@ export async function handleUserMessage(
         content: userQuery,
     });
     
-    // AI query caching has been removed to ensure data freshness.
-    // The AI will now always query the live database.
     const aiStartTime = performance.now();
     const flowResponse = await universalChatFlow({
       companyId,
