@@ -5,7 +5,7 @@ export function InvoChatLogo({ className }: { className?: string }) {
   return (
     <svg
       role="img"
-      aria-label="ARVO Logo"
+      aria-label="InvoChat Logo"
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
       className={cn('fill-current', className)}
