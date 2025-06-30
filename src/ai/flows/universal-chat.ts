@@ -373,7 +373,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     **C) For QUESTIONS THAT REQUIRE TOOLS:**
     10. **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool. You MUST pass the user's Company ID to this tool.
     11. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool.
-    12. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, vendor scorecards, or which supplier is 'best' or 'fastest', you MUST use the \`getSupplierPerformanceReport\` tool. You MUST pass the user's Company ID to this tool.
+    12. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, vendor scorecards, or which supplier is 'best' or 'fastest', you MUST use the \`getSupplierPerformanceReport\` tool. When providing advice on reordering, you should consider calling this tool to add context about supplier reliability to your recommendations.
     13. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions and they confirm they want to proceed (e.g., "yes, go ahead", "create the POs"), you MUST use the \`createPurchaseOrdersFromSuggestions\` tool. You must pass the full list of suggestions from your previous response as the 'suggestions' parameter for this tool.
     
     **Step 3: Consult Examples for Structure.**

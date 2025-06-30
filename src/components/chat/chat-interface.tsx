@@ -1,11 +1,11 @@
 
 'use client';
 
-import { handleUserMessage } from '@/app/actions';
+import { handleUserMessage, getAnomalyInsights } from '@/app/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { Message } from '@/types';
+import type { Message, Anomaly } from '@/types';
 import { ArrowRight, Bot, Mic, BarChart2, Package, Truck, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
@@ -94,11 +94,46 @@ export function ChatInterface({ conversationId, initialMessages }: { conversatio
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isPending, startTransition] = useTransition();
+  const [proactiveCheckDone, setProactiveCheckDone] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { toast } = useToast();
 
   const isNewChat = !conversationId;
+
+  // Proactive Anomaly Check
+  useEffect(() => {
+    if (isNewChat && !proactiveCheckDone) {
+      setProactiveCheckDone(true);
+      
+      const checkAnomalies = async () => {
+        try {
+          const anomalies: Anomaly[] = await getAnomalyInsights();
+          if (anomalies && anomalies.length > 0) {
+            const anomaly = anomalies[0]; // Focus on the most recent one
+            const isRevenue = anomaly.anomaly_type === 'Revenue Anomaly';
+            const value = isRevenue ? `$${Number(anomaly.daily_revenue).toLocaleString()}` : anomaly.daily_customers;
+            const avgValue = isRevenue ? `$${Number(anomaly.avg_revenue).toLocaleString(undefined, {maximumFractionDigits: 0})}` : Number(anomaly.avg_customers).toLocaleString(undefined, {maximumFractionDigits: 0});
+            
+            const proactiveMessage: Message = {
+                id: `proactive_${Date.now()}`,
+                role: 'assistant',
+                content: `Welcome back! I noticed an interesting event in your data from ${new Date(anomaly.date).toLocaleDateString()}: your ${isRevenue ? 'daily revenue' : 'customer count'} was **${value}**, significantly different from the average of ${avgValue}. Would you like me to investigate why?`,
+                created_at: new Date().toISOString(),
+                conversation_id: 'proactive-welcome',
+                company_id: 'default-company-id',
+            };
+            setMessages([proactiveMessage]);
+          }
+        } catch (error) {
+            // Fail silently. We don't want to block the user's experience for a proactive check.
+            console.error("Failed to fetch proactive insights:", error);
+        }
+      };
+      checkAnomalies();
+    }
+  }, [isNewChat, proactiveCheckDone]);
+
 
   const processAndSetMessages = async (userMessageText: string) => {
     // Placeholder until auth is restored
@@ -125,7 +160,7 @@ export function ChatInterface({ conversationId, initialMessages }: { conversatio
       company_id: companyId,
     };
 
-    setMessages(prev => [...prev, optimisticUserMessage, tempLoadingMessage]);
+    setMessages(prev => [...prev.filter(m => m.conversation_id !== 'proactive-welcome'), optimisticUserMessage, tempLoadingMessage]);
 
     startTransition(async () => {
       try {
@@ -183,8 +218,10 @@ export function ChatInterface({ conversationId, initialMessages }: { conversatio
   };
   
   useEffect(() => {
-    setMessages(initialMessages);
-  }, [initialMessages]);
+    if (!isNewChat) {
+      setMessages(initialMessages);
+    }
+  }, [initialMessages, isNewChat]);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
