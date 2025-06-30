@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -125,6 +126,7 @@ export type UnifiedInventoryItem = {
   quantity: number;
   cost: number;
   total_value: number;
+  reorder_point: number | null;
 };
 
 export type TeamMember = {

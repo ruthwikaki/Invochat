@@ -17,7 +17,7 @@ import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { logError } from '@/lib/error-handler';
+import { getErrorMessage, logError } from '@/lib/error-handler';
 
 // Simple regex to validate a string is in UUID format.
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -683,7 +683,8 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
                 i.category,
                 i.quantity,
                 i.cost,
-                (i.quantity * i.cost) as total_value
+                (i.quantity * i.cost) as total_value,
+                i.reorder_point
             FROM inventory i
             WHERE i.company_id = '${companyId}'
         `;

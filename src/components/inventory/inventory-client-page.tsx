@@ -1,37 +1,46 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DataTable } from '@/components/ai-response/data-table';
 import type { UnifiedInventoryItem } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
+
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
   categories: string[];
 }
 
-function formatInventoryData(inventory: UnifiedInventoryItem[]) {
-    return inventory.map(item => ({
-        SKU: item.sku,
-        'Product Name': item.product_name,
-        Category: item.category || 'N/A',
-        Quantity: item.quantity,
-        'Unit Cost': `$${item.cost.toFixed(2)}`,
-        'Total Value': `$${item.total_value.toFixed(2)}`,
-    }));
-}
+const StatusBadge = ({ quantity, reorderPoint }: { quantity: number, reorderPoint: number | null }) => {
+    if (quantity <= 0) {
+        return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">Out of Stock</Badge>;
+    }
+    if (reorderPoint !== null && quantity < reorderPoint) {
+        return <Badge variant="secondary" className="bg-warning/10 text-amber-600 dark:text-amber-400 border-warning/20">Low Stock</Badge>;
+    }
+    return <Badge variant="secondary" className="bg-success/10 text-emerald-600 dark:text-emerald-400 border-success/20">In Stock</Badge>;
+};
 
 
 export function InventoryClientPage({ initialInventory, categories }: InventoryClientPageProps) {
-  const [inventory, setInventory] = useState(initialInventory);
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace } = useRouter();
+
+  const [selectedRows, setSelectedRows] = useState(new Set<string>());
+  const [expandedRows, setExpandedRows] = useState(new Set<string>());
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -53,8 +62,39 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
     replace(`${pathname}?${params.toString()}`);
   };
 
-  const formattedData = formatInventoryData(inventory);
+  const handleSelectAll = (checked: boolean | 'indeterminate') => {
+    if (checked === true) {
+      setSelectedRows(new Set(initialInventory.map(item => item.sku)));
+    } else {
+      setSelectedRows(new Set());
+    }
+  };
 
+  const handleSelectRow = (sku: string, checked: boolean) => {
+    const newSelectedRows = new Set(selectedRows);
+    if (checked) {
+      newSelectedRows.add(sku);
+    } else {
+      newSelectedRows.delete(sku);
+    }
+    setSelectedRows(newSelectedRows);
+  };
+
+  const toggleExpandRow = (sku: string) => {
+    const newExpandedRows = new Set(expandedRows);
+    if (newExpandedRows.has(sku)) {
+      newExpandedRows.delete(sku);
+    } else {
+      newExpandedRows.add(sku);
+    }
+    setExpandedRows(newExpandedRows);
+  };
+
+  const numSelected = selectedRows.size;
+  const numInventory = initialInventory.length;
+  const isAllSelected = numSelected > 0 && numSelected === numInventory;
+  const isSomeSelected = numSelected > 0 && numSelected < numInventory;
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -86,15 +126,114 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
       </div>
       <Card>
         <CardContent className="p-0">
-            {formattedData.length > 0 ? (
-                <DataTable data={formattedData} />
-            ) : (
-                <div className="text-center p-8 text-muted-foreground">
-                    <p>No inventory found matching your criteria.</p>
-                </div>
-            )}
+           <div className="max-h-[65vh] overflow-auto">
+             <Table>
+                <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected ? true : (isSomeSelected ? 'indeterminate' : false)}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Quantity</TableHead>
+                    <TableHead className="text-right">Unit Cost</TableHead>
+                    <TableHead className="text-right">Total Value</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-24 text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {initialInventory.length > 0 ? initialInventory.map(item => (
+                    <Fragment key={item.sku}>
+                      <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedRows.has(item.sku)}
+                            onCheckedChange={(checked) => handleSelectRow(item.sku, !!checked)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{item.product_name}</div>
+                          <div className="text-xs text-muted-foreground">{item.sku}</div>
+                        </TableCell>
+                        <TableCell>{item.category || 'N/A'}</TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell className="text-right">${item.cost.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                            <div className="flex items-center justify-center">
+                               <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                        <DropdownMenuItem><Truck className="mr-2 h-4 w-4" />Reorder</DropdownMenuItem>
+                                        <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => toggleExpandRow(item.sku)}
+                                >
+                                    <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.sku) && "rotate-180")} />
+                                </Button>
+                            </div>
+                        </TableCell>
+                      </TableRow>
+                      {expandedRows.has(item.sku) && (
+                        <TableRow className="bg-muted/50 hover:bg-muted/80">
+                            <TableCell colSpan={8} className="p-4">
+                                <div className="text-sm">
+                                    <p><strong>Detailed Info:</strong> This product costs ${item.cost.toFixed(2)} per unit. With {item.quantity} units in stock, the total value is ${item.total_value.toFixed(2)}. The reorder point is set to {item.reorder_point || 'N/A'}.</p>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  )) : (
+                    <TableRow>
+                        <TableCell colSpan={8} className="h-24 text-center">
+                            No inventory found matching your criteria.
+                        </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+           </div>
         </CardContent>
       </Card>
+      
+       <AnimatePresence>
+            {numSelected > 0 && (
+                <motion.div
+                    initial={{ y: 100, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 100, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    className="fixed bottom-4 left-1/2 -translate-x-1/2 w-auto"
+                >
+                    <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
+                        <p className="text-sm font-medium">{numSelected} item(s) selected</p>
+                        <Button variant="outline" size="sm">Edit Selected</Button>
+                        <Button variant="destructive" size="sm">Delete Selected</Button>
+                        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
+                            <X className="h-4 w-4"/>
+                        </Button>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     </div>
   );
 }
