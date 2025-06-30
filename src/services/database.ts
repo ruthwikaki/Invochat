@@ -17,6 +17,7 @@ import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
+import { logError } from '@/lib/error-handler';
 
 // Simple regex to validate a string is in UUID format.
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -47,7 +48,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             .single();
         
         if (error && error.code !== 'PGRST116') {
-            logger.error(`[DB Service] Error fetching company settings for ${companyId}:`, error);
+            logError(error, { context: `Error fetching company settings for ${companyId}` });
             throw error;
         }
 
@@ -79,7 +80,7 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
             .single();
         
         if (insertError) {
-            logger.error(`[DB Service] Failed to insert default settings for company ${companyId}:`, insertError);
+            logError(insertError, { context: `Failed to insert default settings for company ${companyId}` });
             throw insertError;
         }
 
@@ -122,7 +123,7 @@ export async function updateCompanySettings(companyId: string, settings: Partial
             .single();
             
         if (error) {
-            logger.error(`[DB Service] Error updating settings for ${companyId}:`, error);
+            logError(error, { context: `Error updating settings for ${companyId}` });
             throw error;
         }
         
@@ -153,7 +154,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             .eq('company_id', companyId)
             .single();
 
-        if (mvError) logger.warn(`[DB Service] Could not fetch from materialized view for company ${companyId}:`, mvError.message);
+        if (mvError) logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
 
         const combinedQuery = `
             WITH date_range AS (
@@ -214,7 +215,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         const { data: combinedData, error: combinedError } = await supabase.rpc('execute_dynamic_query', { query_text: combinedQuery.trim().replace(/;/g, '') });
         
         if (combinedError) {
-            logger.error(`[DB Service] Dashboard combined query failed for company ${companyId}:`, combinedError);
+            logError(combinedError, { context: `Dashboard combined query failed for company ${companyId}` });
             throw combinedError;
         }
 
@@ -241,7 +242,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', config.redis.ttl.dashboard);
                 logger.info(`[Cache] SET for dashboard metrics: ${cacheKey}`);
             } catch (error) {
-                logger.error(`[Redis] Error setting cache for ${cacheKey}:`, error);
+                logError(error, { context: `Redis error setting cache for ${cacheKey}` });
             }
         }
         return finalMetrics;
@@ -255,14 +256,14 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         logger.info(`[Cache] HIT (Stale-While-Revalidate) for dashboard metrics: ${cacheKey}`);
         await incrementCacheHit('dashboard');
         fetchAndCacheMetrics().catch(err => {
-            logger.error(`[SWR Background Revalidation] Failed to revalidate cache for ${cacheKey}:`, err);
+            logError(err, { context: `SWR Background Revalidation failed for ${cacheKey}` });
         });
         return JSON.parse(cachedData);
       }
       logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
       await incrementCacheMiss('dashboard');
     } catch (error) {
-      logger.error(`[Redis] Error getting cache for ${cacheKey}. Fetching directly from DB.`, error);
+      logError(error, { context: `Redis error getting cache for ${cacheKey}. Fetching directly from DB.` });
     }
   }
   return fetchAndCacheMetrics();
@@ -293,7 +294,7 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
     });
 
     if (error) {
-        logger.error(`[DB Service] Error fetching raw dead stock data for company ${companyId}:`, error);
+        logError(error, { context: `Error fetching raw dead stock data for company ${companyId}` });
         return [];
     }
 
@@ -312,7 +313,7 @@ export async function getDeadStockPageData(companyId: string) {
                     return JSON.parse(cachedData);
                 }
                 await incrementCacheMiss('deadstock');
-            } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
+            } catch(e) { logError(e, { context: `Redis error getting cache for ${cacheKey}` }); }
         }
 
         const settings = await getCompanySettings(companyId);
@@ -330,7 +331,7 @@ export async function getDeadStockPageData(companyId: string) {
         if (isRedisEnabled) {
         try {
             await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 3600);
-        } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+        } catch (e) { logError(e, { context: `Redis error setting cache for ${cacheKey}` }); }
         }
 
         return result;
@@ -349,7 +350,7 @@ export async function getSuppliersFromDB(companyId: string) {
                     return JSON.parse(cachedData);
                 }
                 await incrementCacheMiss('suppliers');
-            } catch (e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e) }
+            } catch (e) { logError(e, { context: `Redis error getting cache for ${cacheKey}` }); }
         }
 
         const supabase = getServiceRoleClient();
@@ -359,7 +360,7 @@ export async function getSuppliersFromDB(companyId: string) {
             .eq('company_id', companyId);
         
         if (error) {
-            logger.error('Error fetching suppliers from DB', error);
+            logError(error, { context: 'Error fetching suppliers from DB' });
             throw new Error(`Could not load supplier data: ${error.message}`);
         }
         
@@ -368,7 +369,7 @@ export async function getSuppliersFromDB(companyId: string) {
         if (isRedisEnabled) {
         try {
             await redisClient.set(cacheKey, JSON.stringify(result), 'EX', 600);
-        } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e) }
+        } catch (e) { logError(e, { context: `Redis error setting cache for ${cacheKey}` }); }
         }
 
         return result;
@@ -388,7 +389,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                     return JSON.parse(cachedData);
                 }
                 await incrementCacheMiss('alerts');
-            } catch(e) { logger.error(`[Redis] Error getting cache for ${cacheKey}`, e); }
+            } catch(e) { logError(e, { context: `Redis error getting cache for ${cacheKey}` }); }
         }
         
         const supabase = getServiceRoleClient();
@@ -404,7 +405,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             .rpc('execute_dynamic_query', { query_text: lowStockQuery.trim().replace(/;/g, '') });
 
         if (lowStockError) {
-            logger.warn('[DB Service] Could not check for low stock items:', lowStockError.message);
+            logError(lowStockError, { context: 'Could not check for low stock items' });
         } else if (lowStockItems) {
             for (const item of lowStockItems) {
                 const alert: Alert = {
@@ -448,7 +449,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         if (isRedisEnabled) {
             try {
                 await redisClient.set(cacheKey, JSON.stringify(alerts), 'EX', 3600);
-            } catch (e) { logger.error(`[Redis] Error setting cache for ${cacheKey}`, e); }
+            } catch (e) { logError(e, { context: `Redis error setting cache for ${cacheKey}` }); }
         }
 
         return alerts;
@@ -496,7 +497,7 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
 
             if (error) {
                 if (!error.message.includes("does not exist")) {
-                    logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. It might not be configured for the current company. Error: ${error.message}`);
+                    logError(error, { context: `Could not fetch data for table '${tableName}'` });
                 }
                 // Even on error, push the table name so the UI knows it was attempted
                 results.push({ tableName, rows: [] });
@@ -516,7 +517,7 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
             
             if (error) {
                  if (!error.message.includes("does not exist")) {
-                    logger.warn(`[Database Explorer] Could not fetch data for table '${tableName}'. Error: ${error.message}`);
+                    logError(error, { context: `Could not fetch data for table '${tableName}'` });
                 }
                 results.push({ tableName, rows: [] });
             } else {
@@ -548,7 +549,7 @@ export async function getQueryPatternsForCompany(
             .limit(limit);
 
         if (error) {
-            logger.warn(`[DB Service] Could not fetch query patterns for company ${companyId}: ${error.message}`);
+            logError(error, { context: `Could not fetch query patterns for company ${companyId}` });
             return [];
         }
 
@@ -573,7 +574,7 @@ export async function saveSuccessfulQuery(
             .single();
 
         if (selectError && selectError.code !== 'PGRST116') {
-            logger.warn(`[DB Service] Could not check for existing query pattern: ${selectError.message}`);
+            logError(selectError, { context: 'Could not check for existing query pattern' });
             return;
         }
 
@@ -588,7 +589,7 @@ export async function saveSuccessfulQuery(
                 .eq('id', existingPattern.id);
 
             if (updateError) {
-                logger.warn(`[DB Service] Could not update query pattern: ${updateError.message}`);
+                logError(updateError, { context: 'Could not update query pattern' });
             } else {
                 logger.debug(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
             }
@@ -604,7 +605,7 @@ export async function saveSuccessfulQuery(
                 });
 
             if (insertError) {
-                logger.warn(`[DB Service] Could not insert new query pattern: ${insertError.message}`);
+                logError(insertError, { context: 'Could not insert new query pattern' });
             } else {
                 logger.info(`[DB Service] Inserted new query pattern for question: "${userQuestion}"`);
             }
@@ -661,7 +662,7 @@ export async function generateAnomalyInsights(companyId: string): Promise<any[]>
         });
 
         if (error) {
-            logger.error(`[DB Service] Error generating anomaly insights for company ${companyId}:`, error);
+            logError(error, { context: `Error generating anomaly insights for company ${companyId}` });
             throw new Error(`Failed to generate anomaly insights: ${error.message}`);
         }
 
@@ -701,7 +702,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         });
 
         if (error) {
-            logger.error(`[DB Service] Error fetching unified inventory for company ${companyId}:`, error);
+            logError(error, { context: `Error fetching unified inventory for company ${companyId}` });
             throw error;
         }
 
@@ -725,7 +726,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
         });
 
         if (error) {
-            logger.error(`[DB Service] Error fetching inventory categories for company ${companyId}:`, error);
+            logError(error, { context: `Error fetching inventory categories for company ${companyId}` });
             return [];
         }
         
@@ -743,7 +744,7 @@ export async function getTeamMembersFromDB(companyId: string): Promise<TeamMembe
             .eq('company_id', companyId);
 
         if (error) {
-            logger.error(`[DB Service] Error fetching team members for company ${companyId}:`, error);
+            logError(error, { context: `Error fetching team members for company ${companyId}` });
             throw error;
         }
         return data as TeamMember[];
@@ -763,7 +764,7 @@ export async function inviteUserToCompany(companyId: string, companyName: string
         });
 
         if (error) {
-            logger.error(`[DB Service] Error inviting user ${email} to company ${companyId}:`, error);
+            logError(error, { context: `Error inviting user ${email} to company ${companyId}` });
             if (error.message.includes('User already exists')) {
                 throw new Error('This user already exists in the system. They cannot be invited again.');
             }
@@ -814,7 +815,7 @@ export async function updateTeamMemberRoleInDb(
             .eq('company_id', companyId);
 
         if (updateError) {
-            logger.error(`[DB Service] Failed to update role for ${memberIdToUpdate}:`, updateError);
+            logError(updateError, { context: `Failed to update role for ${memberIdToUpdate}` });
             return { success: false, error: updateError.message };
         }
 

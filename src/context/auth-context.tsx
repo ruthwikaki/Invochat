@@ -6,7 +6,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { User } from '@/types';
 import { useRouter } from 'next/navigation';
 import type { SupabaseClient, Subscription } from '@supabase/supabase-js';
-import { logger } from '@/lib/logger';
+import { logError } from '@/lib/error-handler';
 
 interface AuthContextType {
   user: User | null;
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     const { error } = await supabase.auth.signOut();
     if (error) {
-      logger.error('Error signing out:', error);
+      logError(error, { context: 'signOut' });
     }
     router.push('/login');
   }, [supabase, router]);
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(session?.user as User ?? null);
         }
       } catch (error) {
-        logger.error('Error getting initial auth session:', error);
+        logError(error, { context: 'getSession in auth-context' });
       } finally {
         if (mounted) {
           setLoading(false);

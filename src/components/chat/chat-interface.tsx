@@ -14,6 +14,7 @@ import { config } from '@/config/app-config';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardContent } from '@/components/ui/card';
+import { getErrorMessage } from '@/lib/error-handler';
 
 const quickActions = config.chat.quickActions;
 
@@ -117,11 +118,11 @@ export function ChatInterface({ conversationId, initialMessages }: ChatInterface
             router.refresh(); // Refresh server-side data like conversation list
         }
 
-      } catch (error: any) {
+      } catch (error) {
         const errorMessage: Message = {
             id: `error_${Date.now()}`,
             role: 'assistant',
-            content: error.message || 'Could not get response from InvoChat.',
+            content: getErrorMessage(error) || 'Could not get response from InvoChat.',
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
             company_id: companyId,
