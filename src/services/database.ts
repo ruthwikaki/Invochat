@@ -53,7 +53,7 @@ export async function refreshMaterializedViews(companyId: string): Promise<void>
     });
 }
 
-export async function getCompanySettings(companyId: string): Promise<CompanySettings> {
+export async function getSettings(companyId: string): Promise<CompanySettings> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     
     return withPerformanceTracking('getCompanySettings', async () => {
@@ -283,7 +283,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
       logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
       await incrementCacheMiss('dashboard');
     } catch (error) {
-        logError(error, { context: `Redis error getting cache for ${cacheKey}. Fetching directly from DB.` });
+        logError(error, { context: `Redis error getting cache for ${cacheKey}` });
     }
   }
   return fetchAndCacheMetrics();
@@ -343,7 +343,7 @@ export async function getDeadStockPageData(companyId: string) {
             } catch(e) { logError(e, { context: `Redis error getting cache for ${cacheKey}` }); }
         }
 
-        const settings = await getCompanySettings(companyId);
+        const settings = await getSettings(companyId);
         const deadStockItems = await getRawDeadStockData(companyId, settings);
         
         const totalValue = deadStockItems.reduce((sum, item) => sum + (item.total_value || 0), 0);
@@ -619,7 +619,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         }
         
         const supabase = getServiceRoleClient();
-        const settings = await getCompanySettings(companyId);
+        const settings = await getSettings(companyId);
         const alerts: Alert[] = [];
         
         const lowStockQuery = `
@@ -692,7 +692,7 @@ const USER_FACING_TABLES = [
     'purchase_order_items'
 ];
 
-export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: unknown[] }[]> {
+export async function getDbSchemaAndData(companyId: string): Promise<{ tableName: string; rows: unknown[] }[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getDatabaseSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
@@ -1045,7 +1045,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getReorderSuggestionsFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const settings = await getCompanySettings(companyId);
+        const settings = await getSettings(companyId);
 
         // This query identifies items that are below their reorder point and suggests an order quantity.
         const query = `
