@@ -4,9 +4,11 @@
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
 import { useCallback, useTransition } from 'react';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 
 export function DashboardHeaderControls() {
   const router = useRouter();
@@ -27,6 +29,7 @@ export function DashboardHeaderControls() {
   const handleRangeChange = (newRange: string) => {
     startTransition(() => {
         router.push(`${pathname}?${createQueryString('range', newRange)}`);
+        router.refresh();
     });
   };
 
@@ -48,6 +51,20 @@ export function DashboardHeaderControls() {
           <SelectItem value="90d">Last 90 Days</SelectItem>
         </SelectContent>
       </Select>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon" disabled={isPending}>
+            <CalendarIcon className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+            mode="single"
+            disabled
+          />
+           <p className="p-2 text-center text-xs text-muted-foreground">Custom date ranges coming soon!</p>
+        </PopoverContent>
+      </Popover>
       <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isPending}>
         <RefreshCw className={cn("h-4 w-4", isPending && "animate-spin")} />
         <span className="sr-only">Refresh data</span>

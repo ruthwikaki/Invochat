@@ -9,80 +9,107 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 98%; /* Off-white #FAFAFA */
+    --background: 240 10% 99%; /* Lighter gray for a very clean look */
     --foreground: 222 47% 11%; /* Gray-900 #111827 */
-    --card: 0 0% 100%; /* White #FFFFFF */
+    
+    --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
+    
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 262 84% 59%; /* Vibrant Purple */
+    
+    --primary: 262 84% 59%; /* Deep Purple/Violet */
     --primary-foreground: 0 0% 98%;
-    --secondary: 222 22% 45%; /* Slate #475569 */
-    --secondary-foreground: 0 0% 98%;
+
+    --secondary: 220 14% 96%; /* Light gray */
+    --secondary-foreground: 222 47% 11%;
+
     --muted: 220 14% 96%;
     --muted-foreground: 222 8% 50%;
-    --accent: 220 13% 91%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 350 89% 60%; /* Rose #F43F5E */
+    
+    --accent: 262 84% 59% / 0.1; /* Faint purple for accents */
+    --accent-foreground: 262 84% 59%;
+    
+    --destructive: 350 89% 60%;
     --destructive-foreground: 0 0% 98%;
-    --warning: 38 92% 50%; /* Amber #F59E0B */
+    
+    --warning: 38 92% 50%;
     --warning-foreground: 222 47% 11%;
-    --success: 160 84% 39%; /* Emerald #10B981 */
+    
+    --success: 160 84% 39%;
     --success-foreground: 0 0% 98%;
-    --border: 220 13% 89%;
+    
+    --border: 220 13% 91%;
     --input: 220 13% 89%;
-    --ring: 262 84% 59%; /* Vibrant Purple */
+    --ring: 262 84% 59%;
+    
     --radius: 0.75rem;
 
-    --chart-1: 262 84% 59%; /* Vibrant Purple */
-    --chart-2: 222 22% 45%;
-    --chart-3: 160 84% 39%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 350 89% 60%;
+    --chart-1: 262 84% 59%;
+    --chart-2: 262 74% 69%;
+    --chart-3: 262 64% 79%;
+    --chart-4: 262 54% 89%;
+    --chart-5: 222 22% 45%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 262 84% 59%; /* Vibrant Purple */
+    --sidebar-primary: 262 84% 59%;
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 220 14% 96%;
     --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 220 13% 89%;
-    --sidebar-ring: 262 84% 59%; /* Vibrant Purple */
+    --sidebar-ring: 262 84% 59%;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 0 0% 98%;
-    --card: 224 30% 15%;
+    --background: 224 71% 4%; /* Near black */
+    --foreground: 0 0% 98%; /* White */
+
+    --card: 224 30% 12%; /* Slightly lighter than background */
     --card-foreground: 0 0% 98%;
-    --popover: 224 30% 15%;
+
+    --popover: 224 30% 12%;
     --popover-foreground: 0 0% 98%;
-    --primary: 262 84% 59%; /* Vibrant Purple */
+
+    --primary: 262 84% 64%; /* A slightly brighter violet for dark mode */
     --primary-foreground: 0 0% 98%;
-    --secondary: 222 22% 45%;
+
+    --secondary: 223 22% 19%;
     --secondary-foreground: 0 0% 98%;
+
     --muted: 223 22% 19%;
     --muted-foreground: 220 14% 65%;
-    --accent: 223 22% 19%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 350 89% 60%;
+
+    --accent: 262 84% 64% / 0.1;
+    --accent-foreground: 262 84% 64%;
+
+    --destructive: 350 70% 55%;
     --destructive-foreground: 0 0% 98%;
-    --warning: 38 92% 50%;
+    
+    --warning: 38 92% 55%;
     --warning-foreground: 222 47% 11%;
-    --success: 160 84% 39%;
+    
+    --success: 160 70% 45%;
     --success-foreground: 0 0% 98%;
+
     --border: 223 22% 19%;
     --input: 223 22% 19%;
-    --ring: 262 84% 59%; /* Vibrant Purple */
+    --ring: 262 84% 64%;
     
-    --sidebar-background: 222 47% 11%;
+    --chart-1: 262 84% 64%;
+    --chart-2: 262 74% 74%;
+    --chart-3: 262 64% 84%;
+    --chart-4: 222 22% 45%;
+    --chart-5: 222 22% 65%;
+
+    --sidebar-background: 224 71% 4%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 0 0% 98%;
     --sidebar-primary-foreground: 222 47% 11%;
     --sidebar-accent: 223 22% 19%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 223 22% 19%;
-    --sidebar-ring: 262 84% 59%; /* Vibrant Purple */
+    --sidebar-ring: 262 84% 64%;
   }
 }
 
