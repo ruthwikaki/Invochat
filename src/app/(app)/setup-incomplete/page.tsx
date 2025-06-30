@@ -260,21 +260,38 @@ BEGIN
 END$$;
 
 
--- Create the main purchase_orders table.
+-- Create the main purchase_orders table if it doesn't exist.
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
-    po_number TEXT NOT NULL,
-    status po_status NOT NULL DEFAULT 'draft',
-    order_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    expected_date DATE,
-    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_po_number_per_company UNIQUE (company_id, po_number)
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add columns idempotently to ensure the table has the correct structure.
+-- This prevents errors if the table was created with an older schema.
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS supplier_id UUID REFERENCES public.vendors(id) ON DELETE CASCADE;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS po_number TEXT;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS status po_status;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS order_date DATE;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS expected_date DATE;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2);
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
+
+
+-- Add unique constraint if it doesn't exist. This is safer for re-running the script.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'unique_po_number_per_company'
+        AND conrelid = 'public.purchase_orders'::regclass
+    ) THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT unique_po_number_per_company UNIQUE (company_id, po_number);
+    END IF;
+END$$;
+
+
 CREATE INDEX IF NOT EXISTS idx_po_company_supplier ON public.purchase_orders(company_id, supplier_id);
 CREATE INDEX IF NOT EXISTS idx_po_company_status ON public.purchase_orders(company_id, status);
 
