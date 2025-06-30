@@ -18,6 +18,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getErrorMessage } from '@/lib/error-handler';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 function SupplierCard({ supplier }: { supplier: Supplier }) {
   return (
@@ -130,12 +133,22 @@ export default function SuppliersPage() {
           ))
         ) : (
           <div className="col-span-full">
-            <Card className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed">
-                <Truck className="h-12 w-12 text-muted-foreground" />
+            <Card className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed p-6">
+                <motion.div
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2, type: 'spring' }}
+                    className="bg-primary/10 rounded-full p-4"
+                >
+                    <Truck className="h-12 w-12 text-primary" />
+                </motion.div>
                 <h3 className="mt-4 text-lg font-semibold">No Suppliers Found</h3>
                 <p className="text-muted-foreground">
-                    {suppliers.length > 0 ? "No suppliers match your search." : "Import supplier data to see it here."}
+                    {suppliers.length > 0 ? "No suppliers match your search." : "Get started by importing your supplier data."}
                 </p>
+                 <Button asChild variant="default" className="mt-4">
+                    <Link href="/import">Import Suppliers</Link>
+                </Button>
             </Card>
           </div>
         )}

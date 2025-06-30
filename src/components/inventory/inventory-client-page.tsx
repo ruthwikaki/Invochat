@@ -4,11 +4,12 @@
 import { useState, useMemo, Fragment } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
+import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,36 @@ const StatusBadge = ({ quantity, reorderPoint }: { quantity: number, reorderPoin
     }
     return <Badge variant="secondary" className="bg-success/10 text-emerald-600 dark:text-emerald-400 border-success/20">In Stock</Badge>;
 };
+
+function EmptyInventoryState() {
+  return (
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+        className="relative bg-primary/10 rounded-full p-6"
+      >
+        <Package className="h-16 w-16 text-primary" />
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="absolute -top-2 -right-2 text-primary"
+        >
+          <Sparkles className="h-8 w-8" />
+        </motion.div>
+      </motion.div>
+      <h3 className="mt-6 text-xl font-semibold">Your Inventory is Empty</h3>
+      <p className="mt-2 text-muted-foreground">
+        Import your products to get started with inventory management.
+      </p>
+      <Button asChild className="mt-6">
+        <Link href="/import">Import Inventory</Link>
+      </Button>
+    </Card>
+  );
+}
 
 
 export function InventoryClientPage({ initialInventory, categories }: InventoryClientPageProps) {
@@ -95,6 +126,10 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
   const isAllSelected = numSelected > 0 && numSelected === numInventory;
   const isSomeSelected = numSelected > 0 && numSelected < numInventory;
   
+  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category');
+  const showEmptyState = initialInventory.length === 0 && !isFiltered;
+  const showNoResultsState = initialInventory.length === 0 && isFiltered;
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -124,95 +159,98 @@ export function InventoryClientPage({ initialInventory, categories }: InventoryC
           </SelectContent>
         </Select>
       </div>
-      <Card>
-        <CardContent className="p-0">
-           <div className="max-h-[65vh] overflow-auto">
-             <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={isAllSelected ? true : (isSomeSelected ? 'indeterminate' : false)}
-                        onCheckedChange={handleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead className="text-right">Quantity</TableHead>
-                    <TableHead className="text-right">Unit Cost</TableHead>
-                    <TableHead className="text-right">Total Value</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-24 text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {initialInventory.length > 0 ? initialInventory.map(item => (
-                    <Fragment key={item.sku}>
-                      <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedRows.has(item.sku)}
-                            onCheckedChange={(checked) => handleSelectRow(item.sku, !!checked)}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{item.product_name}</div>
-                          <div className="text-xs text-muted-foreground">{item.sku}</div>
-                        </TableCell>
-                        <TableCell>{item.category || 'N/A'}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">${item.cost.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
-                        </TableCell>
-                        <TableCell className="text-center">
-                            <div className="flex items-center justify-center">
-                               <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                                        <DropdownMenuItem><Truck className="mr-2 h-4 w-4" />Reorder</DropdownMenuItem>
-                                        <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => toggleExpandRow(item.sku)}
-                                >
-                                    <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.sku) && "rotate-180")} />
-                                </Button>
-                            </div>
-                        </TableCell>
-                      </TableRow>
-                      {expandedRows.has(item.sku) && (
-                        <TableRow className="bg-muted/50 hover:bg-muted/80">
-                            <TableCell colSpan={8} className="p-4">
-                                <div className="text-sm">
-                                    <p><strong>Detailed Info:</strong> This product costs ${item.cost.toFixed(2)} per unit. With {item.quantity} units in stock, the total value is ${item.total_value.toFixed(2)}. The reorder point is set to {item.reorder_point || 'N/A'}.</p>
-                                </div>
-                            </TableCell>
+
+        {showEmptyState ? <EmptyInventoryState /> : (
+            <Card>
+                <CardContent className="p-0">
+                <div className="max-h-[65vh] overflow-auto">
+                    <Table>
+                        <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+                        <TableRow>
+                            <TableHead className="w-12">
+                            <Checkbox
+                                checked={isAllSelected ? true : (isSomeSelected ? 'indeterminate' : false)}
+                                onCheckedChange={handleSelectAll}
+                            />
+                            </TableHead>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Category</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead className="text-right">Unit Cost</TableHead>
+                            <TableHead className="text-right">Total Value</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="w-24 text-center">Actions</TableHead>
                         </TableRow>
-                      )}
-                    </Fragment>
-                  )) : (
-                    <TableRow>
-                        <TableCell colSpan={8} className="h-24 text-center">
-                            No inventory found matching your criteria.
-                        </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-           </div>
-        </CardContent>
-      </Card>
+                        </TableHeader>
+                        <TableBody>
+                        {showNoResultsState ? (
+                            <TableRow>
+                                <TableCell colSpan={8} className="h-24 text-center">
+                                    No inventory found matching your criteria.
+                                </TableCell>
+                            </TableRow>
+                        ) : initialInventory.map(item => (
+                            <Fragment key={item.sku}>
+                            <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
+                                <TableCell>
+                                <Checkbox
+                                    checked={selectedRows.has(item.sku)}
+                                    onCheckedChange={(checked) => handleSelectRow(item.sku, !!checked)}
+                                />
+                                </TableCell>
+                                <TableCell>
+                                <div className="font-medium">{item.product_name}</div>
+                                <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                </TableCell>
+                                <TableCell>{item.category || 'N/A'}</TableCell>
+                                <TableCell className="text-right">{item.quantity}</TableCell>
+                                <TableCell className="text-right">${item.cost.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
+                                <TableCell>
+                                <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
+                                </TableCell>
+                                <TableCell className="text-center">
+                                    <div className="flex items-center justify-center">
+                                    <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                                <DropdownMenuItem><Truck className="mr-2 h-4 w-4" />Reorder</DropdownMenuItem>
+                                                <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" />Delete</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            onClick={() => toggleExpandRow(item.sku)}
+                                        >
+                                            <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.sku) && "rotate-180")} />
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                            {expandedRows.has(item.sku) && (
+                                <TableRow className="bg-muted/50 hover:bg-muted/80">
+                                    <TableCell colSpan={8} className="p-4">
+                                        <div className="text-sm">
+                                            <p><strong>Detailed Info:</strong> This product costs ${item.cost.toFixed(2)} per unit. With {item.quantity} units in stock, the total value is ${item.total_value.toFixed(2)}. The reorder point is set to {item.reorder_point || 'N/A'}.</p>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            </Fragment>
+                        ))}
+                        </TableBody>
+                    </Table>
+                </div>
+                </CardContent>
+            </Card>
+        )}
       
        <AnimatePresence>
             {numSelected > 0 && (

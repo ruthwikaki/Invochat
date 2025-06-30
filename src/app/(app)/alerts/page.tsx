@@ -27,6 +27,7 @@ import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { motion } from 'framer-motion';
 
 
 function AlertCard({ alert }: { alert: Alert }) {
@@ -136,11 +137,22 @@ export default function AlertsPage() {
             <AlertCard key={alert.id} alert={alert} />
           ))
         ) : (
-          <div className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed rounded-lg bg-card">
-            <CheckCircle className="h-12 w-12 text-muted-foreground" />
+          <Card className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed">
+            <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200, damping: 10 }}
+            >
+                <div className="bg-success/10 rounded-full p-4">
+                    <CheckCircle className="h-12 w-12 text-success" />
+                </div>
+            </motion.div>
             <h3 className="mt-4 text-lg font-semibold">All Clear!</h3>
             <p className="text-muted-foreground">You have no active alerts based on your current settings.</p>
-          </div>
+             <Button asChild className="mt-4">
+                <Link href="/settings">Configure Alerts</Link>
+            </Button>
+          </Card>
         )}
       </div>
 

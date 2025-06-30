@@ -39,8 +39,16 @@ function ChatWelcomePanel({ onQuickActionClick }: { onQuickActionClick: (action:
       <div className="flex h-full flex-col items-center justify-center text-center p-4">
         <motion.div
             initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}
+            animate={{ 
+                scale: 1, 
+                opacity: 1,
+                rotate: [0, -5, 5, -5, 5, 0],
+            }}
+            transition={{
+                scale: { type: 'spring', stiffness: 260, damping: 20, delay: 0.2 },
+                opacity: { duration: 0.3, delay: 0.2 },
+                rotate: { repeat: Infinity, duration: 3, ease: 'easeInOut', delay: 1 }
+            }}
             className="flex flex-col items-center justify-center p-8 rounded-full bg-card shadow-xl"
         >
             <Bot className="h-16 w-16 text-primary" />
