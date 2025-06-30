@@ -101,7 +101,7 @@ function SparklineMetricCard({
     const trendColor = trendDirection === 'up' ? 'text-success' : 'text-destructive';
 
     return (
-        <Card className="h-full">
+        <Card className="h-full hover:shadow-lg transition-shadow duration-300">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
                 <Icon className="h-5 w-5 text-muted-foreground" />
@@ -203,20 +203,24 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
                         <div className="lg:col-span-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-                                <GradientMetricCard
-                                    title="Total Revenue"
-                                    value={formatCurrency(data.totalSalesValue)}
-                                    icon={BarChart}
-                                    trend="+12.5% this month"
-                                    gradient="bg-gradient-to-br from-primary to-violet-500"
-                                />
-                                <GradientMetricCard
-                                    title="Total Profit"
-                                    value={formatCurrency(data.totalProfit)}
-                                    icon={TrendingUp}
-                                    trend="+8.2% this month"
-                                    gradient="bg-gradient-to-br from-emerald-500 to-green-500"
-                                />
+                                <Link href="/analytics">
+                                    <GradientMetricCard
+                                        title="Total Revenue"
+                                        value={formatCurrency(data.totalSalesValue)}
+                                        icon={BarChart}
+                                        trend="+12.5% this month"
+                                        gradient="bg-gradient-to-br from-primary to-violet-500"
+                                    />
+                                </Link>
+                                <Link href="/analytics">
+                                    <GradientMetricCard
+                                        title="Total Profit"
+                                        value={formatCurrency(data.totalProfit)}
+                                        icon={TrendingUp}
+                                        trend="+8.2% this month"
+                                        gradient="bg-gradient-to-br from-emerald-500 to-green-500"
+                                    />
+                                </Link>
                             </div>
                         </div>
                         <Card className="lg:col-span-1 p-4 flex flex-col justify-center">
@@ -237,22 +241,26 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
 
                     {/* Second Row: Sparkline Metric Cards */}
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                        <SparklineMetricCard
-                            title="Average Order Value"
-                            value={formatCurrency(data.averageOrderValue)}
-                            icon={DollarSign}
-                            sparklineData={mockSparkline}
-                            trendValue="+5.1%"
-                            trendDirection="up"
-                        />
-                        <SparklineMetricCard
-                            title="Inventory Value"
-                            value={formatCurrency(data.totalInventoryValue)}
-                            icon={Package}
-                            sparklineData={mockSparkline.slice().reverse()}
-                            trendValue="-1.2%"
-                            trendDirection="down"
-                        />
+                        <Link href="/analytics">
+                            <SparklineMetricCard
+                                title="Average Order Value"
+                                value={formatCurrency(data.averageOrderValue)}
+                                icon={DollarSign}
+                                sparklineData={mockSparkline}
+                                trendValue="+5.1%"
+                                trendDirection="up"
+                            />
+                        </Link>
+                        <Link href="/inventory">
+                             <SparklineMetricCard
+                                title="Inventory Value"
+                                value={formatCurrency(data.totalInventoryValue)}
+                                icon={Package}
+                                sparklineData={mockSparkline.slice().reverse()}
+                                trendValue="-1.2%"
+                                trendDirection="down"
+                            />
+                        </Link>
                          <SparklineMetricCard
                             title="Return Rate"
                             value={`${data.returnRate.toFixed(1)}%`}
@@ -261,14 +269,16 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
                             trendValue="-0.5%"
                             trendDirection="down"
                         />
-                        <SparklineMetricCard
-                            title="Low Stock SKUs"
-                            value={formatNumber(data.lowStockItemsCount)}
-                            icon={AlertTriangle}
-                            sparklineData={mockSparkline.slice().reverse()}
-                            trendValue="+3 items"
-                            trendDirection="up"
-                        />
+                         <Link href="/reordering">
+                            <SparklineMetricCard
+                                title="Low Stock SKUs"
+                                value={formatNumber(data.lowStockItemsCount)}
+                                icon={AlertTriangle}
+                                sparklineData={mockSparkline.slice().reverse()}
+                                trendValue="+3 items"
+                                trendDirection="up"
+                            />
+                        </Link>
                     </div>
 
                     {/* Bottom Row: Main Charts */}
@@ -282,4 +292,3 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
         </AppPage>
     );
 }
-
