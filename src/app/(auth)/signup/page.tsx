@@ -18,6 +18,7 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
+import { motion } from 'framer-motion';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -38,22 +39,29 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
           <InvoChatLogo className="h-10 w-10" />
           <h1>InvoChat</h1>
         </div>
-        <Card className="w-full max-w-sm text-center">
-            <CardHeader>
-                <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
-                    <CheckCircle className="h-8 w-8 text-success" />
-                </div>
-                <CardTitle className="mt-4">Success!</CardTitle>
-                <CardDescription>
-                    Please check your email to verify your account, then sign in.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button asChild className="w-full">
-                    <Link href="/login">Back to Sign In</Link>
-                </Button>
-            </CardContent>
-        </Card>
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="w-full"
+        >
+            <Card className="w-full max-w-sm text-center mx-auto">
+                <CardHeader>
+                    <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
+                        <CheckCircle className="h-8 w-8 text-success" />
+                    </div>
+                    <CardTitle className="mt-4">Success!</CardTitle>
+                    <CardDescription>
+                        Please check your email to verify your account, then sign in.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button asChild className="w-full">
+                        <Link href="/login">Back to Sign In</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </motion.div>
       </div>
     );
   }

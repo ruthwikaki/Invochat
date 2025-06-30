@@ -151,8 +151,8 @@ export function ImporterClientPage() {
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
                         <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
                         <CardTitle className="mt-4">Processing File...</CardTitle>
-                        <CardDescription className="mt-2">
-                            Validating rows and importing data. Please wait.
+                        <CardDescription className="mt-2 max-w-xs">
+                            Validating rows and importing data. This may take a moment for large files. Please wait.
                         </CardDescription>
                     </Card>
                 )}

@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings } from '@/types';
 import { getCompanySettings, updateCompanySettings } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
@@ -182,6 +182,7 @@ export default function SettingsPage() {
 
                     <div className="flex justify-end pt-4">
                         <Button type="submit" disabled={isPending || loading} size="lg">
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {isPending ? 'Saving...' : 'Save All Settings'}
                         </Button>
                     </div>
