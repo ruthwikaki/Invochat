@@ -16,9 +16,9 @@ import { useToast } from '@/hooks/use-toast';
 
 const importOptions = {
     inventory: {
-        label: 'Inventory Valuation',
+        label: 'Inventory',
         description: 'Import your core inventory data, including SKU, name, quantity, and cost.',
-        columns: ['sku', 'product_name', 'quantity', 'cost'],
+        columns: ['sku', 'name', 'quantity', 'cost', 'reorder_point', 'category', 'last_sold_date'],
     },
     suppliers: {
         label: 'Suppliers / Vendors',

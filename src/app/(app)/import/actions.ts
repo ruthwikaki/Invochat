@@ -86,7 +86,7 @@ async function processCsv<T extends z.ZodType<any, any>>(
 
         // Define what makes a row unique for upserting.
         let conflictTarget: string[] = [];
-        if (tableName === 'inventory_valuation') conflictTarget = ['company_id', 'sku'];
+        if (tableName === 'inventory') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
 
         // Use a transactional RPC to ensure all-or-nothing import.
@@ -157,7 +157,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
 
         switch (dataType) {
             case 'inventory':
-                result = await processCsv(fileContent, InventoryImportSchema, 'inventory_valuation', companyId);
+                result = await processCsv(fileContent, InventoryImportSchema, 'inventory', companyId);
                 if ((result.successCount || 0) > 0) await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
                 break;
             case 'suppliers':

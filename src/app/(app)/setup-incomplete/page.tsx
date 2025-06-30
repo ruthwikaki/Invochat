@@ -215,7 +215,7 @@ declare
   query text;
 begin
   -- Ensure the function only works on specific, whitelisted tables to prevent misuse.
-  if p_table_name not in ('inventory_valuation', 'vendors') then
+  if p_table_name not in ('inventory', 'vendors') then
     raise exception 'Invalid table name provided for batch upsert: %', p_table_name;
   end if;
 
