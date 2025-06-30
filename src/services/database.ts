@@ -427,7 +427,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
             throw new Error(`Could not load purchase order data: ${error.message}`);
         }
 
-        return z.array(PurchaseOrderSchema).parse(data || []);
+        return z.array(PurchaseOrderSchema.partial()).parse(data || []);
      });
 }
 
@@ -694,51 +694,58 @@ const USER_FACING_TABLES = [
 
 export async function getDbSchemaAndData(companyId: string): Promise<{ tableName: string; rows: unknown[] }[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+
     return withPerformanceTracking('getDatabaseSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
-        const results: { tableName: string; rows: unknown[] }[] = [];
 
-        for (const tableName of USER_FACING_TABLES) {
-            if (tableName === 'purchase_order_items') continue; // Skip this one, handle separately
+        // Fetch data for all main tables in parallel
+        const tablePromises = USER_FACING_TABLES
+            .filter(tableName => tableName !== 'purchase_order_items') // Handle this one separately
+            .map(async (tableName) => {
+                const { data, error } = await supabase
+                    .from(tableName)
+                    .select('*')
+                    .eq('company_id', companyId)
+                    .limit(10);
+                
+                if (error) {
+                    if (!error.message.includes("does not exist")) {
+                        logError(error, { context: `Could not fetch data for table '${tableName}'` });
+                    }
+                    return { tableName, rows: [] };
+                }
+                return { tableName, rows: data || [] };
+            });
 
+        const allTableData = await Promise.all(tablePromises);
+
+        // Now that we have the purchase orders, fetch their related items
+        const purchaseOrders = allTableData.find(d => d.tableName === 'purchase_orders')?.rows as PurchaseOrder[] || [];
+        const poIds = purchaseOrders.map(po => po.id).filter(Boolean);
+
+        let poItems: unknown[] = [];
+        if (poIds.length > 0) {
             const { data, error } = await supabase
-                .from(tableName)
+                .from('purchase_order_items')
                 .select('*')
-                .eq('company_id', companyId)
+                .in('po_id', poIds)
                 .limit(10);
 
             if (error) {
-                if (!error.message.includes("does not exist")) {
-                    logError(error, { context: `Could not fetch data for table '${tableName}'` });
-                }
-                results.push({ tableName, rows: [] });
+                logError(error, { context: `Could not fetch data for table 'purchase_order_items'` });
             } else {
-                results.push({ tableName, rows: data || [] });
+                poItems = data || [];
             }
         }
-        
-        // Safely fetch related purchase_order_items
-        const { data: poItems, error: poItemsError } = await supabase
-            .from('purchase_order_items')
-            .select('purchase_order_items.*')
-            .in('po_id', (results.find(r => r.tableName === 'purchase_orders')?.rows.map(po => (po as PurchaseOrder).id) || []))
-            .limit(10);
-            
-        if (poItemsError) {
-            logError(poItemsError, { context: `Could not fetch data for table 'purchase_order_items'` });
-            results.push({ tableName: 'purchase_order_items', rows: [] });
-        } else {
-            results.push({ tableName: 'purchase_order_items', rows: poItems || [] });
-        }
+        allTableData.push({ tableName: 'purchase_order_items', rows: poItems });
 
-
-        // Return tables in the specified order
-        return USER_FACING_TABLES.map(tableName => {
-            const found = results.find(r => r.tableName === tableName);
-            return found || { tableName, rows: [] };
-        });
+        // Ensure the final array is in the original, intended order
+        return USER_FACING_TABLES.map(tableName => 
+            allTableData.find(d => d.tableName === tableName) || { tableName, rows: [] }
+        );
     });
 }
+
 
 export async function getQueryPatternsForCompany(
   companyId: string,
