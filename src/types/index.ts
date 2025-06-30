@@ -1,4 +1,3 @@
-
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -133,3 +132,13 @@ export type TeamMember = {
   email: string | undefined;
   role: 'Owner' | 'Admin' | 'Member';
 };
+
+export const AnomalySchema = z.object({
+    date: z.string(),
+    daily_revenue: z.coerce.number(),
+    daily_customers: z.coerce.number(),
+    avg_revenue: z.coerce.number(),
+    avg_customers: z.coerce.number(),
+    anomaly_type: z.string(),
+});
+export type Anomaly = z.infer<typeof AnomalySchema>;

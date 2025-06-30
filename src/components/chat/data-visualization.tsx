@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +12,7 @@ import { X } from 'lucide-react';
 type DataVisualizationProps = {
   visualization: {
     type: 'table' | 'chart' | 'alert';
-    data: any;
+    data: Record<string, unknown>[];
     config?: any;
   };
   title?: string;
@@ -30,7 +29,6 @@ export function DataVisualization({ visualization, title }: DataVisualizationPro
         return (
           <DynamicChart
             chartType={visualization.config.chartType}
-            title={visualization.config.title}
             data={visualization.data}
             config={visualization.config}
             isExpanded={isExpandedView}

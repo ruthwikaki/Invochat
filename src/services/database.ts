@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -407,7 +407,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         if (lowStockError) {
             logError(lowStockError, { context: 'Could not check for low stock items' });
         } else if (lowStockItems) {
-            for (const item of lowStockItems) {
+            for (const item of lowStockItems as any[]) {
                 const alert: Alert = {
                     id: `low-stock-${item.sku}`,
                     type: 'low_stock',
@@ -614,7 +614,7 @@ export async function saveSuccessfulQuery(
 }
 
 
-export async function generateAnomalyInsights(companyId: string): Promise<any[]> {
+export async function generateAnomalyInsights(companyId: string): Promise<Anomaly[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('generateAnomalyInsights', async () => {
         const supabase = getServiceRoleClient();
@@ -666,7 +666,7 @@ export async function generateAnomalyInsights(companyId: string): Promise<any[]>
             throw new Error(`Failed to generate anomaly insights: ${error.message}`);
         }
 
-        return data || [];
+        return z.array(AnomalySchema).parse(data || []);
     });
 }
 

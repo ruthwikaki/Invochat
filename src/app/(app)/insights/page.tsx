@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -15,15 +14,7 @@ import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
-
-interface Anomaly {
-    anomaly_type: string;
-    date: string;
-    daily_revenue: number;
-    avg_revenue: number;
-    daily_customers: number;
-    avg_customers: number;
-}
+import type { Anomaly } from '@/types';
 
 function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
   const isRevenue = anomaly.anomaly_type === 'Revenue Anomaly';
