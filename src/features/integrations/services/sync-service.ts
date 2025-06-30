@@ -5,6 +5,7 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import { decrypt } from './encryption';
 import { runShopifyFullSync } from './platforms/shopify';
+import { logger } from '@/lib/logger';
 
 /**
  * The main dispatcher for running an integration sync.
@@ -15,7 +16,7 @@ import { runShopifyFullSync } from './platforms/shopify';
  * @param companyId The ID of the company, for security verification.
  */
 export async function runSync(integrationId: string, companyId: string) {
-    const supabase = getServiceRole-client();
+    const supabase = getServiceRoleClient();
 
     // 1. Fetch integration details to verify ownership and get platform type.
     const { data: integration, error: fetchError } = await supabase
@@ -47,7 +48,6 @@ export async function runSync(integrationId: string, companyId: string) {
             default:
                 throw new Error(`Unsupported integration platform: ${integration.platform}`);
         }
-
     } catch (e: any) {
         // If any part of the sync fails, log it and update the status.
         logError(e, { context: `Full sync failed for integration ${integration.id}` });

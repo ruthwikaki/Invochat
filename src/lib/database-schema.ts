@@ -1,10 +1,4 @@
-'use server';
-
-// This file contains the single source of truth for the database setup script.
-// It is imported by both the /database-setup page and the /setup-incomplete page
-// to ensure consistency and avoid code duplication.
-
-export const SETUP_SQL_SCRIPT = `-- This file contains all the necessary SQL to set up your database.
+-- This file contains all the necessary SQL to set up your database.
 -- It should be run once in your Supabase project's SQL Editor.
 -- This script is idempotent and can be safely re-run on an existing database.
 
@@ -332,7 +326,7 @@ CREATE TABLE IF NOT EXISTS public.reorder_rules (
   rule_type TEXT NOT NULL DEFAULT 'manual', -- e.g., 'manual', 'automatic'
   min_stock INTEGER, -- Reorder when stock falls below this
   max_stock INTEGER, -- Order up to this level
-  reorder_quantity INTEGER, -- Fixed quantity to reorder
+  reorder_quantity INTEGER, -- Fixed quantity to order
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT unique_reorder_rule_per_sku UNIQUE (company_id, sku)
 );
@@ -676,4 +670,3 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 CREATE INDEX IF NOT EXISTS idx_sync_logs_integration_id ON public.sync_logs(integration_id);
-`;

@@ -77,7 +77,7 @@ export function ShopifyConnectModal({ isOpen, onClose }: ShopifyConnectModalProp
                         <AlertTitle>How to get your credentials</AlertTitle>
                         <AlertDescription className="space-y-1 text-xs">
                             <p>1. In your Shopify Admin, go to: <strong>Settings → Apps and sales channels → Develop apps</strong>.</p>
-                            <p>2. Create a new app named "ARVO Integration" and configure Admin API scopes.</p>
+                            <p>2. Create a new app named "InvoChat Integration" and configure Admin API scopes.</p>
                             <p>3. Grant these permissions: <strong>read_products, read_orders, read_inventory, write_inventory</strong>.</p>
                             <p>4. Install the app and copy the <strong>Admin API access token</strong> shown.</p>
                         </AlertDescription>
@@ -96,7 +96,7 @@ export function ShopifyConnectModal({ isOpen, onClose }: ShopifyConnectModalProp
                         {error && <p className="text-sm text-destructive">{error}</p>}
                         <DialogFooter>
                             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-                            <Button type="submit" disabled={isPending} className="bg-[#95BF47] hover:bg-[#84ac3d] text-white">
+                            <Button type="submit" disabled={isPending} className="bg-[#78AB43] hover:bg-[#699939] text-white">
                                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Test & Connect
                             </Button>
