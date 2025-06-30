@@ -329,11 +329,13 @@ const FEW_SHOT_EXAMPLES = `
   ${BUSINESS_QUERY_EXAMPLES}
 `;
 
+const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport];
 
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
   input: { schema: z.object({ userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string(), companyId: z.string().uuid() }) },
   output: { schema: z.object({ sqlQuery: z.string().optional().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
+  tools,
   prompt: `
     You are an expert PostgreSQL query generation agent for an e-commerce analytics system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query. You also have access to tools for questions that cannot be answered from the database.
 
@@ -518,13 +520,11 @@ const universalChatOrchestrator = ai.defineFlow(
         : "No company-specific examples found yet. Rely on the general examples.";
 
     const aiModel = config.ai.model;
-    const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport];
-
+    
     const { output: generationOutput, toolCalls } = await ai.generate({
       model: aiModel,
       prompt: sqlGenerationPrompt,
       input: { userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns, companyId },
-      tools,
     });
     
     if (toolCalls && toolCalls.length > 0) {
