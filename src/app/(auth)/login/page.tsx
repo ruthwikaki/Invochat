@@ -8,7 +8,7 @@ import { Eye, EyeOff, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { InvoChatLogo } from '@/components/arvo-logo';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';

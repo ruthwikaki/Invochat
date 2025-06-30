@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { InvoChatLogo } from '@/components/arvo-logo';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
