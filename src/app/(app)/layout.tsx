@@ -5,6 +5,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import ErrorBoundary from '@/components/error-boundary';
 import { useState, useCallback } from 'react';
 import { DynamicThemeProvider } from '@/components/dynamic-theme-provider';
+import { AuthProvider } from '@/context/auth-context';
 
 export default function AppLayout({
   children,
@@ -18,16 +19,18 @@ export default function AppLayout({
   }, []);
 
   return (
-    <SidebarProvider>
-      <DynamicThemeProvider />
-      <div className="flex h-dvh w-full bg-background">
-        <AppSidebar />
-        <main className="flex flex-1 flex-col overflow-y-auto">
-          <ErrorBoundary key={resetKey} onReset={handleReset}>
-            {children}
-          </ErrorBoundary>
-        </main>
-      </div>
-    </SidebarProvider>
+    <AuthProvider>
+        <SidebarProvider>
+        <DynamicThemeProvider />
+        <div className="flex h-dvh w-full bg-background">
+            <AppSidebar />
+            <main className="flex flex-1 flex-col overflow-y-auto">
+            <ErrorBoundary key={resetKey} onReset={handleReset}>
+                {children}
+            </ErrorBoundary>
+            </main>
+        </div>
+        </SidebarProvider>
+    </AuthProvider>
   );
 }

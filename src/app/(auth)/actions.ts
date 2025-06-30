@@ -187,3 +187,10 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully.');
 }
+
+export async function signOut() {
+    const supabase = getSupabaseClient();
+    await supabase.auth.signOut();
+    revalidatePath('/', 'layout');
+    redirect('/login');
+}
