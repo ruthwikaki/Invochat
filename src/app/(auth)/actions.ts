@@ -128,10 +128,10 @@ export async function signup(formData: FormData) {
     }
 
     if (data.user) {
-        // Handle case where user already exists but isn't confirmed
-        if (data.user.identities && data.user.identities.length === 0) {
-            redirect(`/signup?error=${encodeURIComponent("This user already exists.")}`);
-        }
+        // If a user object is returned, it means the signup was accepted,
+        // either for a new user or to re-send a confirmation to an existing
+        // unconfirmed user. In both cases, directing to the success page
+        // is the correct action.
         redirect('/signup?success=true');
     }
     
