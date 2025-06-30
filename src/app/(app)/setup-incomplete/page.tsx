@@ -24,7 +24,7 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer set search_path = public
-as $$
+as $new_user_func$
 declare
   user_company_id uuid;
   user_company_name text;
@@ -70,7 +70,7 @@ begin
 
   return new;
 end;
-$$;
+$new_user_func$;
 
 -- This trigger executes the 'handle_new_user' function automatically
 -- every time a new row is inserted into 'auth.users'.
@@ -87,7 +87,7 @@ create or replace trigger on_auth_user_created
 create or replace function public.execute_dynamic_query(query_text text)
 returns json
 language plpgsql
-as $$
+as $dyn_query_func$
 declare
   result_json json;
 begin
@@ -99,7 +99,7 @@ begin
 
   return result_json;
 end;
-$$;
+$dyn_query_func$;
 
 -- ========= SECURITY NOTE FOR PRODUCTION =========
 -- The 'execute_dynamic_query' function is powerful. In a production environment,
@@ -157,9 +157,9 @@ ON public.company_dashboard_metrics(company_id);
 CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics()
 RETURNS void
 LANGUAGE sql
-AS $$
+AS $refresh_func$
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
-$$;
+$refresh_func$;
 
 
 -- ========= Part 5: AI Query Learning Table =========
@@ -200,7 +200,7 @@ create or replace function public.batch_upsert_with_transaction(
 returns void
 language plpgsql
 security definer
-as $$
+as $batch_upsert_func$
 declare
   -- Dynamically build the SET clause for the 'ON CONFLICT' part of the upsert.
   -- It constructs a string like "col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, ..."
@@ -220,7 +220,7 @@ begin
   end if;
 
   -- This query is executed as a single statement, making it more performant than a loop.
-  -- It uses `jsonb_populate_recordset` to safely convert the JSON array into a set of rows
+  -- It uses \`jsonb_populate_recordset\` to safely convert the JSON array into a set of rows
   -- matching the target table's structure. This is safer than manual value string construction.
   query := format(
     '
@@ -240,7 +240,7 @@ begin
 -- If any exception occurs, the entire transaction is automatically
 -- rolled back by PostgreSQL, and the exception is re-raised.
 end;
-$$;
+$batch_upsert_func$;
 
 -- Secure the function so it can only be called by authenticated service roles
 REVOKE EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) FROM public;
@@ -256,12 +256,12 @@ ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS barcode TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS sales_channel TEXT;
 
 -- Define a type for Purchase Order status for data integrity.
-DO $$
+DO $type_block$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'po_status') THEN
         CREATE TYPE po_status AS ENUM ('draft', 'sent', 'partial', 'received', 'cancelled');
     END IF;
-END$$;
+END $type_block$;
 
 
 -- Create the main purchase_orders table if it doesn't exist.
@@ -283,7 +283,7 @@ ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP
 
 
 -- Add unique constraint if it doesn't exist.
-DO $$
+DO $constraint_block$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint 
@@ -292,7 +292,7 @@ BEGIN
     ) THEN
         ALTER TABLE public.purchase_orders ADD CONSTRAINT unique_po_number_per_company UNIQUE (company_id, po_number);
     END IF;
-END$$;
+END $constraint_block$;
 
 
 CREATE INDEX IF NOT EXISTS idx_po_company_supplier ON public.purchase_orders(company_id, supplier_id);
@@ -352,7 +352,7 @@ create or replace function public.receive_purchase_order_items(
 )
 returns void
 language plpgsql
-as $$
+as $receive_items_func$
 declare
   item_record record;
   po_status_current po_status;
@@ -397,7 +397,7 @@ begin
   END IF;
 
 end;
-$$;
+$receive_items_func$;
 
 -- Secure the function so it can only be called by authenticated service roles
 REVOKE EXECUTE ON FUNCTION public.receive_purchase_order_items(uuid, jsonb, uuid) FROM public;
