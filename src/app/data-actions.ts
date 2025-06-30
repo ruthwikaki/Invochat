@@ -25,9 +25,11 @@ import {
     getPurchaseOrderByIdFromDB,
     receivePurchaseOrderItemsInDB,
     getReorderSuggestionsFromDB,
+    getChannelFeesFromDB,
+    upsertChannelFeeInDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -619,5 +621,38 @@ export async function createPurchaseOrdersFromSuggestions(
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
         return { success: false, error: getErrorMessage(e), createdPoCount: 0 };
+    }
+}
+
+export async function getChannelFees(): Promise<ChannelFee[]> {
+    const { companyId } = await getAuthContext();
+    return getChannelFeesFromDB(companyId);
+}
+
+const UpsertChannelFeeSchema = z.object({
+  channel_name: z.string().min(1, 'Channel name is required.'),
+  percentage_fee: z.coerce.number().min(0, 'Percentage fee cannot be negative.'),
+  fixed_fee: z.coerce.number().min(0, 'Fixed fee cannot be negative.'),
+});
+
+export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        const parsed = UpsertChannelFeeSchema.safeParse({
+            channel_name: formData.get('channel_name'),
+            percentage_fee: formData.get('percentage_fee'),
+            fixed_fee: formData.get('fixed_fee'),
+        });
+        
+        if (!parsed.success) {
+            return { success: false, error: parsed.error.issues[0].message };
+        }
+        
+        await upsertChannelFeeInDB(companyId, parsed.data);
+        revalidatePath('/settings');
+        return { success: true };
+    } catch(e) {
+        logError(e, { context: 'upsertChannelFee action' });
+        return { success: false, error: getErrorMessage(e) };
     }
 }

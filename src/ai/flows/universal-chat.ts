@@ -251,6 +251,33 @@ const BUSINESS_QUERY_EXAMPLES = `
             ELSE 0
         END as net_margin_percentage
      FROM profit_calc p;
+
+  8. Margin Trend Analysis over Time:
+     User: "Show me my margin trends over the last year"
+     SQL:
+     WITH monthly_sales AS (
+       SELECT
+         DATE_TRUNC('month', o.sale_date) as sales_month,
+         SUM(oi.unit_price * oi.quantity) as total_revenue,
+         SUM(COALESCE(i.landed_cost, i.cost) * oi.quantity) as total_cogs
+       FROM order_items oi
+       JOIN orders o ON oi.sale_id = o.id
+       JOIN inventory i ON oi.sku = i.sku AND i.company_id = o.company_id
+       WHERE o.company_id = :company_id
+         AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
+         AND oi.unit_price > 0
+       GROUP BY sales_month
+     )
+     SELECT
+       TO_CHAR(sales_month, 'YYYY-MM') as month,
+       total_revenue,
+       total_cogs,
+       CASE
+         WHEN total_revenue > 0 THEN ((total_revenue - total_cogs) / total_revenue) * 100
+         ELSE 0
+       END as gross_margin_percentage
+     FROM monthly_sales
+     ORDER BY sales_month;
 `;
 
 
@@ -655,4 +682,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-

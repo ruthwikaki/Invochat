@@ -257,3 +257,14 @@ export const ReorderSuggestionSchema = z.object({
     unit_cost: data.unit_cost ?? 0,
 }));
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+
+export const ChannelFeeSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  channel_name: z.string(),
+  percentage_fee: z.number(),
+  fixed_fee: z.number(),
+  created_at: z.string(),
+  updated_at: z.string().nullable(),
+});
+export type ChannelFee = z.infer<typeof ChannelFeeSchema>;

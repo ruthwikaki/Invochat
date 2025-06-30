@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -1119,6 +1119,53 @@ export async function getHistoricalSalesForSkus(
         }
 
         return data || [];
+    });
+}
+
+export async function getChannelFeesFromDB(companyId: string): Promise<ChannelFee[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getChannelFeesFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('channel_fees')
+            .select('*')
+            .eq('company_id', companyId)
+            .order('channel_name');
+
+        if (error) {
+            logError(error, { context: `Error fetching channel fees for company ${companyId}` });
+            throw error;
+        }
+        return z.array(ChannelFeeSchema).parse(data || []);
+    });
+}
+
+export async function upsertChannelFeeInDB(companyId: string, fee: { channel_name: string; percentage_fee: number; fixed_fee: number; }): Promise<ChannelFee> {
+     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+     return withPerformanceTracking('upsertChannelFeeInDB', async () => {
+        const supabase = getServiceRoleClient();
+        
+        const upsertData = {
+            company_id: companyId,
+            channel_name: fee.channel_name,
+            percentage_fee: fee.percentage_fee,
+            fixed_fee: fee.fixed_fee,
+            updated_at: new Date().toISOString(),
+        };
+
+        const { data, error } = await supabase
+            .from('channel_fees')
+            .upsert(upsertData, { onConflict: 'company_id, channel_name' })
+            .select()
+            .single();
+
+        if (error) {
+            logError(error, { context: 'Failed to upsert channel fee' });
+            throw error;
+        }
+
+        revalidatePath('/settings');
+        return ChannelFeeSchema.parse(data);
     });
 }
     

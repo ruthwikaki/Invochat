@@ -14,12 +14,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import type { CompanySettings } from '@/types';
-import { getCompanySettings, updateCompanySettings } from '@/app/data-actions';
+import type { CompanySettings, ChannelFee } from '@/types';
+import { getCompanySettings, updateCompanySettings, getChannelFees, upsertChannelFee } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2, DollarSign, Percent, Save } from 'lucide-react';
 import Link from 'next/link';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const businessRulesFields: { key: keyof CompanySettings; label: string; description: string, type: string }[] = [
     { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".', type: 'number' },
@@ -39,6 +40,93 @@ const themeFields: { key: keyof CompanySettings; label: string; description: str
     { key: 'theme_background_color', label: 'Background Color', description: 'Main page background color.' },
     { key: 'theme_accent_color', label: 'Accent Color', description: 'Color for secondary elements and hovers.' },
 ];
+
+function ChannelFeeManager() {
+    const [fees, setFees] = useState<ChannelFee[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isPending, startTransition] = useTransition();
+    const { toast } = useToast();
+
+    useEffect(() => {
+        getChannelFees().then(setFees).finally(() => setLoading(false));
+    }, []);
+
+    const handleFeeSubmit = async (formData: FormData) => {
+        startTransition(async () => {
+            const result = await upsertChannelFee(formData);
+            if (result.success) {
+                toast({ title: 'Success', description: 'Channel fee saved successfully.' });
+                // Refetch fees to update the list
+                getChannelFees().then(setFees);
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        });
+    };
+
+    if (loading) {
+        return <Skeleton className="h-48 w-full" />;
+    }
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+                <h4 className="font-semibold mb-2">Current Fees</h4>
+                <div className="rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Channel</TableHead>
+                                <TableHead className="text-right">% Fee</TableHead>
+                                <TableHead className="text-right">Fixed Fee</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {fees.length > 0 ? fees.map(fee => (
+                                <TableRow key={fee.id}>
+                                    <TableCell className="font-medium">{fee.channel_name}</TableCell>
+                                    <TableCell className="text-right">{(fee.percentage_fee * 100).toFixed(2)}%</TableCell>
+                                    <TableCell className="text-right">${fee.fixed_fee.toFixed(2)}</TableCell>
+                                </TableRow>
+                            )) : (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center text-muted-foreground">No channel fees configured.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </div>
+            <div>
+                 <h4 className="font-semibold mb-2">Add or Update Fee</h4>
+                 <form action={handleFeeSubmit} className="space-y-4 rounded-md border p-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="channel_name">Channel Name</Label>
+                        <Input name="channel_name" id="channel_name" placeholder="e.g., Shopify" required />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="percentage_fee">Percentage Fee</Label>
+                        <div className="relative">
+                            <Input name="percentage_fee" id="percentage_fee" type="number" step="0.0001" placeholder="e.g., 0.029 for 2.9%" required />
+                             <Percent className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="fixed_fee">Fixed Fee</Label>
+                         <div className="relative">
+                            <Input name="fixed_fee" id="fixed_fee" type="number" step="0.01" placeholder="e.g., 0.30 for 30 cents" required />
+                             <DollarSign className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        </div>
+                    </div>
+                    <Button type="submit" disabled={isPending} className="w-full">
+                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Channel Fee
+                    </Button>
+                 </form>
+            </div>
+        </div>
+    );
+}
 
 
 export default function SettingsPage() {
@@ -141,6 +229,23 @@ export default function SettingsPage() {
                             )}
                         </CardContent>
                     </Card>
+
+                     {/* Channel Fees Card */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <DollarSign className="h-5 w-5" />
+                                Sales Channel Fees
+                            </CardTitle>
+                            <CardDescription>
+                                Configure fees for each sales channel to enable accurate Net Margin calculations.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <ChannelFeeManager />
+                        </CardContent>
+                    </Card>
+
 
                     {/* Theming Card */}
                      <Card>

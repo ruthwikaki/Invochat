@@ -76,6 +76,14 @@ const availableAnalyses = [
         description: 'Analyze gross profit margin by product and sales channel.',
         prompt: 'Analyze my gross profit margin by product and sales channel for the last 90 days.',
         details: "This report calculates your gross margin for each product, breaking it down by where the sale originated (e.g., Shopify, Amazon, Manual). It uses `(Selling Price - Landed Cost) / Selling Price` to determine profitability."
+    },
+    {
+      key: 'margin_trends',
+      title: 'Margin Trend Analysis',
+      icon: TrendingUp,
+      description: 'Analyze your gross profit margin trends over the last 12 months.',
+      prompt: 'Show me my gross margin trend over the last 12 months, aggregated by month.',
+      details: "This report calculates your gross margin month-over-month to help you identify trends in profitability. It uses `(SUM(selling_price * quantity) - SUM(cost_of_good * quantity)) / SUM(selling_price * quantity)`."
     }
 ];
 
