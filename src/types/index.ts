@@ -28,7 +28,10 @@ export type Message = {
   role: 'user' | 'assistant';
   content: string;
   component?: 'deadStockTable' | 'reorderList' | 'supplierPerformanceTable';
-  componentProps?: Record<string, any>;
+  componentProps?: {
+    items?: ReorderSuggestion[];
+    data?: DeadStockItem[] | SupplierPerformanceReport[];
+  };
   visualization?: {
     type: 'table' | 'chart' | 'alert';
     data: Record<string, unknown>[];
@@ -304,7 +307,7 @@ export const LocationFormSchema = z.object({
   address: z.string().optional(),
   is_default: z.boolean().optional(),
 });
-export type LocationFormData = z.infer<typeof LocationFormSchema>;
+export type LocationFormData = z.infer<typeof LocationFormData>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
