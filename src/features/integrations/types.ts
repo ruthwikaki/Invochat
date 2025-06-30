@@ -11,7 +11,7 @@ export type Integration = {
   access_token: string; // This is always encrypted
   is_active: boolean;
   last_sync_at: string | null;
-  sync_status: 'syncing' | 'success' | 'failed' | 'idle' | null;
+  sync_status: 'syncing_products' | 'syncing_orders' | 'syncing' | 'success' | 'failed' | 'idle' | null;
   created_at: string;
   updated_at: string | null;
 };

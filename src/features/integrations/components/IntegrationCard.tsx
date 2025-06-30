@@ -26,12 +26,16 @@ interface IntegrationCardProps {
 }
 
 export function IntegrationCard({ integration, onSync, onDisconnect }: IntegrationCardProps) {
-    const isSyncing = integration.sync_status === 'syncing';
+    const isSyncing = integration.sync_status?.startsWith('syncing');
     
     const renderStatus = () => {
         switch (integration.sync_status) {
             case 'syncing':
-                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Syncing now...</span>;
+                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Starting sync...</span>;
+            case 'syncing_products':
+                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Syncing products...</span>;
+            case 'syncing_orders':
+                return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Syncing orders...</span>;
             case 'success':
                 return <span className="flex items-center gap-2 text-sm text-success"><CheckCircle className="h-4 w-4" /> Last synced {integration.last_sync_at ? formatDistanceToNow(new Date(integration.last_sync_at), { addSuffix: true }) : 'never'}</span>;
             case 'failed':

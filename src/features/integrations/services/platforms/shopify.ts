@@ -206,11 +206,16 @@ export async function syncOrders(integration: Integration, accessToken: string) 
 export async function runShopifyFullSync(integration: Integration, accessToken: string) {
     const supabase = getServiceRoleClient();
     try {
-        await Promise.all([
-            syncProducts(integration, accessToken),
-            syncOrders(integration, accessToken)
-        ]);
+        // Run sequentially to provide better status updates
+        logger.info(`[Sync] Starting product sync for ${integration.shop_name}`);
+        await supabase.from('integrations').update({ sync_status: 'syncing_products' }).eq('id', integration.id);
+        await syncProducts(integration, accessToken);
         
+        logger.info(`[Sync] Starting order sync for ${integration.shop_name}`);
+        await supabase.from('integrations').update({ sync_status: 'syncing_orders' }).eq('id', integration.id);
+        await syncOrders(integration, accessToken);
+
+        logger.info(`[Sync] Full sync completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
         
         // Invalidate caches and refresh materialized views after a successful sync
