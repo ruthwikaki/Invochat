@@ -15,8 +15,7 @@ dotenvConfig();
 
 // --- Environment Variable Validation ---
 // This schema validates all critical environment variables on application startup.
-// If any variable is missing or invalid, the server will refuse to start and
-// log a clear error message.
+// If any variable is missing or invalid, the app will render an error page.
 const EnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
@@ -25,25 +24,9 @@ const EnvSchema = z.object({
   REDIS_URL: z.string().optional(),
 });
 
-const parsedEnv = EnvSchema.safeParse(process.env);
+// Export the result of the validation to be checked in the root layout.
+export const envValidation = EnvSchema.safeParse(process.env);
 
-if (!parsedEnv.success) {
-  const errorDetails = parsedEnv.error.flatten().fieldErrors;
-  const errorMessages = Object.entries(errorDetails)
-    .map(([key, messages]) => `  - ${key}: ${messages.join(', ')}`)
-    .join('\n');
-  
-  // This provides a clear, developer-friendly error message in the server logs
-  // and prevents the application from starting in a misconfigured state.
-  throw new Error(`
-=================================================================
-❌ FATAL: Environment variable validation failed.
-   Please check your .env file and ensure the following
-   variables are set correctly:
-${errorMessages}
-=================================================================
-`);
-}
 // --- End Validation ---
 
 
@@ -100,3 +83,4 @@ export const config = {
 
 // A type alias for convenience
 export type AppConfig = typeof config;
+

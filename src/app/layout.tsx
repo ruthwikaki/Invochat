@@ -7,6 +7,8 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
 import { AppInitializer } from '@/components/app-initializer';
+import { envValidation } from '@/config/app-config';
+import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -23,6 +25,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // This server-side check prevents the app from crashing and instead shows a helpful error page.
+  if (!envValidation.success) {
+    const errorDetails = envValidation.error.flatten().fieldErrors;
+    return (
+      <html lang="en">
+        <body className={cn('font-body antialiased', inter.variable)}>
+          <MissingEnvVarsPage errors={errorDetails} />
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn('font-body antialiased', inter.variable)}>

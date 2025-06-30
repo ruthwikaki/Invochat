@@ -1,14 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../logger';
 
-// Startup validation is now handled centrally in src/config/app-config.ts.
+// Startup validation is now handled centrally in src/config/app-config.ts and the root layout.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 let supabaseAdmin: SupabaseClient | null = null;
 
-// This initialization still runs, but the app will not start if the keys are missing
-// due to the new validation in app-config.ts.
 if (supabaseUrl && supabaseServiceRoleKey) {
     supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
         auth: {
@@ -17,20 +15,17 @@ if (supabaseUrl && supabaseServiceRoleKey) {
         }
     });
 } else {
-    // This warning is now less critical because the app won't start if keys are missing,
-    // but it is kept as a fallback safeguard.
-    logger.warn(`[Supabase Admin] Supabase admin client is not configured. Admin operations will fail. Please set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your environment.`);
+    // This warning is a fallback. The main error handling is in layout.tsx.
+    logger.warn(`[Supabase Admin] Supabase admin client is not configured because environment variables are missing.`);
 }
 
 /**
- * Returns the Supabase admin client and throws a clear error if it's not configured.
- * This is the single source of truth for getting the admin client.
+ * Returns the Supabase admin client. Throws an error if it's not configured.
+ * This function should only be called after the environment has been validated by the root layout.
  */
 export function getServiceRoleClient(): SupabaseClient {
     if (!supabaseAdmin) {
-        // This error should theoretically not be reachable if the startup validation passes,
-        // but it's a crucial runtime check to prevent hard-to-debug null pointer exceptions.
-        throw new Error('Database admin client is not configured. This should have been caught at startup. Please check server logs.');
+        throw new Error('Database admin client is not configured. This indicates the application tried to access the database before environment validation passed. Please check server logs.');
     }
     return supabaseAdmin;
 }
