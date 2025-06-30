@@ -467,10 +467,15 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
     return withPerformanceTracking('createPurchaseOrderInDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // 1. Calculate total amount
         const totalAmount = poData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0);
         
-        // Transaction to ensure atomicity using the RPC function
+        // Sanitize the items array to only include fields expected by the RPC function
+        const itemsForRpc = poData.items.map(item => ({
+            sku: item.sku,
+            quantity_ordered: item.quantity_ordered,
+            unit_cost: item.unit_cost,
+        }));
+
         const { data: newPo, error: poError } = await supabase.rpc('create_purchase_order_and_update_inventory', {
             p_company_id: companyId,
             p_supplier_id: poData.supplier_id,
@@ -479,7 +484,7 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
             p_expected_date: poData.expected_date?.toISOString(),
             p_notes: poData.notes,
             p_total_amount: totalAmount,
-            p_items: poData.items,
+            p_items: itemsForRpc,
         }).select().single();
 
         if (poError) {
@@ -503,7 +508,13 @@ export async function receivePurchaseOrderItemsInDB(
     return withPerformanceTracking('receivePurchaseOrderItemsInDB', async () => {
         const supabase = getServiceRoleClient();
         
-        const itemsToReceive = items.filter(item => item.quantity_to_receive > 0);
+        const itemsToReceive = items
+            .filter(item => item.quantity_to_receive > 0)
+            .map(item => ({
+                sku: item.sku,
+                quantity_to_receive: item.quantity_to_receive
+            }));
+
         if (itemsToReceive.length === 0) {
             throw new Error("No items were marked for receiving.");
         }
@@ -520,7 +531,9 @@ export async function receivePurchaseOrderItemsInDB(
         }
 
         logger.info(`[DB Service] Successfully received items for PO ${poId}.`);
-        await invalidateCompanyCache(companyId, ['dashboard', 'inventory']);
+        await invalidateCompanyCache(companyId, ['dashboard']);
+        revalidatePath(`/purchase-orders/${poId}`);
+        revalidatePath('/inventory');
     });
 }
 
@@ -620,12 +633,9 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
         const supabase = getServiceRoleClient();
         const results: { tableName: string; rows: unknown[] }[] = [];
 
-        // Tables that can be filtered directly by company_id
-        const directFilterTables = [
-            'vendors', 'orders', 'customers', 'returns', 'inventory', 'purchase_orders'
-        ];
+        for (const tableName of USER_FACING_TABLES) {
+            if (tableName === 'purchase_order_items') continue; // Skip this one, handle separately
 
-        for (const tableName of directFilterTables) {
             const { data, error } = await supabase
                 .from(tableName)
                 .select('*')
