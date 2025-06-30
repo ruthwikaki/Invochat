@@ -302,3 +302,12 @@ export const LocationFormSchema = z.object({
   is_default: z.boolean().optional(),
 });
 export type LocationFormData = z.infer<typeof LocationFormSchema>;
+
+export const SupplierPerformanceReportSchema = z.object({
+    supplier_name: z.string(),
+    total_completed_orders: z.coerce.number(),
+    on_time_delivery_rate: z.coerce.number(),
+    average_delivery_variance_days: z.coerce.number(),
+    average_lead_time_days: z.coerce.number(),
+});
+export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;

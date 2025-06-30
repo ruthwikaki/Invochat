@@ -17,6 +17,7 @@ import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
 import { getReorderSuggestions } from './reorder-tool';
+import { getSupplierPerformanceReport } from './supplier-performance-tool';
 import { logError } from '@/lib/error-handler';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -368,7 +369,8 @@ const sqlGenerationPrompt = ai.definePrompt({
 
     **C) For QUESTIONS THAT REQUIRE TOOLS:**
     10. **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool. You MUST pass the user's Company ID to this tool.
-    11. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
+    11. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool.
+    12. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, vendor scorecards, or which supplier is 'best' or 'fastest', you MUST use the \`getSupplierPerformanceReport\` tool. You MUST pass the user's Company ID to this tool.
     
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style. Your primary source of inspiration should be the COMPANY-SPECIFIC EXAMPLES if they exist, as they reflect what has worked for this user before.
@@ -516,7 +518,7 @@ const universalChatOrchestrator = ai.defineFlow(
         : "No company-specific examples found yet. Rely on the general examples.";
 
     const aiModel = config.ai.model;
-    const tools = [getEconomicIndicators, getReorderSuggestions];
+    const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport];
 
     const { output: generationOutput, toolCalls } = await ai.generate({
       model: aiModel,
