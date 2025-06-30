@@ -23,6 +23,7 @@ interface PurchaseOrderClientPageProps {
 }
 
 const getStatusVariant = (status: PurchaseOrder['status']) => {
+  if (!status) return 'outline';
   switch (status) {
     case 'draft':
       return 'outline';
@@ -40,6 +41,7 @@ const getStatusVariant = (status: PurchaseOrder['status']) => {
 };
 
 const getStatusColor = (status: PurchaseOrder['status']) => {
+  if (!status) return 'border-gray-400 text-gray-500';
   switch (status) {
     case 'draft':
       return 'border-gray-400 text-gray-500';
@@ -175,10 +177,10 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                       <TableCell>{po.supplier_name}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(po.status)} className={getStatusColor(po.status)}>
-                          {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
+                          {po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1) : 'Unknown'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{format(new Date(po.order_date), 'MMM d, yyyy')}</TableCell>
+                      <TableCell>{po.order_date ? format(new Date(po.order_date), 'MMM d, yyyy') : 'N/A'}</TableCell>
                       <TableCell>
                         {po.expected_date ? format(new Date(po.expected_date), 'MMM d, yyyy') : 'N/A'}
                       </TableCell>
