@@ -50,6 +50,7 @@ export const SupplierSchema = z.object({
     account_number: z.string().nullable(),
 }).transform(data => ({
     ...data,
+    id: data.id,
     name: data.vendor_name,
     email: data.contact_info, // For convenience in other parts of the app
 }));
@@ -311,3 +312,15 @@ export const SupplierPerformanceReportSchema = z.object({
     average_lead_time_days: z.coerce.number(),
 });
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
+
+export type ShopifyIntegration = {
+  id: string;
+  company_id: string;
+  platform: 'shopify';
+  shop_domain: string;
+  shop_name: string | null;
+  is_active: boolean;
+  last_sync_at: string | null;
+  sync_status: 'syncing' | 'success' | 'failed' | 'idle' | null;
+  created_at: string;
+};

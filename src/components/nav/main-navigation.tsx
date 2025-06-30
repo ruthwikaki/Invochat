@@ -15,6 +15,7 @@ import {
   ClipboardList,
   RefreshCw,
   Warehouse,
+  Plug,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -30,6 +31,11 @@ const menuItems = [
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
 ];
+
+const settingsMenuItems = [
+    { href: '/settings', label: 'General Settings', icon: BarChart},
+    { href: '/settings/integrations', label: 'Integrations', icon: Plug}
+]
 
 export function MainNavigation() {
   const pathname = usePathname();

@@ -39,9 +39,11 @@ import {
     deleteInventoryItemsFromDb,
     updateInventoryItemInDb,
     refreshMaterializedViews,
+    getIntegrationsByCompanyId,
+    deleteIntegrationFromDb,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, ShopifyIntegration } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -791,6 +793,24 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
         return { success: true, updatedItem };
     } catch (e) {
         logError(e, { context: 'updateInventoryItem action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+// Integrations
+export async function getIntegrations(): Promise<ShopifyIntegration[]> {
+    const { companyId } = await getAuthContext();
+    return getIntegrationsByCompanyId(companyId);
+}
+
+export async function disconnectIntegration(integrationId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await deleteIntegrationFromDb(integrationId, companyId);
+        revalidatePath('/settings/integrations');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'disconnectIntegration' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
