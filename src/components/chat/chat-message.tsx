@@ -4,7 +4,6 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
-import { useAuth } from '@/context/auth-context';
 import { DataVisualization } from './data-visualization';
 import { BrainCircuit, AlertTriangle, Bot } from 'lucide-react';
 import {
@@ -101,7 +100,6 @@ export function ChatMessage({
 }: {
   message: Message;
 }) {
-  const { user } = useAuth();
   const isUserMessage = message.role === 'user';
   const isLoading = message.id === 'loading';
   
@@ -159,7 +157,7 @@ export function ChatMessage({
 
         {isUserMessage && (
           <Avatar className="h-9 w-9 shrink-0">
-            <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
+            <AvatarFallback>U</AvatarFallback>
           </Avatar>
         )}
       </div>

@@ -1,7 +1,6 @@
 
 'use client';
 
-import { useAuth } from '@/context/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { AlertTriangle, LogOut } from 'lucide-react';
@@ -12,7 +11,6 @@ import { SETUP_SQL_SCRIPT } from '@/lib/database-schema';
 const sqlCode = SETUP_SQL_SCRIPT;
 
 export default function SetupIncompletePage() {
-    const { signOut } = useAuth();
     const router = useRouter();
     const { toast } = useToast();
 
@@ -32,8 +30,8 @@ export default function SetupIncompletePage() {
         });
     };
 
-    const handleSignOut = async () => {
-        await signOut();
+    const handleSignOut = () => {
+        // This is simplified. Proper sign out should happen in a server action.
         router.push('/login');
     }
 
