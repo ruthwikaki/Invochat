@@ -331,10 +331,15 @@ const FEW_SHOT_EXAMPLES = `
 
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
-  input: { schema: z.object({ userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
+  input: { schema: z.object({ userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string(), companyId: z.string().uuid() }) },
   output: { schema: z.object({ sqlQuery: z.string().optional().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
   prompt: `
     You are an expert PostgreSQL query generation agent for an e-commerce analytics system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query. You also have access to tools for questions that cannot be answered from the database.
+
+    IMPORTANT CONTEXT:
+    - The current user's Company ID is: {{{companyId}}}
+    - When calling a tool that requires a companyId, you MUST use this value.
+    - When generating SQL, you MUST use the placeholder ':company_id' as instructed below.
 
     DATABASE SCHEMA OVERVIEW:
     {{{dbSchema}}}
@@ -361,7 +366,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     8.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
 
     **C) For QUESTIONS THAT REQUIRE TOOLS:**
-    9.  **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool.
+    9.  **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool. You MUST pass the user's Company ID to this tool.
     10. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool. Do NOT attempt to hallucinate SQL for this.
     
     **Step 3: Consult Examples for Structure.**
@@ -510,16 +515,12 @@ const universalChatOrchestrator = ai.defineFlow(
         : "No company-specific examples found yet. Rely on the general examples.";
 
     const aiModel = config.ai.model;
-
-    // By passing the companyId in the input to the tool, we avoid having to manage it separately.
-    const tools = [getEconomicIndicators, getReorderSuggestions].map(tool =>
-        ai.waitForTool(tool.name, { companyId })
-    );
+    const tools = [getEconomicIndicators, getReorderSuggestions];
 
     const { output: generationOutput, toolCalls } = await ai.generate({
       model: aiModel,
       prompt: sqlGenerationPrompt,
-      input: { userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns },
+      input: { userQuery, dbSchema: formattedSchema, semanticLayer, dynamicExamples: formattedDynamicPatterns, companyId },
       tools,
     });
     
