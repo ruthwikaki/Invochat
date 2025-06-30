@@ -9,7 +9,7 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -413,53 +413,115 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
      });
 }
 
+export async function getPurchaseOrderByIdFromDB(poId: string, companyId: string): Promise<PurchaseOrder | null> {
+    if (!isValidUuid(poId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('getPurchaseOrderByIdFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const query = `
+            SELECT 
+                po.*,
+                v.vendor_name as supplier_name,
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'id', poi.id,
+                            'po_id', poi.po_id,
+                            'sku', poi.sku,
+                            'product_name', i.name,
+                            'quantity_ordered', poi.quantity_ordered,
+                            'quantity_received', poi.quantity_received,
+                            'unit_cost', poi.unit_cost,
+                            'tax_rate', poi.tax_rate
+                        )
+                    )
+                    FROM purchase_order_items poi
+                    JOIN inventory i ON poi.sku = i.sku AND i.company_id = po.company_id
+                    WHERE poi.po_id = po.id
+                ) as items
+            FROM purchase_orders po
+            LEFT JOIN vendors v ON po.supplier_id = v.id
+            WHERE po.id = '${poId}' AND po.company_id = '${companyId}';
+        `;
+        
+        const { data, error } = await supabase.rpc('execute_dynamic_query', {
+            query_text: query.trim().replace(/;/g, '')
+        });
+
+        if (error) {
+            logError(error, { context: `Error fetching PO ${poId}` });
+            throw new Error(`Could not load purchase order data: ${error.message}`);
+        }
+
+        if (!data || data.length === 0) {
+            return null;
+        }
+
+        return PurchaseOrderSchema.parse(data[0]);
+    });
+}
+
 export async function createPurchaseOrderInDb(companyId: string, poData: PurchaseOrderCreateInput): Promise<PurchaseOrder> {
     return withPerformanceTracking('createPurchaseOrderInDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // 1. Calculate total amount
+        // 1. Calculate total amount and get on_order quantities
         const totalAmount = poData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0);
-
-        // 2. Insert into purchase_orders table
-        const { data: newPo, error: poError } = await supabase.from('purchase_orders').insert({
-            company_id: companyId,
-            supplier_id: poData.supplier_id,
-            po_number: poData.po_number,
-            order_date: poData.order_date.toISOString(),
-            expected_date: poData.expected_date?.toISOString(),
-            notes: poData.notes,
-            status: 'draft',
-            total_amount: totalAmount,
+        const onOrderUpdates = poData.items.map(item => ({
+            sku: item.sku,
+            quantity: item.quantity_ordered
+        }));
+        
+        // Transaction to ensure atomicity
+        const { data: newPo, error: poError } = await supabase.rpc('create_purchase_order_and_update_inventory', {
+            p_company_id: companyId,
+            p_supplier_id: poData.supplier_id,
+            p_po_number: poData.po_number,
+            p_order_date: poData.order_date.toISOString(),
+            p_expected_date: poData.expected_date?.toISOString(),
+            p_notes: poData.notes,
+            p_total_amount: totalAmount,
+            p_items: poData.items,
         }).select().single();
 
         if (poError) {
-            logError(poError, { context: 'Failed to insert new purchase order' });
+            logError(poError, { context: 'Failed to execute create_purchase_order_and_update_inventory RPC' });
             throw poError;
         }
 
-        // 3. Insert items into purchase_order_items table
-        const poItemsData = poData.items.map(item => ({
-            po_id: newPo.id,
-            sku: item.sku,
-            quantity_ordered: item.quantity_ordered,
-            unit_cost: item.unit_cost,
-            quantity_received: 0,
-            tax_rate: 0, // Assuming 0 for now
-        }));
+        logger.info(`[DB Service] Successfully created PO ${newPo.po_number} and updated on-order quantities.`);
 
-        const { error: itemsError } = await supabase.from('purchase_order_items').insert(poItemsData);
+        await invalidateCompanyCache(companyId, ['dashboard']);
+        return { ...newPo, items: poData.items };
+    });
+}
 
-        if (itemsError) {
-            logError(itemsError, { context: `Failed to insert items for PO ${newPo.id}` });
-            // Attempt to clean up the orphaned PO header
-            await supabase.from('purchase_orders').delete().eq('id', newPo.id);
-            throw itemsError;
-        }
+export async function receivePurchaseOrderItemsInDB(
+    poId: string,
+    companyId: string,
+    items: ReceiveItemsFormInput['items']
+): Promise<void> {
+    if (!isValidUuid(poId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('receivePurchaseOrderItemsInDB', async () => {
+        const supabase = getServiceRoleClient();
         
-        // TODO: Update on_order_quantity in inventory table
-        logger.info(`[DB Service] Successfully created PO ${newPo.po_number}. Inventory update is a future step.`);
+        const itemsToReceive = items.filter(item => item.quantity_to_receive > 0);
+        if (itemsToReceive.length === 0) {
+            throw new Error("No items were marked for receiving.");
+        }
 
-        return { ...newPo, items: poItemsData };
+        const { error } = await supabase.rpc('receive_purchase_order_items', {
+            p_po_id: poId,
+            p_items_to_receive: itemsToReceive,
+            p_company_id: companyId
+        });
+
+        if (error) {
+            logError(error, { context: `Failed to receive items for PO ${poId}` });
+            throw error;
+        }
+
+        logger.info(`[DB Service] Successfully received items for PO ${poId}.`);
+        await invalidateCompanyCache(companyId, ['dashboard', 'inventory']);
     });
 }
 
@@ -967,8 +1029,11 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw new Error(`Could not generate reorder suggestions: ${error.message}`);
         }
 
-        return z.array(ReorderSuggestionSchema).parse(data || []);
+        const parsedData = z.array(ReorderSuggestionSchema).safeParse(data || []);
+        if (!parsedData.success) {
+            logError(parsedData.error, { context: 'Zod parsing error for reorder suggestions' });
+            return [];
+        }
+        return parsedData.data;
     });
 }
-
-    

@@ -20,9 +20,12 @@ import {
     updateTeamMemberRoleInDb,
     getPurchaseOrdersFromDB,
     createPurchaseOrderInDb,
+    getPurchaseOrderByIdFromDB,
+    receivePurchaseOrderItemsInDB,
+    getReorderSuggestionsFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -110,6 +113,11 @@ export async function getSuppliersData() {
 export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
     const { companyId } = await getAuthContext();
     return getPurchaseOrdersFromDB(companyId);
+}
+
+export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
+    const { companyId } = await getAuthContext();
+    return getPurchaseOrderByIdFromDB(id, companyId);
 }
 
 export async function getAlertsData() {
@@ -507,4 +515,74 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
     }
     return { success: false, error: message };
   }
+}
+
+export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Promise<{ success: boolean, error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await receivePurchaseOrderItemsInDB(data.poId, companyId, data.items);
+        revalidatePath(`/purchase-orders/${data.poId}`);
+        revalidatePath('/inventory');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'receivePurchaseOrderItems action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
+    const { companyId } = await getAuthContext();
+    return getReorderSuggestionsFromDB(companyId);
+}
+
+export async function createPurchaseOrdersFromSuggestions(
+  suggestions: ReorderSuggestion[]
+): Promise<{ success: boolean; error?: string; createdPoCount: number }> {
+    try {
+        const { companyId } = await getAuthContext();
+
+        if (suggestions.length === 0) {
+            return { success: false, error: "No suggestions were selected.", createdPoCount: 0 };
+        }
+
+        // Group suggestions by supplier
+        const groupedBySupplier = suggestions.reduce((acc, suggestion) => {
+            const supplierId = suggestion.supplier_id;
+            if (!supplierId) return acc; // Skip suggestions with no supplier
+
+            if (!acc[supplierId]) {
+                acc[supplierId] = [];
+            }
+            acc[supplierId].push(suggestion);
+            return acc;
+        }, {} as Record<string, ReorderSuggestion[]>);
+
+
+        let createdPoCount = 0;
+        for (const supplierId in groupedBySupplier) {
+            const supplierSuggestions = groupedBySupplier[supplierId];
+            
+            const poInput: PurchaseOrderCreateInput = {
+                supplier_id: supplierId,
+                po_number: `PO-${Date.now()}-${createdPoCount}`,
+                order_date: new Date(),
+                items: supplierSuggestions.map(s => ({
+                    sku: s.sku,
+                    quantity_ordered: s.suggested_reorder_quantity,
+                    unit_cost: s.unit_cost,
+                })),
+            };
+
+            await createPurchaseOrderInDb(companyId, poInput);
+            createdPoCount++;
+        }
+
+        revalidatePath('/purchase-orders');
+        revalidatePath('/reordering');
+        return { success: true, createdPoCount };
+
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
+        return { success: false, error: getErrorMessage(e), createdPoCount: 0 };
+    }
 }

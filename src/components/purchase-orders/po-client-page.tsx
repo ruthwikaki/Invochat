@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 interface PurchaseOrderClientPageProps {
   initialPurchaseOrders: PurchaseOrder[];
@@ -77,6 +78,7 @@ function EmptyPOState() {
 
 export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrderClientPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const router = useRouter();
 
   const filteredPOs = initialPurchaseOrders.filter(po =>
     po.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -129,7 +131,7 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                       </TableCell>
                     </TableRow>
                   ) : filteredPOs.map(po => (
-                    <TableRow key={po.id} className="hover:shadow-md transition-shadow">
+                    <TableRow key={po.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/purchase-orders/${po.id}`)}>
                       <TableCell className="font-medium">{po.po_number}</TableCell>
                       <TableCell>{po.supplier_name}</TableCell>
                       <TableCell>
@@ -144,14 +146,13 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                       <TableCell className="text-right">${po.total_amount.toLocaleString()}</TableCell>
                       <TableCell className="text-center">
                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
                                     <MoreHorizontal className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem>View Details</DropdownMenuItem>
-                                <DropdownMenuItem>Receive Items</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => router.push(`/purchase-orders/${po.id}`)}>View Details & Receive</DropdownMenuItem>
                                 <DropdownMenuItem>Email to Supplier</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

@@ -13,6 +13,7 @@ import {
   BarChart,
   AlertCircle,
   ClipboardList,
+  RefreshCw,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -21,6 +22,7 @@ const menuItems = [
   { href: '/analytics', label: 'Strategic Reports', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
+  { href: '/reordering', label: 'Reorder Suggestions', icon: RefreshCw },
   { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },

@@ -153,6 +153,7 @@ export const PurchaseOrderItemSchema = z.object({
   id: z.string().uuid(),
   po_id: z.string().uuid(),
   sku: z.string(),
+  product_name: z.string().optional().nullable(),
   quantity_ordered: z.number().int(),
   quantity_received: z.number().int(),
   unit_cost: z.number(),
@@ -163,7 +164,7 @@ export type PurchaseOrderItem = z.infer<typeof PurchaseOrderItemSchema>;
 export const PurchaseOrderSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
-  supplier_id: z.string().uuid(),
+  supplier_id: z.string().uuid().nullable(),
   po_number: z.string(),
   status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']),
   order_date: z.string(),
@@ -173,7 +174,7 @@ export const PurchaseOrderSchema = z.object({
   created_at: z.string(),
   updated_at: z.string().nullable(),
   // For UI display
-  supplier_name: z.string().optional(),
+  supplier_name: z.string().optional().nullable(),
   items: z.array(PurchaseOrderItemSchema).optional(),
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
@@ -192,6 +193,17 @@ export const PurchaseOrderCreateSchema = z.object({
   })).min(1, 'At least one item is required.'),
 });
 export type PurchaseOrderCreateInput = z.infer<typeof PurchaseOrderCreateSchema>;
+
+export const ReceiveItemsFormSchema = z.object({
+  poId: z.string().uuid(),
+  items: z.array(z.object({
+    sku: z.string(),
+    quantity_to_receive: z.coerce.number().int().min(0, 'Cannot be negative.'),
+  })).min(1).refine(items => items.some(item => item.quantity_to_receive > 0), {
+    message: 'You must enter a quantity for at least one item to receive.',
+  }),
+});
+export type ReceiveItemsFormInput = z.infer<typeof ReceiveItemsFormSchema>;
 
 
 // New types for Supplier Catalogs and Reordering
@@ -225,10 +237,14 @@ export const ReorderSuggestionSchema = z.object({
     current_quantity: z.number(),
     reorder_point: z.number(),
     suggested_reorder_quantity: z.number(),
-    supplier_name: z.string(),
-    supplier_id: z.string().uuid(),
-    unit_cost: z.number(),
-});
+    supplier_name: z.string().nullable(),
+    supplier_id: z.string().uuid().nullable(),
+    unit_cost: z.number().nullable(),
+}).transform((data) => ({
+    ...data,
+    // Provide default values for nullable fields to prevent downstream errors
+    supplier_name: data.supplier_name ?? 'Unknown Supplier',
+    supplier_id: data.supplier_id ?? '00000000-0000-0000-0000-000000000000', // A null UUID
+    unit_cost: data.unit_cost ?? 0,
+}));
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
-
-    

@@ -341,6 +341,66 @@ CREATE TABLE IF NOT EXISTS public.reorder_rules (
   CONSTRAINT unique_reorder_rule_per_sku UNIQUE (company_id, sku)
 );
 CREATE INDEX IF NOT EXISTS idx_reorder_rules_company_sku ON public.reorder_rules(company_id, sku);
+
+-- ========= Part 8: Function to Receive PO Items =========
+-- This transactional function updates inventory when items from a PO are received.
+create or replace function public.receive_purchase_order_items(
+  p_po_id uuid,
+  p_items_to_receive jsonb, -- e.g., '[{"sku": "SKU123", "quantity_to_receive": 10}, ...]'
+  p_company_id uuid
+)
+returns void
+language plpgsql
+as $$
+declare
+  item_record record;
+  po_status_current po_status;
+  total_ordered int;
+  total_received_after_update int;
+begin
+  -- Loop through each item in the JSON array
+  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items_to_receive) AS x(sku text, quantity_to_receive int)
+  LOOP
+    -- Ensure we don't receive more than ordered
+    IF item_record.quantity_to_receive > 0 THEN
+      -- Update the received quantity on the PO item
+      UPDATE purchase_order_items
+      SET quantity_received = quantity_received + item_record.quantity_to_receive
+      WHERE po_id = p_po_id AND sku = item_record.sku;
+
+      -- Update the main inventory table
+      UPDATE inventory
+      SET 
+        quantity = quantity + item_record.quantity_to_receive,
+        on_order_quantity = on_order_quantity - item_record.quantity_to_receive
+      WHERE sku = item_record.sku AND company_id = p_company_id;
+    END IF;
+  END LOOP;
+
+  -- After updating all items, check if the PO is fully received
+  SELECT status INTO po_status_current FROM purchase_orders WHERE id = p_po_id;
+
+  IF po_status_current != 'cancelled' THEN
+    SELECT 
+      SUM(quantity_ordered), SUM(quantity_received)
+    INTO 
+      total_ordered, total_received_after_update
+    FROM purchase_order_items
+    WHERE po_id = p_po_id;
+
+    IF total_received_after_update >= total_ordered THEN
+      UPDATE purchase_orders SET status = 'received', updated_at = now() WHERE id = p_po_id;
+    ELSIF total_received_after_update > 0 THEN
+      UPDATE purchase_orders SET status = 'partial', updated_at = now() WHERE id = p_po_id;
+    END IF;
+  END IF;
+
+end;
+$$;
+
+-- Secure the function so it can only be called by authenticated service roles
+REVOKE EXECUTE ON FUNCTION public.receive_purchase_order_items(uuid, jsonb, uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.receive_purchase_order_items(uuid, jsonb, uuid) TO service_role;
 `;
 
 export default function SetupIncompletePage() {
@@ -407,5 +467,3 @@ export default function SetupIncompletePage() {
     </div>
   );
 }
-
-    
