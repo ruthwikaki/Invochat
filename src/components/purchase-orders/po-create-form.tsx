@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PurchaseOrderCreateSchema, type PurchaseOrderCreateInput, type Supplier } from '@/types';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,13 +26,19 @@ export function PurchaseOrderCreateForm({ suppliers }: { suppliers: Supplier[] }
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
+  // Lazily initialize defaultValues to run only on the client side, preventing hydration errors.
+  const [defaultValues] = useState<PurchaseOrderCreateInput>(() => ({
+    po_number: `PO-${Date.now()}`,
+    order_date: new Date(),
+    items: [{ sku: '', product_name: '', quantity_ordered: 1, unit_cost: 0 }],
+    supplier_id: '',
+    notes: '',
+    expected_date: null
+  }));
+
   const form = useForm<PurchaseOrderCreateInput>({
     resolver: zodResolver(PurchaseOrderCreateSchema),
-    defaultValues: {
-      po_number: `PO-${Date.now()}`,
-      order_date: new Date(),
-      items: [{ sku: '', product_name: '', quantity_ordered: 1, unit_cost: 0 }],
-    },
+    defaultValues: defaultValues,
   });
 
   const { fields, append, remove } = useFieldArray({
