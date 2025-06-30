@@ -4,12 +4,9 @@ import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
 import { envValidation } from '@/config/app-config';
 
-// This block will now throw a clear error during startup if keys are missing,
-// which is better than a lazy-load error deep in a call stack.
-if (!envValidation.success || !process.env.GOOGLE_API_KEY) {
-    const missingVars = envValidation.success ? ['GOOGLE_API_KEY'] : Object.keys(envValidation.error.flatten().fieldErrors);
-    throw new Error(`Genkit initialization failed. Missing required environment variables: ${missingVars.join(', ')}. Please check your .env file.`);
-}
+// The validation logic is now handled by the root layout, which will
+// show a graceful error page instead of crashing the server.
+// We can now safely initialize the client here, assuming the .env file is correctly populated.
 
 logger.info('[Genkit] Initializing Genkit with Google AI plugin...');
 
