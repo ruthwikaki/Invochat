@@ -8,7 +8,7 @@
  * context-aware answers.
  */
 
-import { ai } from '@/ai/genkit';
+import { getAiClient } from '@/ai/genkit';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
@@ -224,7 +224,7 @@ const FEW_SHOT_EXAMPLES = `
 `;
 
 
-const sqlGenerationPrompt = ai.definePrompt({
+const sqlGenerationPrompt = getAiClient().definePrompt({
   name: 'sqlGenerationPrompt',
   input: { schema: z.object({ userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string() }) },
   output: { schema: z.object({ sqlQuery: z.string().optional().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
@@ -280,7 +280,7 @@ const sqlGenerationPrompt = ai.definePrompt({
   `,
 });
 
-const queryValidationPrompt = ai.definePrompt({
+const queryValidationPrompt = getAiClient().definePrompt({
   name: 'queryValidationPrompt',
   input: { schema: z.object({ userQuery: z.string(), sqlQuery: z.string() }) },
   output: { schema: z.object({ isValid: z.boolean(), correction: z.string().optional().describe('Reason if invalid.') }) },
@@ -314,7 +314,7 @@ const queryValidationPrompt = ai.definePrompt({
   `,
 });
 
-const errorRecoveryPrompt = ai.definePrompt({
+const errorRecoveryPrompt = getAiClient().definePrompt({
     name: 'errorRecoveryPrompt',
     input: { schema: z.object({ userQuery: z.string(), failedQuery: z.string(), errorMessage: z.string(), dbSchema: z.string() }) },
     output: { schema: z.object({ correctedQuery: z.string().optional().describe('The corrected SQL query, if fixable.'), reasoning: z.string().describe('Explanation of the error and the fix.') }) },
@@ -346,7 +346,7 @@ const errorRecoveryPrompt = ai.definePrompt({
 });
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true });
-const finalResponsePrompt = ai.definePrompt({
+const finalResponsePrompt = getAiClient().definePrompt({
   name: 'finalResponsePrompt',
   input: { schema: z.object({ userQuery: z.string(), queryDataJson: z.string() }) },
   output: { schema: FinalResponseObjectSchema },
@@ -370,7 +370,7 @@ const finalResponsePrompt = ai.definePrompt({
   `,
 });
 
-const universalChatOrchestrator = ai.defineFlow(
+const universalChatOrchestrator = getAiClient().defineFlow(
   {
     name: 'universalChatOrchestrator',
     inputSchema: UniversalChatInputSchema,
@@ -381,6 +381,7 @@ const universalChatOrchestrator = ai.defineFlow(
     const lastMessage = conversationHistory[conversationHistory.length - 1];
     const userQuery = lastMessage?.content[0]?.text || '';
     const supabaseAdmin = getServiceRoleClient();
+    const ai = getAiClient();
 
     if (!userQuery) {
         throw new Error("User query was empty.");

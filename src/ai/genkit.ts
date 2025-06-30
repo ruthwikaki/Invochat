@@ -3,18 +3,34 @@ import {genkit, type Genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
 
-// Startup validation is now handled centrally in src/config/app-config.ts.
-// This ensures all necessary environment variables (like GOOGLE_API_KEY)
-// are checked in one place before the application starts.
+let aiInstance: Genkit | null = null;
 
-logger.info('[Genkit] Initializing with Google AI plugin');
+/**
+ * Returns a lazily initialized Genkit AI client instance.
+ * This prevents the application from crashing on startup if the GOOGLE_API_KEY
+ * environment variable is missing.
+ *
+ * @throws {Error} If the GOOGLE_API_KEY is not set when the client is accessed.
+ */
+export function getAiClient(): Genkit {
+    if (aiInstance) {
+        return aiInstance;
+    }
 
-// Initialize Genkit with the Google AI plugin.
-// The model itself is specified in each `ai.generate()` call.
-export const ai = genkit({
-  plugins: [
-    googleAI({ apiKey: process.env.GOOGLE_API_KEY })
-  ],
-});
+    const apiKey = process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+        // This error will be caught by error boundaries in the app, preventing a crash.
+        throw new Error('Genkit client is not configured. The GOOGLE_API_KEY environment variable is missing.');
+    }
 
-logger.info('[Genkit] Initialized successfully');
+    logger.info('[Genkit] Lazily initializing Genkit with Google AI plugin');
+
+    aiInstance = genkit({
+        plugins: [
+            googleAI({ apiKey: apiKey })
+        ],
+    });
+
+    logger.info('[Genkit] Genkit client initialized successfully');
+    return aiInstance;
+}
