@@ -112,15 +112,11 @@ CREATE TABLE IF NOT EXISTS public.returns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     order_id UUID REFERENCES public.orders(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- This command ensures that users with an older version of the database schema
--- get the necessary 'created_at' column added to their 'returns' table.
-ALTER TABLE public.returns ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-
 -- Add an index for performance on common queries.
-CREATE INDEX IF NOT EXISTS idx_returns_company_created ON public.returns(company_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_returns_company_created ON public.returns(company_id, requested_at);
 
 
 -- ========= Part 4: Performance Optimization (Materialized View) =========
@@ -269,6 +265,13 @@ ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS expected_date DATE;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2);
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
+
+-- Cleanup: Drop redundant, denormalized columns from older designs.
+ALTER TABLE public.purchase_orders 
+    DROP COLUMN IF EXISTS vendor, 
+    DROP COLUMN IF EXISTS item, 
+    DROP COLUMN IF EXISTS quantity, 
+    DROP COLUMN IF EXISTS cost;
 
 
 -- Add unique constraint if it doesn't exist.
@@ -637,6 +640,11 @@ CREATE TABLE IF NOT EXISTS public.order_items (
     unit_price NUMERIC(10, 2) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+-- Cleanup: Drop unused columns from older designs
+ALTER TABLE public.order_items 
+    DROP COLUMN IF EXISTS product_id, 
+    DROP COLUMN IF EXISTS total_price;
+
 CREATE INDEX IF NOT EXISTS idx_order_items_sale_id ON public.order_items(sale_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_sku ON public.order_items(sku);
 

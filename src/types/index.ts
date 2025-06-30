@@ -192,7 +192,7 @@ export const PurchaseOrderSchema = z.object({
   supplier_id: z.string().uuid().nullable(),
   po_number: z.string(),
   status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']).nullable(),
-  order_date: z.string().nullable(),
+  order_date: z.string(),
   expected_date: z.string().nullable(),
   total_amount: z.coerce.number(),
   notes: z.string().nullable(),
