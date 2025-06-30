@@ -3,14 +3,14 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { getIntegrations, disconnectIntegration as disconnectAction } from '@/app/data-actions';
-import { ShopifyIntegration } from '../types';
+import { Integration } from '../types';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 
 export function useIntegrations() {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [integrations, setIntegrations] = useState<ShopifyIntegration[]>([]);
+    const [integrations, setIntegrations] = useState<Integration[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isSyncing, startSyncTransition] = useTransition();

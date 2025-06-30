@@ -1,14 +1,19 @@
 
-export type ShopifyIntegration = {
+
+export type Platform = 'shopify' | 'woocommerce';
+
+export type Integration = {
   id: string;
   company_id: string;
-  platform: 'shopify';
-  shop_domain: string;
+  platform: Platform;
+  shop_domain: string | null;
   shop_name: string | null;
+  access_token: string; // This is always encrypted
   is_active: boolean;
   last_sync_at: string | null;
   sync_status: 'syncing' | 'success' | 'failed' | 'idle' | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 export type SyncLog = {

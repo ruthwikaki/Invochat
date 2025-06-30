@@ -41,9 +41,10 @@ import {
     refreshMaterializedViews,
     getIntegrationsByCompanyId,
     deleteIntegrationFromDb,
+    getSupplierPerformanceFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, ShopifyIntegration } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -55,6 +56,7 @@ import { getErrorMessage, logError } from '@/lib/error-handler';
 import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
 import { sendPurchaseOrderEmail } from '@/services/email';
 import { redirect } from 'next/navigation';
+import type { Integration } from '@/features/integrations/types';
 
 // This function provides a robust way to get the company ID for the current user.
 // It is now designed to be crash-proof. It throws an error if any issue occurs.
@@ -798,7 +800,7 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
 }
 
 // Integrations
-export async function getIntegrations(): Promise<ShopifyIntegration[]> {
+export async function getIntegrations(): Promise<Integration[]> {
     const { companyId } = await getAuthContext();
     return getIntegrationsByCompanyId(companyId);
 }

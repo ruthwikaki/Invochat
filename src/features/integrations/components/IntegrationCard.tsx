@@ -3,7 +3,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ShopifyIntegration } from '../types';
+import { Integration } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { Loader2, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
@@ -17,9 +17,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { PlatformLogo } from './platform-logos';
 
 interface IntegrationCardProps {
-    integration: ShopifyIntegration;
+    integration: Integration;
     onSync: (id: string) => void;
     onDisconnect: (id: string) => void;
 }
@@ -43,13 +44,10 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
     return (
         <Card className="bg-gradient-to-br from-card to-muted/50 border-green-500/20 shadow-lg">
             <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                 <div 
-                    className="bg-contain bg-center bg-no-repeat h-16 w-16"
-                    style={{ backgroundImage: `url('https://cdn.shopify.com/shopify-marketing_assets/static/shopify-favicon.png')`}}
-                />
+                 <PlatformLogo platform={integration.platform} className="h-16 w-16" />
                 <div className="flex-1 text-center md:text-left">
                     <h3 className="text-lg font-semibold">{integration.shop_name}</h3>
-                    <p className="text-sm text-muted-foreground">{integration.shop_domain.replace('https://', '')}</p>
+                    <p className="text-sm text-muted-foreground">{integration.shop_domain?.replace('https://', '')}</p>
                     {renderStatus()}
                 </div>
                 <div className="flex items-center gap-2">

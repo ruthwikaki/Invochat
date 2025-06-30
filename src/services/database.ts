@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { PurchaseOrderCreateSchema } from '@/types';
 import { redirect } from 'next/navigation';
+import type { Integration } from '@/features/integrations/types';
 
 // Simple regex to validate a string is in UUID format.
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -282,7 +283,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
       logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
       await incrementCacheMiss('dashboard');
     } catch (error) {
-      logError(error, { context: `Redis error getting cache for ${cacheKey}. Fetching directly from DB.` });
+        logError(error, { context: `Redis error getting cache for ${cacheKey}. Fetching directly from DB.` });
     }
   }
   return fetchAndCacheMetrics();
@@ -1465,5 +1466,39 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
             return [];
         }
         return parsedData.data;
+    });
+}
+
+// Integration Functions
+export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
+  if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+  return withPerformanceTracking('getIntegrationsByCompanyId', async () => {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+      .from('integrations')
+      .select('*')
+      .eq('company_id', companyId);
+    if (error) {
+      logError(error, { context: `getIntegrationsByCompanyId for company ${companyId}` });
+      throw error;
+    }
+    return data || [];
+  });
+}
+
+export async function deleteIntegrationFromDb(integrationId: string, companyId: string): Promise<void> {
+    if (!isValidUuid(integrationId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('deleteIntegrationFromDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase
+            .from('integrations')
+            .delete()
+            .eq('id', integrationId)
+            .eq('company_id', companyId);
+        
+        if(error) {
+            logError(error, { context: `Failed to delete integration ${integrationId}`});
+            throw error;
+        }
     });
 }

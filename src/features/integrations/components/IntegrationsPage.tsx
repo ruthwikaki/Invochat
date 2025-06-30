@@ -3,30 +3,39 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShopifyConnectModal } from './ShopifyConnectModal';
 import { useIntegrations } from '../hooks/useIntegrations';
 import { IntegrationCard } from './IntegrationCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
+import { PlatformLogo } from './platform-logos';
 
-function ShopifyConnectCard({ onConnectClick }: { onConnectClick: () => void }) {
+function PlatformConnectCard({
+    platform,
+    description,
+    onConnectClick,
+    comingSoon = false,
+    brandColor,
+}: {
+    platform: 'shopify' | 'woocommerce';
+    description: string;
+    onConnectClick: () => void;
+    comingSoon?: boolean;
+    brandColor?: string;
+}) {
     return (
-        <Card className="bg-background/50 backdrop-blur-sm border-[#95BF47]/30">
+        <Card className="bg-background/50 backdrop-blur-sm">
             <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                <motion.div 
-                    whileHover={{ scale: 1.05 }}
-                    className="bg-contain bg-center bg-no-repeat h-16 w-16"
-                    style={{ backgroundImage: `url('https://cdn.shopify.com/shopify-marketing_assets/static/shopify-favicon.png')`}}
-                />
+                <motion.div whileHover={{ scale: 1.05 }}>
+                    <PlatformLogo platform={platform} className="h-16 w-16" />
+                </motion.div>
                 <div className="flex-1 text-center md:text-left">
-                    <h3 className="text-lg font-semibold">Shopify</h3>
-                    <p className="text-sm text-muted-foreground">
-                        Sync your products, inventory levels, and orders directly from your Shopify store.
-                    </p>
+                    <h3 className="text-lg font-semibold capitalize">{platform}</h3>
+                    <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
-                <Button onClick={onConnectClick} className="bg-[#95BF47] hover:bg-[#84ac3d] text-white">
-                    Connect Store
+                <Button onClick={onConnectClick} disabled={comingSoon} style={brandColor ? { backgroundColor: brandColor } : {}}>
+                    {comingSoon ? 'Coming Soon' : 'Connect Store'}
                 </Button>
             </div>
         </Card>
@@ -38,10 +47,15 @@ export function IntegrationsClientPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const { integrations, loading, error, triggerSync, disconnect } = useIntegrations();
 
-    const shopifyIntegration = integrations.find(i => i.platform === 'shopify');
+    const connectedPlatforms = new Set(integrations.map(i => i.platform));
     
     if (loading) {
-        return <Skeleton className="h-48 w-full" />
+        return (
+            <div className="space-y-6">
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-32 w-full" />
+            </div>
+        )
     }
 
     if (error) {
@@ -49,21 +63,55 @@ export function IntegrationsClientPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             <ShopifyConnectModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
             />
             
-            {shopifyIntegration ? (
-                <IntegrationCard
-                    integration={shopifyIntegration}
-                    onSync={triggerSync}
-                    onDisconnect={disconnect}
-                />
-            ) : (
-                 <ShopifyConnectCard onConnectClick={() => setIsModalOpen(true)} />
-            )}
+            <div>
+                <h2 className="text-xl font-semibold mb-4">Connected Integrations</h2>
+                <div className="space-y-4">
+                    {integrations.length > 0 ? (
+                        integrations.map(integration => (
+                             <IntegrationCard
+                                key={integration.id}
+                                integration={integration}
+                                onSync={triggerSync}
+                                onDisconnect={disconnect}
+                            />
+                        ))
+                    ) : (
+                        <Card className="text-center p-8 border-dashed">
+                           <CardTitle>No Integrations Connected</CardTitle>
+                           <CardDescription className="mt-2">Connect an app below to get started.</CardDescription>
+                        </Card>
+                    )}
+                </div>
+            </div>
+            
+            <div>
+                <h2 className="text-xl font-semibold mb-4">Available Integrations</h2>
+                <div className="space-y-4">
+                    {!connectedPlatforms.has('shopify') && (
+                         <PlatformConnectCard 
+                            platform="shopify"
+                            description="Sync your products, inventory levels, and orders directly from your Shopify store."
+                            onConnectClick={() => setIsModalOpen(true)}
+                            brandColor="#78AB43"
+                         />
+                    )}
+                    {!connectedPlatforms.has('woocommerce') && (
+                         <PlatformConnectCard 
+                            platform="woocommerce"
+                            description="Sync your products, inventory, and orders from your WooCommerce-powered site."
+                            onConnectClick={() => {}}
+                            brandColor="#96588A"
+                            comingSoon
+                         />
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

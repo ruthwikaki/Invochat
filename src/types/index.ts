@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
+import type { Integration } from '@/features/integrations/types';
 
 export type User = Omit<SupabaseUser, 'app_metadata' | 'role'> & {
   app_metadata?: {
@@ -272,7 +273,7 @@ export const ReorderSuggestionSchema = z.object({
     ...data,
     // Provide default values for nullable fields to prevent downstream errors
     supplier_name: data.supplier_name ?? 'Unknown Supplier',
-    supplier_id: data.supplier_id ?? '00000000-0000-0000-0000-000000000000', // A null UUID
+    supplier_id: data.supplier_id ?? null,
     unit_cost: data.unit_cost ?? 0,
 }));
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
@@ -313,14 +314,5 @@ export const SupplierPerformanceReportSchema = z.object({
 });
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
 
-export type ShopifyIntegration = {
-  id: string;
-  company_id: string;
-  platform: 'shopify';
-  shop_domain: string;
-  shop_name: string | null;
-  is_active: boolean;
-  last_sync_at: string | null;
-  sync_status: 'syncing' | 'success' | 'failed' | 'idle' | null;
-  created_at: string;
-};
+// Export the generic Integration type
+export type { Integration };
