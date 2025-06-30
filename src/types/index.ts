@@ -144,3 +144,33 @@ export const AnomalySchema = z.object({
     anomaly_type: z.string(),
 });
 export type Anomaly = z.infer<typeof AnomalySchema>;
+
+// New types for Purchase Orders
+export const PurchaseOrderItemSchema = z.object({
+  id: z.string().uuid(),
+  po_id: z.string().uuid(),
+  sku: z.string(),
+  quantity_ordered: z.number().int(),
+  quantity_received: z.number().int(),
+  unit_cost: z.number(),
+  tax_rate: z.number(),
+});
+export type PurchaseOrderItem = z.infer<typeof PurchaseOrderItemSchema>;
+
+export const PurchaseOrderSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  supplier_id: z.string().uuid(),
+  po_number: z.string(),
+  status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']),
+  order_date: z.string(),
+  expected_date: z.string().nullable(),
+  total_amount: z.number(),
+  notes: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  // For UI display
+  supplier_name: z.string().optional(),
+  items: z.array(PurchaseOrderItemSchema).optional(),
+});
+export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;

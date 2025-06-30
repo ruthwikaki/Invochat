@@ -245,68 +245,50 @@ $$;
 -- Secure the function so it can only be called by authenticated service roles
 REVOKE EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) FROM public;
 GRANT EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) TO service_role;
-`;
 
-function SqlCopyBox() {
-    const { toast } = useToast();
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(sqlCode).then(() => {
-            toast({ title: 'Success', description: 'SQL code copied to clipboard.' });
-        }).catch(err => {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not copy code.' });
-        });
-    };
+-- ========= Part 7: E-Commerce Features (Purchase Orders) =========
 
-    return (
-        <div className="relative">
-            <pre className="bg-muted p-4 rounded-md text-sm text-muted-foreground overflow-x-auto">
-                <code>{sqlCode}</code>
-            </pre>
-            <Button onClick={handleCopy} variant="secondary" size="sm" className="absolute top-2 right-2">
-                Copy SQL
-            </Button>
-        </div>
-    );
-}
+-- Add a column to the inventory table to track units currently on order.
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS on_order_quantity INTEGER NOT NULL DEFAULT 0;
 
-export default function SetupIncompletePage() {
-    const { signOut } = useAuth();
-    const router = useRouter();
+-- Define a type for Purchase Order status for data integrity.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'po_status') THEN
+        CREATE TYPE po_status AS ENUM ('draft', 'sent', 'partial', 'received', 'cancelled');
+    END IF;
+END$$;
 
-    const handleSignOut = async () => {
-        await signOut();
-        router.push('/login');
-    };
 
-    return (
-        <div className="flex min-h-dvh items-center justify-center bg-background p-4">
-            <Card className="w-full max-w-2xl">
-                <CardHeader>
-                    <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit mb-4">
-                        <AlertTriangle className="h-8 w-8 text-destructive" />
-                    </div>
-                    <CardTitle className="text-center text-2xl">Setup Incomplete</CardTitle>
-                    <CardDescription className="text-center">
-                        Your account is not fully configured. To enable full application functionality, please run the following SQL script in your Supabase project's SQL Editor.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        This script is idempotent, meaning it's safe to run multiple times. It will create necessary database functions and tables without duplicating existing ones.
-                    </p>
-                    <SqlCopyBox />
-                </CardContent>
-                <CardFooter className="flex flex-col items-center gap-4">
-                    <p className="text-sm text-muted-foreground text-center">
-                        After running the script, you must sign out and sign up with a **new user account** to finalize the setup. This is a one-time process.
-                    </p>
-                    <Button onClick={handleSignOut} variant="outline">
-                        <LogOut className="mr-2 h-4 w-4" />
-                        Sign Out
-                    </Button>
-                </CardFooter>
-            </Card>
-        </div>
-    );
-}
+-- Create the main purchase_orders table.
+CREATE TABLE IF NOT EXISTS public.purchase_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    supplier_id UUID NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
+    po_number TEXT NOT NULL,
+    status po_status NOT NULL DEFAULT 'draft',
+    order_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    expected_date DATE,
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_po_number_per_company UNIQUE (company_id, po_number)
+);
+CREATE INDEX IF NOT EXISTS idx_po_company_supplier ON public.purchase_orders(company_id, supplier_id);
+CREATE INDEX IF NOT EXISTS idx_po_company_status ON public.purchase_orders(company_id, status);
+
+-- Create the table for items within each purchase order.
+CREATE TABLE IF NOT EXISTS public.purchase_order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    po_id UUID NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
+    sku TEXT NOT NULL,
+    quantity_ordered INTEGER NOT NULL CHECK (quantity_ordered > 0),
+    quantity_received INTEGER NOT NULL DEFAULT 0 CHECK (quantity_received >= 0),
+    unit_cost NUMERIC(10, 2) NOT NULL,
+    tax_rate NUMERIC(5, 4) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_po_items_po_id ON public.purchase_order_items(po_id);
+CREATE INDEX IF NOT EXISTS idx_po_items_sku ON public.purchase_order_items(sku);

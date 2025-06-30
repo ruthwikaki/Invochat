@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -297,8 +297,15 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
         logError(error, { context: `Error fetching raw dead stock data for company ${companyId}` });
         return [];
     }
+    
+    // Use .partial() to allow objects that don't perfectly match the schema
+    const result = z.array(DeadStockItemSchema.partial()).safeParse(data || []);
+    if (!result.success) {
+        logError(result.error, {context: 'Zod parsing error for dead stock data'});
+        return [];
+    }
 
-    return z.array(DeadStockItemSchema).parse(data || []);
+    return result.data as DeadStockItem[];
 }
 
 export async function getDeadStockPageData(companyId: string) {
@@ -319,8 +326,8 @@ export async function getDeadStockPageData(companyId: string) {
         const settings = await getCompanySettings(companyId);
         const deadStockItems = await getRawDeadStockData(companyId, settings);
         
-        const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
-        const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
+        const totalValue = deadStockItems.reduce((sum, item) => sum + (item.total_value || 0), 0);
+        const totalUnits = deadStockItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
         const result = {
             deadStockItems,
@@ -374,6 +381,34 @@ export async function getSuppliersFromDB(companyId: string) {
 
         return result;
     });
+}
+
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrder[]> {
+     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+     return withPerformanceTracking('getPurchaseOrdersFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        
+        const query = `
+            SELECT 
+                po.*,
+                v.vendor_name as supplier_name
+            FROM purchase_orders po
+            JOIN vendors v ON po.supplier_id = v.id
+            WHERE po.company_id = '${companyId}'
+            ORDER BY po.order_date DESC;
+        `;
+
+        const { data, error } = await supabase.rpc('execute_dynamic_query', {
+            query_text: query.trim().replace(/;/g, '')
+        });
+
+        if (error) {
+            logError(error, { context: 'Error fetching purchase orders from DB' });
+            throw new Error(`Could not load purchase order data: ${error.message}`);
+        }
+
+        return z.array(PurchaseOrderSchema).parse(data || []);
+     });
 }
 
 

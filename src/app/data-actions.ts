@@ -8,19 +8,20 @@ import {
     getDeadStockPageData,
     getSuppliersFromDB,
     getAlertsFromDB,
-    getDatabaseSchemaAndData as getDbSchemaAndData,
-    getCompanySettings as getSettings,
-    updateCompanySettings as updateSettingsInDb,
-    generateAnomalyInsights as getAnomalyInsightsFromDB,
+    getDbSchemaAndData,
+    getSettings,
+    updateSettingsInDb,
+    getAnomalyInsightsFromDB,
     getUnifiedInventoryFromDB,
     getInventoryCategoriesFromDB,
     getTeamMembersFromDB,
-    inviteUserToCompany as inviteUserToCompanyInDb,
+    inviteUserToCompanyInDb,
     removeTeamMemberFromDb,
     updateTeamMemberRoleInDb,
+    getPurchaseOrdersFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -101,6 +102,11 @@ export async function getDeadStockData() {
 export async function getSuppliersData() {
     const { companyId } = await getAuthContext();
     return getSuppliersFromDB(companyId);
+}
+
+export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
+    const { companyId } = await getAuthContext();
+    return getPurchaseOrdersFromDB(companyId);
 }
 
 export async function getAlertsData() {

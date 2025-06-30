@@ -12,7 +12,7 @@ import {
   Truck,
   BarChart,
   AlertCircle,
-  Pyramid,
+  ClipboardList,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -20,6 +20,7 @@ const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/analytics', label: 'Strategic Reports', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
+  { href: '/purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
   { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
