@@ -84,23 +84,29 @@ async function processCsv<T extends z.ZodType<any, any>>(
         const supabase = supabaseAdmin;
         if (!supabase) throw new Error('Supabase admin client not initialized.');
 
-        // Use upsert to either insert new data or update existing data based on a conflict target.
-        // This is safer than a simple insert. We need to define what makes a row unique.
+        // Define what makes a row unique for upserting.
         let conflictTarget: string[] = [];
         if (tableName === 'inventory_valuation') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
 
-        const { error: dbError } = await supabase
-            .from(tableName)
-            .upsert(validRows, { onConflict: conflictTarget.join(',') });
+        // Use a transactional RPC to ensure all-or-nothing import.
+        const { error: dbError } = await supabase.rpc('batch_upsert_with_transaction', {
+            p_table_name: tableName,
+            p_records: validRows,
+            p_conflict_columns: conflictTarget,
+        });
 
         if (dbError) {
-            logger.error(`[Data Import] Database error for ${tableName}:`, dbError);
+            logger.error(`[Data Import] Transactional database error for ${tableName}:`, dbError);
+            const errorMessage = dbError.message.includes('function public.batch_upsert_with_transaction') 
+              ? `Database error: The transactional import function is missing. Please run the latest SQL from the Setup page.`
+              : `Database error: ${dbError.message}. The import was rolled back.`;
+              
             return {
                 successCount: 0,
                 errorCount: rows.length,
-                errors: [{ row: 0, message: `Database error: ${dbError.message}. Check for conflicts or data type mismatches.` }],
-                summaryMessage: 'A database error occurred during import.'
+                errors: [{ row: 0, message: errorMessage }],
+                summaryMessage: 'A database error occurred during import. No data was saved.'
             };
         }
     }

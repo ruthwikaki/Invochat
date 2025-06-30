@@ -184,6 +184,67 @@ CREATE TABLE IF NOT EXISTS public.query_patterns (
 
 -- Add an index for faster lookups when fetching patterns for a company.
 CREATE INDEX IF NOT EXISTS idx_query_patterns_company_id ON public.query_patterns(company_id);
+
+
+-- ========= Part 6: Transactional Data Import =========
+-- This function is used by the Data Importer to perform bulk upserts
+-- within a single database transaction. This ensures that if any row
+-- in a CSV fails to import, the entire operation is rolled back,
+-- preventing partial or corrupt data from being saved.
+
+create or replace function public.batch_upsert_with_transaction(
+  p_table_name text,
+  p_records jsonb,
+  p_conflict_columns text[]
+)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  -- Dynamically build the SET clause for the 'ON CONFLICT' part of the upsert.
+  -- It constructs a string like "col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, ..."
+  -- It excludes the columns used for conflict resolution from being updated.
+  update_set_clause text := (
+    select string_agg(format('%I = excluded.%I', key, key), ', ')
+    from jsonb_object_keys(p_records -> 0) as key
+    where not (key = any(p_conflict_columns))
+  );
+  
+  -- The main dynamic SQL statement.
+  query text;
+begin
+  -- Ensure the function only works on specific, whitelisted tables to prevent misuse.
+  if p_table_name not in ('inventory_valuation', 'vendors') then
+    raise exception 'Invalid table name provided for batch upsert: %', p_table_name;
+  end if;
+
+  -- This query is executed as a single statement, making it more performant than a loop.
+  -- It uses `jsonb_populate_recordset` to safely convert the JSON array into a set of rows
+  -- matching the target table's structure. This is safer than manual value string construction.
+  query := format(
+    '
+    INSERT INTO %I
+    SELECT * FROM jsonb_populate_recordset(null::%I, $1)
+    ON CONFLICT (%s) DO UPDATE SET %s;
+    ',
+    p_table_name,
+    p_table_name, -- First argument to jsonb_populate_recordset is the table type
+    array_to_string(p_conflict_columns, ', '),
+    update_set_clause
+  );
+  
+  -- Execute the full query, passing the records as a parameter to prevent SQL injection.
+  execute query using p_records;
+
+-- If any exception occurs, the entire transaction is automatically
+-- rolled back by PostgreSQL, and the exception is re-raised.
+end;
+$$;
+
+-- Secure the function so it can only be called by authenticated service roles
+REVOKE EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) FROM public;
+GRANT EXECUTE ON FUNCTION public.batch_upsert_with_transaction(text, jsonb, text[]) TO service_role;
 `;
 
 function SqlCopyBox() {
