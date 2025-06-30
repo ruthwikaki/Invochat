@@ -2,6 +2,7 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -15,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { motion } from 'framer-motion';
@@ -28,6 +29,38 @@ function SubmitButton() {
     </Button>
   );
 }
+
+const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
+  (props, ref) => {
+    const [showPassword, setShowPassword] = useState(false);
+    return (
+      <div className="relative">
+        <Input
+          ref={ref}
+          type={showPassword ? 'text' : 'password'}
+          className="pr-10"
+          {...props}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
+          onClick={() => setShowPassword((prev) => !prev)}
+          aria-label={showPassword ? 'Hide password' : 'Show password'}
+          tabIndex={-1}
+        >
+          {showPassword ? (
+            <EyeOff className="h-4 w-4" />
+          ) : (
+            <Eye className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+    );
+  }
+);
+PasswordInput.displayName = 'PasswordInput';
 
 
 export default function SignupPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
@@ -104,10 +137,9 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
                 placeholder="••••••••"
                 required
                 minLength={6}
@@ -131,3 +163,4 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
     </div>
   );
 }
+
