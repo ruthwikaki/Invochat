@@ -20,12 +20,14 @@ import {
     updateTeamMemberRoleInDb,
     getPurchaseOrdersFromDB,
     createPurchaseOrderInDb,
+    updatePurchaseOrderInDb,
+    deletePurchaseOrderFromDb,
     getPurchaseOrderByIdFromDB,
     receivePurchaseOrderItemsInDB,
     getReorderSuggestionsFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -34,7 +36,8 @@ import { invalidateCompanyCache } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { PurchaseOrderCreateSchema } from '@/types';
+import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema } from '@/types';
+import { sendPurchaseOrderEmail } from '@/services/email';
 import { redirect } from 'next/navigation';
 
 // This function provides a robust way to get the company ID for the current user.
@@ -481,7 +484,7 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
   try {
     const { companyId } = await getAuthContext();
     const newPo = await createPurchaseOrderInDb(companyId, parsedData.data);
-    revalidatePath('/purchase-orders');
+    revalidatePath('/purchase-orders', 'layout');
     return { success: true, data: newPo };
   } catch (e) {
     logError(e, { context: 'createPurchaseOrder action' });
@@ -492,6 +495,61 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
     return { success: false, error: message };
   }
 }
+
+export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
+  const parsedData = PurchaseOrderUpdateSchema.safeParse(data);
+  if (!parsedData.success) {
+    return { success: false, error: "Invalid form data provided for update." };
+  }
+
+  try {
+    const { companyId } = await getAuthContext();
+    await updatePurchaseOrderInDb(poId, companyId, parsedData.data);
+    revalidatePath('/purchase-orders', 'layout');
+    revalidatePath(`/purchase-orders/${poId}`);
+    return { success: true };
+  } catch (e) {
+    logError(e, { context: 'updatePurchaseOrder action' });
+    const message = getErrorMessage(e);
+    if (message.includes('unique_po_number_per_company')) {
+        return { success: false, error: 'This Purchase Order number already exists. Please use a unique PO number.' };
+    }
+    return { success: false, error: message };
+  }
+}
+
+export async function deletePurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        await deletePurchaseOrderFromDb(poId, companyId);
+        revalidatePath('/purchase-orders', 'layout');
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'deletePurchaseOrder action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function emailPurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        const purchaseOrder = await getPurchaseOrderByIdFromDB(poId, companyId);
+        if (!purchaseOrder) {
+            return { success: false, error: "Purchase Order not found." };
+        }
+        if (!purchaseOrder.supplier_email) {
+            return { success: false, error: "Supplier does not have an email address on file." };
+        }
+
+        await sendPurchaseOrderEmail(purchaseOrder);
+
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: `emailPurchaseOrder for PO ${poId}`});
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
 
 export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Promise<{ success: boolean, error?: string }> {
     try {
@@ -542,6 +600,7 @@ export async function createPurchaseOrdersFromSuggestions(
                 supplier_id: supplierId,
                 po_number: `PO-${Date.now()}-${createdPoCount}`,
                 order_date: new Date(),
+                status: 'draft',
                 items: supplierSuggestions.map(s => ({
                     sku: s.sku,
                     quantity_ordered: s.suggested_reorder_quantity,

@@ -3,7 +3,7 @@
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { PurchaseOrderCreateSchema, type PurchaseOrderCreateInput, type Supplier } from '@/types';
+import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, type PurchaseOrder, type PurchaseOrderCreateInput, type Supplier, type PurchaseOrderUpdateInput } from '@/types';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
@@ -17,28 +17,50 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { CalendarIcon, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { CalendarIcon, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { createPurchaseOrder } from '@/app/data-actions';
+import { createPurchaseOrder, updatePurchaseOrder } from '@/app/data-actions';
 
-export function PurchaseOrderCreateForm({ suppliers }: { suppliers: Supplier[] }) {
+interface PurchaseOrderFormProps {
+    suppliers: Supplier[];
+    initialData?: PurchaseOrder | null;
+}
+
+export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
+  const isEditMode = !!initialData;
+  const formSchema = isEditMode ? PurchaseOrderUpdateSchema : PurchaseOrderCreateSchema;
 
-  // Lazily initialize defaultValues to run only on the client side, preventing hydration errors.
-  const [defaultValues] = useState<PurchaseOrderCreateInput>(() => ({
-    po_number: `PO-${Date.now()}`,
-    order_date: new Date(),
-    items: [{ sku: '', product_name: '', quantity_ordered: 1, unit_cost: 0 }],
-    supplier_id: '',
-    notes: '',
-    expected_date: null
-  }));
+  const [defaultValues] = useState(() => {
+    if (isEditMode && initialData) {
+        return {
+            ...initialData,
+            order_date: new Date(initialData.order_date),
+            expected_date: initialData.expected_date ? new Date(initialData.expected_date) : null,
+            items: initialData.items?.map(item => ({
+                sku: item.sku,
+                product_name: item.product_name,
+                quantity_ordered: item.quantity_ordered,
+                unit_cost: item.unit_cost,
+            })) || [],
+        }
+    }
+    return {
+        po_number: `PO-${Date.now()}`,
+        order_date: new Date(),
+        status: 'draft',
+        items: [{ sku: '', product_name: '', quantity_ordered: 1, unit_cost: 0 }],
+        supplier_id: '',
+        notes: '',
+        expected_date: null
+    }
+  });
 
-  const form = useForm<PurchaseOrderCreateInput>({
-    resolver: zodResolver(PurchaseOrderCreateSchema),
-    defaultValues: defaultValues,
+  const form = useForm<PurchaseOrderCreateInput | PurchaseOrderUpdateInput>({
+    resolver: zodResolver(formSchema),
+    defaultValues: defaultValues as any, // Cast to any to handle both types
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -46,19 +68,22 @@ export function PurchaseOrderCreateForm({ suppliers }: { suppliers: Supplier[] }
     name: "items",
   });
 
-  const onSubmit = (data: PurchaseOrderCreateInput) => {
+  const onSubmit = (data: PurchaseOrderCreateInput | PurchaseOrderUpdateInput) => {
     startTransition(async () => {
-      const result = await createPurchaseOrder(data);
+      const result = isEditMode
+        ? await updatePurchaseOrder(initialData.id, data as PurchaseOrderUpdateInput)
+        : await createPurchaseOrder(data as PurchaseOrderCreateInput);
+
       if (result.success) {
         toast({
-          title: 'Purchase Order Created',
-          description: `PO #${data.po_number} has been successfully created.`,
+          title: `Purchase Order ${isEditMode ? 'Updated' : 'Created'}`,
+          description: `PO #${data.po_number} has been successfully saved.`,
         });
         router.push('/purchase-orders');
       } else {
         toast({
           variant: 'destructive',
-          title: 'Error creating Purchase Order',
+          title: `Error ${isEditMode ? 'updating' : 'creating'} Purchase Order`,
           description: result.error,
         });
       }
@@ -105,6 +130,25 @@ export function PurchaseOrderCreateForm({ suppliers }: { suppliers: Supplier[] }
                     <Label htmlFor="po_number">PO Number</Label>
                     <Input id="po_number" {...form.register('po_number')} />
                      {form.formState.errors.po_number && <p className="text-sm text-destructive">{form.formState.errors.po_number.message}</p>}
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Controller
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <SelectTrigger id="status">
+                                <SelectValue placeholder="Select a status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="draft">Draft</SelectItem>
+                                <SelectItem value="sent">Sent</SelectItem>
+                                <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                           </Select>
+                        )}
+                    />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="order_date">Order Date</Label>
@@ -183,7 +227,7 @@ export function PurchaseOrderCreateForm({ suppliers }: { suppliers: Supplier[] }
                                 </TableCell>
                                 <TableCell className="text-right font-medium">${lineTotal.toFixed(2)}</TableCell>
                                 <TableCell>
-                                    <Button variant="ghost" size="icon" onClick={() => remove(index)} disabled={fields.length <= 1}>
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} disabled={fields.length <= 1}>
                                         <Trash2 className="h-4 w-4 text-destructive"/>
                                     </Button>
                                 </TableCell>

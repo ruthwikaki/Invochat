@@ -50,6 +50,7 @@ export const SupplierSchema = z.object({
 }).transform(data => ({
     id: data.id,
     name: data.vendor_name,
+    email: data.contact_info, // Use contact_info as email for PO sending
     contact_info: data.contact_info || 'N/A',
     address: data.address,
     terms: data.terms,
@@ -175,24 +176,32 @@ export const PurchaseOrderSchema = z.object({
   updated_at: z.string().nullable(),
   // For UI display
   supplier_name: z.string().optional().nullable(),
+  supplier_email: z.string().email().optional().nullable(),
   items: z.array(PurchaseOrderItemSchema).optional(),
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
+
+const POItemInputSchema = z.object({
+    sku: z.string().min(1, 'SKU is required.'),
+    product_name: z.string().optional(),
+    quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
+    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
+});
 
 export const PurchaseOrderCreateSchema = z.object({
   supplier_id: z.string().uuid({ message: "Please select a supplier." }),
   po_number: z.string().min(1, 'PO Number is required.'),
   order_date: z.date(),
   expected_date: z.date().optional().nullable(),
+  status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']),
   notes: z.string().optional(),
-  items: z.array(z.object({
-    sku: z.string().min(1, 'SKU is required.'),
-    product_name: z.string().optional(), // Not strictly needed for submission
-    quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
-    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
-  })).min(1, 'At least one item is required.'),
+  items: z.array(POItemInputSchema).min(1, 'At least one item is required.'),
 });
 export type PurchaseOrderCreateInput = z.infer<typeof PurchaseOrderCreateSchema>;
+
+export const PurchaseOrderUpdateSchema = PurchaseOrderCreateSchema.extend({});
+export type PurchaseOrderUpdateInput = z.infer<typeof PurchaseOrderUpdateSchema>;
+
 
 export const ReceiveItemsFormSchema = z.object({
   poId: z.string().uuid(),

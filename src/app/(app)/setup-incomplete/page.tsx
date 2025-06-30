@@ -453,6 +453,116 @@ $create_po_func$;
 -- Secure the function
 REVOKE EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uuid, uuid, text, date, date, text, numeric, jsonb) FROM public;
 GRANT EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uuid, uuid, text, date, date, text, numeric, jsonb) TO service_role;
+
+
+-- ========= Part 10: NEW Functions for PO Update and Delete =========
+
+-- Function to update a PO and its items transactionally
+create or replace function public.update_purchase_order(
+  p_po_id uuid,
+  p_company_id uuid,
+  p_supplier_id uuid,
+  p_po_number text,
+  p_status po_status,
+  p_order_date date,
+  p_expected_date date,
+  p_notes text,
+  p_items jsonb -- e.g., '[{"sku": "SKU123", "quantity_ordered": 10, "unit_cost": 5.50}, ...]'
+)
+returns void
+language plpgsql
+security definer
+as $update_po_func$
+declare
+  old_item record;
+  new_item_record record;
+  new_total_amount numeric := 0;
+begin
+  -- 1. Adjust inventory for items that are being removed or changed
+  FOR old_item IN
+    SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
+  LOOP
+    -- Decrement the on_order_quantity for all old items
+    UPDATE public.inventory
+    SET on_order_quantity = on_order_quantity - old_item.quantity_ordered
+    WHERE sku = old_item.sku AND company_id = p_company_id;
+  END LOOP;
+  
+  -- 2. Delete all existing items for this PO
+  DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
+
+  -- 3. Insert all new items and update inventory on_order_quantity
+  FOR new_item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
+  LOOP
+    -- Insert the new item
+    INSERT INTO public.purchase_order_items
+      (po_id, sku, quantity_ordered, unit_cost)
+    VALUES
+      (p_po_id, new_item_record.sku, new_item_record.quantity_ordered, new_item_record.unit_cost);
+
+    -- Increment the on_order_quantity for the new item
+    UPDATE public.inventory
+    SET on_order_quantity = on_order_quantity + new_item_record.quantity_ordered
+    WHERE sku = new_item_record.sku AND company_id = p_company_id;
+    
+    -- Calculate new total amount
+    new_total_amount := new_total_amount + (new_item_record.quantity_ordered * new_item_record.unit_cost);
+  END LOOP;
+
+  -- 4. Update the main purchase order record with new total and details
+  UPDATE public.purchase_orders
+  SET
+    supplier_id = p_supplier_id,
+    po_number = p_po_number,
+    order_date = p_order_date,
+    expected_date = p_expected_date,
+    notes = p_notes,
+    total_amount = new_total_amount,
+    status = p_status,
+    updated_at = now()
+  WHERE id = p_po_id AND company_id = p_company_id;
+end;
+$update_po_func$;
+
+-- Secure the function
+REVOKE EXECUTE ON FUNCTION public.update_purchase_order(uuid, uuid, uuid, text, po_status, date, date, text, jsonb) FROM public;
+GRANT EXECUTE ON FUNCTION public.update_purchase_order(uuid, uuid, uuid, text, po_status, date, date, text, jsonb) TO service_role;
+
+
+-- Function to delete a PO and adjust inventory transactionally
+create or replace function public.delete_purchase_order(
+    p_po_id uuid,
+    p_company_id uuid
+)
+returns void
+language plpgsql
+security definer
+as $delete_po_func$
+declare
+  item_record record;
+begin
+  -- First, check if the PO belongs to the company to prevent unauthorized deletion
+  IF NOT EXISTS (SELECT 1 FROM public.purchase_orders WHERE id = p_po_id AND company_id = p_company_id) THEN
+    RAISE EXCEPTION 'Purchase order not found or permission denied';
+  END IF;
+
+  -- Loop through items to adjust inventory before deleting
+  FOR item_record IN
+    SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
+  LOOP
+    UPDATE public.inventory
+    SET on_order_quantity = on_order_quantity - item_record.quantity_ordered
+    WHERE sku = item_record.sku AND company_id = p_company_id;
+  END LOOP;
+  
+  -- The DELETE CASCADE on the purchase_order_items table will handle item deletion
+  DELETE FROM public.purchase_orders WHERE id = p_po_id;
+end;
+$delete_po_func$;
+
+-- Secure the function
+REVOKE EXECUTE ON FUNCTION public.delete_purchase_order(uuid, uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.delete_purchase_order(uuid, uuid) TO service_role;
 `;
 
 export default function SetupIncompletePage() {

@@ -9,7 +9,7 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -424,6 +424,7 @@ export async function getPurchaseOrderByIdFromDB(poId: string, companyId: string
             SELECT 
                 po.*,
                 v.vendor_name as supplier_name,
+                v.contact_info as supplier_email,
                 (
                     SELECT json_agg(
                         json_build_object(
@@ -469,7 +470,6 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
         
         const totalAmount = poData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0);
         
-        // Sanitize the items array to only include fields expected by the RPC function
         const itemsForRpc = poData.items.map(item => ({
             sku: item.sku,
             quantity_ordered: item.quantity_ordered,
@@ -496,6 +496,56 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
 
         await invalidateCompanyCache(companyId, ['dashboard']);
         return { ...newPo, items: poData.items };
+    });
+}
+
+
+export async function updatePurchaseOrderInDb(poId: string, companyId: string, poData: PurchaseOrderUpdateInput): Promise<void> {
+    return withPerformanceTracking('updatePurchaseOrderInDb', async () => {
+        const supabase = getServiceRoleClient();
+        
+        const itemsForRpc = poData.items.map(item => ({
+            sku: item.sku,
+            quantity_ordered: item.quantity_ordered,
+            unit_cost: item.unit_cost,
+        }));
+
+        const { error } = await supabase.rpc('update_purchase_order', {
+            p_po_id: poId,
+            p_company_id: companyId,
+            p_supplier_id: poData.supplier_id,
+            p_po_number: poData.po_number,
+            p_status: poData.status,
+            p_order_date: poData.order_date.toISOString(),
+            p_expected_date: poData.expected_date?.toISOString(),
+            p_notes: poData.notes,
+            p_items: itemsForRpc,
+        });
+
+        if (error) {
+            logError(error, { context: `Failed to update PO ${poId}` });
+            throw error;
+        }
+
+        logger.info(`[DB Service] Successfully updated PO ${poData.po_number}.`);
+        await invalidateCompanyCache(companyId, ['dashboard']);
+    });
+}
+
+export async function deletePurchaseOrderFromDb(poId: string, companyId: string): Promise<void> {
+    return withPerformanceTracking('deletePurchaseOrderFromDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.rpc('delete_purchase_order', {
+            p_po_id: poId,
+            p_company_id: companyId,
+        });
+
+        if (error) {
+            logError(error, { context: `Failed to delete PO ${poId}` });
+            throw error;
+        }
+        logger.info(`[DB Service] Successfully deleted PO ${poId}.`);
+        await invalidateCompanyCache(companyId, ['dashboard']);
     });
 }
 

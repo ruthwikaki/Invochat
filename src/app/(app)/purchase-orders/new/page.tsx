@@ -1,5 +1,5 @@
 import { getSuppliersData } from '@/app/data-actions';
-import { PurchaseOrderCreateForm } from '@/components/purchase-orders/po-create-form';
+import { PurchaseOrderForm } from '@/components/purchase-orders/po-form';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 export default async function CreatePurchaseOrderPage() {
@@ -11,7 +11,7 @@ export default async function CreatePurchaseOrderPage() {
         title="New Purchase Order"
         description="Create a new order to send to your suppliers."
       />
-      <PurchaseOrderCreateForm suppliers={suppliers} />
+      <PurchaseOrderForm suppliers={suppliers} />
     </AppPage>
   );
 }

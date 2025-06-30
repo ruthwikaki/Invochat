@@ -3,17 +3,18 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import type { PurchaseOrder } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, Plus, PackagePlus } from 'lucide-react';
+import { Search, MoreHorizontal, Plus, PackagePlus, Edit, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { useRouter } from 'next/navigation';
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 
 interface PurchaseOrderClientPageProps {
   initialPurchaseOrders: PurchaseOrder[];
@@ -26,7 +27,7 @@ const getStatusVariant = (status: PurchaseOrder['status']) => {
     case 'sent':
       return 'secondary';
     case 'partial':
-      return 'default';
+       return 'default';
     case 'received':
       return 'default';
     case 'cancelled':
@@ -152,8 +153,25 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => router.push(`/purchase-orders/${po.id}`)}>View Details & Receive</DropdownMenuItem>
-                                <DropdownMenuItem>Email to Supplier</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => router.push(`/purchase-orders/${po.id}`)}>View & Receive</DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => router.push(`/purchase-orders/${po.id}/edit`)}><Edit className="mr-2 h-4 w-4" />Edit PO</DropdownMenuItem>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete PO</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will permanently delete PO #{po.po_number}. This action cannot be undone.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                            <AlertDialogAction>Delete</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
