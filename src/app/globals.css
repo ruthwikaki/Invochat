@@ -18,7 +18,7 @@ body {
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
     
-    --primary: 262 84% 59%; /* Deep Purple/Violet */
+    --primary: 256 90% 66%; /* New Violet */
     --primary-foreground: 0 0% 98%;
 
     --secondary: 220 14% 96%; /* Light gray */
@@ -27,8 +27,8 @@ body {
     --muted: 220 14% 96%;
     --muted-foreground: 222 8% 50%;
     
-    --accent: 262 84% 59% / 0.1; /* Faint purple for accents */
-    --accent-foreground: 262 84% 59%;
+    --accent: 256 90% 66% / 0.1; /* Faint violet for accents */
+    --accent-foreground: 256 90% 66%;
     
     --destructive: 350 89% 60%;
     --destructive-foreground: 0 0% 98%;
@@ -41,24 +41,24 @@ body {
     
     --border: 220 13% 91%;
     --input: 220 13% 89%;
-    --ring: 262 84% 59%;
+    --ring: 256 90% 66%;
     
     --radius: 0.75rem;
 
-    --chart-1: 262 84% 59%;
-    --chart-2: 262 74% 69%;
-    --chart-3: 262 64% 79%;
-    --chart-4: 262 54% 89%;
+    --chart-1: 256 90% 66%;
+    --chart-2: 256 80% 76%;
+    --chart-3: 256 70% 86%;
+    --chart-4: 256 60% 90%;
     --chart-5: 222 22% 45%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
-    --sidebar-primary: 262 84% 59%;
+    --sidebar-primary: 256 90% 66%;
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 220 14% 96%;
     --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 220 13% 89%;
-    --sidebar-ring: 262 84% 59%;
+    --sidebar-ring: 256 90% 66%;
   }
 
   .dark {
@@ -71,7 +71,7 @@ body {
     --popover: 224 30% 12%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 262 84% 64%; /* A slightly brighter violet for dark mode */
+    --primary: 256 90% 70%; /* Brighter violet for dark mode */
     --primary-foreground: 0 0% 98%;
 
     --secondary: 223 22% 19%;
@@ -80,8 +80,8 @@ body {
     --muted: 223 22% 19%;
     --muted-foreground: 220 14% 65%;
 
-    --accent: 262 84% 64% / 0.1;
-    --accent-foreground: 262 84% 64%;
+    --accent: 256 90% 70% / 0.1;
+    --accent-foreground: 256 90% 70%;
 
     --destructive: 350 70% 55%;
     --destructive-foreground: 0 0% 98%;
@@ -94,11 +94,11 @@ body {
 
     --border: 223 22% 19%;
     --input: 223 22% 19%;
-    --ring: 262 84% 64%;
+    --ring: 256 90% 70%;
     
-    --chart-1: 262 84% 64%;
-    --chart-2: 262 74% 74%;
-    --chart-3: 262 64% 84%;
+    --chart-1: 256 90% 70%;
+    --chart-2: 256 80% 80%;
+    --chart-3: 256 70% 90%;
     --chart-4: 222 22% 45%;
     --chart-5: 222 22% 65%;
 
@@ -109,7 +109,7 @@ body {
     --sidebar-accent: 223 22% 19%;
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 223 22% 19%;
-    --sidebar-ring: 262 84% 64%;
+    --sidebar-ring: 256 90% 70%;
   }
 }
 

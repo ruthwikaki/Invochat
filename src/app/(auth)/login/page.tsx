@@ -4,7 +4,7 @@
 import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Eye, EyeOff, ShieldCheck, Sun, Moon, LockKeyhole } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Sun, Moon, LockKeyhole, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,8 +46,8 @@ function SubmitButton() {
       type="submit"
       disabled={pending}
       className="w-full h-12 text-base font-bold text-white transition-all duration-300 transform-gpu
-                 bg-gradient-to-r from-purple-600 to-pink-600
-                 hover:from-purple-700 hover:to-pink-700
+                 bg-gradient-to-r from-primary to-violet-600
+                 hover:from-primary/90 hover:to-violet-700
                  hover:-translate-y-0.5
                  active:translate-y-0 active:scale-95"
     >
@@ -70,13 +70,13 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
                     placeholder=" "
                     required={required}
                     autoComplete="current-password"
-                    className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-purple-500"
+                    className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-primary"
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
                 />
                 <Label htmlFor={id} className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all bg-black/20 px-1
                                                 peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0
-                                                peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
+                                                peer-focus:-top-2.5 peer-focus:text-primary peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
                     Password
                 </Label>
                 <button
@@ -115,7 +115,7 @@ const PasswordInput = ({ id, name, required }: { id: string, name: string, requi
 const AnimatedGradientBackground = () => (
     <div className="absolute inset-0 -z-10 h-full w-full bg-gray-950">
         <div className="absolute inset-0 h-full w-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_50%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-5"></div>
-        <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-purple-900/80 via-pink-900/80 to-rose-900/80 opacity-40 animate-background-pan [background-size:200%_200%]" />
+        <div className="absolute inset-0 h-full w-full bg-gradient-to-r from-primary/30 via-violet-900/40 to-purple-900/30 opacity-40 animate-background-pan [background-size:200%_200%]" />
     </div>
 );
 
@@ -214,11 +214,11 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                   placeholder=" " 
                   required
                   autoComplete="email"
-                  className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-purple-500"
+                  className="peer h-12 bg-white/5 border-white/20 text-white placeholder-transparent focus:border-primary"
                 />
                  <Label htmlFor="email" className="absolute left-3 -top-2.5 text-gray-400 text-sm transition-all bg-black/20 px-1
                                                  peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:bg-transparent peer-placeholder-shown:px-0
-                                                 peer-focus:-top-2.5 peer-focus:text-purple-400 peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
+                                                 peer-focus:-top-2.5 peer-focus:text-primary peer-focus:text-sm peer-focus:bg-black/20 peer-focus:px-1">
                     Email
                 </Label>
               </motion.div>
@@ -229,10 +229,10 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
               
               <motion.div variants={itemVariants} className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                    <Checkbox id="remember" className="border-gray-500 data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-500"/>
+                    <Checkbox id="remember" className="border-gray-500 data-[state=checked]:bg-primary data-[state=checked]:border-primary"/>
                     <Label htmlFor="remember" className="text-sm text-gray-300 cursor-pointer">Remember me</Label>
                 </div>
-                <Link href="/forgot-password" className="text-sm text-purple-400 hover:text-purple-300 hover:underline">
+                <Link href="/forgot-password" className="text-sm text-primary hover:text-primary/80 hover:underline">
                     Forgot password?
                 </Link>
               </motion.div>
@@ -262,7 +262,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             
             <motion.p variants={itemVariants} className="mt-8 text-center text-sm text-gray-400">
               Don&apos;t have an account?{" "}
-              <Link href="/signup" className="font-semibold text-purple-400 hover:text-purple-300 hover:underline">
+              <Link href="/signup" className="font-semibold text-primary hover:text-primary/80 hover:underline">
                 Sign up
               </Link>
             </motion.p>
@@ -277,5 +277,3 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     </main>
   );
 }
-
-    

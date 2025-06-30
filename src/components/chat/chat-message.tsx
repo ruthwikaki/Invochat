@@ -14,16 +14,33 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import DOMPurify from 'isomorphic-dompurify';
+import { motion } from 'framer-motion';
 
+// New futuristic loading indicator
 function LoadingIndicator() {
     return (
         <div className="flex items-center space-x-2">
-            <div className="flex items-center space-x-1">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-                <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-                <span className="h-2 w-2 animate-pulse rounded-full bg-muted-foreground" />
-            </div>
-            <span className="text-sm italic text-muted-foreground">Thinking...</span>
+            <motion.div
+                className="h-2 w-2 bg-primary/80 rounded-full"
+                animate={{
+                    y: [0, -4, 0],
+                    transition: { duration: 1, repeat: Infinity, ease: "easeInOut" }
+                }}
+            />
+            <motion.div
+                className="h-2 w-2 bg-primary/80 rounded-full"
+                animate={{
+                    y: [0, -4, 0],
+                    transition: { duration: 1, repeat: Infinity, ease: "easeInOut", delay: 0.2 }
+                }}
+            />
+            <motion.div
+                className="h-2 w-2 bg-primary/80 rounded-full"
+                animate={{
+                    y: [0, -4, 0],
+                    transition: { duration: 1, repeat: Infinity, ease: "easeInOut", delay: 0.4 }
+                }}
+            />
         </div>
     );
 }
@@ -57,6 +74,28 @@ function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | 
     );
 }
 
+// Animated Bot Avatar
+function BotAvatar({ isError }: { isError?: boolean }) {
+    return (
+        <motion.div
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ duration: 0.5, type: 'spring', stiffness: 150 }}
+            className={cn(
+                'h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-primary via-violet-500 to-purple-600 flex items-center justify-center shadow-lg',
+                isError && 'from-destructive/80 to-rose-500/80'
+            )}
+        >
+            <Avatar className={cn('h-8 w-8 bg-card')}>
+                <AvatarFallback className={cn('bg-transparent', isError && 'text-destructive')}>
+                   {isError ? <AlertTriangle className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+                </AvatarFallback>
+            </Avatar>
+        </motion.div>
+    );
+}
+
+
 export function ChatMessage({
   message,
 }: {
@@ -72,57 +111,67 @@ export function ChatMessage({
   };
   
   const sanitizedContent = !isLoading ? DOMPurify.sanitize(message.content, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a'],
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'br', 'p'],
     ALLOWED_ATTR: ['href']
   }) : '';
 
+  const messageVariants = {
+      hidden: { opacity: 0, y: 20 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+  };
 
   return (
-    <div className={cn("flex flex-col gap-2", isUserMessage && "items-end")}>
+    <motion.div
+        variants={messageVariants}
+        initial="hidden"
+        animate="visible"
+        className={cn("flex flex-col gap-3", isUserMessage && "items-end")}
+    >
       <div className={cn("flex items-start gap-3 w-full", isUserMessage ? "justify-end" : "justify-start")}>
-        {!isUserMessage && (
-          <Avatar className={cn('h-8 w-8 shrink-0', message.isError && 'bg-destructive/20')}>
-            <AvatarFallback className={cn('bg-transparent', message.isError && 'text-destructive')}>
-               {message.isError ? <AlertTriangle className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
-            </AvatarFallback>
-          </Avatar>
-        )}
-        <div
-          className={cn(
-            'relative max-w-xl rounded-2xl px-4 py-3 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-2',
-            isUserMessage
-              ? 'rounded-br-none bg-primary text-primary-foreground'
-              : 'rounded-bl-none bg-card text-card-foreground',
-            message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
-          )}
-        >
-          <div
-            className="text-base whitespace-pre-wrap"
-            dangerouslySetInnerHTML={!isLoading ? { __html: sanitizedContent } : undefined}
-          >
-            {isLoading ? <LoadingIndicator /> : null}
-          </div>
-          {!isUserMessage && !isLoading && !message.isError &&(
-            <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
-          )}
+        {!isUserMessage && <BotAvatar isError={message.isError} />}
+        
+        <div className="relative group">
+            {/* Gradient border effect */}
+            <div className={cn(
+                'absolute -inset-0.5 rounded-2xl blur-sm opacity-50 group-hover:opacity-75 transition duration-500',
+                 isUserMessage ? 'bg-gradient-to-r from-violet-600 to-primary' : 'bg-gradient-to-r from-blue-400 to-primary'
+            )} />
+            <div
+              className={cn(
+                'relative max-w-xl rounded-2xl px-4 py-3 shadow-lg space-y-2',
+                isUserMessage
+                  ? 'rounded-br-none bg-primary text-primary-foreground'
+                  : 'rounded-bl-none bg-card text-card-foreground',
+                message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
+              )}
+            >
+              <div
+                className="text-base whitespace-pre-wrap selection:bg-primary/50"
+                dangerouslySetInnerHTML={!isLoading ? { __html: sanitizedContent } : undefined}
+              >
+                {isLoading ? <LoadingIndicator /> : null}
+              </div>
+              {!isUserMessage && !isLoading && !message.isError &&(
+                <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
+              )}
+            </div>
         </div>
+
         {isUserMessage && (
-          <Avatar className="h-8 w-8 shrink-0">
+          <Avatar className="h-9 w-9 shrink-0">
             <AvatarFallback>{getInitials(user?.email)}</AvatarFallback>
           </Avatar>
         )}
       </div>
       
       {message.visualization && (
-        <div className={cn("max-w-xl w-full animate-in fade-in slide-in-from-bottom-2 duration-300", !isUserMessage && "ml-11")}>
+        <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
           <DataVisualization
             visualization={message.visualization}
             title={message.visualization.config?.title}
           />
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
-
-    
