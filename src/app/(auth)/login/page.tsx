@@ -6,6 +6,14 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InvoChatLogo } from '@/components/invochat-logo';
@@ -67,14 +75,9 @@ PasswordInput.displayName = 'PasswordInput';
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
     const { toast } = useToast();
 
+    // The success message (e.g., after a password update) is a good use case for a toast
+    // as it provides cross-page feedback. Login errors are better handled inline.
     useEffect(() => {
-        if (searchParams?.error) {
-            toast({
-                variant: 'destructive',
-                title: 'Login Failed',
-                description: searchParams.error,
-            });
-        }
          if (searchParams?.message) {
             toast({
                 title: 'Success',
@@ -88,63 +91,69 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
                 className="w-full max-w-sm"
             >
-                <div className="mb-6 flex flex-col items-center text-center">
-                    <InvoChatLogo className="h-12 w-12 mb-2 text-primary" />
-                    <h1 className="text-3xl font-bold">Welcome Back</h1>
-                    <p className="text-muted-foreground">Sign in to access your dashboard</p>
-                </div>
-                
-                <form action={login} className="grid gap-4">
-                    <CSRFInput />
-                    <div className="grid gap-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                            id="email"
-                            name="email"
-                            type="email"
-                            placeholder="you@company.com"
-                            required
-                            autoComplete="email"
-                        />
-                    </div>
-                    <div className="grid gap-2">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="password">Password</Label>
-                            <Link
-                                href="/forgot-password"
-                                className="text-sm text-primary hover:underline"
-                            >
-                                Forgot password?
-                            </Link>
+                <Card>
+                    <CardHeader className="text-center">
+                        <div className="mx-auto mb-4">
+                            <InvoChatLogo className="h-12 w-12 text-primary" />
                         </div>
-                        <PasswordInput
-                            id="password"
-                            name="password"
-                            placeholder="••••••••"
-                            required
-                            autoComplete="current-password"
-                        />
-                    </div>
-                    
-                    {searchParams?.error && (
-                        <Alert variant="destructive">
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertDescription>{searchParams.error}</AlertDescription>
-                        </Alert>
-                    )}
-                    
-                    <SubmitButton />
-                </form>
-
-                <p className="mt-6 text-center text-sm text-muted-foreground">
-                    Don&apos;t have an account?{' '}
-                    <Link href="/signup" className="font-semibold text-primary hover:underline">
-                        Sign up
-                    </Link>
-                </p>
+                        <CardTitle className="text-2xl">Welcome Back</CardTitle>
+                        <CardDescription>Sign in to access your dashboard</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <form action={login} className="grid gap-4">
+                            <CSRFInput />
+                            <div className="grid gap-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    placeholder="you@company.com"
+                                    required
+                                    autoComplete="email"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <div className="flex items-center justify-between">
+                                    <Label htmlFor="password">Password</Label>
+                                    <Link
+                                        href="/forgot-password"
+                                        className="text-sm text-primary hover:underline"
+                                    >
+                                        Forgot password?
+                                    </Link>
+                                </div>
+                                <PasswordInput
+                                    id="password"
+                                    name="password"
+                                    placeholder="••••••••"
+                                    required
+                                    autoComplete="current-password"
+                                />
+                            </div>
+                            
+                            {searchParams?.error && (
+                                <Alert variant="destructive">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertDescription>{searchParams.error}</AlertDescription>
+                                </Alert>
+                            )}
+                            
+                            <SubmitButton />
+                        </form>
+                    </CardContent>
+                    <CardFooter className="justify-center">
+                         <p className="text-sm text-muted-foreground">
+                            Don&apos;t have an account?{' '}
+                            <Link href="/signup" className="font-semibold text-primary hover:underline">
+                                Sign up
+                            </Link>
+                        </p>
+                    </CardFooter>
+                </Card>
             </motion.div>
         </div>
     );
