@@ -1,13 +1,13 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import type { PurchaseOrder } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, Plus, PackagePlus, Edit, Trash2 } from 'lucide-react';
+import { Search, MoreHorizontal, Plus, PackagePlus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
+import { deletePurchaseOrder } from '@/app/data-actions';
+import { useToast } from '@/hooks/use-toast';
 
 interface PurchaseOrderClientPageProps {
   initialPurchaseOrders: PurchaseOrder[];
@@ -78,15 +80,33 @@ function EmptyPOState() {
 }
 
 export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrderClientPageProps) {
+  const [purchaseOrders, setPurchaseOrders] = useState(initialPurchaseOrders);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isDeleting, startDeleteTransition] = useTransition();
+  const [poToDelete, setPoToDelete] = useState<PurchaseOrder | null>(null);
   const router = useRouter();
+  const { toast } = useToast();
 
-  const filteredPOs = initialPurchaseOrders.filter(po =>
+  const filteredPOs = purchaseOrders.filter(po =>
     po.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
     po.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
   const showEmptyState = filteredPOs.length === 0 && !searchTerm;
+
+  const handleDelete = () => {
+    if (!poToDelete) return;
+    startDeleteTransition(async () => {
+      const result = await deletePurchaseOrder(poToDelete.id);
+      if (result.success) {
+        toast({ title: "Purchase Order Deleted", description: `PO #${poToDelete.po_number} has been removed.` });
+        setPurchaseOrders(prev => prev.filter(p => p.id !== poToDelete.id));
+      } else {
+        toast({ variant: 'destructive', title: "Error Deleting PO", description: result.error });
+      }
+      setPoToDelete(null);
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -107,6 +127,24 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
           </Link>
         </Button>
       </div>
+
+      <AlertDialog open={!!poToDelete} onOpenChange={(open) => !open && setPoToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will permanently delete PO #{poToDelete?.po_number}. This action cannot be undone.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Yes, delete it
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {showEmptyState ? <EmptyPOState /> : (
         <Card>
@@ -155,23 +193,7 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onSelect={() => router.push(`/purchase-orders/${po.id}`)}>View & Receive</DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => router.push(`/purchase-orders/${po.id}/edit`)}><Edit className="mr-2 h-4 w-4" />Edit PO</DropdownMenuItem>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete PO</DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will permanently delete PO #{po.po_number}. This action cannot be undone.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction>Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                                <DropdownMenuItem onSelect={(e) => {e.preventDefault(); setPoToDelete(po);}} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete PO</DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
