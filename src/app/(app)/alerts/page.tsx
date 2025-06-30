@@ -39,37 +39,50 @@ function AlertCard({ alert }: { alert: Alert }) {
 
   const isWarning = alert.severity === 'warning';
   const Icon = isWarning ? AlertCircle : Info;
-  const cardClass = isWarning ? 'border-warning/50' : 'border-blue-500/50';
+  const cardClass = isWarning ? 'border-warning/50 bg-warning/5' : 'border-blue-500/50 bg-blue-500/5';
   const iconColor = isWarning ? 'text-warning' : 'text-blue-500';
   const badgeVariant = alert.type === 'low_stock' ? 'destructive' : 'secondary';
   
   return (
-    <Card className={cn("transition-shadow hover:shadow-md", cardClass)}>
-      <CardHeader>
-        <div className="flex justify-between items-start">
-          <div className="flex items-start gap-4">
-             <Icon className={cn("h-6 w-6 mt-1 shrink-0", iconColor)} />
-             <div>
-                <CardTitle>{alert.title}</CardTitle>
-                <CardDescription>
-                  Detected {formattedDate}
-                </CardDescription>
-             </div>
+    <motion.div
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
+      <Card className={cn("transition-all duration-300 hover:shadow-xl hover:-translate-y-1", cardClass)}>
+        <CardHeader>
+          <div className="flex justify-between items-start gap-4">
+            <div className="flex items-start gap-4">
+               <Icon className={cn("h-6 w-6 mt-1 shrink-0", iconColor)} />
+               <div>
+                  <CardTitle>{alert.title}</CardTitle>
+                  <CardDescription>
+                    Detected {formattedDate}
+                  </CardDescription>
+               </div>
+            </div>
+            <Badge variant={badgeVariant} className="capitalize shrink-0">{alert.type.replace(/_/g, ' ')}</Badge>
           </div>
-          <Badge variant={badgeVariant} className="capitalize shrink-0">{alert.type.replace(/_/g, ' ')}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="pl-14">
-        <p className="mb-4">{alert.message}</p>
-         <div className="text-sm bg-muted/80 p-3 rounded-md space-y-2 border">
-            {alert.metadata.productName && <p><strong>Product:</strong> {alert.metadata.productName}</p>}
-            {alert.metadata.currentStock !== undefined && <p><strong>Stock:</strong> {alert.metadata.currentStock}</p>}
-            {alert.metadata.reorderPoint !== undefined && <p><strong>Reorder Point:</strong> {alert.metadata.reorderPoint}</p>}
-            {alert.metadata.lastSoldDate && <p><strong>Last Sold:</strong> {new Date(alert.metadata.lastSoldDate).toLocaleDateString()}</p>}
-            {alert.metadata.value !== undefined && <p><strong>Value:</strong> ${alert.metadata.value.toLocaleString()}</p>}
-         </div>
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent className="pl-14">
+          <p className="mb-4">{alert.message}</p>
+           <div className="text-sm bg-background/50 p-3 rounded-md space-y-2 border">
+              {alert.metadata.productName && <p><strong>Product:</strong> {alert.metadata.productName}</p>}
+              {alert.metadata.currentStock !== undefined && <p><strong>Stock:</strong> {alert.metadata.currentStock}</p>}
+              {alert.metadata.reorderPoint !== undefined && <p><strong>Reorder Point:</strong> {alert.metadata.reorderPoint}</p>}
+              {alert.metadata.lastSoldDate && <p><strong>Last Sold:</strong> {new Date(alert.metadata.lastSoldDate).toLocaleDateString()}</p>}
+              {alert.metadata.value !== undefined && <p><strong>Value:</strong> ${alert.metadata.value.toLocaleString()}</p>}
+           </div>
+        </CardContent>
+        {alert.metadata.productId && (
+            <CardFooter className="pl-14 flex justify-end">
+                <Button asChild>
+                    <Link href={`/inventory?query=${alert.metadata.productId}`}>View Item & Take Action</Link>
+                </Button>
+            </CardFooter>
+        )}
+      </Card>
+    </motion.div>
   );
 }
 
@@ -121,15 +134,26 @@ export default function AlertsPage() {
         </Select>
       </AppPageHeader>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         {loading ? (
             Array.from({ length: 3 }).map((_, i) => (
                 <Card key={i}>
-                    <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
-                    <CardContent className="space-y-2">
+                    <CardHeader>
+                      <div className="flex items-center gap-4">
+                        <Skeleton className="h-6 w-6 rounded-full" />
+                        <div className="space-y-1">
+                          <Skeleton className="h-5 w-48" />
+                          <Skeleton className="h-4 w-32" />
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pl-14 space-y-2">
                         <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-8 w-32" />
+                        <Skeleton className="h-20 w-full" />
                     </CardContent>
+                    <CardFooter className="pl-14 flex justify-end">
+                       <Skeleton className="h-10 w-48" />
+                    </CardFooter>
                 </Card>
             ))
         ) : filteredAlerts.length > 0 ? (
