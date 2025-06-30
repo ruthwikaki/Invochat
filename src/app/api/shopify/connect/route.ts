@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { encrypt } from '@/features/integrations/services/encryption';
 import { logError } from '@/lib/error-handler';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 const connectSchema = z.object({
   storeUrl: z.string().url({ message: 'Please enter a valid store URL (e.g., https://your-store.myshopify.com).' }),
@@ -30,6 +32,23 @@ async function shopifyFetch(shopDomain: string, accessToken: string, endpoint: s
 
 export async function POST(request: Request) {
     try {
+        // --- Server-side Authentication ---
+        const cookieStore = cookies();
+        const authSupabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: { user } } = await authSupabase.auth.getUser();
+        const companyId = user?.app_metadata?.company_id;
+
+        if (!user || !companyId) {
+            return NextResponse.json({ error: 'Authentication required: User or company not found.' }, { status: 401 });
+        }
+        // --- End Authentication ---
+
         const body = await request.json();
         const parsed = connectSchema.safeParse(body);
 
@@ -52,27 +71,18 @@ export async function POST(request: Request) {
         const encryptedToken = encrypt(accessToken);
 
         // 3. Save the integration details to the database
-        // This part needs the user's companyId. This should be passed from the client
-        // or retrieved from the user's session if this were a protected route.
-        // For now, we'll assume it's passed in the body for simplicity.
-        // In a real app, you would get this from `getAuthContext()` from `data-actions`.
-        const { companyId } = body; // Assume client sends this for now
-        if (!companyId) {
-             return NextResponse.json({ error: 'Company ID is missing.' }, { status: 400 });
-        }
-
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
             .from('integrations')
             .upsert({
-                company_id: companyId,
+                company_id: companyId, // Use the secure, server-side companyId
                 platform: 'shopify',
                 shop_domain: storeUrl,
                 access_token: encryptedToken,
                 shop_name: shopName,
                 is_active: true,
                 sync_status: 'idle',
-            }, { onConflict: 'company_id, platform, shop_domain' })
+            }, { onConflict: 'company_id, platform' }) // Simplified conflict target
             .select()
             .single();
 

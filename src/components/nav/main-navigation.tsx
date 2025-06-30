@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Warehouse,
   Plug,
+  Settings,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -30,12 +31,8 @@ const menuItems = [
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
+  { href: '/settings/integrations', label: 'Integrations', icon: Plug },
 ];
-
-const settingsMenuItems = [
-    { href: '/settings', label: 'General Settings', icon: BarChart},
-    { href: '/settings/integrations', label: 'Integrations', icon: Plug}
-]
 
 export function MainNavigation() {
   const pathname = usePathname();
