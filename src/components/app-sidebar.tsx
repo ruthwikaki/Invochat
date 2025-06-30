@@ -13,6 +13,7 @@ import {
   MessageSquarePlus,
   MessageSquareText,
   Star,
+  DatabaseZap,
 } from 'lucide-react';
 import { InvoChatLogo } from './invochat-logo';
 import {
@@ -142,6 +143,14 @@ export function AppSidebar() {
               <Link href="/database" prefetch={false}>
                 <Database />
                 <span>Database Explorer</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === '/database-setup'}>
+              <Link href="/database-setup" prefetch={false}>
+                <DatabaseZap />
+                <span>Database Setup</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
