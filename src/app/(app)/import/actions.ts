@@ -12,6 +12,7 @@ import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User } from '@/types';
+import { revalidatePath } from 'next/cache';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;

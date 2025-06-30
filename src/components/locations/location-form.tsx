@@ -76,7 +76,17 @@ export function LocationForm({ initialData }: LocationFormProps) {
                     <Textarea id="address" {...form.register('address')} placeholder="e.g., 123 Supply Chain St, Anytown, USA" />
                 </div>
                 <div className="flex items-center space-x-2">
-                    <Checkbox id="is_default" {...form.register('is_default')} />
+                    <Controller
+                        name="is_default"
+                        control={form.control}
+                        render={({ field }) => (
+                            <Checkbox
+                                id="is_default"
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                            />
+                        )}
+                    />
                     <Label htmlFor="is_default">Set as default location</Label>
                 </div>
             </CardContent>
