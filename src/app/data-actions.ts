@@ -57,7 +57,7 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
-            logger.error('[getCompanyIdForCurrentUser] Supabase auth error:', error.message);
+            logger.error('[getAuthContext] Supabase auth error:', error.message);
             throw new Error(`Authentication error: ${error.message}`);
         }
 
@@ -65,11 +65,11 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
         const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
         
         if (!user || !companyId || typeof companyId !== 'string') {
-            logger.warn('[getCompanyIdForCurrentUser] Could not determine Company ID. User may not be fully signed up or session is invalid.');
+            logger.warn('[getAuthContext] Could not determine Company ID. User may not be fully signed up or session is invalid.');
             throw new Error('Your user session is invalid or not fully configured. Please try signing out and signing back in.');
         }
         
-        logger.debug(`[getCompanyIdForCurrentUser] Success. Company ID: ${companyId}`);
+        logger.debug(`[getAuthContext] Success. Company ID: ${companyId}`);
         return { userId: user.id, companyId };
     } catch (e) {
         logError(e, { context: 'getAuthContext' });
@@ -140,34 +140,10 @@ export async function getAnomalyInsights() {
     return getAnomalyInsightsFromDB(companyId);
 }
 
-
-// Zod schema for validating company settings updates.
-const CompanySettingsUpdateSchema = z.object({
-    dead_stock_days: z.number().int().positive('Dead stock days must be a positive number.'),
-    fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.'),
-    overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.'),
-    high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.'),
-    currency: z.string().nullable().optional(),
-    timezone: z.string().nullable().optional(),
-    tax_rate: z.number().nullable().optional(),
-    theme_primary_color: z.string().nullable().optional(),
-    theme_background_color: z.string().nullable().optional(),
-    theme_accent_color: z.string().nullable().optional(),
-});
-
-
 export async function updateCompanySettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
-    const parsedSettings = CompanySettingsUpdateSchema.safeParse(settings);
-    
-    if (!parsedSettings.success) {
-        const errorMessages = parsedSettings.error.issues.map(issue => issue.message).join(' ');
-        throw new Error(`Invalid settings format: ${errorMessages}`);
-    }
-
     const { companyId } = await getAuthContext();
-    // Exclude company_id and other non-updatable fields from the payload
-    const { company_id, created_at, updated_at, ...updateData } = settings;
-    return updateSettingsInDb(companyId, updateData);
+    // Validation is now properly handled in the database service layer.
+    return updateSettingsInDb(companyId, settings);
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useAuth } from '@/context/auth-context';
@@ -220,7 +219,7 @@ begin
   end if;
 
   -- This query is executed as a single statement, making it more performant than a loop.
-  -- It uses \`jsonb_populate_recordset\` to safely convert the JSON array into a set of rows
+  -- It uses `jsonb_populate_recordset` to safely convert the JSON array into a set of rows
   -- matching the target table's structure. This is safer than manual value string construction.
   query := format(
     '
@@ -402,6 +401,58 @@ $receive_items_func$;
 -- Secure the function so it can only be called by authenticated service roles
 REVOKE EXECUTE ON FUNCTION public.receive_purchase_order_items(uuid, jsonb, uuid) FROM public;
 GRANT EXECUTE ON FUNCTION public.receive_purchase_order_items(uuid, jsonb, uuid) TO service_role;
+
+
+-- ========= Part 9: Function to Create POs =========
+-- This transactional function creates a PO, its items, and updates inventory all at once.
+create or replace function public.create_purchase_order_and_update_inventory(
+  p_company_id uuid,
+  p_supplier_id uuid,
+  p_po_number text,
+  p_order_date date,
+  p_expected_date date,
+  p_notes text,
+  p_total_amount numeric,
+  p_items jsonb -- e.g., '[{"sku": "SKU123", "quantity_ordered": 10, "unit_cost": 5.50}, ...]'
+)
+returns purchase_orders
+language plpgsql
+security definer
+as $create_po_func$
+declare
+  new_po purchase_orders;
+  item_record record;
+begin
+  -- 1. Create the main purchase order record
+  INSERT INTO public.purchase_orders
+    (company_id, supplier_id, po_number, status, order_date, expected_date, notes, total_amount)
+  VALUES
+    (p_company_id, p_supplier_id, p_po_number, 'draft', p_order_date, p_expected_date, p_notes, p_total_amount)
+  RETURNING * INTO new_po;
+
+  -- 2. Insert all items and update inventory on_order_quantity in a loop
+  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
+  LOOP
+    -- Insert the item into purchase_order_items
+    INSERT INTO public.purchase_order_items
+      (po_id, sku, quantity_ordered, unit_cost)
+    VALUES
+      (new_po.id, item_record.sku, item_record.quantity_ordered, item_record.unit_cost);
+
+    -- Increment the on_order_quantity for the corresponding inventory item
+    UPDATE public.inventory
+    SET on_order_quantity = on_order_quantity + item_record.quantity_ordered
+    WHERE sku = item_record.sku AND company_id = p_company_id;
+  END LOOP;
+
+  -- 3. Return the newly created PO
+  return new_po;
+end;
+$create_po_func$;
+
+-- Secure the function
+REVOKE EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uuid, uuid, text, date, date, text, numeric, jsonb) FROM public;
+GRANT EXECUTE ON FUNCTION public.create_purchase_order_and_update_inventory(uuid, uuid, text, date, date, text, numeric, jsonb) TO service_role;
 `;
 
 export default function SetupIncompletePage() {

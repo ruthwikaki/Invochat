@@ -91,10 +91,10 @@ export async function getCompanySettings(companyId: string): Promise<CompanySett
 }
 
 const CompanySettingsUpdateSchema = z.object({
-    dead_stock_days: z.number().int().positive('Dead stock days must be a positive number.'),
-    fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.'),
-    overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.'),
-    high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.'),
+    dead_stock_days: z.number().int().positive('Dead stock days must be a positive number.').optional(),
+    fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.').optional(),
+    overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.').optional(),
+    high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.').optional(),
     currency: z.string().nullable().optional(),
     timezone: z.string().nullable().optional(),
     tax_rate: z.number().nullable().optional(),
@@ -104,10 +104,11 @@ const CompanySettingsUpdateSchema = z.object({
 });
 
 
-export async function updateCompanySettings(companyId: string, settings: Partial<CompanySettings>): Promise<CompanySettings> {
+export async function updateSettingsInDb(companyId: string, settings: Partial<CompanySettings>): Promise<CompanySettings> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
 
-    const parsedSettings = CompanySettingsUpdateSchema.safeParse(settings);
+    // Use a stricter schema for updates, ensuring only valid fields are passed.
+    const parsedSettings = CompanySettingsUpdateSchema.partial().safeParse(settings);
     
     if (!parsedSettings.success) {
         const errorMessages = parsedSettings.error.issues.map(issue => issue.message).join(' ');
@@ -116,10 +117,11 @@ export async function updateCompanySettings(companyId: string, settings: Partial
 
     return withPerformanceTracking('updateCompanySettings', async () => {
         const supabase = getServiceRoleClient();
-        const { company_id, created_at, updated_at, ...updateData } = settings;
+        
+        // Use the validated and coerced data from Zod, not the raw input.
         const { data, error } = await supabase
             .from('company_settings')
-            .update({ ...updateData, updated_at: new Date().toISOString() })
+            .update({ ...parsedSettings.data, updated_at: new Date().toISOString() })
             .eq('company_id', companyId)
             .select()
             .single();
@@ -132,6 +134,7 @@ export async function updateCompanySettings(companyId: string, settings: Partial
         logger.info(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         
+        // Revalidate the final data against the full schema before returning.
         return CompanySettingsSchema.parse(data);
     });
 }
@@ -464,14 +467,10 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
     return withPerformanceTracking('createPurchaseOrderInDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // 1. Calculate total amount and get on_order quantities
+        // 1. Calculate total amount
         const totalAmount = poData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0);
-        const onOrderUpdates = poData.items.map(item => ({
-            sku: item.sku,
-            quantity: item.quantity_ordered
-        }));
         
-        // Transaction to ensure atomicity
+        // Transaction to ensure atomicity using the RPC function
         const { data: newPo, error: poError } = await supabase.rpc('create_purchase_order_and_update_inventory', {
             p_company_id: companyId,
             p_supplier_id: poData.supplier_id,
@@ -611,16 +610,8 @@ const USER_FACING_TABLES = [
     'customers', 
     'returns', 
     'inventory',
-    'sales_detail',
-    'fba_inventory', 
-    'inventory_valuation', 
-    'warehouse_locations', 
-    'price_lists',
-    'daily_stats',
-    // Child tables without a direct company_id link
-    'order_items',
-    'return_items',
-    'product_attributes'
+    'purchase_orders',
+    'purchase_order_items'
 ];
 
 export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tableName: string; rows: unknown[] }[]> {
@@ -631,12 +622,9 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
 
         // Tables that can be filtered directly by company_id
         const directFilterTables = [
-            'vendors', 'orders', 'customers', 'returns', 'inventory',
-            'sales_detail', 'fba_inventory', 'inventory_valuation', 
-            'warehouse_locations', 'price_lists', 'daily_stats',
+            'vendors', 'orders', 'customers', 'returns', 'inventory', 'purchase_orders'
         ];
 
-        // Fetch data for tables with direct company_id filter
         for (const tableName of directFilterTables) {
             const { data, error } = await supabase
                 .from(tableName)
@@ -648,31 +636,26 @@ export async function getDatabaseSchemaAndData(companyId: string): Promise<{ tab
                 if (!error.message.includes("does not exist")) {
                     logError(error, { context: `Could not fetch data for table '${tableName}'` });
                 }
-                // Even on error, push the table name so the UI knows it was attempted
                 results.push({ tableName, rows: [] });
             } else {
                 results.push({ tableName, rows: data || [] });
             }
         }
         
-        // Fetch data for child tables without a direct filter
-        // The AI will learn to join through parent tables
-        const childTables = ['order_items', 'return_items', 'product_attributes'];
-        for (const tableName of childTables) {
-             const { data, error } = await supabase
-                .from(tableName)
-                .select('*')
-                .limit(10);
+        // Safely fetch related purchase_order_items
+        const { data: poItems, error: poItemsError } = await supabase
+            .from('purchase_order_items')
+            .select('purchase_order_items.*')
+            .in('po_id', (results.find(r => r.tableName === 'purchase_orders')?.rows.map(po => (po as PurchaseOrder).id) || []))
+            .limit(10);
             
-            if (error) {
-                 if (!error.message.includes("does not exist")) {
-                    logError(error, { context: `Could not fetch data for table '${tableName}'` });
-                }
-                results.push({ tableName, rows: [] });
-            } else {
-                 results.push({ tableName, rows: data || [] });
-            }
+        if (poItemsError) {
+            logError(poItemsError, { context: `Could not fetch data for table 'purchase_order_items'` });
+            results.push({ tableName: 'purchase_order_items', rows: [] });
+        } else {
+            results.push({ tableName: 'purchase_order_items', rows: poItems || [] });
         }
+
 
         // Return tables in the specified order
         return USER_FACING_TABLES.map(tableName => {
@@ -763,7 +746,7 @@ export async function saveSuccessfulQuery(
 }
 
 
-export async function generateAnomalyInsights(companyId: string): Promise<Anomaly[]> {
+export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('generateAnomalyInsights', async () => {
         const supabase = getServiceRoleClient();
