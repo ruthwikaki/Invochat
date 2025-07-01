@@ -49,7 +49,7 @@ function ChatWelcomePanel() {
             transition={{ duration: 0.5, delay: 0.5 }}
             className="mt-2 max-w-md text-muted-foreground"
         >
-          Ask me anything about your inventory, or use one of the quick questions below to get started.
+          Ask me anything about your inventory.
         </motion.p>
       </div>
     );

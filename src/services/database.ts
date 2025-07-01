@@ -177,13 +177,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
 
         if (mvError) logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
         
-        const deadStockQuery = `
-            SELECT COUNT(*)::int as count 
-            FROM inventory 
-            WHERE company_id = '${companyId}' AND quantity > 0 
-            AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - INTERVAL '${settings.dead_stock_days} days')
-        `;
-
         const combinedQuery = `
             WITH date_range AS (
                 SELECT (CURRENT_DATE - INTERVAL '${days} days') as start_date
@@ -236,7 +229,12 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
                 'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
                 'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t),
-                'deadStockItemsCount', (SELECT count FROM (${deadStockQuery}) as ds)
+                'deadStockItemsCount', (
+                    SELECT COUNT(*)::int
+                    FROM inventory 
+                    WHERE company_id = '${companyId}' AND quantity > 0 
+                    AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - INTERVAL '${settings.dead_stock_days} days')
+                )
             ) as metrics
             FROM main_metrics m;
         `;

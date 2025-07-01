@@ -92,8 +92,8 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
   
   const watchedItems = form.watch('items');
   const totalAmount = watchedItems.reduce((acc, item) => {
-    const quantity = Number(item.quantity_ordered) || 0;
-    const cost = Number(item.unit_cost) || 0;
+    const quantity = Number(item.quantity_ordered || 0);
+    const cost = Number(item.unit_cost || 0);
     return acc + (quantity * cost);
   }, 0);
 
@@ -211,8 +211,8 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
                     </TableHeader>
                     <TableBody>
                         {fields.map((field, index) => {
-                             const quantity = Number(form.watch(`items.${index}.quantity_ordered`)) || 0;
-                             const cost = Number(form.watch(`items.${index}.unit_cost`)) || 0;
+                             const quantity = Number(form.watch(`items.${index}.quantity_ordered`) || 0);
+                             const cost = Number(form.watch(`items.${index}.unit_cost`) || 0);
                              const lineTotal = quantity * cost;
                             return (
                             <TableRow key={field.id}>
