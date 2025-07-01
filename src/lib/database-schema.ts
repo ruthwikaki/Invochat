@@ -1,5 +1,5 @@
 
--- InvoChat Database Setup Script
+export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- This script is idempotent and can be safely re-run on an existing database.
 
 -- ========= Part 1: New User Trigger =========
@@ -150,7 +150,7 @@ begin
   end if;
 
   -- This query is executed as a single statement, making it more performant than a loop.
-  -- It uses `jsonb_populate_recordset` to safely convert the JSON array into a set of rows
+  -- It uses \`jsonb_populate_recordset\` to safely convert the JSON array into a set of rows
   -- matching the target table's structure. This is safer than manual value string construction.
   query := format(
     '
@@ -295,3 +295,4 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 
 -- Add index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_notification_preferences_company_id ON public.notification_preferences(company_id);
+`;
