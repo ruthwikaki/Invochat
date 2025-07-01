@@ -58,10 +58,12 @@ import { sendPurchaseOrderEmail } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 
-// This function provides a robust way to get the company ID for the current user.
-// It is now designed to be crash-proof. It throws an error if any issue occurs.
-async function getAuthContext(): Promise<{ userId: string, companyId: string }> {
-    logger.debug('[getAuthContext] Attempting to determine Company ID...');
+type UserRole = 'Owner' | 'Admin' | 'Member';
+
+// This function provides a robust way to get the company ID and role for the current user.
+// It throws an error if any issue occurs, which is caught by error boundaries.
+async function getAuthContext(): Promise<{ userId: string, companyId: string, userRole: UserRole }> {
+    logger.debug('[getAuthContext] Attempting to determine Company ID and Role...');
     try {
         const cookieStore = cookies();
         const supabase = createServerClient(
@@ -82,20 +84,33 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string }> 
             throw new Error(`Authentication error: ${error.message}`);
         }
 
-        // Check app_metadata first (set by trigger), then user_metadata as a fallback (set on signup).
-        const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
+        const companyId = user?.app_metadata?.company_id;
+        const userRole = user?.app_metadata?.role;
         
-        if (!user || !companyId || typeof companyId !== 'string') {
-            logger.warn('[getAuthContext] Could not determine Company ID. User may not be fully signed up or session is invalid.');
+        if (!user || !companyId || typeof companyId !== 'string' || !userRole) {
+            logger.warn('[getAuthContext] Could not determine Company ID or Role. User may not be fully signed up or session is invalid.');
             throw new Error('Your user session is invalid or not fully configured. Please try signing out and signing back in.');
         }
         
-        logger.debug(`[getAuthContext] Success. Company ID: ${companyId}`);
-        return { userId: user.id, companyId };
+        logger.debug(`[getAuthContext] Success. Company ID: ${companyId}, Role: ${userRole}`);
+        return { userId: user.id, companyId, userRole: userRole as UserRole };
     } catch (e) {
         logError(e, { context: 'getAuthContext' });
         // Re-throw the error to be caught by the calling function's error boundary.
         throw e;
+    }
+}
+
+/**
+ * A helper function to enforce Role-Based Access Control.
+ * @param currentUserRole The role of the user trying to perform the action.
+ * @param allowedRoles An array of roles that are permitted to perform the action.
+ * @throws {Error} If the user's role is not in the allowed list.
+ */
+function requireRole(currentUserRole: UserRole, allowedRoles: UserRole[]) {
+    if (!allowedRoles.includes(currentUserRole)) {
+        logger.warn(`[RBAC] Access denied for role '${currentUserRole}'. Allowed roles: ${allowedRoles.join(', ')}.`);
+        throw new Error('You do not have permission to perform this action.');
     }
 }
 
@@ -162,8 +177,8 @@ export async function getAnomalyInsights() {
 }
 
 export async function updateCompanySettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
-    const { companyId } = await getAuthContext();
-    // Validation is now properly handled in the database service layer.
+    const { companyId, userRole } = await getAuthContext();
+    requireRole(userRole, ['Owner', 'Admin']);
     return updateSettingsInDb(companyId, settings);
 }
 
@@ -184,6 +199,9 @@ const InviteTeamMemberSchema = z.object({
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const { userRole, companyId } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
+
         const cookieStore = cookies();
         const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
         const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
@@ -199,20 +217,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         }
         const { email } = parsed.data;
 
-        const { userId, companyId } = await getAuthContext();
         const supabase = getServiceRoleClient();
-
-        // RBAC Check: Ensure the current user has permission to invite.
-        const { data: currentUserData, error: roleError } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', userId)
-            .single();
-
-        if (roleError || !currentUserData) throw new Error("Could not verify your permissions.");
-        if (currentUserData.role !== 'Owner' && currentUserData.role !== 'Admin') {
-            return { success: false, error: "You do not have permission to invite users." };
-        }
         
         const { data: companyData, error: companyError } = await supabase
             .from('companies')
@@ -401,24 +406,12 @@ export async function testRedisConnection(): Promise<{
 
 export async function removeTeamMember(memberIdToRemove: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const { userId: currentUserId, companyId } = await getAuthContext();
+        const { userId: currentUserId, userRole, companyId } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
 
         // Security check: You cannot remove yourself.
         if (memberIdToRemove === currentUserId) {
             return { success: false, error: "You cannot remove yourself from the team." };
-        }
-
-        // RBAC Check: Ensure the current user has permission to remove members.
-        const supabase = getServiceRoleClient();
-        const { data: currentUserData, error: roleError } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', currentUserId)
-            .single();
-
-        if (roleError || !currentUserData) throw new Error("Could not verify your permissions.");
-        if (currentUserData.role !== 'Owner' && currentUserData.role !== 'Admin') {
-            return { success: false, error: "You do not have permission to remove team members." };
         }
 
         const result = await removeTeamMemberFromDb(memberIdToRemove, companyId);
@@ -440,45 +433,13 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
 
 export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
     try {
-        const { userId: currentUserId, companyId } = await getAuthContext();
-
-        // Security Check 1: Get the current user's role from the database.
-        const supabase = getServiceRoleClient();
-        const { data: currentUserData, error: currentUserError } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', currentUserId)
-            .single();
-
-        if (currentUserError || !currentUserData) {
-            throw new Error("Could not verify your permissions.");
-        }
+        const { userRole, companyId } = await getAuthContext();
+        requireRole(userRole, ['Owner']);
         
-        // Security Check 2: Only owners can change roles.
-        if (currentUserData.role !== 'Owner') {
-            return { success: false, error: "You do not have permission to change user roles." };
-        }
-        
-        // Security Check 3: You cannot change the Owner's role.
-        const { data: memberToUpdateData, error: memberToUpdateError } = await supabase
-            .from('users')
-            .select('role')
-            .eq('id', memberIdToUpdate)
-            .single();
-            
-        if (memberToUpdateError || !memberToUpdateData) {
-            throw new Error("The specified user was not found.");
-        }
-
-        if (memberToUpdateData.role === 'Owner') {
-            return { success: false, error: "The company owner's role cannot be changed." };
-        }
-        
-        // Update the user's role in the database.
         const result = await updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
 
         if (result.success) {
-             logger.info(`[Role Update] User ${currentUserId} updated role for ${memberIdToUpdate} to ${newRole}`);
+             logger.info(`[Role Update] User role updated for ${memberIdToUpdate} to ${newRole}`);
              revalidatePath('/settings/team');
         } else {
             logger.error(`[Role Update Action] Failed to update role for ${memberIdToUpdate}:`, result.error);
@@ -494,13 +455,14 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
 
 
 export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
+  const { companyId, userRole } = await getAuthContext();
+  requireRole(userRole, ['Owner', 'Admin']);
   const parsedData = PurchaseOrderCreateSchema.safeParse(data);
   if (!parsedData.success) {
     return { success: false, error: "Invalid form data provided." };
   }
   
   try {
-    const { companyId } = await getAuthContext();
     const newPo = await createPurchaseOrderInDb(companyId, parsedData.data);
     revalidatePath('/purchase-orders', 'layout');
     return { success: true, data: newPo };
@@ -515,13 +477,14 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
 }
 
 export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
+  const { companyId, userRole } = await getAuthContext();
+  requireRole(userRole, ['Owner', 'Admin']);
   const parsedData = PurchaseOrderUpdateSchema.safeParse(data);
   if (!parsedData.success) {
     return { success: false, error: "Invalid form data provided for update." };
   }
 
   try {
-    const { companyId } = await getAuthContext();
     await updatePurchaseOrderInDb(poId, companyId, parsedData.data);
     revalidatePath('/purchase-orders', 'layout');
     revalidatePath(`/purchase-orders/${poId}`);
@@ -538,7 +501,8 @@ export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdat
 
 export async function deletePurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await deletePurchaseOrderFromDb(poId, companyId);
         revalidatePath('/purchase-orders', 'layout');
         return { success: true };
@@ -550,7 +514,8 @@ export async function deletePurchaseOrder(poId: string): Promise<{ success: bool
 
 export async function emailPurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         const purchaseOrder = await getPurchaseOrderByIdFromDB(poId, companyId);
         if (!purchaseOrder) {
             return { success: false, error: "Purchase Order not found." };
@@ -571,7 +536,8 @@ export async function emailPurchaseOrder(poId: string): Promise<{ success: boole
 
 export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await receivePurchaseOrderItemsInDB(data.poId, companyId, data.items);
         await refreshMaterializedViews(companyId);
         revalidatePath(`/purchase-orders/${data.poId}`);
@@ -592,7 +558,8 @@ export async function createPurchaseOrdersFromSuggestions(
   suggestions: ReorderSuggestion[]
 ): Promise<{ success: boolean; error?: string; createdPoCount: number }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
 
         if (suggestions.length === 0) {
             return { success: false, error: "No suggestions were selected.", createdPoCount: 0 };
@@ -654,7 +621,8 @@ const UpsertChannelFeeSchema = z.object({
 
 export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         const parsed = UpsertChannelFeeSchema.safeParse({
             channel_name: formData.get('channel_name'),
             percentage_fee: formData.get('percentage_fee'),
@@ -687,7 +655,8 @@ export async function getLocationById(id: string): Promise<Location | null> {
 
 export async function createLocation(data: LocationFormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await createLocationInDB(companyId, data);
         revalidatePath('/locations');
         return { success: true };
@@ -699,7 +668,8 @@ export async function createLocation(data: LocationFormData): Promise<{ success:
 
 export async function updateLocation(id: string, data: LocationFormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await updateLocationInDB(id, companyId, data);
         revalidatePath('/locations');
         return { success: true };
@@ -711,7 +681,8 @@ export async function updateLocation(id: string, data: LocationFormData): Promis
 
 export async function deleteLocation(id: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await deleteLocationFromDB(id, companyId);
         revalidatePath('/locations');
         revalidatePath('/inventory');
@@ -730,7 +701,8 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
 
 export async function createSupplier(data: SupplierFormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await createSupplierInDb(companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -742,7 +714,8 @@ export async function createSupplier(data: SupplierFormData): Promise<{ success:
 
 export async function updateSupplier(id: string, data: SupplierFormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await updateSupplierInDb(id, companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -754,7 +727,8 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
 
 export async function deleteSupplier(id: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await deleteSupplierFromDb(id, companyId);
         revalidatePath('/suppliers');
         return { success: true };
@@ -766,7 +740,8 @@ export async function deleteSupplier(id: string): Promise<{ success: boolean; er
 
 export async function deleteInventoryItems(skus: string[]): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await deleteInventoryItemsFromDb(companyId, skus);
         revalidatePath('/inventory');
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
@@ -780,12 +755,13 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
 
 export async function updateInventoryItem(sku: string, data: InventoryUpdateData): Promise<{ success: boolean; error?: string; updatedItem?: UnifiedInventoryItem }> {
     try {
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         const parsedData = InventoryUpdateSchema.safeParse(data);
         if (!parsedData.success) {
             return { success: false, error: "Invalid form data provided." };
         }
         
-        const { companyId } = await getAuthContext();
         const updatedItem = await updateInventoryItemInDb(companyId, sku, parsedData.data);
         
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
@@ -807,7 +783,8 @@ export async function getIntegrations(): Promise<Integration[]> {
 
 export async function disconnectIntegration(integrationId: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
         await deleteIntegrationFromDb(integrationId, companyId);
         revalidatePath('/settings/integrations');
         return { success: true };

@@ -52,10 +52,10 @@ begin
   values (new.id, new.email, user_company_id, user_role);
 
   -- **This is the most critical step for authentication.**
-  -- It copies the company_id into 'app_metadata', which makes it available
+  -- It copies the company_id and role into 'app_metadata', which makes it available
   -- in the user's session token (JWT). The middleware relies on this to grant access.
   update auth.users
-  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', user_company_id)
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', user_company_id, 'role', user_role)
   where id = new.id;
 
   return new;
@@ -480,7 +480,7 @@ BEGIN
     WHERE sku = p_sku AND company_id = p_company_id;
 
     -- Insert into the ledger
-    INSERT INTO public.inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, related_id, notes)
+    INSERT INTO public.inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, current_quantity_val, related_id, notes)
     VALUES (p_company_id, p_sku, p_change_type, p_quantity_change, current_quantity_val, p_related_id, p_notes);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -594,4 +594,141 @@ BEGIN
     RETURN result_json;
 END;
 $$;
+
+-- ========= Part 11: Secure RPC Functions for Dashboard and Alerts =========
+
+CREATE OR REPLACE FUNCTION get_dashboard_metrics(p_company_id uuid, p_days integer)
+RETURNS json AS $$
+DECLARE
+    result_json json;
+BEGIN
+    WITH date_range AS (
+        SELECT (CURRENT_DATE - (p_days || ' days')::interval) as start_date
+    ),
+    orders_in_range AS (
+        SELECT id, total_amount, sale_date, customer_id FROM public.orders
+        WHERE company_id = p_company_id AND sale_date >= (SELECT start_date FROM date_range)
+    ),
+    returns_in_range AS (
+        SELECT id FROM public.returns
+        WHERE company_id = p_company_id AND requested_at >= (SELECT start_date FROM date_range)
+    ),
+    sales_details_in_range AS (
+        SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost
+        FROM public.order_items oi
+        JOIN orders_in_range s ON oi.sale_id = s.id
+        JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
+    ),
+    sales_trend AS (
+        SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
+        FROM orders_in_range GROUP BY 1 ORDER BY 1
+    ),
+    top_customers AS (
+        SELECT c.customer_name as name, SUM(s.total_amount) as value
+        FROM orders_in_range s
+        JOIN public.customers c ON s.customer_id = c.id
+        WHERE s.customer_id IS NOT NULL
+        GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
+    ),
+    inventory_by_category AS (
+        SELECT category as name, sum(quantity * cost) as value 
+        FROM public.inventory
+        WHERE company_id = p_company_id AND category IS NOT NULL
+        GROUP BY category
+    ),
+    main_metrics AS (
+        SELECT
+            (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range) as "totalSalesValue",
+            (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range) as "totalProfit",
+            (SELECT COUNT(*) FROM orders_in_range) as "totalOrders",
+            (SELECT COUNT(*) FROM returns_in_range) as "totalReturns"
+    )
+    SELECT json_build_object(
+        'totalSalesValue', m."totalSalesValue",
+        'totalProfit', m."totalProfit",
+        'averageOrderValue', CASE WHEN m."totalOrders" > 0 THEN m."totalSalesValue" / m."totalOrders" ELSE 0 END,
+        'returnRate', CASE WHEN m."totalOrders" > 0 THEN (m."totalReturns"::decimal / m."totalOrders") * 100 ELSE 0 END,
+        'totalOrders', m."totalOrders",
+        'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
+        'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
+        'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t),
+        'deadStockItemsCount', (
+            SELECT COUNT(*)::int
+            FROM public.inventory i
+            JOIN public.company_settings s ON i.company_id = s.company_id
+            WHERE i.company_id = p_company_id AND i.quantity > 0 
+            AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - (s.dead_stock_days || ' days')::interval)
+        )
+    ) INTO result_json
+    FROM main_metrics m;
+    
+    RETURN result_json;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION get_alerts(p_company_id uuid)
+RETURNS json AS $$
+DECLARE
+    result_json json;
+BEGIN
+    WITH settings AS (
+      SELECT * FROM company_settings WHERE company_id = p_company_id LIMIT 1
+    ),
+    low_stock_alerts AS (
+        SELECT 
+            'low_stock' as type,
+            sku,
+            name as product_name,
+            quantity as current_stock,
+            reorder_point
+        FROM inventory
+        WHERE company_id = p_company_id AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
+    ),
+    dead_stock_alerts AS (
+        SELECT 
+            'dead_stock' as type,
+            sku,
+            name as product_name,
+            quantity as current_stock,
+            last_sold_date,
+            (quantity * cost) as value
+        FROM inventory, settings
+        WHERE inventory.company_id = p_company_id AND quantity > 0
+        AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - (settings.dead_stock_days || ' days')::interval)
+    ),
+    predictive_alerts AS (
+        SELECT
+            'predictive' as type,
+            i.sku,
+            i.name as product_name,
+            i.quantity as current_stock,
+            i.quantity / sv.daily_sales_velocity as days_of_stock_remaining
+        FROM inventory i
+        JOIN (
+            SELECT 
+                oi.sku,
+                SUM(oi.quantity)::float / NULLIF((SELECT fast_moving_days FROM settings), 0) as daily_sales_velocity
+            FROM order_items oi
+            JOIN orders o ON oi.sale_id = o.id
+            WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - ((SELECT fast_moving_days FROM settings) || ' days')::interval
+            GROUP BY oi.sku
+        ) sv ON i.sku = sv.sku
+        WHERE i.company_id = p_company_id
+        AND i.quantity > 0 AND sv.daily_sales_velocity > 0
+        AND (i.quantity / sv.daily_sales_velocity) < 7
+    )
+    SELECT coalesce(json_agg(t), '[]')
+    INTO result_json
+    FROM (
+        SELECT * FROM low_stock_alerts
+        UNION ALL
+        SELECT * FROM dead_stock_alerts
+        UNION ALL
+        SELECT null as reorder_point, * FROM predictive_alerts
+    ) t;
+
+    RETURN result_json;
+END;
+$$ LANGUAGE plpgsql;
+
 `;

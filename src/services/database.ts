@@ -167,7 +167,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
   const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
     return withPerformanceTracking('getDashboardMetricsOptimized', async () => {
         const supabase = getServiceRoleClient();
-        const settings = await getSettings(companyId);
         
         const { data: mvData, error: mvError } = await supabase
             .from('company_dashboard_metrics')
@@ -177,92 +176,30 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
 
         if (mvError) logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
         
-        const combinedQuery = `
-            WITH date_range AS (
-                SELECT (CURRENT_DATE - INTERVAL '${days} days') as start_date
-            ),
-            orders_in_range AS (
-                SELECT id, total_amount, sale_date, customer_id, company_id
-                FROM orders
-                WHERE company_id = '${companyId}' AND sale_date >= (SELECT start_date FROM date_range)
-            ),
-            returns_in_range AS (
-                SELECT id
-                FROM returns
-                WHERE company_id = '${companyId}' AND requested_at >= (SELECT start_date FROM date_range)
-            ),
-            sales_details_in_range AS (
-                SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost
-                FROM order_items oi
-                JOIN orders_in_range s ON oi.sale_id = s.id
-                JOIN inventory i ON oi.sku = i.sku AND i.company_id = s.company_id
-            ),
-            sales_trend AS (
-                SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
-                FROM orders_in_range
-                GROUP BY 1 ORDER BY 1
-            ),
-            top_customers AS (
-                SELECT c.customer_name as name, SUM(s.total_amount) as value
-                FROM orders_in_range s
-                JOIN customers c ON s.customer_id = c.id
-                WHERE s.customer_id IS NOT NULL
-                GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
-            ),
-            inventory_by_category AS (
-                SELECT category as name, sum(quantity * cost) as value 
-                FROM inventory
-                WHERE company_id = '${companyId}' AND category IS NOT NULL
-                GROUP BY category
-            ),
-            main_metrics AS (
-                SELECT
-                    (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range) as "totalSalesValue",
-                    (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range) as "totalProfit",
-                    (SELECT COUNT(*) FROM orders_in_range) as "totalOrders",
-                    (SELECT COUNT(*) FROM returns_in_range) as "totalReturns"
-            )
-            SELECT json_build_object(
-                'totalSalesValue', m."totalSalesValue",
-                'totalProfit', m."totalProfit",
-                'averageOrderValue', CASE WHEN m."totalOrders" > 0 THEN m."totalSalesValue" / m."totalOrders" ELSE 0 END,
-                'returnRate', CASE WHEN m."totalOrders" > 0 THEN (m."totalReturns"::decimal / m."totalOrders") * 100 ELSE 0 END,
-                'totalOrders', m."totalOrders",
-                'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
-                'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
-                'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t),
-                'deadStockItemsCount', (
-                    SELECT COUNT(*)::int
-                    FROM inventory 
-                    WHERE company_id = '${companyId}' AND quantity > 0 
-                    AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - INTERVAL '${settings.dead_stock_days} days')
-                )
-            ) as metrics
-            FROM main_metrics m;
-        `;
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_dashboard_metrics', {
+            p_company_id: companyId,
+            p_days: days,
+        });
         
-        const { data: combinedData, error: combinedError } = await supabase.rpc('execute_dynamic_query', { query_text: combinedQuery.trim().replace(/;/g, '') });
-        
-        if (combinedError) {
-            logError(combinedError, { context: `Dashboard combined query failed for company ${companyId}` });
-            throw combinedError;
+        if (rpcError) {
+            logError(rpcError, { context: `Dashboard RPC failed for company ${companyId}` });
+            throw rpcError;
         }
 
-        const metrics = (combinedData as { metrics: Record<string, unknown> }[])[0]?.metrics || {};
-
+        const metrics = rpcData || {};
         const { data: customers } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
         const finalMetrics: DashboardMetrics = {
-            totalSalesValue: Math.round((metrics.totalSalesValue as number) || 0),
-            totalProfit: Math.round((metrics.totalProfit as number) || 0),
-            returnRate: (metrics.returnRate as number) || 0,
+            totalSalesValue: Math.round(metrics.totalSalesValue || 0),
+            totalProfit: Math.round(metrics.totalProfit || 0),
+            returnRate: metrics.returnRate || 0,
             totalInventoryValue: Math.round(mvData?.inventory_value || 0),
             lowStockItemsCount: mvData?.low_stock_count || 0,
-            deadStockItemsCount: (metrics.deadStockItemsCount as number) || 0,
+            deadStockItemsCount: metrics.deadStockItemsCount || 0,
             totalSkus: mvData?.total_skus || 0,
-            totalOrders: (metrics.totalOrders as number) || 0,
+            totalOrders: metrics.totalOrders || 0,
             totalCustomers: customers?.count || 0,
-            averageOrderValue: (metrics.averageOrderValue as number) || 0,
+            averageOrderValue: metrics.averageOrderValue || 0,
             salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[]) || [],
             inventoryByCategoryData: (metrics.inventoryByCategoryData as { name: string; value: number }[]) || [],
             topCustomersData: (metrics.topCustomersData as { name: string; value: number }[]) || [],
@@ -631,75 +568,35 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         }
         
         const supabase = getServiceRoleClient();
-        const settings = await getSettings(companyId);
-        const alerts: Alert[] = [];
-        
-        // Low Stock Alerts
-        const lowStockQuery = `
-            SELECT sku, quantity, name as product_name, reorder_point
-            FROM inventory
-            WHERE company_id = '${companyId}' AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
-        `;
-        const { data: lowStockItems, error: lowStockError } = await supabase
-            .rpc('execute_dynamic_query', { query_text: lowStockQuery.trim().replace(/;/g, '') });
+        const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
 
-        if (lowStockError) {
-            logError(lowStockError, { context: 'Could not check for low stock items' });
-        } else if (lowStockItems) {
-            for (const item of lowStockItems as any[]) {
+        if (error) {
+            logError(error, { context: 'getAlerts RPC failed' });
+            throw error;
+        }
+        
+        const alerts: Alert[] = [];
+        for (const item of (data as any[])) {
+            if (item.type === 'low_stock') {
                 alerts.push({
                     id: `low-stock-${item.sku}`, type: 'low_stock', title: `Low Stock Warning`,
                     message: `Item "${item.product_name || item.sku}" is running low on stock.`,
                     severity: 'warning', timestamp: new Date().toISOString(),
-                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.quantity, reorderPoint: item.reorder_point },
+                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.current_stock, reorderPoint: item.reorder_point },
                 });
-            }
-        }
-        
-        // Dead Stock Alerts
-        const deadStockItems = await getRawDeadStockData(companyId, settings);
-        for (const item of deadStockItems) {
-            alerts.push({
-                id: `dead-stock-${item.sku}`, type: 'dead_stock', title: `Dead Stock Alert`,
-                message: `Item "${item.product_name || item.sku}" is now considered dead stock.`,
-                severity: 'info', timestamp: new Date().toISOString(),
-                metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.quantity, lastSoldDate: item.last_sale_date, value: item.total_value },
-            });
-        }
-
-        // Predictive Alerts
-        const predictiveAlertQuery = `
-            WITH sales_velocity AS (
-                SELECT 
-                    oi.sku,
-                    SUM(oi.quantity)::float / NULLIF(${settings.fast_moving_days}, 0) as daily_sales_velocity
-                FROM order_items oi
-                JOIN orders o ON oi.sale_id = o.id
-                WHERE o.company_id = '${companyId}' AND o.sale_date >= CURRENT_DATE - INTERVAL '${settings.fast_moving_days} days'
-                GROUP BY oi.sku
-            )
-            SELECT
-                i.sku, i.name as product_name, i.quantity, sv.daily_sales_velocity,
-                i.quantity / sv.daily_sales_velocity as days_of_stock_remaining
-            FROM inventory i
-            JOIN sales_velocity sv ON i.sku = sv.sku
-            WHERE i.company_id = '${companyId}'
-            AND i.quantity > 0 AND sv.daily_sales_velocity > 0
-            AND (i.quantity / sv.daily_sales_velocity) < 7;
-        `;
-
-        const { data: predictiveItems, error: predictiveError } = await supabase
-            .rpc('execute_dynamic_query', { query_text: predictiveAlertQuery.trim().replace(/;/g, '') });
-        
-        if (predictiveError) {
-            logError(predictiveError, { context: 'Could not check for predictive alerts' });
-        } else if (predictiveItems) {
-            for (const item of predictiveItems as any[]) {
-                 alerts.push({
+            } else if (item.type === 'dead_stock') {
+                alerts.push({
+                    id: `dead-stock-${item.sku}`, type: 'dead_stock', title: `Dead Stock Alert`,
+                    message: `Item "${item.product_name || item.sku}" is now considered dead stock.`,
+                    severity: 'info', timestamp: new Date().toISOString(),
+                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.current_stock, lastSoldDate: item.last_sold_date, value: item.value },
+                });
+            } else if (item.type === 'predictive') {
+                alerts.push({
                     id: `predictive-${item.sku}`, type: 'predictive', title: `Predictive Stockout Alert`,
                     message: `You are forecast to run out of stock for "${item.product_name || item.sku}" in approximately ${Math.round(item.days_of_stock_remaining)} days.`,
                     severity: 'warning', timestamp: new Date().toISOString(),
-                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.quantity, daysOfStockRemaining: item.days_of_stock_remaining },
+                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.current_stock, daysOfStockRemaining: item.days_of_stock_remaining },
                 });
             }
         }
@@ -1034,6 +931,12 @@ export async function updateTeamMemberRoleInDb(
      return withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
         const supabase = getServiceRoleClient();
         
+        // You can't change the role of the Owner
+        const { data: memberData } = await supabase.from('users').select('role').eq('id', memberIdToUpdate).single();
+        if (memberData?.role === 'Owner') {
+            return { success: false, error: "The Company Owner's role cannot be changed." };
+        }
+
         const { error: updateError } = await supabase
             .from('users')
             .update({ role: newRole })
@@ -1043,6 +946,16 @@ export async function updateTeamMemberRoleInDb(
         if (updateError) {
             logError(updateError, { context: `Failed to update role for ${memberIdToUpdate}` });
             return { success: false, error: updateError.message };
+        }
+        
+        // Also update the role in auth.users for the JWT
+        const { error: authUpdateError } = await supabase.auth.admin.updateUserById(memberIdToUpdate, {
+            app_metadata: { role: newRole }
+        });
+
+        if (authUpdateError) {
+            logError(authUpdateError, { context: `Failed to update auth role for ${memberIdToUpdate}` });
+            // This is a problem, but the primary DB is updated. We'll log it but not fail the whole op.
         }
 
         return { success: true };
