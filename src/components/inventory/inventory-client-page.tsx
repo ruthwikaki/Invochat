@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Location } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles, Loader2, Warehouse } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles, Loader2, Warehouse, DollarSign } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -246,7 +246,6 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                             />
                             </TableHead>
                             <TableHead>Product</TableHead>
-                            <TableHead>Location</TableHead>
                             <TableHead>Category</TableHead>
                             <TableHead className="text-right">Quantity</TableHead>
                             <TableHead className="text-right">Total Value</TableHead>
@@ -259,7 +258,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                         <TableBody>
                         {showNoResultsState ? (
                             <TableRow>
-                                <TableCell colSpan={10} className="h-24 text-center">
+                                <TableCell colSpan={9} className="h-24 text-center">
                                     No inventory found matching your criteria.
                                 </TableCell>
                             </TableRow>
@@ -268,7 +267,9 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                             const cost = item.landed_cost || item.cost || 0;
                             const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
                             const marginColor = margin > 30 ? 'text-success' : margin > 15 ? 'text-amber-500' : 'text-destructive';
-                            
+                            const monthlyProfit = item.monthly_profit || 0;
+                            const profitColor = monthlyProfit > 0 ? 'text-success' : monthlyProfit < 0 ? 'text-destructive' : 'text-muted-foreground';
+
                             return (
                             <Fragment key={item.sku}>
                             <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
@@ -282,20 +283,14 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                 <div className="font-medium">{item.product_name}</div>
                                 <div className="text-xs text-muted-foreground">{item.sku}</div>
                                 </TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Warehouse className="h-4 w-4 text-muted-foreground" />
-                                        {item.location_name || 'Unassigned'}
-                                    </div>
-                                </TableCell>
                                 <TableCell>{item.category || 'N/A'}</TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
                                 <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
                                     <span className={cn('font-semibold', marginColor)}>{margin.toFixed(1)}%</span>
                                 </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                    -
+                                <TableCell className="text-right">
+                                     <span className={cn('font-semibold', profitColor)}>{monthlyProfit >= 0 ? '$' : '-$'}{Math.abs(monthlyProfit).toFixed(2)}</span>
                                 </TableCell>
                                 <TableCell>
                                 <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
@@ -329,12 +324,14 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                             </TableRow>
                             {expandedRows.has(item.sku) && (
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
-                                    <TableCell colSpan={10} className="p-4">
-                                        <div className="grid grid-cols-4 gap-4 text-sm">
+                                    <TableCell colSpan={9} className="p-4">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                             <div><strong>Unit Cost:</strong> ${item.cost.toFixed(2)}</div>
                                             <div><strong>Landed Cost:</strong> {item.landed_cost ? `$${item.landed_cost.toFixed(2)}` : 'N/A'}</div>
                                             <div><strong>On Order:</strong> {item.on_order_quantity} units</div>
                                             <div><strong>Barcode:</strong> {item.barcode || 'N/A'}</div>
+                                            <div><strong>Location:</strong> {item.location_name || 'Unassigned'}</div>
+                                            <div><strong>Monthly Units Sold:</strong> {item.monthly_units_sold}</div>
                                         </div>
                                     </TableCell>
                                 </TableRow>

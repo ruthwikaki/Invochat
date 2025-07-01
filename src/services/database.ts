@@ -901,6 +901,15 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         const { query, category, location } = params;
 
         let sqlQuery = `
+            WITH monthly_sales AS (
+                SELECT 
+                    oi.sku,
+                    SUM(oi.quantity) as units_sold
+                FROM order_items oi
+                JOIN orders o ON oi.sale_id = o.id
+                WHERE o.company_id = '${companyId}' AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days'
+                GROUP BY oi.sku
+            )
             SELECT
                 i.sku,
                 i.name as product_name,
@@ -914,9 +923,12 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
                 i.landed_cost,
                 i.barcode,
                 i.location_id,
-                l.name as location_name
+                l.name as location_name,
+                COALESCE(ms.units_sold, 0) as monthly_units_sold,
+                ((i.price - COALESCE(i.landed_cost, i.cost)) * COALESCE(ms.units_sold, 0)) as monthly_profit
             FROM inventory i
             LEFT JOIN locations l ON i.location_id = l.id
+            LEFT JOIN monthly_sales ms ON i.sku = ms.sku
             WHERE i.company_id = '${companyId}'
         `;
 

@@ -279,3 +279,19 @@ LANGUAGE sql
 AS $refresh_func$
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
 $refresh_func$;
+
+-- ========= Part 7: User Preferences and Notifications =========
+-- This table stores user-specific settings for notifications,
+-- enabling features like the "Morning Coffee Email".
+CREATE TABLE IF NOT EXISTS public.notification_preferences (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  email_daily_digest BOOLEAN DEFAULT TRUE,
+  email_low_stock BOOLEAN DEFAULT TRUE,
+  sms_critical_alerts BOOLEAN DEFAULT FALSE,
+  sms_phone_number TEXT,
+  digest_time TIME WITH TIME ZONE DEFAULT '07:00:00+00'
+);
+
+-- Add index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_company_id ON public.notification_preferences(company_id);

@@ -148,6 +148,8 @@ export type UnifiedInventoryItem = {
   barcode?: string | null;
   location_id: string | null;
   location_name: string | null;
+  monthly_units_sold: number;
+  monthly_profit: number;
 };
 
 export const InventoryUpdateSchema = z.object({
