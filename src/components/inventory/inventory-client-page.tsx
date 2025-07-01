@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Location } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, DollarSign } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import { deleteInventoryItems } from '@/app/data-actions';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { InventoryEditDialog } from './inventory-edit-dialog';
 import { Package } from 'lucide-react';
+import { InventoryHistoryDialog } from './inventory-history-dialog';
 
 
 interface InventoryClientPageProps {
@@ -83,6 +84,8 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
   const [isDeleting, startDeleteTransition] = useTransition();
   const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
+  const [historySku, setHistorySku] = useState<string | null>(null);
+
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -234,6 +237,11 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
         locations={locations}
       />
 
+       <InventoryHistoryDialog
+            sku={historySku}
+            onClose={() => setHistorySku(null)}
+       />
+
         {showEmptyState ? <EmptyInventoryState /> : (
             <Card>
                 <CardContent className="p-0">
@@ -307,6 +315,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemToDelete([item.sku])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>

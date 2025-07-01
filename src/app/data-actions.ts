@@ -41,9 +41,10 @@ import {
     refreshMaterializedViews,
     getIntegrationsByCompanyId,
     deleteIntegrationFromDb,
+    getInventoryLedgerForSkuFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -814,4 +815,9 @@ export async function disconnectIntegration(integrationId: string): Promise<{ su
         logError(e, { context: 'disconnectIntegration' });
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEntry[]> {
+    const { companyId } = await getAuthContext();
+    return getInventoryLedgerForSkuFromDB(companyId, sku);
 }

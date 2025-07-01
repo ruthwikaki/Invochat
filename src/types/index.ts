@@ -320,5 +320,18 @@ export const SupplierPerformanceReportSchema = z.object({
 });
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
 
+export const InventoryLedgerEntrySchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    sku: z.string(),
+    created_at: z.string(),
+    change_type: z.string(),
+    quantity_change: z.number().int(),
+    new_quantity: z.number().int(),
+    related_id: z.string().uuid().nullable(),
+    notes: z.string().nullable(),
+});
+export type InventoryLedgerEntry = z.infer<typeof InventoryLedgerEntrySchema>;
+
 // Export the generic Integration type
 export type { Integration };

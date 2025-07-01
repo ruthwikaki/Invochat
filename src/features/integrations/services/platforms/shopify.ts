@@ -201,6 +201,19 @@ export async function syncOrders(integration: Integration, accessToken: string) 
             const { error: itemError } = await supabase.from('order_items').insert(orderItemsToInsert);
             if (itemError) throw new Error(`Database insert error for order items: ${itemError.message}`);
         }
+
+        // After successfully inserting orders and items, process inventory changes
+        for (const order of createdOrders) {
+            const { error: processError } = await supabase.rpc('process_sales_order_inventory', {
+                p_order_id: order.id,
+                p_company_id: integration.company_id,
+            });
+
+            if (processError) {
+                logError(processError, { context: `Failed to process inventory for synced order ${order.external_id}` });
+                // Don't stop the whole sync, just log the error for this specific order.
+            }
+        }
     }
 
     recordsSynced = allOrders.length;

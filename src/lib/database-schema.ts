@@ -443,3 +443,155 @@ BEGIN
     RETURN result_json;
 END;
 $$;
+
+
+-- ========= Part 10: Inventory Ledger System =========
+-- The core of inventory tracking. Every stock movement is recorded here.
+
+CREATE TABLE IF NOT EXISTS public.inventory_ledger (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    sku text NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    change_type text NOT NULL, -- e.g., 'purchase_order_received', 'sale', 'return', 'manual_adjustment'
+    quantity_change integer NOT NULL,
+    new_quantity integer NOT NULL,
+    related_id uuid, -- e.g., purchase_order_id or order_id
+    notes text
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_ledger_company_sku ON public.inventory_ledger(company_id, sku, created_at DESC);
+
+
+-- Helper function to create ledger entries atomically.
+CREATE OR REPLACE FUNCTION public.create_inventory_ledger_entry(
+  p_company_id uuid,
+  p_sku text,
+  p_change_type text,
+  p_quantity_change integer,
+  p_related_id uuid DEFAULT null,
+  p_notes text DEFAULT null
+) RETURNS void AS $$
+DECLARE
+    current_quantity_val int;
+BEGIN
+    -- Get current quantity from inventory table
+    SELECT quantity INTO current_quantity_val
+    FROM public.inventory
+    WHERE sku = p_sku AND company_id = p_company_id;
+
+    -- Insert into the ledger
+    INSERT INTO public.inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, related_id, notes)
+    VALUES (p_company_id, p_sku, p_change_type, p_quantity_change, current_quantity_val, p_related_id, p_notes);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Function to decrement inventory for a sale and create a ledger entry.
+CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(
+    p_order_id uuid,
+    p_company_id uuid
+) RETURNS void AS $$
+DECLARE
+    order_item record;
+BEGIN
+    FOR order_item IN
+        SELECT sku, quantity FROM public.order_items WHERE sale_id = p_order_id
+    LOOP
+        -- Decrement inventory
+        UPDATE public.inventory
+        SET quantity = quantity - order_item.quantity
+        WHERE sku = order_item.sku AND company_id = p_company_id;
+
+        -- Create ledger entry for the sale
+        PERFORM public.create_inventory_ledger_entry(p_company_id, order_item.sku, 'sale', -order_item.quantity, p_order_id);
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Overwrite the existing RPC function to include ledger entries
+CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    item jsonb;
+    current_po_status text;
+    total_ordered integer;
+    total_received integer;
+BEGIN
+    -- Loop through each item in the JSON array
+    FOR item IN SELECT * FROM jsonb_array_elements(p_items_to_receive)
+    LOOP
+        -- Update the quantity received for the specific item on the purchase order
+        UPDATE public.purchase_order_items
+        SET quantity_received = quantity_received + (item->>'quantity_to_receive')::integer
+        WHERE po_id = p_po_id AND sku = item->>'sku';
+
+        -- Update the main inventory table
+        UPDATE public.inventory
+        SET quantity = quantity + (item->>'quantity_to_receive')::integer,
+            on_order_quantity = on_order_quantity - (item->>'quantity_to_receive')::integer
+        WHERE company_id = p_company_id AND sku = item->>'sku';
+        
+        -- Create a ledger entry for this stock movement
+        PERFORM public.create_inventory_ledger_entry(
+            p_company_id,
+            item->>'sku',
+            'purchase_order_received',
+            (item->>'quantity_to_receive')::integer,
+            p_po_id
+        );
+    END LOOP;
+
+    -- After updating all items, check if the PO is now fully or partially received
+    SELECT
+        SUM(quantity_ordered),
+        SUM(quantity_received)
+    INTO
+        total_ordered,
+        total_received
+    FROM public.purchase_order_items
+    WHERE po_id = p_po_id;
+
+    IF total_received >= total_ordered THEN
+        current_po_status := 'received';
+    ELSIF total_received > 0 THEN
+        current_po_status := 'partial';
+    ELSE
+        -- If no items have been received, keep the original status
+        SELECT status INTO current_po_status FROM public.purchase_orders WHERE id = p_po_id;
+    END IF;
+
+    -- Update the main purchase order status
+    UPDATE public.purchase_orders
+    SET status = current_po_status,
+        updated_at = NOW()
+    WHERE id = p_po_id;
+END;
+$$;
+
+
+-- Function to get the full ledger history for a specific product
+CREATE OR REPLACE FUNCTION public.get_inventory_ledger_for_sku(p_company_id uuid, p_sku text)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    result_json json;
+BEGIN
+    SELECT coalesce(json_agg(t), '[]')
+    INTO result_json
+    FROM (
+        SELECT *
+        FROM public.inventory_ledger
+        WHERE company_id = p_company_id AND sku = p_sku
+        ORDER BY created_at DESC
+        LIMIT 100
+    ) t;
+
+    RETURN result_json;
+END;
+$$;
+`;
