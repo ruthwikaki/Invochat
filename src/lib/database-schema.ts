@@ -479,7 +479,7 @@ BEGIN
     WHERE sku = p_sku AND company_id = p_company_id;
 
     -- Insert into the ledger
-    INSERT INTO public.inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, current_quantity_val, related_id, notes)
+    INSERT INTO public.inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, related_id, notes)
     VALUES (p_company_id, p_sku, p_change_type, p_quantity_change, current_quantity_val, p_related_id, p_notes);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -608,10 +608,6 @@ BEGIN
         SELECT id, total_amount, sale_date, customer_id FROM public.orders
         WHERE company_id = p_company_id AND sale_date >= (SELECT start_date FROM date_range)
     ),
-    returns_in_range AS (
-        SELECT id FROM public.returns
-        WHERE company_id = p_company_id AND requested_at >= (SELECT start_date FROM date_range)
-    ),
     sales_details_in_range AS (
         SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost
         FROM public.order_items oi
@@ -639,14 +635,12 @@ BEGIN
         SELECT
             (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range) as "totalSalesValue",
             (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range) as "totalProfit",
-            (SELECT COUNT(*) FROM orders_in_range) as "totalOrders",
-            (SELECT COUNT(*) FROM returns_in_range) as "totalReturns"
+            (SELECT COUNT(*) FROM orders_in_range) as "totalOrders"
     )
     SELECT json_build_object(
         'totalSalesValue', m."totalSalesValue",
         'totalProfit', m."totalProfit",
         'averageOrderValue', CASE WHEN m."totalOrders" > 0 THEN m."totalSalesValue" / m."totalOrders" ELSE 0 END,
-        'returnRate', CASE WHEN m."totalOrders" > 0 THEN (m."totalReturns"::decimal / m."totalOrders") * 100 ELSE 0 END,
         'totalOrders', m."totalOrders",
         'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
         'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
@@ -728,4 +722,76 @@ BEGIN
 
     RETURN result_json;
 END;
+$$ LANGUAGE plpgsql;
+
+-- ========= Part 12: Row-Level Security (RLS) Policies =========
+-- These policies ensure that users can only access data belonging to their own company.
+
+-- Helper function to get the company_id from the current user's JWT claims.
+CREATE OR REPLACE FUNCTION public.current_user_company_id()
+RETURNS uuid
+LANGUAGE sql STABLE
+AS $$
+  SELECT (auth.jwt()->>'company_id')::uuid;
 $$;
+
+-- Generic policy generation for tables with a direct 'company_id' column
+DO $$
+DECLARE
+    t_name TEXT;
+BEGIN
+    FOR t_name IN
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name IN (
+            'users', 'company_settings', 'query_patterns', 'inventory', 'customers',
+            'orders', 'vendors', 'reorder_rules', 'purchase_orders', 'integrations',
+            'notification_preferences', 'channel_fees', 'locations', 'inventory_ledger'
+          )
+    LOOP
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
+        EXECUTE format('DROP POLICY IF EXISTS "Users can manage data for their own company" ON public.%I;', t_name);
+        EXECUTE format(
+            'CREATE POLICY "Users can manage data for their own company" ON public.%I FOR ALL USING (company_id = public.current_user_company_id());',
+            t_name
+        );
+    END LOOP;
+END;
+$$;
+
+
+-- Policies for tables with indirect company_id links
+
+-- ORDER_ITEMS
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage order items for their own company" ON public.order_items;
+CREATE POLICY "Users can manage order items for their own company" ON public.order_items FOR ALL USING (
+  (SELECT company_id FROM public.orders WHERE id = sale_id) = public.current_user_company_id()
+);
+
+-- PURCHASE_ORDER_ITEMS
+ALTER TABLE public.purchase_order_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage PO items for their own company" ON public.purchase_order_items;
+CREATE POLICY "Users can manage PO items for their own company" ON public.purchase_order_items FOR ALL USING (
+  (SELECT company_id FROM public.purchase_orders WHERE id = po_id) = public.current_user_company_id()
+);
+
+-- SUPPLIER_CATALOGS
+ALTER TABLE public.supplier_catalogs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage supplier catalogs for their own company" ON public.supplier_catalogs;
+CREATE POLICY "Users can manage supplier catalogs for their own company" ON public.supplier_catalogs FOR ALL USING (
+  (SELECT company_id FROM public.vendors WHERE id = supplier_id) = public.current_user_company_id()
+);
+
+-- SYNC_LOGS
+ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can view sync logs for their own company" ON public.sync_logs;
+CREATE POLICY "Users can view sync logs for their own company" ON public.sync_logs FOR SELECT USING (
+  (SELECT company_id FROM public.integrations WHERE id = integration_id) = public.current_user_company_id()
+);
+
+-- COMPANIES (Users can only see their own company record)
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
+CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id = public.current_user_company_id());
+`;
