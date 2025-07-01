@@ -49,7 +49,7 @@ import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
-import { invalidateCompanyCache } from '@/lib/redis';
+import { invalidateCompanyCache, isRedisEnabled, redisClient } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
