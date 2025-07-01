@@ -58,7 +58,6 @@ import { sendPurchaseOrderEmail } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import { deleteVaultSecret } from '@/features/integrations/services/encryption';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -820,23 +819,6 @@ export async function disconnectIntegration(integrationId: string): Promise<{ su
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-
-        const supabase = getServiceRoleClient();
-        const { data: integration, error: fetchError } = await supabase
-            .from('integrations')
-            .select('access_token') // this is the vault_secret_id
-            .eq('id', integrationId)
-            .eq('company_id', companyId)
-            .single();
-        
-        if(fetchError){
-            throw new Error("Could not find the integration to disconnect.");
-        }
-
-        if (integration?.access_token) {
-            await deleteVaultSecret(integration.access_token);
-        }
-
         await deleteIntegrationFromDb(integrationId, companyId);
         revalidatePath('/settings/integrations');
         return { success: true };
@@ -850,3 +832,4 @@ export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEn
     const { companyId } = await getAuthContext();
     return getInventoryLedgerForSkuFromDB(companyId, sku);
 }
+

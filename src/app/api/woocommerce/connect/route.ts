@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { createVaultSecret, updateVaultSecret } from '@/features/integrations/services/encryption';
+import { encryptForCompany } from '@/features/integrations/services/encryption';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
@@ -45,21 +45,8 @@ export async function POST(request: Request) {
         const credentialsToStore = JSON.stringify({ consumerKey, consumerSecret });
         const supabase = getServiceRoleClient();
 
-        const { data: existingIntegration } = await supabase
-            .from('integrations')
-            .select('id, access_token')
-            .eq('company_id', companyId)
-            .eq('platform', platform)
-            .single();
-
-        let vaultSecretId: string;
-
-        if (existingIntegration?.access_token) {
-            vaultSecretId = existingIntegration.access_token;
-            await updateVaultSecret(vaultSecretId, credentialsToStore);
-        } else {
-            vaultSecretId = await createVaultSecret(companyId, platform, credentialsToStore);
-        }
+        // Encrypt the credentials using the company-specific key
+        const encryptedToken = await encryptForCompany(companyId, credentialsToStore);
 
         const { data, error } = await supabase
             .from('integrations')
@@ -67,7 +54,7 @@ export async function POST(request: Request) {
                 company_id: companyId,
                 platform: platform,
                 shop_domain: storeUrl,
-                access_token: vaultSecretId,
+                access_token: encryptedToken,
                 shop_name: new URL(storeUrl).hostname,
                 is_active: true,
                 sync_status: 'idle',

@@ -16,21 +16,18 @@ This project requires a few environment variables to connect to its services.
     cp .env.example .env
     ```
 2.  Open the newly created `.env` file and add your credentials. The file contains comments explaining where to find each value.
+3.  **Important**: You must generate secure encryption keys for the `ENCRYPTION_KEY` and `ENCRYPTION_IV` variables. You can do this with the following commands:
+    ```bash
+    # Generate a 32-byte (64-character hex) key for ENCRYPTION_KEY
+    openssl rand -hex 32
+
+    # Generate a 16-byte (32-character hex) IV for ENCRYPTION_IV
+    openssl rand -hex 16
+    ```
 
 ### 2. Database Setup
 
-For the application to function correctly, you must run a one-time setup script and enable a key extension in your Supabase project.
-
-#### A. Enable Supabase Vault
-
-The application uses Supabase Vault to securely store sensitive data like API keys for third-party integrations.
-
-1. Navigate to the **Vault** section in your Supabase project dashboard (usually at the bottom of the left sidebar).
-2. Follow the on-screen instructions to **enable the Vault**. You will be asked to create a new key.
-
-#### B. Run the SQL Setup Script
-
-This script is required to handle new user signups and enable the AI's ability to query your data.
+For the application to function correctly, you must run a one-time setup script in your Supabase project.
 
 1. Navigate to the **SQL Editor** in your Supabase project dashboard.
 2. Open the file `src/lib/database-schema.ts` in this project.
@@ -64,7 +61,7 @@ The application will be available at `http://localhost:3000`.
 *   **Database**: [Supabase](https://supabase.com/)
 *   **AI**: [Google AI & Genkit](https://firebase.google.com/docs/genkit)
 *   **Authentication**: [Supabase Auth](https://supabase.com/docs/guides/auth)
-*   **Secrets Management**: [Supabase Vault](https://supabase.com/docs/guides/vault)
+*   **Secrets Management**: Custom per-company encryption layer.
 
 ## Deployment & Scaling
 
