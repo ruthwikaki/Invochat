@@ -150,7 +150,7 @@ begin
   end if;
 
   -- This query is executed as a single statement, making it more performant than a loop.
-  -- It uses \`jsonb_populate_recordset\` to safely convert the JSON array into a set of rows
+  -- It uses `jsonb_populate_recordset` to safely convert the JSON array into a set of rows
   -- matching the target table's structure. This is safer than manual value string construction.
   query := format(
     '
@@ -189,14 +189,17 @@ CREATE TABLE IF NOT EXISTS public.customers (
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     customer_name TEXT NOT NULL,
     email TEXT,
-    platform TEXT, -- e.g. 'shopify', 'woocommerce'
-    external_id TEXT, -- The ID from the external platform
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+-- Add generic integration columns
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS platform TEXT;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS external_id TEXT;
+
 -- Drop old specific constraint and name column
 ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_shopify_customer_per_company;
 ALTER TABLE public.customers DROP COLUMN IF EXISTS shopify_customer_id;
 -- Add new generic unique constraint
+ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_external_customer_per_company;
 ALTER TABLE public.customers ADD CONSTRAINT unique_external_customer_per_company UNIQUE (company_id, platform, external_id);
 CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
 
@@ -209,15 +212,18 @@ CREATE TABLE IF NOT EXISTS public.orders (
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
-    platform TEXT, -- e.g. 'shopify', 'woocommerce'
-    external_id TEXT, -- The ID from the external platform
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+-- Add generic integration columns
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS platform TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS external_id TEXT;
+
 -- Drop old specific constraint and customer name column
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS unique_shopify_order_per_company;
 ALTER TABLE public.orders DROP COLUMN IF EXISTS shopify_order_id;
 ALTER TABLE public.orders DROP COLUMN IF EXISTS customer_name;
 -- Add new generic unique constraint
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS unique_external_order_per_company;
 ALTER TABLE public.orders ADD CONSTRAINT unique_external_order_per_company UNIQUE (company_id, platform, external_id);
 CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
 CREATE INDEX IF NOT EXISTS idx_orders_sale_date ON public.orders(sale_date);
