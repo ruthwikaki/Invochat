@@ -240,6 +240,7 @@ ALTER TABLE public.customers ADD CONSTRAINT unique_external_customer_per_company
 
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS platform TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS external_id TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL;
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS unique_shopify_order_per_company;
 ALTER TABLE public.orders DROP COLUMN IF EXISTS shopify_order_id;
 ALTER TABLE public.orders DROP COLUMN IF EXISTS customer_name;
@@ -548,3 +549,4 @@ ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
 CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id = public.current_user_company_id());
 `;
+```
