@@ -25,39 +25,62 @@ import { logError } from '@/lib/error-handler';
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 /**
- * A simple utility to replace named parameters in a SQL query string.
- * IMPORTANT: This is NOT a full-blown SQL parameterization library. It is a
- * security-focused utility designed to safely insert a validated company_id UUID
- * into a query. It intentionally throws an error for any other parameter type
- * to prevent misuse.
+ * A robust and secure utility to substitute named parameters in a SQL query.
  *
- * @param query The SQL query with named parameters (e.g., :company_id).
- * @param params An object where keys match the parameter names.
- * @returns A SQL string with parameters replaced.
+ * It performs two critical functions:
+ * 1.  Injects a mandatory, validated `company_id` into the query.
+ * 2.  Safely substitutes any other named parameters (e.g., :productName) with
+ *     values from the `params` object. It escapes single quotes in these values
+ *     to prevent SQL injection.
+ *
+ * @param query The SQL query with named parameters (e.g., :company_id, :productName).
+ * @param params An object where keys match the parameter names. Must include `companyId`.
+ * @returns A final, safe SQL string ready for execution.
+ * @throws {Error} if `companyId` is missing/invalid or if parameters are mismatched.
  */
 function parameterizeQuery(query: string, params: Record<string, unknown>): string {
   let parameterizedQuery = query;
 
-  if (params.companyId) {
-    const companyId = params.companyId;
-    if (typeof companyId !== 'string' || !UUID_REGEX.test(companyId)) {
-      throw new Error(`[Security] Invalid companyId format. Must be a valid UUID.`);
-    }
-    // Safely quote the UUID for SQL.
-    parameterizedQuery = parameterizedQuery.replace(/:company_id/g, `'${companyId}'`);
-  } else {
-    throw new Error('[Security] companyId parameter is required.');
+  // 1. Handle the mandatory company_id parameter first.
+  if (!params.companyId || typeof params.companyId !== 'string' || !UUID_REGEX.test(params.companyId)) {
+    throw new Error(`[Security] Invalid or missing companyId for parameterization.`);
   }
+  parameterizedQuery = parameterizedQuery.replace(/:company_id/g, `'${params.companyId}'`);
   
-  // Check if any other unsupported placeholders are left
-  const remainingPlaceholders = parameterizedQuery.match(/:\w+/g);
-  if(remainingPlaceholders) {
-      // Allow known, safe placeholders to pass if they exist in other parts of the logic
-      const allowedPlaceholders = new Set([':company_id']); 
-      const unreplaced = remainingPlaceholders.filter(p => !allowedPlaceholders.has(p));
-      if (unreplaced.length > 0) {
-        throw new Error(`[Security] Query contains unsupported or unreplaced parameters: ${unreplaced.join(', ')}`);
-      }
+  // 2. Handle all other dynamic parameters provided by the AI.
+  const placeholders = query.match(/:[a-zA-Z0-9_]+/g) || [];
+  const dynamicPlaceholders = placeholders.filter(p => p !== ':company_id');
+
+  for (const placeholder of dynamicPlaceholders) {
+    const paramName = placeholder.substring(1); // Remove the leading ':'
+    
+    if (!(paramName in params)) {
+      throw new Error(`[Security] Mismatch: SQL query expected parameter '${placeholder}' but it was not provided.`);
+    }
+    
+    const value = params[paramName];
+    let sanitizedValue: string;
+
+    // Sanitize and format the value based on its type.
+    if (typeof value === 'string') {
+      // Escape single quotes for SQL and wrap in single quotes.
+      sanitizedValue = `'${value.replace(/'/g, "''")}'`;
+    } else if (typeof value === 'number') {
+      sanitizedValue = String(value);
+    } else if (value === null || value === undefined) {
+      sanitizedValue = 'NULL';
+    } else {
+        throw new Error(`[Security] Unsupported parameter type for '${placeholder}': ${typeof value}`);
+    }
+    
+    // Replace all occurrences of the placeholder with the sanitized value.
+    parameterizedQuery = parameterizedQuery.replace(new RegExp(placeholder, 'g'), sanitizedValue);
+  }
+
+  // 3. Final security check: ensure no placeholders are left unreplaced.
+  const remainingPlaceholders = parameterizedQuery.match(/:[a-zA-Z0-9_]+/g);
+  if (remainingPlaceholders) {
+    throw new Error(`[Security] Query contains unreplaced parameters: ${remainingPlaceholders.join(', ')}`);
   }
 
   return parameterizedQuery;
@@ -322,21 +345,30 @@ const FEW_SHOT_EXAMPLES = `
      FROM MonthlySales ms, MonthlyReturns mr;
 
   3. User asks: "What was my total inventory value in the 'Main Warehouse'?"
+     User input found: warehouseName = 'Main Warehouse'
      SQL:
      SELECT SUM(i.quantity * i.cost) as total_inventory_value
      FROM inventory i
+     JOIN locations l ON i.location_id = l.id
      WHERE i.company_id = :company_id
-       AND i.warehouse_name = 'Main Warehouse';
+       AND l.name = :warehouseName;
 
   ${BUSINESS_QUERY_EXAMPLES}
 `;
 
 const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport, createPurchaseOrdersTool, getDeadStockReport];
 
+const SqlGenerationOutputSchema = z.object({
+  sqlQuery: z.string().optional().describe('The generated SQL query, using named placeholders (e.g., :paramName) for user-provided values.'),
+  parameters: z.record(z.string(), z.union([z.string(), z.number()])).optional().describe('An object mapping placeholder names from the query to their actual values.'),
+  reasoning: z.string().describe('A brief explanation of the query logic.'),
+});
+
+
 const sqlGenerationPrompt = ai.definePrompt({
   name: 'sqlGenerationPrompt',
   input: { schema: z.object({ userQuery: z.string(), dbSchema: z.string(), semanticLayer: z.string(), dynamicExamples: z.string(), companyId: z.string().uuid() }) },
-  output: { schema: z.object({ sqlQuery: z.string().optional().describe('The generated SQL query.'), reasoning: z.string().describe('A brief explanation of the query logic.') }) },
+  output: { schema: SqlGenerationOutputSchema },
   tools,
   prompt: `
     You are an expert PostgreSQL query generation agent for an e-commerce analytics system. Your primary function is to translate a user's natural language question into a secure, efficient, and advanced SQL query. You also have access to tools for questions that cannot be answered from the database.
@@ -344,7 +376,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     IMPORTANT CONTEXT:
     - The current user's Company ID is: {{{companyId}}}
     - When calling a tool that requires a companyId, you MUST use this value.
-    - When generating SQL, you MUST use the placeholder ':company_id' as instructed below.
+    - When generating SQL, you MUST use the placeholder ':company_id'. This will be handled automatically.
 
     DATABASE SCHEMA OVERVIEW:
     {{{dbSchema}}}
@@ -357,31 +389,28 @@ const sqlGenerationPrompt = ai.definePrompt({
     **QUERY GENERATION PROCESS (You MUST follow these steps):**
 
     **A) For ALL Queries (NON-NEGOTIABLE SECURITY RULES):**
-    1.  **Security is PARAMOUNT**: The query MUST be a read-only \`SELECT\` statement. You are FORBIDDEN from generating \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`DROP\`, \`GRANT\`, or any other data-modifying or access-control statements.
-    2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company using a placeholder: \`company_id = :company_id\`. This is a non-negotiable security requirement. There are no exceptions.
-    3.  **Data Sanitization**: When incorporating user-provided text (like product names, categories, or customer names) into a \`WHERE\` clause, you MUST sanitize it to prevent SQL errors. The most common issue is a single quote (\`'\`). To handle this, you MUST replace every single quote in the user's text with two single quotes (e.g., a customer named \`O'Malley\` must be written in the SQL as \`WHERE customer_name = 'O''Malley'\`).
-    4.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
+    1.  **Security is PARAMOUNT**: Your primary security responsibility is to **NEVER** inline user-provided text (like product names, categories, or warehouse names) directly into the SQL query string. You **MUST** use a named placeholder (e.g., \`:warehouseName\`, \`:productSku\`).
+    2.  **Mandatory Filtering**: Every table referenced (including in joins and subqueries) MUST include a \`WHERE\` clause filtering by the user's company using a placeholder: \`company_id = :company_id\`. This is a non-negotiable security requirement.
+    3.  **Output Structure**: Your output must contain the \`sqlQuery\` with placeholders, and a separate \`parameters\` object mapping each placeholder name (without the colon) to its value.
+    4.  **Column Verification**: Before using a column, verify it exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
     5.  **NO SQL Comments**: The final query MUST NOT contain any SQL comments (e.g., --, /* */).
     6.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    7.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM orders JOIN customers ON orders.customer_id = customers.id\`).
+    7.  **NO Cross Joins**: ALWAYS specify a valid JOIN condition using \`ON\`.
 
     **B) For COMPLEX ANALYTICAL Queries:**
-    8.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
-        - **Common Table Expressions (CTEs)** are REQUIRED to break down complex logic. Do not use nested subqueries where a CTE would be clearer.
-        - **Window Functions** (e.g., \`RANK()\`, \`LEAD()\`, \`LAG()\`, \`SUM() OVER (...)\`) MUST be used for rankings, period-over-period comparisons, and cumulative totals.
-    9.  **Calculations**: If the user asks for a calculated metric (like 'turnover rate' or 'growth' or 'return rate'), you MUST include the full calculation in the SQL. Do not just select the raw data and assume the calculation will be done elsewhere.
+    8.  **Advanced SQL is MANDATORY**: Use advanced SQL features like CTEs and Window Functions for readability and correctness.
 
     **C) For QUESTIONS THAT REQUIRE TOOLS:**
-    10. **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool. You MUST pass the user's Company ID to this tool.
-    11. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool.
-    12. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, vendor scorecards, or which supplier is 'best' or 'fastest', you MUST use the \`getSupplierPerformanceReport\` tool. When providing advice on reordering, you should consider calling this tool to add context about supplier reliability to your recommendations.
-    13. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions and they confirm they want to proceed (e.g., "yes, go ahead", "create the POs"), you MUST use the \`createPurchaseOrdersFromSuggestions\` tool. You must pass the full list of suggestions from your previous response as the 'suggestions' parameter for this tool.
-    14. **Dead Stock**: If the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products', you MUST use the \`getDeadStockReport\` tool.
+    9.  **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool.
+    10. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool.
+    11. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, or which supplier is 'best', you MUST use the \`getSupplierPerformanceReport\` tool.
+    12. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions and they confirm they want to proceed, you MUST use the \`createPurchaseOrdersFromSuggestions\` tool.
+    13. **Dead Stock**: If the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products', you MUST use the \`getDeadStockReport\` tool.
     
     **Step 3: Consult Examples for Structure.**
-    Review these examples to understand the expected query style. Your primary source of inspiration should be the COMPANY-SPECIFIC EXAMPLES if they exist, as they reflect what has worked for this user before.
+    Review these examples to understand the expected query style and placeholder usage.
     ---
-    COMPANY-SPECIFIC EXAMPLES (Highest Priority - Learn from these first):
+    COMPANY-SPECIFIC EXAMPLES (Highest Priority):
     {{{dynamicExamples}}}
     ---
     ---
@@ -391,12 +420,9 @@ const sqlGenerationPrompt = ai.definePrompt({
 
     **Step 4: Generate the Response.**
     Based on the analysis, rules, and examples, decide the best course of action.
-    - If the question can be answered with SQL, generate the query.
+    - If the question can be answered with SQL, generate the query and the parameters object.
     - If the question requires a tool, call the appropriate tool.
-
-    **Step 5: Formulate the Final Output.**
-    - If you are generating a query, respond with a JSON object containing \`sqlQuery\` and \`reasoning\`.
-    - If you are using a tool, the system will handle the tool call. You do not need to generate a JSON response in that case.
+    - Your response MUST conform to the JSON output schema.
   `,
 });
 
@@ -408,7 +434,7 @@ const queryValidationPrompt = ai.definePrompt({
     You are a SQL validation agent. Review the generated SQL query with EXTREME SCRUTINY. Your primary job is to prevent any unsafe or incorrect queries from executing.
 
     USER'S QUESTION: "{{userQuery}}"
-    GENERATED SQL: \`\`\`sql
+    GENERATED SQL (with placeholders): \`\`\`sql
 {{sqlQuery}}
 \`\`\`
 
@@ -417,7 +443,7 @@ const queryValidationPrompt = ai.definePrompt({
         - \`INSERT\`, \`UPDATE\`, \`DELETE\`, \`TRUNCATE\`, \`ALTER\`, \`GRANT\`, \`REVOKE\`, \`CREATE\`, \`EXECUTE\`
         If yes, FAIL validation immediately.
     2.  **Check for SQL Comments**: Does the query contain SQL comments (\`--\` or \`/*\`)?
-        If yes, FAIL validation. Comments can be used to hide malicious code.
+        If yes, FAIL validation.
     3.  **Mandatory Company ID Filter**: Does EVERY table reference (including joins, subqueries, and CTEs) have a \`WHERE\` clause that filters by \`company_id\` (e.g., \`WHERE company_id = :company_id\`)?
         If even one is missing, FAIL validation.
     4.  **Read-Only Check**: Is the query a read-only \`SELECT\` statement?
@@ -426,7 +452,7 @@ const queryValidationPrompt = ai.definePrompt({
     **LOGIC & CORRECTNESS CHECKLIST:**
     5.  **Syntax Validity**: Is the syntax valid for PostgreSQL?
     6.  **Logical Answer**: Does the query logically answer the user's question?
-    7.  **Business Sense**: Does it use the correct columns/tables based on the question and business context? If the user asked for a metric like 'turnover', is the calculation present and correct?
+    7.  **Business Sense**: Does it use the correct columns/tables based on the question and business context?
 
     **OUTPUT FORMAT:**
     - If ALL security and logic checks pass, return \`{"isValid": true}\`.
@@ -446,7 +472,7 @@ const errorRecoveryPrompt = ai.definePrompt({
 
         USER'S ORIGINAL QUESTION: "{{userQuery}}"
 
-        FAILED SQL QUERY (Note: this is the version with the :company_id placeholder):
+        FAILED SQL QUERY (Note: this is the version with the placeholders):
         \`\`\`sql
         {{failedQuery}}
         \`\`\`
@@ -537,13 +563,9 @@ const universalChatOrchestrator = ai.defineFlow(
         logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCalls[0].name}`);
         const toolCall = toolCalls[0];
         
-        // If the tool is `createPurchaseOrdersFromSuggestions`, we need to get the suggestions
-        // from the previous AI response in the conversation history.
         if (toolCall.name === 'createPurchaseOrdersFromSuggestions' && !toolCall.input.suggestions) {
             const lastAiMessage = conversationHistory.reverse().find(m => m.role === 'assistant');
             if (lastAiMessage) {
-                // This is a bit of a hack, but we can assume the tool output is what we need.
-                // In a more complex system, we might store tool outputs more explicitly.
                 const potentialSuggestions = (lastAiMessage as any).tool_response?.output;
                  if (Array.isArray(potentialSuggestions)) {
                     logger.info(`[UniversalChat:Flow] Found suggestions in previous turn for createPurchaseOrdersTool.`);
@@ -574,12 +596,7 @@ const universalChatOrchestrator = ai.defineFlow(
 
     if (generationOutput?.sqlQuery) {
         let sqlQueryWithPlaceholder = generationOutput.sqlQuery;
-
-        // Security Hardening: Redundant check to ensure the query is a SELECT statement.
-        if (!sqlQueryWithPlaceholder.trim().toLowerCase().startsWith('select')) {
-            logger.error("[UniversalChat:Flow] AI generated a non-SELECT query, blocking execution.", { query: sqlQueryWithPlaceholder });
-            throw new Error("The AI-generated query was blocked for security reasons because it was not a read-only SELECT statement.");
-        }
+        const sqlParameters = generationOutput.parameters || {};
 
         const { output: validationOutput } = await queryValidationPrompt(
             { userQuery, sqlQuery: sqlQueryWithPlaceholder },
@@ -590,7 +607,7 @@ const universalChatOrchestrator = ai.defineFlow(
             throw new Error(`The generated query was invalid. Reason: ${validationOutput.correction}`);
         }
 
-        let finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { companyId });
+        let finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { ...sqlParameters, companyId });
 
         logger.info(`[Audit Trail] Executing validated SQL for company ${companyId}: "${finalSqlQuery}"`);
 
@@ -635,7 +652,7 @@ const universalChatOrchestrator = ai.defineFlow(
                     throw new Error(`The AI's attempt to fix the query was also invalid. Reason: ${revalidationOutput.correction}`);
                 }
                 
-                finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { companyId });
+                finalSqlQuery = parameterizeQuery(sqlQueryWithPlaceholder, { ...sqlParameters, companyId });
 
                 logger.info(`[Audit Trail] Executing re-validated SQL for company ${companyId}: "${finalSqlQuery}"`);
 

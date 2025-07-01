@@ -357,3 +357,89 @@ begin
   where id = p_supplier_id and company_id = p_company_id;
 end;
 $$;
+
+
+-- ========= Part 9: New Parameterized RPC Functions for Security =========
+
+-- Securely fetches unified inventory data, preventing SQL injection.
+CREATE OR REPLACE FUNCTION public.get_unified_inventory(p_company_id uuid, p_query text, p_category text, p_location_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    result_json json;
+BEGIN
+    WITH monthly_sales AS (
+        SELECT 
+            oi.sku,
+            SUM(oi.quantity) as units_sold
+        FROM order_items oi
+        JOIN orders o ON oi.sale_id = o.id
+        WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY oi.sku
+    )
+    SELECT coalesce(json_agg(t), '[]')
+    INTO result_json
+    FROM (
+        SELECT
+            i.sku,
+            i.name as product_name,
+            i.category,
+            i.quantity,
+            i.cost,
+            i.price,
+            (i.quantity * i.cost) as total_value,
+            i.reorder_point,
+            i.on_order_quantity,
+            i.landed_cost,
+            i.barcode,
+            i.location_id,
+            l.name as location_name,
+            COALESCE(ms.units_sold, 0) as monthly_units_sold,
+            ((i.price - COALESCE(i.landed_cost, i.cost)) * COALESCE(ms.units_sold, 0)) as monthly_profit
+        FROM inventory i
+        LEFT JOIN locations l ON i.location_id = l.id
+        LEFT JOIN monthly_sales ms ON i.sku = ms.sku
+        WHERE i.company_id = p_company_id
+        AND (p_query IS NULL OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
+        AND (p_category IS NULL OR i.category = p_category)
+        AND (p_location_id IS NULL OR i.location_id = p_location_id)
+        ORDER BY i.name
+    ) t;
+
+    RETURN result_json;
+END;
+$$;
+
+-- Securely fetches historical sales for a given list of SKUs.
+CREATE OR REPLACE FUNCTION public.get_historical_sales(p_company_id uuid, p_skus text[])
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    result_json json;
+BEGIN
+    SELECT coalesce(json_agg(t), '[]')
+    INTO result_json
+    FROM (
+        SELECT
+            sku,
+            json_agg(json_build_object('month', sales_month, 'total_quantity', total_quantity) ORDER BY sales_month) as monthly_sales
+        FROM (
+            SELECT
+                oi.sku,
+                TO_CHAR(DATE_TRUNC('month', o.sale_date), 'YYYY-MM') as sales_month,
+                SUM(oi.quantity) as total_quantity
+            FROM order_items oi
+            JOIN orders o ON oi.sale_id = o.id
+            WHERE o.company_id = p_company_id
+            AND oi.sku = ANY(p_skus)
+            AND o.sale_date >= CURRENT_DATE - INTERVAL '24 months'
+            GROUP BY oi.sku, DATE_TRUNC('month', o.sale_date)
+        ) as monthly_data
+        GROUP BY sku
+    ) t;
+
+    RETURN result_json;
+END;
+$$;

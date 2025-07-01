@@ -918,54 +918,13 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const { query, category, location } = params;
-
-        let sqlQuery = `
-            WITH monthly_sales AS (
-                SELECT 
-                    oi.sku,
-                    SUM(oi.quantity) as units_sold
-                FROM order_items oi
-                JOIN orders o ON oi.sale_id = o.id
-                WHERE o.company_id = '${companyId}' AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days'
-                GROUP BY oi.sku
-            )
-            SELECT
-                i.sku,
-                i.name as product_name,
-                i.category,
-                i.quantity,
-                i.cost,
-                i.price,
-                (i.quantity * i.cost) as total_value,
-                i.reorder_point,
-                i.on_order_quantity,
-                i.landed_cost,
-                i.barcode,
-                i.location_id,
-                l.name as location_name,
-                COALESCE(ms.units_sold, 0) as monthly_units_sold,
-                ((i.price - COALESCE(i.landed_cost, i.cost)) * COALESCE(ms.units_sold, 0)) as monthly_profit
-            FROM inventory i
-            LEFT JOIN locations l ON i.location_id = l.id
-            LEFT JOIN monthly_sales ms ON i.sku = ms.sku
-            WHERE i.company_id = '${companyId}'
-        `;
-
-        if (query) {
-            sqlQuery += ` AND (i.name ILIKE '%${query.replace(/'/g, "''")}%' OR i.sku ILIKE '%${query.replace(/'/g, "''")}%')`;
-        }
-        if (category) {
-            sqlQuery += ` AND i.category = '${category.replace(/'/g, "''")}'`;
-        }
-        if (location) {
-            sqlQuery += ` AND i.location_id = '${location.replace(/'/g, "''")}'`;
-        }
-        sqlQuery += ` ORDER BY i.name;`;
-
-
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
-            query_text: sqlQuery.trim().replace(/;/g, '')
+        
+        // Use the new, secure RPC function
+        const { data, error } = await supabase.rpc('get_unified_inventory', {
+            p_company_id: companyId,
+            p_query: params.query || null,
+            p_category: params.category || null,
+            p_location_id: params.location || null
         });
 
         if (error) {
@@ -1161,28 +1120,12 @@ export async function getHistoricalSalesForSkus(
 
     return withPerformanceTracking('getHistoricalSalesForSkus', async () => {
         const supabase = getServiceRoleClient();
-        const escapedSkus = skus.map(s => `'${s.replace(/'/g, "''")}'`).join(',');
-        
-        const safeQuery = `
-            SELECT
-                sku,
-                json_agg(json_build_object('month', sales_month, 'total_quantity', total_quantity) ORDER BY sales_month) as monthly_sales
-            FROM (
-                SELECT
-                    oi.sku,
-                    TO_CHAR(DATE_TRUNC('month', o.sale_date), 'YYYY-MM') as sales_month,
-                    SUM(oi.quantity) as total_quantity
-                FROM order_items oi
-                JOIN orders o ON oi.sale_id = o.id
-                WHERE o.company_id = '${companyId}'
-                AND oi.sku IN (${escapedSkus})
-                AND o.sale_date >= CURRENT_DATE - INTERVAL '24 months'
-                GROUP BY oi.sku, DATE_TRUNC('month', o.sale_date)
-            ) as monthly_data
-            GROUP BY sku;
-        `;
 
-        const { data, error } = await supabase.rpc('execute_dynamic_query', { query_text: safeQuery.trim().replace(/;/g, '') });
+        // Use the new, secure RPC function
+        const { data, error } = await supabase.rpc('get_historical_sales', {
+            p_company_id: companyId,
+            p_skus: skus
+        });
         
         if (error) {
             logError(error, { context: `Error fetching historical sales for SKUs in company ${companyId}` });
