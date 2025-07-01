@@ -24,7 +24,18 @@ Install the project dependencies using npm:
 npm install
 ```
 
-### 3. Run the Development Server
+### 3. Database Setup
+
+For the application to function correctly, you must run a one-time setup script in your Supabase project's SQL Editor. This script is required to handle new user signups and enable the AI's ability to query your data.
+
+1. Navigate to the **SQL Editor** in your Supabase project dashboard.
+2. Open the file `src/lib/database-schema.ts` in this project.
+3. Copy the entire content of the `SETUP_SQL_SCRIPT` constant.
+4. Paste the SQL code into the Supabase SQL Editor and click **"Run"**.
+
+After running the script, you will need to sign out and sign up with a **new user account**. This new account will be correctly configured by the database trigger you just created.
+
+### 4. Run the Development Server
 
 Once your environment is configured and dependencies are installed, you can start the development server:
 
@@ -33,12 +44,6 @@ npm run dev
 ```
 
 The application will be available at `http://localhost:3000`.
-
-### 4. Database Setup
-
-For the application to function correctly, you must run a one-time setup script in your Supabase project's SQL Editor. This script is required to handle new user signups and enable the AI's ability to query your data.
-
-If you sign up and see a "Setup Incomplete" page, copy the SQL code provided on that page and run it in the Supabase SQL Editor. After running the script, you will need to sign out and sign up with a **new user account**.
 
 ## Core Technologies
 

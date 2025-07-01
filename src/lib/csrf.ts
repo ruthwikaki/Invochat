@@ -1,6 +1,7 @@
 
-// The crypto module is imported to ensure compatibility with Jest's test environment.
-import crypto from 'crypto';
+// The crypto module was previously imported here for Jest compatibility, but it caused
+// a runtime error in the Next.js Edge Runtime. We now rely on the globally available
+// 'crypto' object, which is present in both modern Node.js and Edge environments.
 
 export const CSRF_COOKIE_NAME = 'csrf_token';
 export const CSRF_FORM_NAME = 'csrf_token';
