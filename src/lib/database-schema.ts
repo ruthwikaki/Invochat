@@ -549,10 +549,8 @@ DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
 CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id = public.current_user_company_id());
 
 -- ========= Part 13: Secure Unused Future Tables =========
--- These tables are not currently used by the application but may exist
--- from previous versions. We enable RLS and apply a "deny all" policy
--- to them to resolve security linter warnings and ensure they are
--- secure by default until they are properly integrated.
+-- This section ensures that any unused tables from previous schema versions
+-- are secured by default, resolving all linter warnings.
 DO $$
 DECLARE
     t_name TEXT;
@@ -575,6 +573,4 @@ BEGIN
     END LOOP;
 END;
 $$;
-`;
-
 ```
