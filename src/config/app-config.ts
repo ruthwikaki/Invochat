@@ -23,8 +23,6 @@ const EnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
   GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
   REDIS_URL: z.string().optional(),
-  ENCRYPTION_KEY: z.string().length(64, { message: "Must be a 64-character hex string (e.g., from 'openssl rand -hex 32')." }),
-  ENCRYPTION_IV: z.string().length(32, { message: "Must be a 32-character hex string (e.g., from 'openssl rand -hex 16')." }),
 });
 
 // Export the result of the validation to be checked in the root layout.
@@ -81,10 +79,6 @@ export const config = {
   ui: {
     sidebarCookieMaxAge: parseIntWithDefault(process.env.UI_SIDEBAR_COOKIE_MAX_AGE, 60 * 60 * 24 * 7), // 7 days
   },
-  encryption: {
-    key: process.env.ENCRYPTION_KEY,
-    iv: process.env.ENCRYPTION_IV,
-  }
 };
 
 

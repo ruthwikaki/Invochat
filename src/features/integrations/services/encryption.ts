@@ -1,60 +1,93 @@
 
 'use server';
 
-import crypto from 'crypto';
-import { config } from '@/config/app-config';
-
-const ALGORITHM = 'aes-256-cbc';
-
-/**
- * A helper function to get the encryption key and IV from the configuration.
- * It throws a clear, user-friendly error if the keys are not set, preventing
- * the use of integrations until they are properly configured.
- */
-function getCryptoDependencies() {
-    const key = config.encryption.key;
-    const iv = config.encryption.iv;
-
-    if (!key || !iv) {
-        throw new Error('Encryption keys are not configured in the .env file. Please set ENCRYPTION_KEY and ENCRYPTION_IV to use integrations.');
-    }
-
-    const encryptionKeyBuffer = Buffer.from(key, 'hex');
-    const ivBuffer = Buffer.from(iv, 'hex');
-
-    if (encryptionKeyBuffer.length !== 32) {
-        throw new Error('Invalid encryption key length. Must be 32 bytes (64 hex characters).');
-    }
-    if (ivBuffer.length !== 16) {
-        throw new Error('Invalid IV length. Must be 16 bytes (32 hex characters).');
-    }
-
-    return { encryptionKeyBuffer, ivBuffer };
-}
-
+import { getServiceRoleClient } from '@/lib/supabase/admin';
+import { logError } from '@/lib/error-handler';
+import { logger } from '@/lib/logger';
+import type { Platform } from '../types';
 
 /**
- * Encrypts a string using AES-256-CBC.
- * @param text The plaintext string to encrypt.
- * @returns A string containing the encrypted data in hex format.
+ * Creates a new secret in Supabase Vault.
+ * @param companyId The UUID of the company.
+ * @param platform The integration platform (e.g., 'shopify').
+ * @param secretValue The plaintext secret to store.
+ * @returns The UUID of the newly created secret.
  */
-export function encrypt(text: string): string {
-  const { encryptionKeyBuffer, ivBuffer } = getCryptoDependencies();
-  const cipher = crypto.createCipheriv(ALGORITHM, encryptionKeyBuffer, ivBuffer);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return encrypted;
+export async function createVaultSecret(companyId: string, platform: Platform, secretValue: string): Promise<string> {
+    const supabase = getServiceRoleClient();
+    const secretName = `integration_token:${platform}:${companyId}`;
+    
+    logger.info(`[Vault] Creating new secret: ${secretName}`);
+
+    const { data, error } = await supabase.vault.secrets.create({
+        name: secretName,
+        secret: secretValue,
+        description: `API token for ${platform} integration for company ${companyId}`,
+    });
+
+    if (error) {
+        logError(error, { context: `Failed to create Vault secret for ${platform} - ${companyId}` });
+        throw new Error('Could not securely store integration credentials. Please ensure Supabase Vault is enabled for your project.');
+    }
+
+    return data.id;
 }
 
 /**
- * Decrypts a string that was encrypted with the `encrypt` function.
- * @param encryptedText The hex-encoded encrypted string.
- * @returns The original plaintext string.
+ * Retrieves a secret from Supabase Vault.
+ * @param secretId The UUID of the secret to retrieve.
+ * @returns The plaintext secret value.
  */
-export function decrypt(encryptedText: string): string {
-  const { encryptionKeyBuffer, ivBuffer } = getCryptoDependencies();
-  const decipher = crypto.createDecipheriv(ALGORITHM, encryptionKeyBuffer, ivBuffer);
-  let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+export async function retrieveVaultSecret(secretId: string): Promise<string> {
+    const supabase = getServiceRoleClient();
+    
+    const { data, error } = await supabase.vault.secrets.get(secretId);
+
+    if (error) {
+        logError(error, { context: `Failed to retrieve Vault secret ID ${secretId}` });
+        throw new Error('Could not retrieve integration credentials.');
+    }
+
+    if (!data.secret) {
+        throw new Error(`Vault secret with ID ${secretId} found, but value is empty.`);
+    }
+
+    return data.secret;
+}
+
+/**
+ * Updates an existing secret in Supabase Vault.
+ * @param secretId The UUID of the secret to update.
+ * @param newSecretValue The new plaintext value.
+ */
+export async function updateVaultSecret(secretId: string, newSecretValue: string): Promise<void> {
+    const supabase = getServiceRoleClient();
+    logger.info(`[Vault] Updating secret ID: ${secretId}`);
+
+    const { error } = await supabase.vault.secrets.update(secretId, {
+        secret: newSecretValue,
+    });
+
+    if (error) {
+        logError(error, { context: `Failed to update Vault secret ID ${secretId}` });
+        throw new Error('Could not update integration credentials.');
+    }
+}
+
+/**
+ * Deletes a secret from Supabase Vault.
+ * This is irreversible.
+ * @param secretId The UUID of the secret to delete.
+ */
+export async function deleteVaultSecret(secretId: string): Promise<void> {
+    const supabase = getServiceRoleClient();
+    logger.warn(`[Vault] Deleting secret ID: ${secretId}`);
+
+    const { error } = await supabase.vault.secrets.delete(secretId);
+
+    if (error) {
+        // It's possible the secret was already deleted, so we don't want to throw a fatal error.
+        // We'll log it as a warning instead.
+        logger.warn(`[Vault] Could not delete Vault secret ID ${secretId}. It may have already been removed.`);
+    }
 }

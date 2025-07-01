@@ -17,16 +17,20 @@ This project requires a few environment variables to connect to its services.
     ```
 2.  Open the newly created `.env` file and add your credentials. The file contains comments explaining where to find each value.
 
-### 2. Install Dependencies
+### 2. Database Setup
 
-Install the project dependencies using npm:
-```bash
-npm install
-```
+For the application to function correctly, you must run a one-time setup script and enable a key extension in your Supabase project.
 
-### 3. Database Setup
+#### A. Enable Supabase Vault
 
-For the application to function correctly, you must run a one-time setup script in your Supabase project's SQL Editor. This script is required to handle new user signups and enable the AI's ability to query your data.
+The application uses Supabase Vault to securely store sensitive data like API keys for third-party integrations.
+
+1. Navigate to the **Vault** section in your Supabase project dashboard (usually at the bottom of the left sidebar).
+2. Follow the on-screen instructions to **enable the Vault**. You will be asked to create a new key.
+
+#### B. Run the SQL Setup Script
+
+This script is required to handle new user signups and enable the AI's ability to query your data.
 
 1. Navigate to the **SQL Editor** in your Supabase project dashboard.
 2. Open the file `src/lib/database-schema.ts` in this project.
@@ -34,6 +38,13 @@ For the application to function correctly, you must run a one-time setup script 
 4. Paste the SQL code into the Supabase SQL Editor and click **"Run"**.
 
 After running the script, you will need to sign out and sign up with a **new user account**. This new account will be correctly configured by the database trigger you just created.
+
+### 3. Install Dependencies
+
+Install the project dependencies using npm:
+```bash
+npm install
+```
 
 ### 4. Run the Development Server
 
@@ -53,6 +64,7 @@ The application will be available at `http://localhost:3000`.
 *   **Database**: [Supabase](https://supabase.com/)
 *   **AI**: [Google AI & Genkit](https://firebase.google.com/docs/genkit)
 *   **Authentication**: [Supabase Auth](https://supabase.com/docs/guides/auth)
+*   **Secrets Management**: [Supabase Vault](https://supabase.com/docs/guides/vault)
 
 ## Deployment & Scaling
 

@@ -3,7 +3,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
-import { decrypt } from './encryption';
+import { retrieveVaultSecret } from './encryption';
 import { runShopifyFullSync } from './platforms/shopify';
 import { runWooCommerceFullSync } from './platforms/woocommerce';
 import { runAmazonFbaFullSync } from './platforms/amazon_fba';
@@ -36,8 +36,9 @@ export async function runSync(integrationId: string, companyId: string) {
     await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
 
     try {
-        // 3. Decrypt and parse the credentials.
-        const credentials = JSON.parse(decrypt(integration.access_token));
+        // 3. Retrieve the secret from the vault using the ID stored in `access_token`.
+        const plaintextCredentials = await retrieveVaultSecret(integration.access_token);
+        const credentials = JSON.parse(plaintextCredentials);
         
         // 4. Dispatch to the correct platform-specific service.
         switch (integration.platform) {
