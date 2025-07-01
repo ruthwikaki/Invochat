@@ -3,14 +3,38 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ReorderSuggestion } from '@/types';
-import { RefreshCw, ShoppingCart, Truck } from 'lucide-react';
+import { RefreshCw, ShoppingCart, Truck, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useState, useTransition } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { createPurchaseOrdersFromSuggestions } from '@/app/data-actions';
 
 type ReorderListProps = {
   items: ReorderSuggestion[];
 };
 
 export function ReorderList({ items }: ReorderListProps) {
+  const [isPending, startTransition] = useTransition();
+  const { toast } = useToast();
+
+  const handleCreatePOs = () => {
+    startTransition(async () => {
+      const result = await createPurchaseOrdersFromSuggestions(items);
+      if (result.success) {
+        toast({
+          title: 'Purchase Orders Created!',
+          description: `${result.createdPoCount} new PO(s) have been generated. You can view them on the Purchase Orders page.`,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error Creating POs',
+          description: result.error,
+        });
+      }
+    });
+  };
+  
   if (!items || items.length === 0) {
     return (
       <Card>
@@ -49,9 +73,13 @@ export function ReorderList({ items }: ReorderListProps) {
                 </div>
             </div>
         ))}
-         <Button className="w-full mt-4">
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            Create Purchase Orders (Coming Soon)
+         <Button className="w-full mt-4" onClick={handleCreatePOs} disabled={isPending}>
+            {isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+                <ShoppingCart className="mr-2 h-4 w-4" />
+            )}
+            {isPending ? 'Creating POs...' : 'Create Purchase Order(s)'}
         </Button>
       </CardContent>
     </Card>

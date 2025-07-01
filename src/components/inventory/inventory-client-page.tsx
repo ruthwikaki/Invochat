@@ -264,6 +264,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                             </TableRow>
                         ) : inventory.map(item => {
                             const price = item.price || 0;
+                            // Use landed_cost if available, otherwise fall back to cost
                             const cost = item.landed_cost || item.cost || 0;
                             const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
                             const marginColor = margin > 30 ? 'text-success' : margin > 15 ? 'text-amber-500' : 'text-destructive';
