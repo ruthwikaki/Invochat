@@ -179,7 +179,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                     <XAxis 
                         type="number" 
                         dataKey={config.xAxisKey}
-                        name={config.xAxisKey}
+                        name={config.xAxisKey?.toString()}
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
                         tickLine={false}
@@ -189,7 +189,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                     <YAxis 
                         type="number" 
                         dataKey={config.yAxisKey}
-                        name={config.yAxisKey}
+                        name={config.yAxisKey?.toString()}
                         stroke="hsl(var(--muted-foreground))"
                         fontSize={12}
                         tickLine={false}
@@ -203,7 +203,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.yAxisKey} fill="hsl(var(--primary))" isAnimationActive={isInView} />
+                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.dataKey} fill="hsl(var(--primary))" isAnimationActive={isInView} />
                 </ScatterChart>
             );
         default:

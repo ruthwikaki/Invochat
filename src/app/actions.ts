@@ -7,9 +7,8 @@ import type { Message, Conversation, DeadStockItem, SupplierPerformanceReport } 
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
-import { redisClient, isRedisEnabled, rateLimit } from '@/lib/redis';
-import crypto from 'crypto';
-import { trackAiQueryPerformance, incrementCacheHit, incrementCacheMiss, trackEndpointPerformance } from '@/services/monitoring';
+import { rateLimit } from '@/lib/redis';
+import { trackAiQueryPerformance, trackEndpointPerformance } from '@/services/monitoring';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
@@ -288,7 +287,7 @@ export async function handleUserMessage(
 
       if (vizData && vizData.length > 0) {
         if (vizType === 'table') {
-          assistantMessage.visualization = { type: 'table', data: vizData, config: { title: vizTitle || 'Data Table' }};
+          assistantMessage.visualization = { type: 'table', data: responseData.data, config: { title: vizTitle || 'Data Table' }};
         } else if (['bar', 'pie', 'line', 'treemap', 'scatter'].includes(vizType)) {
             const firstItem = vizData[0] as Record<string, unknown>;
             const nameKey = (vizType === 'scatter') 

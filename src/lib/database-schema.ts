@@ -357,4 +357,3 @@ begin
   where id = p_supplier_id and company_id = p_company_id;
 end;
 $$;
-`;

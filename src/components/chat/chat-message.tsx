@@ -140,31 +140,22 @@ export function ChatMessage({
       <div className={cn("flex items-start gap-3 w-full", isUserMessage ? "justify-end" : "justify-start")}>
         {!isUserMessage && <BotAvatar isError={message.isError} />}
         
-        <div className="relative group">
-            {/* Gradient border effect */}
-            <div className={cn(
-                'absolute -inset-0.5 rounded-2xl blur-sm opacity-50 group-hover:opacity-75 transition duration-500',
-                 isUserMessage ? 'bg-gradient-to-r from-violet-600 to-primary' : 'bg-gradient-to-r from-blue-400 to-primary'
-            )} />
+        <div className={cn(
+            'relative max-w-xl rounded-2xl px-4 py-3 shadow-lg space-y-2',
+            isUserMessage
+                ? 'rounded-br-none bg-primary text-primary-foreground'
+                : 'rounded-bl-none bg-card text-card-foreground',
+            message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
+        )}>
             <div
-              className={cn(
-                'relative max-w-xl rounded-2xl px-4 py-3 shadow-lg space-y-2',
-                isUserMessage
-                  ? 'rounded-br-none bg-primary text-primary-foreground'
-                  : 'rounded-bl-none bg-card text-card-foreground',
-                message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
-              )}
+            className="text-base whitespace-pre-wrap selection:bg-primary/50"
+            dangerouslySetInnerHTML={!isLoading ? { __html: sanitizedContent } : undefined}
             >
-              <div
-                className="text-base whitespace-pre-wrap selection:bg-primary/50"
-                dangerouslySetInnerHTML={!isLoading ? { __html: sanitizedContent } : undefined}
-              >
-                {isLoading ? <LoadingIndicator /> : null}
-              </div>
-              {!isUserMessage && !isLoading && !message.isError &&(
-                <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
-              )}
+            {isLoading ? <LoadingIndicator /> : null}
             </div>
+            {!isUserMessage && !isLoading && !message.isError &&(
+            <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
+            )}
         </div>
 
         {isUserMessage && (
