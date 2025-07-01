@@ -16,7 +16,7 @@ const HistoryMessageSchema = z.object({
 
 // Input schema for the universal chat flow
 export const UniversalChatInputSchema = z.object({
-  companyId: z.string(),
+  companyId: z.string().uuid(),
   conversationHistory: z.array(HistoryMessageSchema),
 });
 export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
