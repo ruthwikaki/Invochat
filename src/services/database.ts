@@ -195,7 +195,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost
                 FROM order_items oi
                 JOIN orders_in_range s ON oi.sale_id = s.id
-                JOIN inventory i ON oi.sku = oi.sku AND i.company_id = s.company_id
+                JOIN inventory i ON oi.sku = i.sku AND i.company_id = s.company_id
             ),
             sales_trend AS (
                 SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
@@ -633,6 +633,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         const settings = await getSettings(companyId);
         const alerts: Alert[] = [];
         
+        // Low Stock Alerts
         const lowStockQuery = `
             SELECT sku, quantity, name as product_name, reorder_point
             FROM inventory
@@ -645,42 +646,61 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             logError(lowStockError, { context: 'Could not check for low stock items' });
         } else if (lowStockItems) {
             for (const item of lowStockItems as any[]) {
-                const alert: Alert = {
-                    id: `low-stock-${item.sku}`,
-                    type: 'low_stock',
-                    title: `Low Stock Warning`,
+                alerts.push({
+                    id: `low-stock-${item.sku}`, type: 'low_stock', title: `Low Stock Warning`,
                     message: `Item "${item.product_name || item.sku}" is running low on stock.`,
-                    severity: 'warning',
-                    timestamp: new Date().toISOString(),
-                    metadata: {
-                        productId: item.sku,
-                        productName: item.product_name || item.sku,
-                        currentStock: item.quantity,
-                        reorderPoint: item.reorder_point
-                    },
-                };
-                alerts.push(alert);
+                    severity: 'warning', timestamp: new Date().toISOString(),
+                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.quantity, reorderPoint: item.reorder_point },
+                });
             }
         }
         
+        // Dead Stock Alerts
         const deadStockItems = await getRawDeadStockData(companyId, settings);
         for (const item of deadStockItems) {
-            const alert: Alert = {
-                id: `dead-stock-${item.sku}`,
-                type: 'dead_stock',
-                title: `Dead Stock Alert`,
+            alerts.push({
+                id: `dead-stock-${item.sku}`, type: 'dead_stock', title: `Dead Stock Alert`,
                 message: `Item "${item.product_name || item.sku}" is now considered dead stock.`,
-                severity: 'info',
-                timestamp: new Date().toISOString(),
-                metadata: {
-                    productId: item.sku,
-                    productName: item.product_name || item.sku,
-                    currentStock: item.quantity,
-                    lastSoldDate: item.last_sale_date,
-                    value: item.total_value,
-                },
-            };
-            alerts.push(alert);
+                severity: 'info', timestamp: new Date().toISOString(),
+                metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.quantity, lastSoldDate: item.last_sale_date, value: item.total_value },
+            });
+        }
+
+        // Predictive Alerts
+        const predictiveAlertQuery = `
+            WITH sales_velocity AS (
+                SELECT 
+                    oi.sku,
+                    SUM(oi.quantity)::float / NULLIF(${settings.fast_moving_days}, 0) as daily_sales_velocity
+                FROM order_items oi
+                JOIN orders o ON oi.sale_id = o.id
+                WHERE o.company_id = '${companyId}' AND o.sale_date >= CURRENT_DATE - INTERVAL '${settings.fast_moving_days} days'
+                GROUP BY oi.sku
+            )
+            SELECT
+                i.sku, i.name as product_name, i.quantity, sv.daily_sales_velocity,
+                i.quantity / sv.daily_sales_velocity as days_of_stock_remaining
+            FROM inventory i
+            JOIN sales_velocity sv ON i.sku = sv.sku
+            WHERE i.company_id = '${companyId}'
+            AND i.quantity > 0 AND sv.daily_sales_velocity > 0
+            AND (i.quantity / sv.daily_sales_velocity) < 7;
+        `;
+
+        const { data: predictiveItems, error: predictiveError } = await supabase
+            .rpc('execute_dynamic_query', { query_text: predictiveAlertQuery.trim().replace(/;/g, '') });
+        
+        if (predictiveError) {
+            logError(predictiveError, { context: 'Could not check for predictive alerts' });
+        } else if (predictiveItems) {
+            for (const item of predictiveItems as any[]) {
+                 alerts.push({
+                    id: `predictive-${item.sku}`, type: 'predictive', title: `Predictive Stockout Alert`,
+                    message: `You are forecast to run out of stock for "${item.product_name || item.sku}" in approximately ${Math.round(item.days_of_stock_remaining)} days.`,
+                    severity: 'warning', timestamp: new Date().toISOString(),
+                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.quantity, daysOfStockRemaining: item.days_of_stock_remaining },
+                });
+            }
         }
         
         if (isRedisEnabled) {

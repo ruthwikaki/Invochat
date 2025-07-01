@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle, Info, Bot, Settings, History } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Bot, Settings, History, Clock } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAlertsData } from '@/app/data-actions';
@@ -37,11 +37,23 @@ function AlertCard({ alert }: { alert: Alert }) {
     setFormattedDate(formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true }));
   }, [alert.timestamp]);
 
+  const isPredictive = alert.type === 'predictive';
   const isWarning = alert.severity === 'warning';
-  const Icon = isWarning ? AlertCircle : Info;
-  const cardClass = isWarning ? 'border-warning/50 bg-warning/5' : 'border-blue-500/50 bg-blue-500/5';
-  const iconColor = isWarning ? 'text-warning' : 'text-blue-500';
-  const badgeVariant = alert.type === 'low_stock' ? 'destructive' : 'secondary';
+  
+  const Icon = isPredictive ? Clock : (isWarning ? AlertCircle : Info);
+  const cardClass = isPredictive ? 'border-amber-500/50 bg-amber-500/5' : (isWarning ? 'border-warning/50 bg-warning/5' : 'border-blue-500/50 bg-blue-500/5');
+  const iconColor = isPredictive ? 'text-amber-500' : (isWarning ? 'text-warning' : 'text-blue-500');
+  
+  const getBadgeVariant = () => {
+    switch(alert.type) {
+      case 'low_stock':
+        return 'destructive';
+      case 'predictive':
+        return 'default';
+      default:
+        return 'secondary';
+    }
+  }
   
   return (
     <motion.div
@@ -61,7 +73,7 @@ function AlertCard({ alert }: { alert: Alert }) {
                   </CardDescription>
                </div>
             </div>
-            <Badge variant={badgeVariant} className="capitalize shrink-0">{alert.type.replace(/_/g, ' ')}</Badge>
+            <Badge variant={getBadgeVariant()} className="capitalize shrink-0">{alert.type.replace(/_/g, ' ')}</Badge>
           </div>
         </CardHeader>
         <CardContent className="pl-14">
@@ -70,6 +82,7 @@ function AlertCard({ alert }: { alert: Alert }) {
               {alert.metadata.productName && <p><strong>Product:</strong> {alert.metadata.productName}</p>}
               {alert.metadata.currentStock !== undefined && <p><strong>Stock:</strong> {alert.metadata.currentStock}</p>}
               {alert.metadata.reorderPoint !== undefined && <p><strong>Reorder Point:</strong> {alert.metadata.reorderPoint}</p>}
+              {alert.metadata.daysOfStockRemaining !== undefined && <p><strong>Est. Days of Stock Remaining:</strong> {Math.round(alert.metadata.daysOfStockRemaining)}</p>}
               {alert.metadata.lastSoldDate && <p><strong>Last Sold:</strong> {new Date(alert.metadata.lastSoldDate).toLocaleDateString()}</p>}
               {alert.metadata.value !== undefined && <p><strong>Value:</strong> ${alert.metadata.value.toLocaleString()}</p>}
            </div>
@@ -128,6 +141,7 @@ export default function AlertsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Alerts</SelectItem>
+            <SelectItem value="predictive">Predictive</SelectItem>
             <SelectItem value="low_stock">Low Stock</SelectItem>
             <SelectItem value="dead_stock">Dead Stock</SelectItem>
           </SelectContent>
@@ -191,7 +205,7 @@ export default function AlertsPage() {
             <div className="space-y-3">
                 <h4 className="font-semibold flex items-center gap-2"><Settings className="h-4 w-4 text-primary"/> Configure Business Rules</h4>
                 <p className="text-sm text-muted-foreground">
-                    "Dead Stock" alerts are triggered by the threshold you set. Adjust this to match your business cycle. Low stock alerts use the "reorder point" for each item.
+                    "Dead Stock" and "Predictive" alerts are triggered by thresholds you set. Adjust these to match your business cycle. Low stock alerts use the "reorder point" for each item.
                 </p>
                  <Button asChild variant="outline">
                     <Link href="/settings">Adjust Settings</Link>

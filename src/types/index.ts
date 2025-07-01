@@ -84,7 +84,7 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 export type Alert = {
     id: string;
-    type: 'low_stock' | 'dead_stock';
+    type: 'low_stock' | 'dead_stock' | 'predictive';
     title: string;
     message: string;
     severity: 'warning' | 'info';
@@ -94,6 +94,7 @@ export type Alert = {
         productName?: string;
         currentStock?: number;
         reorderPoint?: number;
+        daysOfStockRemaining?: number;
         lastSoldDate?: string | null;
         value?: number;
     };
