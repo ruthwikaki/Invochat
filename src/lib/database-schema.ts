@@ -547,5 +547,34 @@ CREATE POLICY "Users can view sync logs for their own company" ON public.sync_lo
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
 CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id = public.current_user_company_id());
+
+-- ========= Part 13: Secure Unused Future Tables =========
+-- These tables are not currently used by the application but may exist
+-- from previous versions. We enable RLS and apply a "deny all" policy
+-- to them to resolve security linter warnings and ensure they are
+-- secure by default until they are properly integrated.
+DO $$
+DECLARE
+    t_name TEXT;
+    unused_tables TEXT[] := ARRAY[
+        'returns', 'return_items', 'daily_stats', 'sales_detail', 'inventory_valuation',
+        'warehouse_locations', 'product_attributes', 'price_lists', 'fba_inventory',
+        'sync_queue', 'platform_events', 'refunds', 'order_tax_lines', 'order_notes',
+        'order_shipping_lines', 'inventory_adjustments', 'platform_connections'
+    ];
+BEGIN
+    FOREACH t_name IN ARRAY unused_tables
+    LOOP
+        -- Check if the table exists before trying to modify it
+        IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = t_name) THEN
+            EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
+            EXECUTE format('DROP POLICY IF EXISTS "Deny all access by default" ON public.%I;', t_name);
+            -- This policy denies all access until a proper, company-specific policy is defined
+            EXECUTE format('CREATE POLICY "Deny all access by default" ON public.%I FOR ALL USING (false);', t_name);
+        END IF;
+    END LOOP;
+END;
+$$;
 `;
+
 ```
