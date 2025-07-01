@@ -202,7 +202,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 SELECT oi.quantity, oi.unit_price as sales_price, i.cost
                 FROM order_items oi
                 JOIN orders_in_range s ON oi.sale_id = s.id
-                JOIN inventory i ON oi.sku = i.sku AND i.company_id = s.company_id
+                JOIN inventory i ON oi.sku = oi.sku AND i.company_id = s.company_id
             ),
             sales_trend AS (
                 SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
