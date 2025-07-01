@@ -1,3 +1,4 @@
+
 const nextJest = require('next/jest')
 
 /** @type {import('jest').Config} */
@@ -16,6 +17,7 @@ const config = {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
   preset: 'ts-jest',
+  transformIgnorePatterns: ['/node_modules/(?!lucide-react)/'],
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

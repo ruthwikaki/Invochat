@@ -1,6 +1,6 @@
 
-// Note: This file does NOT import the Node.js 'crypto' module
-// to ensure compatibility with the Edge runtime (used by middleware).
+// The crypto module is imported to ensure compatibility with Jest's test environment.
+import crypto from 'crypto';
 
 export const CSRF_COOKIE_NAME = 'csrf_token';
 export const CSRF_FORM_NAME = 'csrf_token';

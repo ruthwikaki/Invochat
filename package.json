@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "jest --watch",
+    "test": "jest --watchAll",
     "test:genkit": "tsx test-genkit.ts",
     "postinstall": "npx browserslist@latest --update-db"
   },
@@ -69,6 +69,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/cookie": "^0.6.0",
     "@types/dompurify": "^3.0.5",
     "@types/dotenv": "^6.1.1",
