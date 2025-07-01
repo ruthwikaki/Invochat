@@ -1298,11 +1298,11 @@ export async function deleteLocationFromDB(id: string, companyId: string): Promi
     if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('deleteLocationFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const { error } = await supabase
-            .from('locations')
-            .delete()
-            .eq('id', id)
-            .eq('company_id', companyId);
+        const { error } = await supabase.rpc('delete_location_and_unassign_inventory', {
+            p_location_id: id,
+            p_company_id: companyId,
+        });
+
         if (error) {
             logError(error, { context: `deleteLocationFromDB: ${id}` });
             throw error;
@@ -1371,30 +1371,18 @@ export async function deleteSupplierFromDb(id: string, companyId: string): Promi
     if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('deleteSupplierFromDb', async () => {
         const supabase = getServiceRoleClient();
+        
+        const { error } = await supabase.rpc('delete_supplier_and_catalogs', {
+            p_supplier_id: id,
+            p_company_id: companyId,
+        });
 
-        // Data integrity check: prevent deletion if supplier has associated POs
-        const { count, error: checkError } = await supabase
-            .from('purchase_orders')
-            .select('*', { count: 'exact', head: true })
-            .eq('supplier_id', id)
-            .eq('company_id', companyId);
-
-        if (checkError) {
-            logError(checkError, { context: `Checking POs for supplier ${id}` });
-            throw new Error('Could not verify supplier before deletion.');
-        }
-
-        if (count && count > 0) {
-            throw new Error(`Cannot delete supplier. They are associated with ${count} purchase order(s). Please reassign or delete the POs first.`);
-        }
-
-        const { error } = await supabase
-            .from('vendors')
-            .delete()
-            .eq('id', id)
-            .eq('company_id', companyId);
         if (error) {
             logError(error, { context: `deleteSupplierFromDb: ${id}` });
+            // Make the error message more user-friendly
+            if (error.message.includes('Cannot delete supplier with active purchase orders')) {
+                throw new Error('Cannot delete supplier. They are associated with active purchase orders. Please reassign or delete the POs first.');
+            }
             throw error;
         }
     });

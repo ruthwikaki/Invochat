@@ -303,4 +303,51 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 
 -- Add index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_notification_preferences_company_id ON public.notification_preferences(company_id);
+
+
+-- ========= Part 8: Data Integrity Functions =========
+
+-- Safely deletes a location and unassigns inventory items from it.
+create or replace function public.delete_location_and_unassign_inventory(p_location_id uuid, p_company_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  -- Unassign inventory items from this location
+  update public.inventory
+  set location_id = null
+  where location_id = p_location_id and company_id = p_company_id;
+
+  -- Delete the location
+  delete from public.locations
+  where id = p_location_id and company_id = p_company_id;
+end;
+$$;
+
+
+-- Safely deletes a supplier after checking for dependencies.
+create or replace function public.delete_supplier_and_catalogs(p_supplier_id uuid, p_company_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  -- First, check for associated purchase orders. If they exist, raise an error.
+  if exists (
+    select 1 from public.purchase_orders
+    where supplier_id = p_supplier_id and company_id = p_company_id
+  ) then
+    raise exception 'Cannot delete supplier with active purchase orders.';
+  end if;
+  
+  -- Delete associated supplier catalogs
+  delete from public.supplier_catalogs
+  where supplier_id = p_supplier_id;
+
+  -- Delete the supplier
+  delete from public.vendors
+  where id = p_supplier_id and company_id = p_company_id;
+end;
+$$;
 `;
