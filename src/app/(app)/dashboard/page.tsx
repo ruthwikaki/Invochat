@@ -1,4 +1,3 @@
-
 'use client';
 
 import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, TrendingUp, RefreshCw, ArrowUp, ArrowDown, Plus } from 'lucide-react';
@@ -18,6 +17,7 @@ import { useEffect, useState } from 'react';
 import type { DashboardMetrics } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BusinessHealthScore } from '@/components/dashboard/business-health-score';
+import { RoiCounter } from '@/components/dashboard/roi-counter';
 
 
 // --- Data Formatting Utilities ---
@@ -200,71 +200,44 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
                 <ErrorDisplay error={error} />
             ) : data ? (
                 <div className="space-y-8">
-                    {/* Top Row: Gradient Cards and Quick Actions */}
-                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-                        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Link href="/analytics">
-                                <GradientMetricCard
-                                    title="Total Revenue"
-                                    value={formatCurrency(data.totalSalesValue)}
-                                    icon={BarChart}
-                                    trend="+12.5% this month"
-                                    gradient="bg-gradient-to-br from-primary to-violet-500"
-                                />
-                            </Link>
-                            <Link href="/analytics">
-                                <GradientMetricCard
-                                    title="Total Profit"
-                                    value={formatCurrency(data.totalProfit)}
-                                    icon={TrendingUp}
-                                    trend="+8.2% this month"
-                                    gradient="bg-gradient-to-br from-emerald-500 to-green-500"
-                                />
-                            </Link>
-                        </div>
+                    {/* Top Row: Value-add Widgets */}
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <RoiCounter metrics={data} />
                         <BusinessHealthScore metrics={data} />
                     </div>
 
-                    {/* Second Row: Sparkline Metric Cards */}
+                    {/* Second Row: Core Metric Cards */}
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                        <Link href="/analytics">
-                            <SparklineMetricCard
-                                title="Average Order Value"
-                                value={formatCurrency(data.averageOrderValue)}
-                                icon={DollarSign}
-                                sparklineData={mockSparkline}
-                                trendValue="+5.1%"
-                                trendDirection="up"
-                            />
-                        </Link>
-                        <Link href="/inventory">
-                             <SparklineMetricCard
-                                title="Inventory Value"
-                                value={formatCurrency(data.totalInventoryValue)}
-                                icon={Package}
-                                sparklineData={mockSparkline.slice().reverse()}
-                                trendValue="-1.2%"
-                                trendDirection="down"
-                            />
-                        </Link>
-                         <SparklineMetricCard
-                            title="Return Rate"
-                            value={`${data.returnRate.toFixed(1)}%`}
-                            icon={RefreshCw}
+                        <GradientMetricCard
+                            title="Total Revenue"
+                            value={formatCurrency(data.totalSalesValue)}
+                            icon={BarChart}
+                            trend="+12.5% this month"
+                            gradient="bg-gradient-to-br from-primary to-violet-500"
+                        />
+                         <GradientMetricCard
+                            title="Total Profit"
+                            value={formatCurrency(data.totalProfit)}
+                            icon={TrendingUp}
+                            trend="+8.2% this month"
+                            gradient="bg-gradient-to-br from-emerald-500 to-green-500"
+                        />
+                        <SparklineMetricCard
+                            title="Average Order Value"
+                            value={formatCurrency(data.averageOrderValue)}
+                            icon={DollarSign}
                             sparklineData={mockSparkline}
-                            trendValue="-0.5%"
+                            trendValue="+5.1%"
+                            trendDirection="up"
+                        />
+                        <SparklineMetricCard
+                            title="Inventory Value"
+                            value={formatCurrency(data.totalInventoryValue)}
+                            icon={Package}
+                            sparklineData={mockSparkline.slice().reverse()}
+                            trendValue="-1.2%"
                             trendDirection="down"
                         />
-                         <Link href="/reordering">
-                            <SparklineMetricCard
-                                title="Low Stock SKUs"
-                                value={formatNumber(data.lowStockItemsCount)}
-                                icon={AlertTriangle}
-                                sparklineData={mockSparkline.slice().reverse()}
-                                trendValue="+3 items"
-                                trendDirection="up"
-                            />
-                        </Link>
                     </div>
 
                     {/* Bottom Row: Main Charts */}
