@@ -87,7 +87,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     }, [searchParams, toast]);
 
     return (
-        <div className="flex min-h-dvh w-full items-center justify-center bg-muted/40 p-4">
+        <div className="flex min-h-dvh w-full flex-col items-center justify-center bg-muted/40 p-4">
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -155,8 +155,10 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                     </CardFooter>
                 </Card>
             </motion.div>
+             <div className="mt-6 text-xs text-muted-foreground space-x-4">
+                <Link href="/terms" className="hover:underline">Terms of Service</Link>
+                <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
+            </div>
         </div>
     );
 }
-
-    

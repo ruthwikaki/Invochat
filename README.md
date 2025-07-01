@@ -32,7 +32,7 @@ Once your environment is configured and dependencies are installed, you can star
 npm run dev
 ```
 
-The application will be available at `http://localhost:9003`.
+The application will be available at `http://localhost:3000`.
 
 ### 4. Database Setup
 

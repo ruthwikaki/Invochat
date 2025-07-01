@@ -160,8 +160,10 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
           </div>
         </CardContent>
       </Card>
+      <div className="mt-6 text-xs text-muted-foreground space-x-4">
+        <Link href="/terms" className="hover:underline">Terms of Service</Link>
+        <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
+      </div>
     </div>
   );
 }
-
-    
