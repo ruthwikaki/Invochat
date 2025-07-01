@@ -216,9 +216,10 @@ export async function syncOrders(integration: Integration, accessToken: string) 
   }
 }
 
-export async function runShopifyFullSync(integration: Integration, accessToken: string) {
+export async function runShopifyFullSync(integration: Integration, credentials: { accessToken: string }) {
     const supabase = getServiceRoleClient();
     try {
+        const { accessToken } = credentials;
         // Run sequentially to provide better status updates
         logger.info(`[Sync] Starting product sync for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_products' }).eq('id', integration.id);

@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShopifyConnectModal } from './ShopifyConnectModal';
+import { WooCommerceConnectModal } from './WooCommerceConnectModal';
+import { AmazonConnectModal } from './AmazonConnectModal';
 import { useIntegrations } from '../hooks/useIntegrations';
 import { IntegrationCard } from './IntegrationCard';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,6 +48,8 @@ function PlatformConnectCard({
 
 export function IntegrationsClientPage() {
     const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
+    const [isWooCommerceModalOpen, setIsWooCommerceModalOpen] = useState(false);
+    const [isAmazonModalOpen, setIsAmazonModalOpen] = useState(false);
     const { integrations, loading, error, triggerSync, disconnect } = useIntegrations();
 
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
@@ -68,6 +72,14 @@ export function IntegrationsClientPage() {
             <ShopifyConnectModal
                 isOpen={isShopifyModalOpen}
                 onClose={() => setIsShopifyModalOpen(false)}
+            />
+             <WooCommerceConnectModal
+                isOpen={isWooCommerceModalOpen}
+                onClose={() => setIsWooCommerceModalOpen(false)}
+            />
+            <AmazonConnectModal
+                isOpen={isAmazonModalOpen}
+                onClose={() => setIsAmazonModalOpen(false)}
             />
             
             <div>
@@ -106,18 +118,16 @@ export function IntegrationsClientPage() {
                          <PlatformConnectCard 
                             platform="woocommerce"
                             description="Sync your products, inventory, and orders from your WooCommerce-powered site."
-                            onConnectClick={() => {}}
+                            onConnectClick={() => setIsWooCommerceModalOpen(true)}
                             brandColor="#96588A"
-                            comingSoon
                          />
                     )}
                      {!connectedPlatforms.has('amazon_fba') && (
                          <PlatformConnectCard 
                             platform="amazon_fba"
                             description="Connect your Amazon Seller Central account to manage FBA inventory."
-                            onConnectClick={() => {}}
+                            onConnectClick={() => setIsAmazonModalOpen(true)}
                             brandColor="#FF9900"
-                            comingSoon
                          />
                     )}
                 </div>

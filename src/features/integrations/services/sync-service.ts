@@ -5,6 +5,8 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import { decrypt } from './encryption';
 import { runShopifyFullSync } from './platforms/shopify';
+import { runWooCommerceFullSync } from './platforms/woocommerce';
+import { runAmazonFbaFullSync } from './platforms/amazon_fba';
 import { logger } from '@/lib/logger';
 
 /**
@@ -34,17 +36,20 @@ export async function runSync(integrationId: string, companyId: string) {
     await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
 
     try {
-        // 3. Decrypt the access token.
-        const accessToken = decrypt(integration.access_token);
+        // 3. Decrypt and parse the credentials.
+        const credentials = JSON.parse(decrypt(integration.access_token));
         
         // 4. Dispatch to the correct platform-specific service.
         switch (integration.platform) {
             case 'shopify':
-                await runShopifyFullSync(integration, accessToken);
+                await runShopifyFullSync(integration, credentials);
                 break;
-            // case 'woocommerce':
-            //     await runWooCommerceFullSync(integration, accessToken);
-            //     break;
+            case 'woocommerce':
+                await runWooCommerceFullSync(integration, credentials);
+                break;
+            case 'amazon_fba':
+                await runAmazonFbaFullSync(integration, credentials);
+                break;
             default:
                 throw new Error(`Unsupported integration platform: ${integration.platform}`);
         }

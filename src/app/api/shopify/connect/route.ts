@@ -67,8 +67,9 @@ export async function POST(request: Request) {
         
         const shopName = shopData.shop.name;
         
-        // 2. Encrypt the access token for secure storage
-        const encryptedToken = encrypt(accessToken);
+        // 2. Encrypt the credentials as a JSON string for secure, standardized storage
+        const credentialsToEncrypt = JSON.stringify({ accessToken });
+        const encryptedToken = encrypt(credentialsToEncrypt);
 
         // 3. Save the integration details to the database
         const supabase = getServiceRoleClient();
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
                 shop_name: shopName,
                 is_active: true,
                 sync_status: 'idle',
-            }, { onConflict: 'company_id, platform' }) // Simplified conflict target
+            }, { onConflict: 'company_id, platform' })
             .select()
             .single();
 
