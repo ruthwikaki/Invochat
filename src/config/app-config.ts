@@ -72,10 +72,10 @@ export const config = {
   },
   chat: {
     quickActions: [
-      "What were my top 5 products by revenue last month?",
-      "Show a pie chart of inventory value by category",
-      "Which suppliers provide items that are currently low on stock?",
-      "Forecast sales for the next quarter",
+      "What should I order today?",
+      "What's not selling?",
+      "Show me dead stock",
+      "Top products this month",
     ],
   },
   ui: {
