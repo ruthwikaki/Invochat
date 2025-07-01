@@ -227,3 +227,5 @@ export function ChatInterface({ conversationId, initialMessages }: { conversatio
     </div>
   );
 }
+
+    

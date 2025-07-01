@@ -35,14 +35,14 @@ function formatNumber(value: number) {
 }
 
 // --- Page-Specific Components ---
-function Sparkline({ data }: { data: { value: number }[] }) {
+function Sparkline({ data, positive = true }: { data: { value: number }[], positive?: boolean }) {
     return (
         <ResponsiveContainer width="100%" height={40}>
             <LineChart data={data}>
                 <Line
                     type="natural"
                     dataKey="value"
-                    stroke="hsl(var(--primary-foreground))"
+                    stroke={positive ? 'hsl(var(--primary-foreground))' : 'hsl(var(--primary-foreground))'}
                     strokeWidth={2}
                     dot={false}
                     isAnimationActive={false}
@@ -57,74 +57,47 @@ function GradientMetricCard({
     value,
     icon: Icon,
     trend,
+    trendDirection,
+    sparklineData,
     gradient,
 }: {
     title: string;
     value: string;
     icon: React.ElementType;
     trend: string;
+    trendDirection: 'up' | 'down' | 'neutral';
+    sparklineData: { value: number }[];
     gradient: string;
 }) {
+    const TrendIcon = trendDirection === 'up' ? ArrowUp : ArrowDown;
+    
     return (
         <motion.div whileHover={{ y: -5, boxShadow: '0 10px 20px -5px hsl(var(--primary)/0.2)' }} className="h-full">
             <Card className={cn("relative overflow-hidden h-full text-primary-foreground", gradient)}>
                 <div className="absolute top-0 right-0 -m-4 h-24 w-24 rounded-full bg-white/10" />
                 <CardHeader>
-                    <div className="flex items-center gap-2">
-                        <Icon className="h-5 w-5" />
-                        <CardTitle className="text-base font-medium">{title}</CardTitle>
+                    <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                            <Icon className="h-5 w-5" />
+                            <CardTitle className="text-base font-medium">{title}</CardTitle>
+                        </div>
+                         <div className="flex items-center text-xs font-semibold text-primary-foreground/80">
+                            {trendDirection !== 'neutral' && <TrendIcon className="h-4 w-4 mr-1" />}
+                            {trend}
+                        </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex items-end justify-between">
                     <div className="text-4xl font-bold">{value}</div>
-                    <p className="text-xs text-primary-foreground/80 mt-1">{trend}</p>
+                    <div className="w-24 h-10">
+                       <Sparkline data={sparklineData} positive={trendDirection === 'up'} />
+                    </div>
                 </CardContent>
             </Card>
         </motion.div>
     );
 }
 
-function SparklineMetricCard({
-    title,
-    value,
-    icon: Icon,
-    sparklineData,
-    trendValue,
-    trendDirection
-}: {
-    title: string;
-    value: string;
-    icon: React.ElementType;
-    sparklineData: { value: number }[];
-    trendValue: string;
-    trendDirection: 'up' | 'down';
-}) {
-    const TrendIcon = trendDirection === 'up' ? ArrowUp : ArrowDown;
-    const trendColor = trendDirection === 'up' ? 'text-success' : 'text-destructive';
-
-    return (
-        <Card className="h-full hover:shadow-lg transition-shadow duration-300">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-                <Icon className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-end justify-between">
-                    <div>
-                        <div className="text-3xl font-bold text-foreground">{value}</div>
-                        <div className="flex items-center text-xs text-muted-foreground">
-                            <TrendIcon className={cn("h-4 w-4 mr-1", trendColor)} />
-                            <span className={trendColor}>{trendValue}</span> vs last period
-                        </div>
-                    </div>
-                    <div className="w-24 h-10">
-                        <Sparkline data={sparklineData} />
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
 
 function ErrorDisplay({ error }: { error: Error }) {
     return (
@@ -213,31 +186,37 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
                             title="Total Revenue"
                             value={formatCurrency(data.totalSalesValue)}
                             icon={BarChart}
-                            trend="+12.5% this month"
+                            trend="+12.5%"
+                            trendDirection="up"
+                            sparklineData={mockSparkline}
                             gradient="bg-gradient-to-br from-primary to-violet-500"
                         />
                          <GradientMetricCard
                             title="Total Profit"
                             value={formatCurrency(data.totalProfit)}
                             icon={TrendingUp}
-                            trend="+8.2% this month"
+                            trend="+8.2%"
+                            trendDirection="up"
+                            sparklineData={mockSparkline}
                             gradient="bg-gradient-to-br from-emerald-500 to-green-500"
                         />
-                        <SparklineMetricCard
+                        <GradientMetricCard
                             title="Average Order Value"
                             value={formatCurrency(data.averageOrderValue)}
                             icon={DollarSign}
-                            sparklineData={mockSparkline}
-                            trendValue="+5.1%"
-                            trendDirection="up"
+                            trend="-1.2%"
+                            trendDirection="down"
+                            sparklineData={mockSparkline.slice().reverse()}
+                            gradient="bg-gradient-to-br from-sky-500 to-blue-500"
                         />
-                        <SparklineMetricCard
+                        <GradientMetricCard
                             title="Inventory Value"
                             value={formatCurrency(data.totalInventoryValue)}
                             icon={Package}
-                            sparklineData={mockSparkline.slice().reverse()}
-                            trendValue="-1.2%"
-                            trendDirection="down"
+                            trend="Stable"
+                            trendDirection="neutral"
+                            sparklineData={mockSparkline}
+                            gradient="bg-gradient-to-br from-slate-600 to-gray-800"
                         />
                     </div>
 
@@ -252,3 +231,5 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
         </AppPage>
     );
 }
+
+    

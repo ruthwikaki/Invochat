@@ -195,3 +195,5 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
     </div>
   );
 }
+
+    

@@ -378,3 +378,5 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
     </div>
   );
 }
+
+    

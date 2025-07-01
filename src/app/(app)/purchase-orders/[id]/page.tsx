@@ -22,9 +22,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 async function fetchPO(id: string): Promise<PurchaseOrder | null> {
     return getPurchaseOrderById(id);
+}
+
+function LoadingState() {
+    return (
+        <AppPage>
+            <AppPageHeader title="Loading Purchase Order...">
+                <div className="flex gap-2">
+                    <Skeleton className="h-10 w-24" />
+                    <Skeleton className="h-10 w-10" />
+                </div>
+            </AppPageHeader>
+            <div className="space-y-6">
+                <Skeleton className="h-48 w-full" />
+                <Skeleton className="h-96 w-full" />
+            </div>
+        </AppPage>
+    )
 }
 
 export default function PurchaseOrderDetailPage({ params }: { params: { id: string } }) {
@@ -72,11 +90,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
   }
 
   if (loading) {
-    return (
-        <AppPage>
-            <AppPageHeader title="Loading Purchase Order..." />
-        </AppPage>
-    )
+    return <LoadingState />;
   }
 
   if (!purchaseOrder) {
@@ -142,3 +156,5 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
     </AppPage>
   );
 }
+
+    

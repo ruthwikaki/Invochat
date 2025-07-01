@@ -106,3 +106,5 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
     </div>
   );
 }
+
+    
