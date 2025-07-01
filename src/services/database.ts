@@ -182,7 +182,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 SELECT (CURRENT_DATE - INTERVAL '${days} days') as start_date
             ),
             orders_in_range AS (
-                SELECT id, total_amount, sale_date, customer_name, company_id
+                SELECT id, total_amount, sale_date, customer_id, company_id
                 FROM orders
                 WHERE company_id = '${companyId}' AND sale_date >= (SELECT start_date FROM date_range)
             ),
@@ -204,7 +204,9 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             ),
             top_customers AS (
                 SELECT c.customer_name as name, SUM(s.total_amount) as value
-                FROM orders_in_range s JOIN customers c ON s.customer_name = c.customer_name AND c.company_id = '${companyId}'
+                FROM orders_in_range s 
+                JOIN customers c ON s.customer_id = c.id
+                WHERE c.company_id = '${companyId}'
                 GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
             ),
             inventory_by_category AS (
@@ -844,7 +846,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
             WITH daily_metrics AS (
                 SELECT DATE(sale_date) as date,
                     SUM(total_amount) as daily_revenue,
-                    COUNT(DISTINCT customer_name) as daily_customers,
+                    COUNT(DISTINCT customer_id) as daily_customers,
                     AVG(total_amount) as avg_order_value
                 FROM orders
                 WHERE company_id = '${companyId}'

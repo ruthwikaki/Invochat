@@ -139,55 +139,65 @@ export async function syncOrders(integration: Integration, accessToken: string) 
         return;
     }
     
-    // Upsert customers first
-    const customersToUpsert = allOrders.map(order => ({
+    // Upsert customers first, using their unique Shopify ID
+    const customersToUpsert = allOrders
+      .filter(order => order.customer?.id) // Only process orders with a customer ID
+      .map(order => ({
         company_id: integration.company_id,
+        shopify_customer_id: order.customer.id,
         customer_name: `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || 'Unknown Customer',
         email: order.customer.email
-    })).filter(c => c.customer_name); // Filter out orders without customer names
+    }));
 
     if (customersToUpsert.length > 0) {
-        await supabase.rpc('batch_upsert_with_transaction', {
-            p_table_name: 'customers',
-            p_records: customersToUpsert,
-            p_conflict_columns: ['company_id', 'customer_name'],
-        });
-    }
+        // Use direct upsert to get IDs back, as the RPC function cannot.
+        const { data: upsertedCustomers, error: customerError } = await supabase
+            .from('customers')
+            .upsert(customersToUpsert, { onConflict: 'company_id, shopify_customer_id', ignoreDuplicates: false })
+            .select('id, shopify_customer_id');
 
-    // Create orders and order_items
-    const ordersToInsert = allOrders.map(order => ({
-        company_id: integration.company_id,
-        sale_date: order.created_at,
-        customer_name: `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || 'Unknown Customer',
-        total_amount: order.total_price,
-        sales_channel: 'shopify',
-        shopify_order_id: order.id,
-    })).filter(o => o.customer_name); // Ensure we only create orders with customers
-    
-    // We must use a direct upsert here because the batch function cannot return IDs needed for foreign keys.
-    const { data: createdOrders, error: orderError } = await supabase
-        .from('orders')
-        .upsert(ordersToInsert, { onConflict: 'company_id, shopify_order_id', ignoreDuplicates: false })
-        .select('id, shopify_order_id');
+        if (customerError) {
+            throw new Error(`Database upsert error for customers: ${customerError.message}`);
+        }
+        
+        // Map Shopify customer IDs to our internal UUIDs
+        const customerIdMap = new Map(upsertedCustomers.map(c => [c.shopify_customer_id, c.id]));
 
-    if (orderError) throw new Error(`Database upsert error for orders: ${orderError.message}`);
+        // Create orders and order_items
+        const ordersToInsert = allOrders
+            .filter(order => order.customer?.id && customerIdMap.has(order.customer.id))
+            .map(order => ({
+                company_id: integration.company_id,
+                customer_id: customerIdMap.get(order.customer.id),
+                sale_date: order.created_at,
+                total_amount: order.total_price,
+                sales_channel: 'shopify',
+                shopify_order_id: order.id,
+        }));
+        
+        const { data: createdOrders, error: orderError } = await supabase
+            .from('orders')
+            .upsert(ordersToInsert, { onConflict: 'company_id, shopify_order_id', ignoreDuplicates: false })
+            .select('id, shopify_order_id');
 
-    if(!createdOrders) throw new Error("Failed to retrieve created orders after upsert.");
+        if (orderError) throw new Error(`Database upsert error for orders: ${orderError.message}`);
+        if(!createdOrders) throw new Error("Failed to retrieve created orders after upsert.");
 
-    const orderIdMap = new Map(createdOrders.map(o => [o.shopify_order_id, o.id]));
+        const orderIdMap = new Map(createdOrders.map(o => [o.shopify_order_id, o.id]));
 
-    const orderItemsToInsert = allOrders.flatMap(order => 
-        order.line_items.map((item: any) => ({
-            sale_id: orderIdMap.get(order.id),
-            sku: item.sku || `SHOPIFY-${item.variant_id}`,
-            quantity: item.quantity,
-            unit_price: item.price,
-        }))
-    ).filter(item => item.sale_id); // Filter out items for which order creation might have failed
+        const orderItemsToInsert = allOrders.flatMap(order => 
+            order.line_items.map((item: any) => ({
+                sale_id: orderIdMap.get(order.id),
+                sku: item.sku || `SHOPIFY-${item.variant_id}`,
+                quantity: item.quantity,
+                unit_price: item.price,
+            }))
+        ).filter(item => item.sale_id);
 
-    if (orderItemsToInsert.length > 0) {
-        const { error: itemError } = await supabase.from('order_items').insert(orderItemsToInsert);
-        if (itemError) throw new Error(`Database insert error for order items: ${itemError.message}`);
+        if (orderItemsToInsert.length > 0) {
+            const { error: itemError } = await supabase.from('order_items').insert(orderItemsToInsert);
+            if (itemError) throw new Error(`Database insert error for order items: ${itemError.message}`);
+        }
     }
 
     recordsSynced = allOrders.length;

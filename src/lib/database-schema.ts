@@ -187,9 +187,13 @@ CREATE TABLE IF NOT EXISTS public.customers (
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     customer_name TEXT NOT NULL,
     email TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_customer_name_per_company UNIQUE (company_id, customer_name)
+    shopify_customer_id BIGINT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+-- Remove old unique constraint on name
+ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_customer_name_per_company;
+-- Add new unique constraint on shopify_id
+ALTER TABLE public.customers ADD CONSTRAINT unique_shopify_customer_per_company UNIQUE (company_id, shopify_customer_id);
 CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
 
 
@@ -197,16 +201,20 @@ CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    customer_name TEXT NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
     shopify_order_id BIGINT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     CONSTRAINT unique_shopify_order_per_company UNIQUE (company_id, shopify_order_id)
 );
+-- Remove old customer_name column if it exists
+ALTER TABLE public.orders DROP COLUMN IF EXISTS customer_name;
+
 CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
 CREATE INDEX IF NOT EXISTS idx_orders_sale_date ON public.orders(sale_date);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
 
 -- Table for items within a sales order
 CREATE TABLE IF NOT EXISTS public.order_items (

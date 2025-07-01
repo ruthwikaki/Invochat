@@ -291,7 +291,7 @@ const FEW_SHOT_EXAMPLES = `
         c.customer_name as name,
         SUM(s.total_amount) as total_spent
      FROM orders s
-     JOIN customers c ON s.customer_name = c.customer_name AND s.company_id = c.company_id
+     JOIN customers c ON s.customer_id = c.id
      WHERE s.company_id = :company_id
        AND s.sale_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
        AND s.sale_date < date_trunc('month', CURRENT_DATE)
@@ -363,7 +363,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     4.  **Column Verification**: Before using a column in a JOIN, WHERE, or SELECT clause, you MUST verify that the column exists in the respective table by checking the DATABASE SCHEMA OVERVIEW. Do not hallucinate column names.
     5.  **NO SQL Comments**: The final query MUST NOT contain any SQL comments (e.g., --, /* */).
     6.  **Syntax**: Use PostgreSQL syntax, like \`(CURRENT_DATE - INTERVAL '90 days')\` for date math.
-    7.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM orders JOIN customers ON orders.customer_name = customers.customer_name\`).
+    7.  **NO Cross Joins**: NEVER use implicit cross joins (e.g., \`FROM table1, table2\`). Always specify a valid JOIN condition using \`ON\` (e.g., \`FROM orders JOIN customers ON orders.customer_id = customers.id\`).
 
     **B) For COMPLEX ANALYTICAL Queries:**
     8.  **Advanced SQL is MANDATORY**: You MUST use advanced SQL features to ensure readability and correctness.
