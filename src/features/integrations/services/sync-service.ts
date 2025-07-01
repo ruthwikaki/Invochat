@@ -3,7 +3,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
-import { decryptForCompany } from './encryption';
+import { getSecret } from './encryption';
 import { runShopifyFullSync } from './platforms/shopify';
 import { runWooCommerceFullSync } from './platforms/woocommerce';
 import { runAmazonFbaFullSync } from './platforms/amazon_fba';
@@ -28,8 +28,8 @@ export async function runSync(integrationId: string, companyId: string) {
         .eq('company_id', companyId)
         .single();
 
-    if (fetchError || !integration || !integration.access_token) {
-        throw new Error('Integration not found, has no token, or access is denied.');
+    if (fetchError || !integration) {
+        throw new Error('Integration not found or access is denied.');
     }
 
     // 2. Set status to 'syncing' immediately to give user feedback.
@@ -37,7 +37,10 @@ export async function runSync(integrationId: string, companyId: string) {
 
     try {
         // 3. Decrypt the access token using the company-specific key.
-        const plaintextCredentials = await decryptForCompany(integration.company_id, integration.access_token);
+        const plaintextCredentials = await getSecret(integration.company_id, integration.platform);
+        if (!plaintextCredentials) {
+            throw new Error(`Could not retrieve credentials from Vault for integration ${integration.id}`);
+        }
         const credentials = JSON.parse(plaintextCredentials);
         
         // 4. Dispatch to the correct platform-specific service.

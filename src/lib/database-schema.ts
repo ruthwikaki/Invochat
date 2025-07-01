@@ -175,23 +175,6 @@ $batch_upsert_func$;
 
 -- ========= Part 5: E-Commerce & Integration Tables =========
 
--- Table for storing per-company encryption keys, themselves encrypted with a master key.
-CREATE TABLE IF NOT EXISTS public.company_secrets (
-    company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
-    encrypted_key text NOT NULL,
-    encrypted_iv text NOT NULL,
-    created_at timestamp with time zone default now(),
-    updated_at timestamp with time zone default now()
-);
-
--- RLS policy to ensure only service_role can access these secrets
-ALTER TABLE public.company_secrets ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow service_role access" ON public.company_secrets;
-CREATE POLICY "Allow service_role access" ON public.company_secrets FOR ALL
-TO service_role
-USING (true)
-WITH CHECK (true);
-
 -- Add generic integration columns to existing tables
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
@@ -259,7 +242,6 @@ CREATE TABLE IF NOT EXISTS public.integrations (
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     platform TEXT NOT NULL, -- e.g., 'shopify'
     shop_domain TEXT,
-    access_token TEXT, -- Encrypted token
     shop_name TEXT,
     is_active BOOLEAN DEFAULT false,
     last_sync_at TIMESTAMP WITH TIME ZONE,
@@ -747,4 +729,3 @@ BEGIN
     RETURN result_json;
 END;
 $$;
-

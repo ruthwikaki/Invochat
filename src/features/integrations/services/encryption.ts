@@ -1,129 +1,101 @@
 
 'use server';
 
-import crypto from 'crypto';
-import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import { logger } from '@/lib/logger';
 
-const ALGORITHM = 'aes-256-cbc';
-
-// --- Core Encryption Functions ---
-
 /**
- * Encrypts text using a given key and IV.
- * @param text The plaintext to encrypt.
- * @param keyHex The encryption key as a 64-character hex string.
- * @param ivHex The initialization vector as a 32-character hex string.
- * @returns The encrypted data as a hex string, prefixed with the IV.
- */
-function encryptWithKey(text: string, keyHex: string, ivHex: string): string {
-    const key = Buffer.from(keyHex, 'hex');
-    const iv = Buffer.from(ivHex, 'hex');
-    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return encrypted;
-}
-
-/**
- * Decrypts text using a given key and IV.
- * @param encryptedHex The encrypted hex string.
- * @param keyHex The encryption key as a 64-character hex string.
- * @param ivHex The initialization vector as a 32-character hex string.
- * @returns The decrypted plaintext.
- */
-function decryptWithKey(encryptedHex: string, keyHex: string, ivHex: string): string {
-    const key = Buffer.from(keyHex, 'hex');
-    const iv = Buffer.from(ivHex, 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-}
-
-// --- Per-Company Key Management ---
-
-type CompanyKeys = {
-    key: string; // Plaintext hex key
-    iv: string; // Plaintext hex IV
-};
-
-/**
- * Retrieves the encryption key and IV for a specific company.
- * If they don't exist, it generates new ones, saves them securely, and returns them.
+ * Creates or updates a secret in the Supabase Vault.
+ * The secret name is deterministically generated based on the company and integration platform.
  * @param companyId The UUID of the company.
- * @returns A promise resolving to the company's plaintext key and IV.
+ * @param platform The integration platform (e.g., 'shopify').
+ * @param plaintextValue The raw value of the secret to store (e.g., an API token).
+ * @returns The UUID of the created or updated secret.
  */
-async function getCompanyKeys(companyId: string): Promise<CompanyKeys> {
+export async function createOrUpdateSecret(companyId: string, platform: string, plaintextValue: string): Promise<string> {
     const supabase = getServiceRoleClient();
-    const masterKey = config.encryption.key;
-    const masterIv = config.encryption.iv;
-
-    const { data, error } = await supabase
-        .from('company_secrets')
-        .select('encrypted_key, encrypted_iv')
-        .eq('company_id', companyId)
-        .single();
+    const secretName = `${platform}_token_${companyId}`;
     
-    if (error && error.code !== 'PGRST116') { // 'PGRST116' means no rows found
-        logError(error, { context: `Failed to fetch secrets for company ${companyId}` });
-        throw new Error('Could not retrieve company encryption keys.');
-    }
-
-    if (data) {
-        // Keys exist, decrypt them with the master key
-        const companyKey = decryptWithKey(data.encrypted_key, masterKey, masterIv);
-        const companyIv = decryptWithKey(data.encrypted_iv, masterKey, masterIv);
-        return { key: companyKey, iv: companyIv };
-    }
-
-    // No keys found, so generate, encrypt, and store new ones
-    logger.info(`[Encryption] No keys found for company ${companyId}. Generating new keys.`);
-    const newCompanyKey = crypto.randomBytes(32).toString('hex');
-    const newCompanyIv = crypto.randomBytes(16).toString('hex');
-
-    const encryptedCompanyKey = encryptWithKey(newCompanyKey, masterKey, masterIv);
-    const encryptedCompanyIv = encryptWithKey(newCompanyIv, masterKey, masterIv);
-
-    const { error: insertError } = await supabase
-        .from('company_secrets')
-        .insert({
-            company_id: companyId,
-            encrypted_key: encryptedCompanyKey,
-            encrypted_iv: encryptedCompanyIv,
+    try {
+        const { data: secret, error } = await supabase.vault.secrets.create({
+            name: secretName,
+            secret: plaintextValue,
+            description: `API token for ${platform} integration for company ${companyId}`,
         });
-    
-    if (insertError) {
-        logError(insertError, { context: `Failed to insert new secrets for company ${companyId}` });
-        throw new Error('Could not save new company encryption keys.');
+        
+        if (error) {
+            // If the secret already exists, try to update it instead.
+            if (error.message.includes('unique constraint')) {
+                logger.info(`[Vault] Secret for ${secretName} already exists. Updating it instead.`);
+                const { data: updatedSecret, error: updateError } = await supabase.vault.secrets.update(secretName, {
+                    secret: plaintextValue,
+                });
+                if (updateError) {
+                    throw new Error(`Failed to update existing secret: ${updateError.message}`);
+                }
+                return updatedSecret.id;
+            }
+            throw new Error(`Failed to create secret: ${error.message}`);
+        }
+        
+        logger.info(`[Vault] Successfully created secret for ${secretName}.`);
+        return secret.id;
+    } catch (e: any) {
+        logError(e, { context: 'createOrUpdateSecret', companyId, platform });
+        throw e;
     }
-
-    // Return the new plaintext keys for immediate use
-    return { key: newCompanyKey, iv: newCompanyIv };
 }
 
-// --- Public API ---
 
 /**
- * Encrypts a string using the specific keys for a given company.
+ * Retrieves a secret from the Supabase Vault.
  * @param companyId The UUID of the company.
- * @param plaintext The text to encrypt.
- * @returns The encrypted hex string.
+ * @param platform The integration platform.
+ * @returns The plaintext secret value, or null if not found.
  */
-export async function encryptForCompany(companyId: string, plaintext: string): Promise<string> {
-    const { key, iv } = await getCompanyKeys(companyId);
-    return encryptWithKey(plaintext, key, iv);
+export async function getSecret(companyId: string, platform: string): Promise<string | null> {
+    const supabase = getServiceRoleClient();
+    const secretName = `${platform}_token_${companyId}`;
+
+    try {
+        const { data, error } = await supabase.vault.secrets.retrieve(secretName);
+        
+        if (error) {
+            // A 404 error is expected if the secret doesn't exist, so we handle it gracefully.
+            if (error.message.includes('404')) {
+                logger.warn(`[Vault] Secret not found for ${secretName}`);
+                return null;
+            }
+            throw new Error(`Failed to retrieve secret: ${error.message}`);
+        }
+        
+        return data.secret;
+    } catch (e: any) {
+        logError(e, { context: 'getSecret', companyId, platform });
+        throw e;
+    }
 }
 
 /**
- * Decrypts a string using the specific keys for a given company.
+ * Deletes a secret from the Supabase Vault.
  * @param companyId The UUID of the company.
- * @param encryptedText The encrypted hex string.
- * @returns The decrypted plaintext.
+ * @param platform The integration platform.
  */
-export async function decryptForCompany(companyId: string, encryptedText: string): Promise<string> {
-    const { key, iv } = await getCompanyKeys(companyId);
-    return decryptWithKey(encryptedText, key, iv);
+export async function deleteSecret(companyId: string, platform: string): Promise<void> {
+    const supabase = getServiceRoleClient();
+    const secretName = `${platform}_token_${companyId}`;
+    
+    try {
+        const { error } = await supabase.vault.secrets.delete(secretName);
+        
+        if (error && !error.message.includes('404')) {
+            throw new Error(`Failed to delete secret: ${error.message}`);
+        }
+        
+        logger.info(`[Vault] Successfully deleted secret for ${secretName}.`);
+    } catch (e: any) {
+        logError(e, { context: 'deleteSecret', companyId, platform });
+        throw e;
+    }
 }

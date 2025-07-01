@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { encryptForCompany } from '@/features/integrations/services/encryption';
+import { createOrUpdateSecret } from '@/features/integrations/services/encryption';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
@@ -41,18 +41,16 @@ export async function POST(request: Request) {
         
         const { sellerId, authToken } = parsed.data;
 
+        // Store the credentials securely in the Vault
         const credentialsToStore = JSON.stringify({ sellerId, authToken });
-        const supabase = getServiceRoleClient();
-        
-        // Encrypt the credentials using the company-specific key
-        const encryptedToken = await encryptForCompany(companyId, credentialsToStore);
+        await createOrUpdateSecret(companyId, platform, credentialsToStore);
 
+        const supabase = getServiceRoleClient();
         const { data, error } = await supabase
             .from('integrations')
             .upsert({
                 company_id: companyId,
                 platform: platform,
-                access_token: encryptedToken,
                 shop_name: `Amazon Seller (${sellerId.slice(-4)})`,
                 is_active: true,
                 sync_status: 'idle',

@@ -16,14 +16,6 @@ This project requires a few environment variables to connect to its services.
     cp .env.example .env
     ```
 2.  Open the newly created `.env` file and add your credentials. The file contains comments explaining where to find each value.
-3.  **Important**: You must generate secure encryption keys for the `ENCRYPTION_KEY` and `ENCRYPTION_IV` variables. You can do this with the following commands:
-    ```bash
-    # Generate a 32-byte (64-character hex) key for ENCRYPTION_KEY
-    openssl rand -hex 32
-
-    # Generate a 16-byte (32-character hex) IV for ENCRYPTION_IV
-    openssl rand -hex 16
-    ```
 
 ### 2. Database Setup
 
@@ -36,14 +28,21 @@ For the application to function correctly, you must run a one-time setup script 
 
 After running the script, you will need to sign out and sign up with a **new user account**. This new account will be correctly configured by the database trigger you just created.
 
-### 3. Install Dependencies
+### 3. Enable Supabase Vault
+
+For securely storing integration API keys, this project uses Supabase Vault.
+
+1. Navigate to the **Vault** section in your Supabase project dashboard (it has a keyhole icon).
+2. Follow the on-screen instructions to **Enable the Vault**. You will be asked to create a new encryption key, which Supabase will then manage for you.
+
+### 4. Install Dependencies
 
 Install the project dependencies using npm:
 ```bash
 npm install
 ```
 
-### 4. Run the Development Server
+### 5. Run the Development Server
 
 Once your environment is configured and dependencies are installed, you can start the development server:
 
@@ -61,7 +60,7 @@ The application will be available at `http://localhost:3000`.
 *   **Database**: [Supabase](https://supabase.com/)
 *   **AI**: [Google AI & Genkit](https://firebase.google.com/docs/genkit)
 *   **Authentication**: [Supabase Auth](https://supabase.com/docs/guides/auth)
-*   **Secrets Management**: Custom per-company encryption layer.
+*   **Secrets Management**: [Supabase Vault](https://supabase.com/docs/guides/vault)
 
 ## Deployment & Scaling
 

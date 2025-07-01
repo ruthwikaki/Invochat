@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { encryptForCompany } from '@/features/integrations/services/encryption';
+import { createOrUpdateSecret } from '@/features/integrations/services/encryption';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
@@ -42,19 +42,17 @@ export async function POST(request: Request) {
         
         const { storeUrl, consumerKey, consumerSecret } = parsed.data;
         
+        // Store the credentials securely in the Vault
         const credentialsToStore = JSON.stringify({ consumerKey, consumerSecret });
+        await createOrUpdateSecret(companyId, platform, credentialsToStore);
+
         const supabase = getServiceRoleClient();
-
-        // Encrypt the credentials using the company-specific key
-        const encryptedToken = await encryptForCompany(companyId, credentialsToStore);
-
         const { data, error } = await supabase
             .from('integrations')
             .upsert({
                 company_id: companyId,
                 platform: platform,
                 shop_domain: storeUrl,
-                access_token: encryptedToken,
                 shop_name: new URL(storeUrl).hostname,
                 is_active: true,
                 sync_status: 'idle',

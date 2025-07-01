@@ -58,6 +58,7 @@ import { sendPurchaseOrderEmail } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
+import { deleteSecret } from '@/features/integrations/services/encryption';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -180,7 +181,7 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
     const [anomalies, deadStockData, alerts] = await Promise.all([
       getAnomalyInsightsFromDB(companyId),
       getDeadStockPageData(companyId),
-      getAlertsData(companyId),
+      getAlertsData(),
     ]);
 
     const topDeadStock = deadStockData.deadStockItems
@@ -819,6 +820,11 @@ export async function disconnectIntegration(integrationId: string): Promise<{ su
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
+        const integration = await getIntegrationsByCompanyId(companyId).then(integrations => integrations.find(i => i.id === integrationId));
+        if (!integration) {
+            return { success: false, error: "Integration not found or you do not have permission to access it." };
+        }
+        await deleteSecret(companyId, integration.platform);
         await deleteIntegrationFromDb(integrationId, companyId);
         revalidatePath('/settings/integrations');
         return { success: true };
@@ -832,4 +838,3 @@ export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEn
     const { companyId } = await getAuthContext();
     return getInventoryLedgerForSkuFromDB(companyId, sku);
 }
-
