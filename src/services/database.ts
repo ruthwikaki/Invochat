@@ -167,14 +167,22 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
   const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
     return withPerformanceTracking('getDashboardMetricsOptimized', async () => {
         const supabase = getServiceRoleClient();
+        const settings = await getSettings(companyId);
         
         const { data: mvData, error: mvError } = await supabase
             .from('company_dashboard_metrics')
-            .select('inventory_value, low_stock_count')
+            .select('inventory_value, low_stock_count, total_skus')
             .eq('company_id', companyId)
             .single();
 
         if (mvError) logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
+        
+        const deadStockQuery = `
+            SELECT COUNT(*)::int as count 
+            FROM inventory 
+            WHERE company_id = '${companyId}' AND quantity > 0 
+            AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - INTERVAL '${settings.dead_stock_days} days')
+        `;
 
         const combinedQuery = `
             WITH date_range AS (
@@ -227,7 +235,8 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 'totalOrders', m."totalOrders",
                 'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
                 'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
-                'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t)
+                'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t),
+                'deadStockItemsCount', (SELECT count FROM (${deadStockQuery}) as ds)
             ) as metrics
             FROM main_metrics m;
         `;
@@ -249,6 +258,8 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             returnRate: (metrics.returnRate as number) || 0,
             totalInventoryValue: Math.round(mvData?.inventory_value || 0),
             lowStockItemsCount: mvData?.low_stock_count || 0,
+            deadStockItemsCount: (metrics.deadStockItemsCount as number) || 0,
+            totalSkus: mvData?.total_skus || 0,
             totalOrders: (metrics.totalOrders as number) || 0,
             totalCustomers: customers?.count || 0,
             averageOrderValue: (metrics.averageOrderValue as number) || 0,

@@ -105,6 +105,8 @@ export type DashboardMetrics = {
     returnRate: number;
     totalInventoryValue: number;
     lowStockItemsCount: number;
+    deadStockItemsCount: number;
+    totalSkus: number;
     totalOrders: number;
     totalCustomers: number;
     averageOrderValue: number;

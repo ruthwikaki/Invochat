@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useState } from 'react';
 import type { DashboardMetrics } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BusinessHealthScore } from '@/components/dashboard/business-health-score';
 
 
 // --- Data Formatting Utilities ---
@@ -200,43 +201,28 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
             ) : data ? (
                 <div className="space-y-8">
                     {/* Top Row: Gradient Cards and Quick Actions */}
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-                        <div className="lg:col-span-3">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-                                <Link href="/analytics">
-                                    <GradientMetricCard
-                                        title="Total Revenue"
-                                        value={formatCurrency(data.totalSalesValue)}
-                                        icon={BarChart}
-                                        trend="+12.5% this month"
-                                        gradient="bg-gradient-to-br from-primary to-violet-500"
-                                    />
-                                </Link>
-                                <Link href="/analytics">
-                                    <GradientMetricCard
-                                        title="Total Profit"
-                                        value={formatCurrency(data.totalProfit)}
-                                        icon={TrendingUp}
-                                        trend="+8.2% this month"
-                                        gradient="bg-gradient-to-br from-emerald-500 to-green-500"
-                                    />
-                                </Link>
-                            </div>
+                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+                        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Link href="/analytics">
+                                <GradientMetricCard
+                                    title="Total Revenue"
+                                    value={formatCurrency(data.totalSalesValue)}
+                                    icon={BarChart}
+                                    trend="+12.5% this month"
+                                    gradient="bg-gradient-to-br from-primary to-violet-500"
+                                />
+                            </Link>
+                            <Link href="/analytics">
+                                <GradientMetricCard
+                                    title="Total Profit"
+                                    value={formatCurrency(data.totalProfit)}
+                                    icon={TrendingUp}
+                                    trend="+8.2% this month"
+                                    gradient="bg-gradient-to-br from-emerald-500 to-green-500"
+                                />
+                            </Link>
                         </div>
-                        <Card className="lg:col-span-1 p-4 flex flex-col justify-center">
-                            <CardTitle className="text-base mb-4">Quick Actions</CardTitle>
-                            <div className="space-y-3">
-                                <Button asChild className="w-full justify-start" variant="ghost">
-                                    <Link href="/analytics"><Plus className="mr-2" /> New Report</Link>
-                                </Button>
-                                <Button asChild className="w-full justify-start" variant="ghost">
-                                    <Link href="/import"><Package className="mr-2" /> Import Products</Link>
-                                </Button>
-                                <Button asChild className="w-full justify-start" variant="ghost">
-                                    <Link href="/settings/team"><Users className="mr-2" /> Invite Team</Link>
-                                </Button>
-                            </div>
-                        </Card>
+                        <BusinessHealthScore metrics={data} />
                     </div>
 
                     {/* Second Row: Sparkline Metric Cards */}
