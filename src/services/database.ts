@@ -385,7 +385,8 @@ export async function getSuppliersFromDB(companyId: string) {
                 const cachedData = await redisClient.get(cacheKey);
                 if (cachedData) {
                     await incrementCacheHit('suppliers');
-                    return JSON.parse(cachedData);
+                    const parsedData = z.array(SupplierSchema).safeParse(JSON.parse(cachedData));
+                    if (parsedData.success) return parsedData.data;
                 }
                 await incrementCacheMiss('suppliers');
             } catch (e) { logError(e, { context: `Redis error getting cache for ${cacheKey}` }); }
@@ -394,7 +395,7 @@ export async function getSuppliersFromDB(companyId: string) {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
             .from('vendors')
-            .select('id, vendor_name, contact_info, address, terms, account_number')
+            .select('*')
             .eq('company_id', companyId);
         
         if (error) {

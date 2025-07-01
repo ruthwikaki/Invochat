@@ -11,7 +11,10 @@ export default async function SuppliersPage() {
 
   return (
     <AppPage>
-      <AppPageHeader title="Suppliers">
+      <AppPageHeader 
+        title="Suppliers"
+        description="Manage your vendors and their contact information."
+      >
         <Button asChild>
           <Link href="/suppliers/new">
             <Plus className="mr-2 h-4 w-4" />

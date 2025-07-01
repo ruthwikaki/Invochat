@@ -12,7 +12,7 @@ import {
   type SupplierFormData,
 } from '@/types';
 import { createSupplier, updateSupplier } from '@/app/data-actions';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,6 +60,9 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
         <Card>
             <CardHeader>
                 <CardTitle>{isEditMode ? 'Edit Supplier' : 'New Supplier'}</CardTitle>
+                <CardDescription>
+                    Fill in the contact and account details for your supplier below.
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -14,7 +14,7 @@ export default async function EditSupplierPage({ params }: { params: { id: strin
   return (
     <AppPage>
       <AppPageHeader
-        title={`Edit ${supplier.name}`}
+        title={`Edit ${supplier.vendor_name}`}
         description="Update the details for this supplier."
       />
       <SupplierForm initialData={supplier} />

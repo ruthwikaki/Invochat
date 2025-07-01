@@ -53,20 +53,15 @@ export const SupplierSchema = z.object({
     address: z.string().nullable(),
     terms: z.string().nullable(),
     account_number: z.string().nullable(),
-}).transform(data => ({
-    ...data,
-    id: data.id,
-    name: data.vendor_name,
-    email: data.contact_info, // For convenience in other parts of the app
-}));
+});
 export type Supplier = z.infer<typeof SupplierSchema>;
 
 export const SupplierFormSchema = z.object({
     vendor_name: z.string().min(2, "Supplier name must be at least 2 characters."),
     contact_info: z.string().email({ message: "Please enter a valid email address."}).nullable().optional().or(z.literal('')),
-    address: z.string().nullable().optional(),
-    terms: z.string().nullable().optional(),
-    account_number: z.string().nullable().optional(),
+    address: z.string().optional().nullable(),
+    terms: z.string().optional().nullable(),
+    account_number: z.string().optional().nullable(),
 });
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 

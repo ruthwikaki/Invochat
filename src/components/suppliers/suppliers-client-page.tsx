@@ -33,7 +33,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Mail, Briefcase, FileText, Truck, MoreHorizontal, Edit, Trash2, Search, Loader2 } from 'lucide-react';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 
 function SupplierCard({
@@ -64,14 +63,14 @@ function SupplierCard({
 
   return (
     <>
-      <Card>
+      <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-300">
         <CardHeader className="flex flex-row items-start justify-between">
           <div className="flex items-center gap-4">
             <Avatar className="h-12 w-12">
-              <AvatarFallback>{supplier.name.charAt(0)}</AvatarFallback>
+              <AvatarFallback>{supplier.vendor_name.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <CardTitle>{supplier.name}</CardTitle>
+              <CardTitle>{supplier.vendor_name}</CardTitle>
               <CardDescription>{supplier.address || 'Address not available'}</CardDescription>
             </div>
           </div>
@@ -91,14 +90,16 @@ function SupplierCard({
             </DropdownMenuContent>
           </DropdownMenu>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          <a
-            href={`mailto:${supplier.contact_info}`}
-            className="flex items-center hover:underline text-primary"
-          >
-            <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-            <span>{supplier.contact_info}</span>
-          </a>
+        <CardContent className="space-y-4 text-sm flex-grow">
+          {supplier.contact_info && (
+            <a
+              href={`mailto:${supplier.contact_info}`}
+              className="flex items-center hover:underline text-primary"
+            >
+              <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+              <span>{supplier.contact_info}</span>
+            </a>
+          )}
           <div className="flex items-center">
             <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
             <span>Terms: {supplier.terms || 'N/A'}</span>
@@ -117,7 +118,7 @@ function SupplierCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete {supplier.name}. This action cannot be undone.
+              This will permanently delete {supplier.vendor_name}. Deleting a supplier who is linked to Purchase Orders will fail. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -146,7 +147,7 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
     if (!searchTerm) return suppliers;
     return suppliers.filter(
       (supplier) =>
-        supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        supplier.vendor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (supplier.contact_info && supplier.contact_info.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (supplier.account_number && supplier.account_number.includes(searchTerm))
     );
@@ -164,19 +165,8 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
         />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredSuppliers.length > 0 ? (
-          filteredSuppliers.map((supplier) => (
-            <SupplierCard
-              key={supplier.id}
-              supplier={supplier}
-              onEdit={() => router.push(`/suppliers/${supplier.id}/edit`)}
-              onDelete={() => setSuppliers((prev) => prev.filter((s) => s.id !== supplier.id))}
-            />
-          ))
-        ) : (
-          <div className="col-span-full">
-            <Card className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed p-6">
+      {suppliers.length === 0 ? (
+           <Card className="h-60 flex flex-col items-center justify-center text-center border-2 border-dashed p-6">
               <motion.div
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -187,14 +177,21 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
               </motion.div>
               <h3 className="mt-4 text-lg font-semibold">No Suppliers Found</h3>
               <p className="text-muted-foreground">
-                {suppliers.length > 0
-                  ? 'No suppliers match your search.'
-                  : 'Get started by adding your first supplier.'}
+                Get started by adding your first supplier.
               </p>
             </Card>
-          </div>
-        )}
-      </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredSuppliers.map((supplier) => (
+            <SupplierCard
+              key={supplier.id}
+              supplier={supplier}
+              onEdit={() => router.push(`/suppliers/${supplier.id}/edit`)}
+              onDelete={() => setSuppliers((prev) => prev.filter((s) => s.id !== supplier.id))}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
