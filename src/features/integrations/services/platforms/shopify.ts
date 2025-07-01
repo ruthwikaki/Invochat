@@ -77,8 +77,9 @@ export async function syncProducts(integration: Integration, accessToken: string
                 cost: parseFloat(variant.price),
                 category: product.product_type,
                 barcode: variant.barcode,
-                shopify_product_id: product.id,
-                shopify_variant_id: variant.id,
+                source_platform: 'shopify',
+                external_product_id: String(product.id),
+                external_variant_id: String(variant.id),
             }))
         );
         
@@ -86,7 +87,7 @@ export async function syncProducts(integration: Integration, accessToken: string
             const { error: upsertError } = await supabase.rpc('batch_upsert_with_transaction', {
                 p_table_name: 'inventory',
                 p_records: inventoryToUpsert,
-                p_conflict_columns: ['company_id', 'shopify_variant_id'],
+                p_conflict_columns: ['company_id', 'source_platform', 'external_variant_id'],
             });
 
             if (upsertError) {
@@ -139,12 +140,13 @@ export async function syncOrders(integration: Integration, accessToken: string) 
         return;
     }
     
-    // Upsert customers first, using their unique Shopify ID
+    // Upsert customers first, using their unique external ID
     const customersToUpsert = allOrders
       .filter(order => order.customer?.id) // Only process orders with a customer ID
       .map(order => ({
         company_id: integration.company_id,
-        shopify_customer_id: order.customer.id,
+        platform: 'shopify',
+        external_id: String(order.customer.id),
         customer_name: `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() || 'Unknown Customer',
         email: order.customer.email
     }));
@@ -153,41 +155,42 @@ export async function syncOrders(integration: Integration, accessToken: string) 
         // Use direct upsert to get IDs back, as the RPC function cannot.
         const { data: upsertedCustomers, error: customerError } = await supabase
             .from('customers')
-            .upsert(customersToUpsert, { onConflict: 'company_id, shopify_customer_id', ignoreDuplicates: false })
-            .select('id, shopify_customer_id');
+            .upsert(customersToUpsert, { onConflict: 'company_id, platform, external_id', ignoreDuplicates: false })
+            .select('id, external_id');
 
         if (customerError) {
             throw new Error(`Database upsert error for customers: ${customerError.message}`);
         }
         
-        // Map Shopify customer IDs to our internal UUIDs
-        const customerIdMap = new Map(upsertedCustomers.map(c => [c.shopify_customer_id, c.id]));
+        // Map external customer IDs to our internal UUIDs
+        const customerIdMap = new Map(upsertedCustomers.map(c => [c.external_id, c.id]));
 
         // Create orders and order_items
         const ordersToInsert = allOrders
-            .filter(order => order.customer?.id && customerIdMap.has(order.customer.id))
+            .filter(order => order.customer?.id && customerIdMap.has(String(order.customer.id)))
             .map(order => ({
                 company_id: integration.company_id,
-                customer_id: customerIdMap.get(order.customer.id),
+                customer_id: customerIdMap.get(String(order.customer.id)),
                 sale_date: order.created_at,
                 total_amount: order.total_price,
                 sales_channel: 'shopify',
-                shopify_order_id: order.id,
+                platform: 'shopify',
+                external_id: String(order.id),
         }));
         
         const { data: createdOrders, error: orderError } = await supabase
             .from('orders')
-            .upsert(ordersToInsert, { onConflict: 'company_id, shopify_order_id', ignoreDuplicates: false })
-            .select('id, shopify_order_id');
+            .upsert(ordersToInsert, { onConflict: 'company_id, platform, external_id', ignoreDuplicates: false })
+            .select('id, external_id');
 
         if (orderError) throw new Error(`Database upsert error for orders: ${orderError.message}`);
         if(!createdOrders) throw new Error("Failed to retrieve created orders after upsert.");
 
-        const orderIdMap = new Map(createdOrders.map(o => [o.shopify_order_id, o.id]));
+        const orderIdMap = new Map(createdOrders.map(o => [o.external_id, o.id]));
 
         const orderItemsToInsert = allOrders.flatMap(order => 
             order.line_items.map((item: any) => ({
-                sale_id: orderIdMap.get(order.id),
+                sale_id: orderIdMap.get(String(order.id)),
                 sku: item.sku || `SHOPIFY-${item.variant_id}`,
                 quantity: item.quantity,
                 unit_price: item.price,

@@ -226,7 +226,7 @@ const BUSINESS_QUERY_EXAMPLES = `
         JOIN orders o ON oi.sale_id = o.id
         JOIN inventory i ON oi.sku = i.sku AND i.company_id = o.company_id
         WHERE o.company_id = :company_id
-          AND o.sales_channel = 'Shopify'
+          AND o.platform = 'shopify' -- Use platform for filtering
           AND o.sale_date >= CURRENT_DATE - INTERVAL '90 days'
           AND oi.unit_price > 0
      ),

@@ -175,10 +175,12 @@ $batch_upsert_func$;
 
 -- ========= Part 5: E-Commerce & Integration Tables =========
 
--- Add shopify-specific columns to existing tables
-ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS shopify_product_id BIGINT;
-ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS shopify_variant_id BIGINT;
-ALTER TABLE public.inventory ADD CONSTRAINT unique_shopify_variant_per_company UNIQUE (company_id, shopify_variant_id);
+-- Add generic integration columns to existing tables
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_variant_id TEXT;
+ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS unique_shopify_variant_per_company;
+ALTER TABLE public.inventory ADD CONSTRAINT unique_external_variant_per_company UNIQUE (company_id, source_platform, external_variant_id);
 
 
 -- Table for customers
@@ -187,13 +189,15 @@ CREATE TABLE IF NOT EXISTS public.customers (
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     customer_name TEXT NOT NULL,
     email TEXT,
-    shopify_customer_id BIGINT,
+    platform TEXT, -- e.g. 'shopify', 'woocommerce'
+    external_id TEXT, -- The ID from the external platform
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
--- Remove old unique constraint on name
-ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_customer_name_per_company;
--- Add new unique constraint on shopify_id
-ALTER TABLE public.customers ADD CONSTRAINT unique_shopify_customer_per_company UNIQUE (company_id, shopify_customer_id);
+-- Drop old specific constraint and name column
+ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_shopify_customer_per_company;
+ALTER TABLE public.customers DROP COLUMN IF EXISTS shopify_customer_id;
+-- Add new generic unique constraint
+ALTER TABLE public.customers ADD CONSTRAINT unique_external_customer_per_company UNIQUE (company_id, platform, external_id);
 CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
 
 
@@ -205,13 +209,16 @@ CREATE TABLE IF NOT EXISTS public.orders (
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
-    shopify_order_id BIGINT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_shopify_order_per_company UNIQUE (company_id, shopify_order_id)
+    platform TEXT, -- e.g. 'shopify', 'woocommerce'
+    external_id TEXT, -- The ID from the external platform
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
--- Remove old customer_name column if it exists
+-- Drop old specific constraint and customer name column
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS unique_shopify_order_per_company;
+ALTER TABLE public.orders DROP COLUMN IF EXISTS shopify_order_id;
 ALTER TABLE public.orders DROP COLUMN IF EXISTS customer_name;
-
+-- Add new generic unique constraint
+ALTER TABLE public.orders ADD CONSTRAINT unique_external_order_per_company UNIQUE (company_id, platform, external_id);
 CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
 CREATE INDEX IF NOT EXISTS idx_orders_sale_date ON public.orders(sale_date);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
