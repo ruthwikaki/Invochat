@@ -1,8 +1,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useFormStatus } from 'react-dom';
+import { useState, useTransition, DragEvent } from 'react';
 import { handleDataImport, type ImportResult } from '@/app/(app)/import/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, CheckCircle, FileUp, Loader2, Table } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Loader2, Table, UploadCloud } from 'lucide-react';
 import { CSRFInput } from '../auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const importOptions = {
     inventory: {
@@ -43,15 +43,6 @@ const importOptions = {
 };
 
 type DataType = keyof typeof importOptions;
-
-function SubmitButton() {
-    const { pending } = useFormStatus();
-    return (
-        <Button type="submit" disabled={pending} className="w-full">
-            {pending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : <><FileUp className="mr-2 h-4 w-4" /> Import Data</>}
-        </Button>
-    );
-}
 
 function ImportResultsCard({ results }: { results: Omit<ImportResult, 'success'> }) {
     const hasErrors = (results.errorCount || 0) > 0;
@@ -89,19 +80,21 @@ function ImportResultsCard({ results }: { results: Omit<ImportResult, 'success'>
     );
 }
 
-
 export function ImporterClientPage() {
     const [dataType, setDataType] = useState<DataType>('inventory');
     const [results, setResults] = useState<Omit<ImportResult, 'success'> | null>(null);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
+    const [isDragging, setIsDragging] = useState(false);
+    const [fileName, setFileName] = useState<string | null>(null);
 
-    const handleSubmit = (formData: FormData) => {
+    const handleFormSubmit = (formData: FormData) => {
         setResults(null);
         startTransition(async () => {
             const result = await handleDataImport(formData);
             if (result.success) {
                 setResults(result);
+                 setFileName(null);
             } else {
                  toast({
                     variant: 'destructive',
@@ -112,6 +105,47 @@ export function ImporterClientPage() {
             }
         });
     };
+    
+    const processFile = (file: File | null) => {
+        if (file) {
+            setFileName(file.name);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('dataType', dataType);
+            const csrfToken = document.querySelector<HTMLInputElement>('input[name="csrf_token"]')?.value;
+            if (csrfToken) {
+                 formData.append('csrf_token', csrfToken);
+            }
+            handleFormSubmit(formData);
+        }
+    };
+
+    const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+    
+    const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+    
+    const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            processFile(files[0]);
+        }
+    };
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -119,64 +153,92 @@ export function ImporterClientPage() {
                 <CardHeader>
                     <CardTitle>Upload Your Data</CardTitle>
                     <CardDescription>
-                        Select the type of data you want to import and upload the corresponding CSV file.
+                        Select the data type, then drag and drop your CSV file or click to browse.
                     </CardDescription>
                 </CardHeader>
-                <form action={handleSubmit}>
-                    <CardContent className="space-y-6">
-                        <CSRFInput />
-                        <div className="space-y-2">
-                            <Label htmlFor="data-type">Data Type</Label>
-                            <Select name="dataType" value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>
-                                <SelectTrigger id="data-type">
-                                    <SelectValue placeholder="Select a data type to import" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(importOptions).map(([key, { label }]) => (
-                                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                <CardContent className="space-y-6">
+                    <CSRFInput />
+                    <div className="space-y-2">
+                        <Label htmlFor="data-type">1. Select Data Type</Label>
+                        <Select name="dataType" value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>
+                            <SelectTrigger id="data-type">
+                                <SelectValue placeholder="Select a data type to import" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(importOptions).map(([key, { label }]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                         <Label>2. Upload File</Label>
+                        <div 
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            className={cn(
+                                "relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition-colors",
+                                isDragging && "border-primary bg-primary/10"
+                            )}
+                        >
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                                <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragging && "text-primary")} />
+                                {fileName ? (
+                                    <>
+                                        <p className="font-semibold text-primary">{fileName}</p>
+                                        <p className="text-xs text-muted-foreground">Drop another file to replace</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="mb-2 text-sm text-foreground">
+                                            <span className="font-semibold">Click to upload</span> or drag and drop
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">CSV files supported (up to 10MB)</p>
+                                    </>
+                                )}
+                            </div>
+                            <Input 
+                                id="file" 
+                                name="file" 
+                                type="file" 
+                                accept=".csv" 
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                                onChange={(e) => processFile(e.target.files ? e.target.files[0] : null)}
+                            />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="file">CSV File</Label>
-                            <Input id="file" name="file" type="file" accept=".csv" required />
-                        </div>
-                        <Alert>
-                            <Table className="h-4 w-4" />
-                            <AlertTitle>Required CSV Columns</AlertTitle>
-                            <AlertDescription>
-                                Ensure your CSV file has the following columns:
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    {importOptions[dataType].columns.map(col => (
-                                        <code key={col} className="text-xs font-mono bg-muted text-muted-foreground px-2 py-1 rounded-md">{col}</code>
-                                    ))}
-                                </div>
-                            </AlertDescription>
-                        </Alert>
-                    </CardContent>
-                    <CardFooter>
-                       <SubmitButton />
-                    </CardFooter>
-                </form>
+                    </div>
+
+                    <Alert>
+                        <Table className="h-4 w-4" />
+                        <AlertTitle>Required CSV Columns for '{importOptions[dataType].label}'</AlertTitle>
+                        <AlertDescription>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {importOptions[dataType].columns.map(col => (
+                                    <code key={col} className="text-xs font-mono bg-muted text-muted-foreground px-2 py-1 rounded-md">{col}</code>
+                                ))}
+                            </div>
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
             </Card>
 
             <div className="lg:col-span-1">
-                {isPending && !results && (
+                {isPending ? (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
                         <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
                         <CardTitle className="mt-4">Processing File...</CardTitle>
                         <CardDescription className="mt-2 max-w-xs">
-                            Validating rows and importing data. This may take a moment for large files. Please wait.
+                            Validating rows and importing data. This may take a moment.
                         </CardDescription>
                     </Card>
-                )}
-                {results && (
+                ) : results ? (
                     <ImportResultsCard results={results} />
-                )}
-                {!isPending && !results && (
+                ) : (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
-                        <FileUp className="h-12 w-12 text-muted-foreground" />
+                        <UploadCloud className="h-12 w-12 text-muted-foreground" />
                         <CardTitle className="mt-4">Ready to Import</CardTitle>
                         <CardDescription className="mt-2">
                             Your import results will appear here once the file is processed.
