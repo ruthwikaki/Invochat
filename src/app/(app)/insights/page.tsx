@@ -10,7 +10,7 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { getInsightsPageData } from '@/app/data-actions';
-import { Lightbulb, AlertTriangle, CheckCircle, Bot, TrendingDown, Package, FileText, ArrowRight } from 'lucide-react';
+import { Lightbulb, AlertTriangle, CheckCircle, Bot, TrendingDown, Package, ArrowRight, ServerCrash } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ import type { Anomaly, DeadStockItem, Alert } from '@/types';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 interface InsightsData {
     summary: string;
@@ -79,27 +80,71 @@ function LoadingSkeleton() {
     )
 }
 
+function ErrorState({ error, onRetry }: { error: string, onRetry: () => void }) {
+    return (
+        <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-destructive/50 bg-destructive/10">
+            <motion.div
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1, type: 'spring' }}
+                className="bg-destructive/10 rounded-full p-4"
+            >
+                <ServerCrash className="h-12 w-12 text-destructive" />
+            </motion.div>
+            <h3 className="mt-6 text-xl font-semibold text-destructive">Could Not Load Insights</h3>
+            <p className="mt-2 text-muted-foreground max-w-md">{error}</p>
+            <Button onClick={onRetry} className="mt-6">
+                Try Again
+            </Button>
+        </Card>
+    );
+}
+
+function EmptyState() {
+  return (
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+        className="bg-primary/10 rounded-full p-6"
+      >
+        <Lightbulb className="h-16 w-16 text-primary" />
+      </motion.div>
+      <h3 className="mt-6 text-xl font-semibold">No New Insights</h3>
+      <p className="mt-2 text-muted-foreground">
+        The AI hasn't found any significant anomalies or urgent actions in your recent data.
+      </p>
+    </Card>
+  );
+}
+
 export default function InsightsPage() {
   const [insights, setInsights] = useState<InsightsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    async function fetchInsights() {
-      try {
-        setLoading(true);
-        const data = await getInsightsPageData();
-        setInsights(data);
-      } catch (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Error Fetching Insights',
-          description: getErrorMessage(error) || 'Could not load insights data.'
-        });
-      } finally {
-        setLoading(false);
-      }
+  const fetchInsights = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getInsightsPageData();
+      setInsights(data);
+    } catch (e) {
+      const errorMessage = getErrorMessage(e) || 'An unknown error occurred while loading insights.';
+      setError(errorMessage);
+      toast({
+        variant: 'destructive',
+        title: 'Error Fetching Insights',
+        description: errorMessage,
+      });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchInsights();
   }, [toast]);
   
@@ -114,6 +159,35 @@ export default function InsightsPage() {
         </AppPage>
     )
   }
+  
+  if (error) {
+    return (
+        <AppPage>
+            <AppPageHeader
+                title="Proactive Insights"
+                description="There was a problem analyzing your data."
+            />
+            <ErrorState error={error} onRetry={fetchInsights} />
+        </AppPage>
+    )
+  }
+
+  const noActionableItems = 
+    insights?.anomalies.length === 0 &&
+    insights?.topDeadStock.length === 0 &&
+    insights?.topLowStock.length === 0;
+    
+  if (noActionableItems) {
+     return (
+        <AppPage>
+             <AppPageHeader
+                title="Proactive Insights"
+                description="The engine automatically scans your recent data for significant events or deviations from normal patterns."
+            />
+            <EmptyState />
+        </AppPage>
+     )
+  }
 
   return (
     <AppPage>
@@ -123,20 +197,22 @@ export default function InsightsPage() {
       />
       
       {/* AI Summary Card */}
-      <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
-            AI Business Summary
-          </CardTitle>
-          <CardDescription>
-            A high-level overview of what's happening in your business right now.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-            <p className="text-foreground/90">{insights?.summary || "No new insights to summarize at this time."}</p>
-        </CardContent>
-      </Card>
+      {insights?.summary && (
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-primary" />
+              AI Business Summary
+            </CardTitle>
+            <CardDescription>
+              A high-level overview of what's happening in your business right now.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+              <p className="text-foreground/90">{insights.summary}</p>
+          </CardContent>
+        </Card>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Dead Stock Insights */}
@@ -224,10 +300,8 @@ export default function InsightsPage() {
             </CardHeader>
             <CardContent className="p-0">
             {insights?.anomalies.length === 0 ? (
-                <div className="h-40 flex flex-col items-center justify-center text-center rounded-lg">
-                <CheckCircle className="h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-4 text-lg font-semibold">No Anomalies Found</h3>
-                <p className="text-muted-foreground">Your recent business activity appears to be within normal parameters.</p>
+                <div className="p-4 text-sm text-muted-foreground text-center">
+                    <p>No anomalies found in your recent activity.</p>
                 </div>
             ) : (
                 insights?.anomalies.map((anomaly, index) => (
@@ -237,7 +311,6 @@ export default function InsightsPage() {
             </CardContent>
         </Card>
       </div>
-
     </AppPage>
   );
 }

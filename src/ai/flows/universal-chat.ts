@@ -564,7 +564,8 @@ const universalChatOrchestrator = ai.defineFlow(
         const toolCall = toolCalls[0];
         
         if (toolCall.name === 'createPurchaseOrdersFromSuggestions' && !toolCall.input.suggestions) {
-            const lastAiMessage = conversationHistory.reverse().find(m => m.role === 'assistant');
+            // FIX: Use slice() to create a shallow copy before reversing to avoid mutating the original array.
+            const lastAiMessage = conversationHistory.slice().reverse().find(m => m.role === 'assistant');
             if (lastAiMessage) {
                 const potentialSuggestions = (lastAiMessage as any).tool_response?.output;
                  if (Array.isArray(potentialSuggestions)) {
