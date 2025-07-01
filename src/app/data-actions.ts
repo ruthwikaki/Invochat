@@ -44,7 +44,7 @@ import {
     getInventoryLedgerForSkuFromDB,
 } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem } from '@/types';
 import { ai } from '@/ai/genkit';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -57,6 +57,7 @@ import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSc
 import { sendPurchaseOrderEmail } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
+import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -171,9 +172,42 @@ export async function getCompanySettings(): Promise<CompanySettings> {
     return getSettings(companyId);
 }
 
-export async function getAnomalyInsights() {
+export async function getInsightsPageData(): Promise<{ summary: string; anomalies: Anomaly[]; topDeadStock: DeadStockItem[]; topLowStock: Alert[]; }> {
+  try {
     const { companyId } = await getAuthContext();
-    return getAnomalyInsightsFromDB(companyId);
+
+    // Fetch all data points in parallel
+    const [anomalies, deadStockData, alerts] = await Promise.all([
+      getAnomalyInsightsFromDB(companyId),
+      getDeadStockPageData(companyId),
+      getAlertsData(companyId),
+    ]);
+
+    const topDeadStock = deadStockData.deadStockItems
+      .sort((a, b) => (b.total_value || 0) - (a.total_value || 0))
+      .slice(0, 5);
+
+    const topLowStock = alerts
+      .filter(a => a.type === 'low_stock')
+      .slice(0, 5);
+
+    // Generate the summary using the AI flow
+    const summary = await generateInsightsSummary({
+      anomalies,
+      lowStockCount: alerts.filter(a => a.type === 'low_stock').length,
+      deadStockCount: deadStockData.deadStockItems.length,
+    });
+    
+    return {
+      summary,
+      anomalies,
+      topDeadStock,
+      topLowStock,
+    };
+  } catch (error) {
+    logError(error, { context: 'getInsightsPageData' });
+    throw error;
+  }
 }
 
 export async function updateCompanySettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
