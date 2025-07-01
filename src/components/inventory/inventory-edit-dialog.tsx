@@ -1,25 +1,27 @@
 
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { InventoryUpdateSchema, type InventoryUpdateData, type UnifiedInventoryItem } from '@/types';
+import { InventoryUpdateSchema, type InventoryUpdateData, type UnifiedInventoryItem, type Location } from '@/types';
 import { updateInventoryItem } from '@/app/data-actions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface InventoryEditDialogProps {
   item: UnifiedInventoryItem | null;
   onClose: () => void;
   onSave: (updatedItem: UnifiedInventoryItem) => void;
+  locations: Location[];
 }
 
-export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDialogProps) {
+export function InventoryEditDialog({ item, onClose, onSave, locations }: InventoryEditDialogProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
@@ -32,6 +34,7 @@ export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDial
       reorder_point: item.reorder_point,
       landed_cost: item.landed_cost,
       barcode: item.barcode,
+      location_id: item.location_id
     } : undefined,
   });
 
@@ -59,13 +62,14 @@ export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDial
         reorder_point: item.reorder_point,
         landed_cost: item.landed_cost,
         barcode: item.barcode,
+        location_id: item.location_id
       });
     }
   }, [item, form]);
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit: {item?.product_name}</DialogTitle>
           <DialogDescription>
@@ -103,6 +107,26 @@ export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDial
                 <Input id="reorder_point" type="number" {...form.register('reorder_point')} />
                 {form.formState.errors.reorder_point && <p className="text-sm text-destructive">{form.formState.errors.reorder_point.message}</p>}
               </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="location_id">Location</Label>
+            <Controller
+                name="location_id"
+                control={form.control}
+                render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Assign a location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                             <SelectItem value="">Unassigned</SelectItem>
+                            {locations.map(loc => (
+                                <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
+            />
           </div>
           <DialogFooter className="pt-4">
             <DialogClose asChild>

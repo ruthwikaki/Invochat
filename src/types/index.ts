@@ -155,6 +155,7 @@ export const InventoryUpdateSchema = z.object({
   reorder_point: z.coerce.number().int().nonnegative('Reorder point must be a non-negative integer.').optional().nullable(),
   landed_cost: z.coerce.number().nonnegative('Landed cost must be a non-negative number.').optional().nullable(),
   barcode: z.string().optional().nullable(),
+  location_id: z.string().uuid().optional().nullable(),
 });
 export type InventoryUpdateData = z.infer<typeof InventoryUpdateSchema>;
 

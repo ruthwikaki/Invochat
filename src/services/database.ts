@@ -182,7 +182,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 SELECT (CURRENT_DATE - INTERVAL '${days} days') as start_date
             ),
             orders_in_range AS (
-                SELECT id, total_amount, sale_date, customer_name, company_id
+                SELECT id, total_amount, sale_date, customer_id, company_id
                 FROM orders
                 WHERE company_id = '${companyId}' AND sale_date >= (SELECT start_date FROM date_range)
             ),
@@ -203,10 +203,11 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
                 GROUP BY 1 ORDER BY 1
             ),
             top_customers AS (
-                SELECT s.customer_name as name, SUM(s.total_amount) as value
+                SELECT c.customer_name as name, SUM(s.total_amount) as value
                 FROM orders_in_range s
-                WHERE s.customer_name IS NOT NULL
-                GROUP BY s.customer_name ORDER BY value DESC LIMIT 5
+                JOIN customers c ON s.customer_id = c.id
+                WHERE s.customer_id IS NOT NULL
+                GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
             ),
             inventory_by_category AS (
                 SELECT category as name, sum(quantity * cost) as value 
@@ -866,8 +867,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
             WITH daily_metrics AS (
                 SELECT DATE(sale_date) as date,
                     SUM(total_amount) as daily_revenue,
-                    COUNT(DISTINCT customer_name) as daily_customers,
-                    AVG(total_amount) as avg_order_value
+                    COUNT(DISTINCT customer_id) as daily_customers
                 FROM orders
                 WHERE company_id = '${companyId}'
                 AND sale_date >= CURRENT_DATE - INTERVAL '30 days'
@@ -1419,6 +1419,9 @@ export async function deleteInventoryItemsFromDb(companyId: string, skus: string
             .in('sku', skus);
         if (error) {
             logError(error, { context: `deleteInventoryItemsFromDb for company ${companyId}` });
+            if (error.message.includes('foreign key constraint')) {
+                throw new Error("One or more items could not be deleted because they are referenced in existing sales or purchase orders.");
+            }
             throw error;
         }
     });
@@ -1438,6 +1441,7 @@ export async function updateInventoryItemInDb(companyId: string, sku: string, it
                 reorder_point: itemData.reorder_point,
                 landed_cost: itemData.landed_cost,
                 barcode: itemData.barcode,
+                location_id: itemData.location_id,
             })
             .eq('company_id', companyId)
             .eq('sku', sku)
@@ -1452,16 +1456,38 @@ export async function updateInventoryItemInDb(companyId: string, sku: string, it
             throw error;
         }
 
+        // We need to fetch the stats for the unified view separately now.
+        const { data: stats } = await supabase.rpc('execute_dynamic_query', {
+            query_text: `
+                WITH monthly_sales AS (
+                    SELECT 
+                        oi.sku,
+                        SUM(oi.quantity) as units_sold
+                    FROM order_items oi
+                    JOIN orders o ON oi.sale_id = o.id
+                    WHERE o.company_id = '${companyId}' AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days' AND oi.sku = '${sku}'
+                    GROUP BY oi.sku
+                )
+                SELECT 
+                    COALESCE(ms.units_sold, 0) as monthly_units_sold,
+                    ((${data.price || 0} - COALESCE(${data.landed_cost || data.cost}, 0)) * COALESCE(ms.units_sold, 0)) as monthly_profit
+                FROM monthly_sales ms
+            `
+        }).single();
+
+
         // Transform the result to match UnifiedInventoryItem structure
-        const transformedData = {
+        const transformedData: UnifiedInventoryItem = {
             ...data,
             product_name: data.name,
             total_value: data.quantity * data.cost,
             location_name: data.location?.name || null,
+            monthly_units_sold: (stats as any)?.monthly_units_sold || 0,
+            monthly_profit: (stats as any)?.monthly_profit || 0,
         };
         delete (transformedData as any).location;
         
-        return transformedData as UnifiedInventoryItem;
+        return transformedData;
     });
 }
 

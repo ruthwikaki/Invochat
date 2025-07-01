@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Location } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Truck, X, Package, Sparkles, Loader2, Warehouse, DollarSign } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, DollarSign } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { deleteInventoryItems } from '@/app/data-actions';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { InventoryEditDialog } from './inventory-edit-dialog';
+import { Package } from 'lucide-react';
 
 
 interface InventoryClientPageProps {
@@ -213,7 +214,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will permanently delete the selected {itemToDelete?.length} item(s). This action cannot be undone.
+                    This action will attempt to permanently delete the selected {itemToDelete?.length} item(s). If an item has associated orders, deletion will fail to protect data integrity.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -230,6 +231,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
         item={editingItem}
         onClose={() => setEditingItem(null)}
         onSave={handleSaveItem}
+        locations={locations}
       />
 
         {showEmptyState ? <EmptyInventoryState /> : (
@@ -246,7 +248,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                             />
                             </TableHead>
                             <TableHead>Product</TableHead>
-                            <TableHead>Category</TableHead>
+                            <TableHead>Location</TableHead>
                             <TableHead className="text-right">Quantity</TableHead>
                             <TableHead className="text-right">Total Value</TableHead>
                             <TableHead className="text-right">Profit Margin</TableHead>
@@ -283,7 +285,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                 <div className="font-medium">{item.product_name}</div>
                                 <div className="text-xs text-muted-foreground">{item.sku}</div>
                                 </TableCell>
-                                <TableCell>{item.category || 'N/A'}</TableCell>
+                                <TableCell>{item.location_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
                                 <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
@@ -305,7 +307,6 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                                                <DropdownMenuItem disabled><Truck className="mr-2 h-4 w-4" />Reorder</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemToDelete([item.sku])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
@@ -326,12 +327,12 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
                                     <TableCell colSpan={9} className="p-4">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                            <div><strong>Unit Cost:</strong> ${item.cost.toFixed(2)}</div>
-                                            <div><strong>Landed Cost:</strong> {item.landed_cost ? `$${item.landed_cost.toFixed(2)}` : 'N/A'}</div>
-                                            <div><strong>On Order:</strong> {item.on_order_quantity} units</div>
-                                            <div><strong>Barcode:</strong> {item.barcode || 'N/A'}</div>
-                                            <div><strong>Location:</strong> {item.location_name || 'Unassigned'}</div>
-                                            <div><strong>Monthly Units Sold:</strong> {item.monthly_units_sold}</div>
+                                            <div><strong className="text-muted-foreground">Category:</strong> {item.category || 'N/A'}</div>
+                                            <div><strong className="text-muted-foreground">Unit Cost:</strong> ${item.cost.toFixed(2)}</div>
+                                            <div><strong className="text-muted-foreground">Landed Cost:</strong> {item.landed_cost ? `$${item.landed_cost.toFixed(2)}` : 'N/A'}</div>
+                                            <div><strong className="text-muted-foreground">On Order:</strong> {item.on_order_quantity} units</div>
+                                            <div><strong className="text-muted-foreground">Barcode:</strong> {item.barcode || 'N/A'}</div>
+                                            <div><strong className="text-muted-foreground">Monthly Units Sold:</strong> {item.monthly_units_sold}</div>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -359,7 +360,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                         <Button variant="outline" size="sm" disabled>Edit Selected</Button>
                         <Button variant="destructive" size="sm" onClick={() => setItemToDelete(Array.from(selectedRows))}>Delete Selected</Button>
                         <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
-                            <X className="h-4 w-4"/>
+                            <Warehouse className="h-4 w-4"/>
                         </Button>
                     </div>
                 </motion.div>
