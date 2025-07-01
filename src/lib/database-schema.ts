@@ -189,12 +189,10 @@ CREATE TABLE IF NOT EXISTS public.customers (
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     customer_name TEXT NOT NULL,
     email TEXT,
+    platform TEXT,
+    external_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
--- Add generic integration columns
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS platform TEXT;
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS external_id TEXT;
-
 -- Drop old specific constraint and name column
 ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_shopify_customer_per_company;
 ALTER TABLE public.customers DROP COLUMN IF EXISTS shopify_customer_id;
@@ -212,12 +210,10 @@ CREATE TABLE IF NOT EXISTS public.orders (
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
+    platform TEXT,
+    external_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
--- Add generic integration columns
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS platform TEXT;
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS external_id TEXT;
-
 -- Drop old specific constraint and customer name column
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS unique_shopify_order_per_company;
 ALTER TABLE public.orders DROP COLUMN IF EXISTS shopify_order_id;
@@ -800,4 +796,4 @@ CREATE POLICY "Users can view sync logs for their own company" ON public.sync_lo
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
 CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id = public.current_user_company_id());
-`;
+```
