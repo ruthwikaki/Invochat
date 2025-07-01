@@ -907,6 +907,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
                 i.category,
                 i.quantity,
                 i.cost,
+                i.price,
                 (i.quantity * i.cost) as total_value,
                 i.reorder_point,
                 i.on_order_quantity,

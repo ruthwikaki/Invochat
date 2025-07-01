@@ -140,6 +140,7 @@ export type UnifiedInventoryItem = {
   category: string | null;
   quantity: number;
   cost: number;
+  price: number;
   total_value: number;
   reorder_point: number | null;
   on_order_quantity: number;
