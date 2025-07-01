@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
@@ -222,7 +221,7 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 );
 
 -- ========= Part 2: Schema Migrations & Alterations =========
--- This section ensures older schemas are updated correctly.
+-- This section ensures older schemas are updated correctly by adding columns if they don't exist.
 
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
