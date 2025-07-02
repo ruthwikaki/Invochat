@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -71,10 +70,10 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
 
   if (searchParams?.success) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-          <InvoChatLogo className="h-10 w-10" />
-          <h1>ARVO</h1>
+          <InvoChatLogo className="h-10 w-10 text-primary" />
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">ARVO</h1>
         </div>
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -104,16 +103,16 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <InvoChatLogo className="h-10 w-10" />
-        <h1>ARVO</h1>
+        <InvoChatLogo className="h-10 w-10 text-primary" />
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl">Create Account</CardTitle>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Create Your Account</CardTitle>
           <CardDescription>
-            Enter your information to create your ARVO account
+            Get started with AI-powered inventory intelligence.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -159,16 +158,12 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
           </form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
-            <Link href="/login" className="underline">
+            <Link href="/login" className="underline text-primary">
               Sign in
             </Link>
           </div>
         </CardContent>
       </Card>
-      <div className="mt-6 text-xs text-muted-foreground space-x-4">
-        <Link href="/terms" className="hover:underline">Terms of Service</Link>
-        <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
-      </div>
     </div>
   );
 }

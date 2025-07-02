@@ -78,10 +78,10 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
     }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <InvoChatLogo className="h-10 w-10" />
-        <h1>ARVO</h1>
+        <InvoChatLogo className="h-10 w-10 text-primary" />
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>

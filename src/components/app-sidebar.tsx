@@ -65,11 +65,11 @@ export function AppSidebar() {
 
 
   return (
-    <Sidebar className="w-80 flex-col border-r bg-background">
+    <Sidebar className="w-80 flex-col border-r bg-card">
       <SidebarHeader>
         <div className="flex items-center gap-2">
           <InvoChatLogo className="h-7 w-7" />
-          <h1 className="text-xl font-semibold">InvoChat</h1>
+          <h1 className="text-xl font-semibold">ARVO</h1>
         </div>
         <SidebarTrigger className="md:hidden" />
       </SidebarHeader>
@@ -178,9 +178,6 @@ export function AppSidebar() {
                 <DropdownMenuItem onClick={() => setTheme('dark')}>
                   Dark
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme('system')}>
-                  System
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
@@ -197,5 +194,3 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
-
-    

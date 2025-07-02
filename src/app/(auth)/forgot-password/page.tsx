@@ -37,7 +37,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
 
   if (searchParams?.success) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -66,10 +66,10 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <InvoChatLogo className="h-10 w-10" />
-        <h1>InvoChat</h1>
+        <InvoChatLogo className="h-10 w-10 text-primary" />
+        <h1 className="text-4xl font-bold tracking-tight text-foreground">ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
@@ -101,7 +101,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
           </form>
           <div className="mt-4 text-center text-sm">
             Remembered your password?{' '}
-            <Link href="/login" className="underline">
+            <Link href="/login" className="underline text-primary">
               Sign in
             </Link>
           </div>

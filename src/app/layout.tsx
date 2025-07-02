@@ -15,8 +15,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'InvoChat - Conversational Inventory Intelligence',
-  description: 'AI-powered inventory management for InvoChat',
+  title: 'ARVO - Conversational Inventory Intelligence',
+  description: 'AI-powered inventory management for ARVO',
 };
 
 export default async function RootLayout({
@@ -41,7 +41,7 @@ export default async function RootLayout({
       <body className={cn('font-body antialiased', inter.variable)}>
         <ThemeProvider
             attribute="class"
-            defaultTheme="dark"
+            defaultTheme="light"
             enableSystem={false}
             disableTransitionOnChange
         >
