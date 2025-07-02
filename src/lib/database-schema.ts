@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
@@ -222,7 +221,7 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 );
 
 -- ========= Part 2: Schema Migrations & Alterations =========
--- This section ensures older schemas are updated correctly.
+-- This section ensures older schemas are updated correctly by adding columns if they don't exist.
 
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
@@ -509,6 +508,67 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION create_purchase_order_and_update_inventory(p_company_id uuid, p_supplier_id uuid, p_po_number text, p_order_date date, p_total_amount numeric, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
+RETURNS public.purchase_orders LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE new_po purchase_orders; item jsonb;
+BEGIN
+    INSERT INTO public.purchase_orders (company_id, supplier_id, po_number, order_date, expected_date, notes, total_amount, status)
+    VALUES (p_company_id, p_supplier_id, p_po_number, p_order_date, p_expected_date, p_notes, p_total_amount, 'draft')
+    RETURNING * INTO new_po;
+
+    FOR item IN SELECT * FROM jsonb_array_elements(p_items) LOOP
+        INSERT INTO public.purchase_order_items (po_id, sku, quantity_ordered, unit_cost)
+        VALUES (new_po.id, item->>'sku', (item->>'quantity_ordered')::integer, (item->>'unit_cost')::numeric);
+
+        UPDATE public.inventory SET on_order_quantity = on_order_quantity + (item->>'quantity_ordered')::integer
+        WHERE company_id = p_company_id AND sku = item->>'sku';
+    END LOOP;
+    RETURN new_po;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION update_purchase_order(p_po_id uuid, p_company_id uuid, p_supplier_id uuid, p_po_number text, p_status text, p_order_date date, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    old_items jsonb; new_total_amount numeric; item jsonb; old_item record; diff integer;
+BEGIN
+    SELECT json_agg(json_build_object('sku', sku, 'quantity_ordered', quantity_ordered)) INTO old_items FROM public.purchase_order_items WHERE po_id = p_po_id;
+    new_total_amount := (SELECT SUM((item->>'quantity_ordered')::numeric * (item->>'unit_cost')::numeric) FROM jsonb_array_elements(p_items) as item);
+
+    UPDATE public.purchase_orders SET supplier_id = p_supplier_id, po_number = p_po_number, status = p_status, order_date = p_order_date, expected_date = p_expected_date, notes = p_notes, total_amount = new_total_amount, updated_at = NOW()
+    WHERE id = p_po_id AND company_id = p_company_id;
+
+    FOR old_item IN SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id LOOP
+        UPDATE public.inventory SET on_order_quantity = on_order_quantity - old_item.quantity_ordered
+        WHERE company_id = p_company_id AND sku = old_item.sku;
+    END LOOP;
+
+    DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
+
+    FOR item IN SELECT * FROM jsonb_array_elements(p_items) LOOP
+        INSERT INTO public.purchase_order_items (po_id, sku, quantity_ordered, unit_cost)
+        VALUES (p_po_id, item->>'sku', (item->>'quantity_ordered')::integer, (item->>'unit_cost')::numeric);
+
+        UPDATE public.inventory SET on_order_quantity = on_order_quantity + (item->>'quantity_ordered')::integer
+        WHERE company_id = p_company_id AND sku = item->>'sku';
+    END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION delete_purchase_order(p_po_id uuid, p_company_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE item record;
+BEGIN
+    FOR item IN SELECT sku, quantity_ordered, quantity_received FROM public.purchase_order_items WHERE po_id = p_po_id LOOP
+        UPDATE public.inventory SET on_order_quantity = on_order_quantity - (item.quantity_ordered - item.quantity_received)
+        WHERE company_id = p_company_id AND sku = item.sku;
+    END LOOP;
+
+    DELETE FROM public.purchase_orders WHERE id = p_po_id AND company_id = p_company_id;
+END;
+$$;
+
+
 -- ========= Part 12: Row-Level Security (RLS) Policies =========
 
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
@@ -581,4 +641,3 @@ BEGIN
     END LOOP;
 END;
 $$;
-```
