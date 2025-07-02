@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,7 +18,8 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { useSearchParams } from 'next/navigation';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -30,18 +30,7 @@ function SubmitButton() {
     );
 }
 
-export default function ForgotPasswordPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    if (token) {
-      setCsrfToken(token);
-    }
-  }, []);
+export default function ForgotPasswordPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { success?: string; error?: string } }) {
 
   if (searchParams?.success) {
     return (

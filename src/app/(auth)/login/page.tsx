@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
@@ -11,7 +10,20 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
+
+function LoginSubmitButton() {
+    const { pending } = useFormStatus();
+    return (
+        <Button 
+            type="submit" 
+            disabled={pending} 
+            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
+        >
+            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+        </Button>
+    )
+}
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
@@ -38,34 +50,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function LoginSubmitButton() {
-    const { pending } = useFormStatus();
-    return (
-        <Button 
-            type="submit" 
-            disabled={pending} 
-            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
-        >
-            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
-        </Button>
-    )
-}
-
-export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // This effect runs on the client after the component mounts.
-    // It reads the CSRF token from the cookie and sets it in state.
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    if (token) {
-      setCsrfToken(token);
-    }
-  }, []);
-
+export default function LoginPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { error?: string; message?: string } }) {
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
       <div className="absolute inset-0 -z-10">
@@ -86,7 +71,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         </div>
 
         <form action={login} className="space-y-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
             <div className="space-y-2">
                 <Label htmlFor="email" className="text-slate-300">Email</Label>
                 <Input

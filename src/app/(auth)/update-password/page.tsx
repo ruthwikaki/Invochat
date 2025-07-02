@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
@@ -56,20 +55,9 @@ function SubmitButton() {
     );
 }
 
-export default function UpdatePasswordPage({ searchParams }: { searchParams?: { error?: string } }) {
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+export default function UpdatePasswordPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { error?: string } }) {
     const [error, setError] = useState(searchParams?.error || null);
 
-    useEffect(() => {
-        const token = document.cookie
-            .split('; ')
-            .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-            ?.split('=')[1];
-        if (token) {
-            setCsrfToken(token);
-        }
-    }, []);
-    
     const handleSubmit = async (formData: FormData) => {
         if (formData.get('password') !== formData.get('confirmPassword')) {
             setError('Passwords do not match.');
@@ -98,7 +86,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent className="p-0">
           <form action={handleSubmit} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
             <div className="grid gap-2">
               <Label htmlFor="password" className="text-slate-300">New Password</Label>
                <PasswordInput

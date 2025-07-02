@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,7 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
 
 function SignupSubmitButton() {
     const { pending } = useFormStatus();
@@ -58,19 +57,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-
-export default function SignupPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    if (token) {
-      setCsrfToken(token);
-    }
-  }, []);
+export default function SignupPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { success?: string; error?: string } }) {
 
   if (searchParams?.success) {
     return (
@@ -125,7 +112,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
         </CardHeader>
         <CardContent className="p-0">
           <form action={signup} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
             <div className="grid gap-2">
               <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
               <Input
