@@ -270,6 +270,10 @@ begin
     p_table_name, p_table_name, array_to_string(p_conflict_columns, ', '), update_set_clause
   );
   execute query using p_records;
+exception
+    when unique_violation then
+        raise notice 'A unique constraint violation occurred during batch upsert on table %. Details: %', p_table_name, SQLERRM;
+        raise exception 'Duplicate entry found in CSV. %', SQLERRM;
 end;
 $$;
 
