@@ -1,69 +1,20 @@
-'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useFormStatus } from 'react-dom';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { login } from '@/app/(auth)/actions';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
-import { useSearchParams } from 'next/navigation';
+import { CSRF_COOKIE_NAME } from '@/lib/csrf';
+import { LoginForm } from '@/components/auth/LoginForm';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
-function LoginSubmitButton({ disabled }: { disabled: boolean }) {
-    const { pending } = useFormStatus();
-    return (
-        <Button 
-            type="submit" 
-            disabled={pending || disabled} 
-            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
-        >
-            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
-        </Button>
-    )
-}
-
-const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
-  (props, ref) => {
-    const [showPassword, setShowPassword] = useState(false);
-    return (
-      <div className="relative">
-        <Input
-          ref={ref}
-          type={showPassword ? 'text' : 'password'}
-          className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-          {...props}
-        />
-        <button
-          type="button"
-          onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1"
-          aria-label={showPassword ? "Hide password" : "Show password"}
-        >
-          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-        </button>
-      </div>
-    );
-  }
-);
-PasswordInput.displayName = 'PasswordInput';
-
-export default function LoginPage() {
-  const searchParams = useSearchParams();
-  const [csrfToken, setCsrfToken] = useState<string>('');
-
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    if (token) {
-      setCsrfToken(token);
-    }
-  }, []);
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const csrfToken = cookies().get(CSRF_COOKIE_NAME)?.value || '';
+  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
+  const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -72,75 +23,33 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
       </div>
 
-      <div className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
-        <div className="text-center">
+      <Card className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
+        <CardHeader className="p-0 text-center">
           <div className="flex justify-center items-center gap-3 mb-4">
             <InvoChatLogo className="h-10 w-10 text-blue-500" />
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
               InvoChat
             </h1>
           </div>
-          <h2 className="text-xl font-semibold text-slate-200">Welcome to Intelligent Inventory</h2>
-          <p className="text-slate-400 mt-2 text-sm">Sign in to access AI-powered insights.</p>
-        </div>
-
-        <form action={login} className="space-y-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
-            <div className="space-y-2">
-                <Label htmlFor="email" className="text-slate-300">Email</Label>
-                <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="you@company.com"
-                    required
-                    className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-                />
-            </div>
-            
-            <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-slate-300">Password</Label>
-                <Link
-                    href="/forgot-password"
-                    className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                    Forgot password?
-                </Link>
-                </div>
-                <PasswordInput
-                    id="password"
-                    name="password"
-                    placeholder="••••••••"
-                    required
-                />
-            </div>
-            
-            {searchParams?.get('error') && (
-                <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">
-                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                    <AlertDescription>{searchParams.get('error')}</AlertDescription>
-                </Alert>
-            )}
-
-            {searchParams?.get('message') && (
-                <Alert className="bg-blue-500/10 border-blue-500/30 text-blue-300">
-                    <AlertDescription>{searchParams.get('message')}</AlertDescription>
-                </Alert>
-            )}
-            
-            <div className="pt-2">
-                <LoginSubmitButton disabled={!csrfToken} />
-            </div>
-        </form>
-
-        <div className="text-center text-sm text-slate-400">
-          Don't have an account?{' '}
-          <Link href="/signup" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
-            Sign up
-          </Link>
-        </div>
-      </div>
+          <CardTitle className="text-xl font-semibold text-slate-200">Welcome to Intelligent Inventory</CardTitle>
+          <CardDescription className="text-slate-400 mt-2 text-sm">Sign in to access AI-powered insights.</CardDescription>
+        </CardHeader>
+        
+        <CardContent className="p-0">
+          {message && (
+              <Alert className="mb-4 bg-blue-500/10 border-blue-500/30 text-blue-300">
+                  <AlertDescription>{message}</AlertDescription>
+              </Alert>
+          )}
+          <LoginForm csrfToken={csrfToken} error={error} />
+          <div className="mt-6 text-center text-sm text-slate-400">
+            Don't have an account?{' '}
+            <Link href="/signup" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
+              Sign up
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,7 +1,7 @@
-'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useFormStatus } from 'react-dom';
+import { cookies } from 'next/headers';
+import React from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -10,41 +10,22 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
-import { requestPasswordReset } from '@/app/(auth)/actions';
+import { CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
-import { useSearchParams } from 'next/navigation';
+import { CSRF_COOKIE_NAME } from '@/lib/csrf';
+import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 
-function SubmitButton({ disabled }: { disabled: boolean }) {
-    const { pending } = useFormStatus();
-    return (
-      <Button type="submit" className="w-full" disabled={pending || disabled}>
-        {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
-      </Button>
-    );
-}
-
-export default function ForgotPasswordPage() {
-  const searchParams = useSearchParams();
-  const [csrfToken, setCsrfToken] = useState<string>("");
-
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    if (token) {
-      setCsrfToken(token);
-    }
-  }, []);
-
-  if (searchParams?.get('success')) {
+export default function ForgotPasswordPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const csrfToken = cookies().get(CSRF_COOKIE_NAME)?.value || '';
+  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
+  const success = searchParams?.success === 'true';
+  
+  if (success) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
         <motion.div
@@ -92,27 +73,7 @@ export default function ForgotPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <form action={requestPasswordReset} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
-            <div className="grid gap-2">
-              <Label htmlFor="email" className="text-slate-300">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@company.com"
-                required
-                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            {searchParams?.get('error') && (
-              <Alert variant="destructive">
-                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{searchParams.get('error')}</AlertDescription>
-              </Alert>
-            )}
-            <SubmitButton disabled={!csrfToken} />
-          </form>
+          <ForgotPasswordForm csrfToken={csrfToken} error={error} />
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}
             <Link href="/login" className="underline text-blue-400">

@@ -1,8 +1,5 @@
-'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useFormStatus } from 'react-dom';
-import { Button } from '@/components/ui/button';
+import { cookies } from 'next/headers';
 import {
   Card,
   CardContent,
@@ -10,76 +7,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { updatePassword } from '@/app/(auth)/actions';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
-import { useSearchParams } from 'next/navigation';
+import { CSRF_COOKIE_NAME } from '@/lib/csrf';
+import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm';
 
-const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
-  (props, ref) => {
-    const [showPassword, setShowPassword] = useState(false);
-    return (
-      <div className="relative">
-        <Input
-          ref={ref}
-          type={showPassword ? 'text' : 'password'}
-          className="pr-10 bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-          {...props}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-slate-400 hover:bg-transparent hover:text-white"
-          onClick={() => setShowPassword((prev) => !prev)}
-          aria-label={showPassword ? 'Hide password' : 'Show password'}
-          tabIndex={-1}
-        >
-          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
-      </div>
-    );
-  }
-);
-PasswordInput.displayName = 'PasswordInput';
-
-function SubmitButton({ disabled }: { disabled: boolean }) {
-    const { pending } = useFormStatus();
-    return (
-        <Button type="submit" className="w-full" disabled={pending || disabled}>
-            {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
-        </Button>
-    );
-}
-
-export default function UpdatePasswordPage() {
-    const searchParams = useSearchParams();
-    const [error, setError] = useState(searchParams?.get('error') || null);
-    const [csrfToken, setCsrfToken] = useState<string>('');
-
-    useEffect(() => {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-        ?.split('=')[1];
-      if (token) {
-        setCsrfToken(token);
-      }
-    }, []);
-
-
-    const handleSubmit = async (formData: FormData) => {
-        if (formData.get('password') !== formData.get('confirmPassword')) {
-            setError('Passwords do not match.');
-            return;
-        }
-        setError(null);
-        await updatePassword(formData);
-    }
+export default function UpdatePasswordPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const csrfToken = cookies().get(CSRF_COOKIE_NAME)?.value || '';
+  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
     
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 text-white p-4">
@@ -99,35 +37,7 @@ export default function UpdatePasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <form action={handleSubmit} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
-            <div className="grid gap-2">
-              <Label htmlFor="password" className="text-slate-300">New Password</Label>
-               <PasswordInput
-                    id="password"
-                    name="password"
-                    required
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-               />
-            </div>
-             <div className="grid gap-2">
-              <Label htmlFor="confirmPassword" className="text-slate-300">Confirm New Password</Label>
-              <PasswordInput
-                id="confirmPassword"
-                name="confirmPassword"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            {error && (
-              <Alert variant="destructive">
-                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            <SubmitButton disabled={!csrfToken} />
-          </form>
+          <UpdatePasswordForm csrfToken={csrfToken} error={error} />
         </CardContent>
       </Card>
     </div>

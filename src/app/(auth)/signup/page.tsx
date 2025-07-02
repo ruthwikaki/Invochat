@@ -1,9 +1,6 @@
-'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useFormStatus } from 'react-dom';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -11,68 +8,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
-import { signup } from '@/app/(auth)/actions';
+import { CheckCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
-import { useSearchParams } from 'next/navigation';
+import { CSRF_COOKIE_NAME } from '@/lib/csrf';
+import { SignupForm } from '@/components/auth/SignupForm';
 
-function SignupSubmitButton({ disabled }: { disabled: boolean }) {
-    const { pending } = useFormStatus();
-    return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={pending || disabled}>
-        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
-      </Button>
-    );
-}
+export default function SignupPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  const csrfToken = cookies().get(CSRF_COOKIE_NAME)?.value || '';
+  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
+  const success = searchParams?.success === 'true';
 
-const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
-  (props, ref) => {
-    const [showPassword, setShowPassword] = useState(false);
-    return (
-      <div className="relative">
-        <Input
-          ref={ref}
-          type={showPassword ? 'text' : 'password'}
-          className="pr-10 bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-          {...props}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-slate-400 hover:bg-transparent hover:text-white"
-          onClick={() => setShowPassword((prev) => !prev)}
-          aria-label={showPassword ? 'Hide password' : 'Show password'}
-          tabIndex={-1}
-        >
-          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
-      </div>
-    );
-  }
-);
-PasswordInput.displayName = 'PasswordInput';
-
-export default function SignupPage() {
-  const searchParams = useSearchParams();
-  const [csrfToken, setCsrfToken] = useState<string>('');
-
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    if (token) {
-      setCsrfToken(token);
-    }
-  }, []);
-
-  if (searchParams?.get('success')) {
+  if (success) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold">
@@ -124,48 +76,7 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <form action={signup} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
-            <div className="grid gap-2">
-              <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
-              <Input
-                id="companyName"
-                name="companyName"
-                type="text"
-                placeholder="Your Company Inc."
-                required
-                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email" className="text-slate-300">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@company.com"
-                required
-                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password" className="text-slate-300">Password</Label>
-              <PasswordInput
-                id="password"
-                name="password"
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
-            </div>
-            {searchParams?.get('error') && (
-              <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">
-                 <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{searchParams.get('error')}</AlertDescription>
-              </Alert>
-            )}
-            <SignupSubmitButton disabled={!csrfToken} />
-          </form>
+          <SignupForm csrfToken={csrfToken} error={error} />
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}
             <Link href="/login" className="underline text-blue-400">
