@@ -260,6 +260,12 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
                  <CardContent>
                     <Button type="submit" size="lg" className="w-full" disabled={isPending}>
                         {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Purchase Order
+                        {isEditMode ? 'Save Changes' : 'Create Purchase Order'}
                     </Button>
                  </CardContent>
+            </Card>
+        </div>
+      </div>
+    </form>
+  );
+}

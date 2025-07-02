@@ -28,10 +28,7 @@ export type Message = {
   role: 'user' | 'assistant';
   content: string;
   component?: 'deadStockTable' | 'reorderList' | 'supplierPerformanceTable' | 'confirmation';
-  componentProps?: {
-    items?: ReorderSuggestion[];
-    data?: DeadStockItem[] | SupplierPerformanceReport[] | any[];
-  };
+  componentProps?: Record<string, any>; // Loosened to allow for various component props
   visualization?: {
     type: 'table' | 'chart' | 'alert';
     data: Record<string, unknown>[];
@@ -136,7 +133,7 @@ export type UnifiedInventoryItem = {
   category: string | null;
   quantity: number;
   cost: number;
-  price: number;
+  price: number | null;
   total_value: number;
   reorder_point: number | null;
   on_order_quantity: number;
@@ -330,4 +327,4 @@ export const InventoryLedgerEntrySchema = z.object({
     related_id: z.string().uuid().nullable(),
     notes: z.string().nullable(),
 });
-export type InventoryLedgerEntry = z
+export type InventoryLedgerEntry = z.infer<typeof InventoryLedgerEntrySchema>;

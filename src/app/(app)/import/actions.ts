@@ -29,8 +29,10 @@ export type ImportResult = {
   summaryMessage: string;
 };
 
+type UserRole = 'Owner' | 'Admin' | 'Member';
+
 // A helper function to get the current user's company ID.
-async function getAuthContextForImport(): Promise<{ user: User, companyId: string }> {
+async function getAuthContextForImport(): Promise<{ user: User, companyId: string, userRole: UserRole }> {
   const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,10 +43,11 @@ async function getAuthContextForImport(): Promise<{ user: User, companyId: strin
   );
   const { data: { user } } = await supabase.auth.getUser();
   const companyId = user?.app_metadata?.company_id;
-  if (!user || !companyId) {
+  const userRole = user?.app_metadata?.role as UserRole;
+  if (!user || !companyId || !userRole) {
     throw new Error('Authentication error: User or company not found.');
   }
-  return { user, companyId };
+  return { user, companyId, userRole };
 }
 
 // A generic function to process any CSV file with a given schema and table name.
@@ -136,7 +139,12 @@ async function processCsv<T extends z.ZodType>(
 // The main server action that the client calls.
 export async function handleDataImport(formData: FormData): Promise<ImportResult> {
     try {
-        const { user, companyId } = await getAuthContextForImport();
+        const { user, companyId, userRole } = await getAuthContextForImport();
+        
+        // Critical Security Fix: Ensure only authorized users can import data.
+        if (userRole !== 'Owner' && userRole !== 'Admin') {
+            return { success: false, summaryMessage: 'You do not have permission to import data.' };
+        }
         
         // Apply rate limiting: 5 imports per hour per user.
         const { limited } = await rateLimit(user.id, 'data_import', 5, 3600);
@@ -181,11 +189,15 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
                 if ((result.successCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
                     await refreshMaterializedViews(companyId);
+                    revalidatePath('/inventory');
                 }
                 break;
             case 'suppliers':
                 result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId);
-                if ((result.successCount || 0) > 0) await invalidateCompanyCache(companyId, ['suppliers']);
+                if ((result.successCount || 0) > 0) {
+                    await invalidateCompanyCache(companyId, ['suppliers']);
+                    revalidatePath('/suppliers');
+                }
                 break;
             case 'supplier_catalogs':
                 result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId);

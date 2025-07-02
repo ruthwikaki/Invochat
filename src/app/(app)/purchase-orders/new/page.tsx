@@ -3,6 +3,8 @@ import { getSuppliersData } from '@/app/data-actions';
 import { PurchaseOrderForm } from '@/components/purchase-orders/po-form';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
+export const dynamic = 'force-dynamic';
+
 export default async function CreatePurchaseOrderPage() {
   const suppliers = await getSuppliersData();
 

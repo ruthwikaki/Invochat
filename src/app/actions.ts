@@ -230,18 +230,27 @@ export async function handleUserMessage(
         historyForAI = (history || [])
             .reverse() // Reverse to get chronological order
             .map(msg => {
+                // If it's a user message, the format is simple.
                 if (msg.role === 'user') {
                     return { role: 'user', content: [{ text: msg.content! }] };
-                } else { // assistant
-                    const toolName = msg.component;
-                    const toolData = msg.componentProps as { items?: ReorderSuggestion[], data?: any[] } | undefined;
-                    
-                    if (toolName && toolData) {
-                        const outputData = toolData.items || toolData.data;
-                        return { role: 'assistant', content: [{ toolResponse: { name: toolName, output: outputData } }] };
-                    }
-                    return { role: 'assistant', content: [{ text: msg.content! }] };
+                } 
+                
+                // If it's an assistant message, check if it was a tool call.
+                const toolName = msg.component;
+                const toolData = msg.componentProps as Record<string, any> | undefined;
+
+                if (toolName && toolData) {
+                    // Critical Fix: Reconstruct the tool response correctly for the AI's history.
+                    // The AI needs both the request (which is implicit in the previous user message)
+                    // and the response (the data from the tool).
+                    return { 
+                        role: 'assistant', 
+                        content: [{ toolResponse: { name: toolName, output: toolData.items || toolData.data || toolData } }] 
+                    };
                 }
+                
+                // Otherwise, it was a standard text response from the assistant.
+                return { role: 'assistant', content: [{ text: msg.content! }] };
             });
     }
 
@@ -371,3 +380,5 @@ export async function handleUserMessage(
   } finally {
       const endTime = performance.now();
       await trackEndpointPerformance('handleUserMessage', endTime - startTime);
+  }
+}
