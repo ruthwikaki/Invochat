@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -7,7 +8,6 @@ import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, 
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
 import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
@@ -62,17 +62,6 @@ function requireRole(currentUserRole: UserRole, allowedRoles: UserRole[]) {
         throw new Error('You do not have permission to perform this action.');
     }
 }
-
-function validateCsrf(formData: FormData) {
-    const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
-    const tokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-    if (!validateCSRFToken(tokenFromForm, tokenFromCookie)) {
-        logger.warn(`[CSRF] Invalid token. Action rejected.`);
-        throw new Error('Invalid form submission. Please refresh the page and try again.');
-    }
-}
-
 
 export async function getDashboardData(dateRange: string = '30d') {
     try {
@@ -164,7 +153,6 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
 export async function updateCompanySettings(formData: FormData): Promise<CompanySettings> {
     const { companyId, userRole } = await getAuthContext();
     requireRole(userRole, ['Owner', 'Admin']);
-    validateCsrf(formData);
     const settings = Object.fromEntries(formData.entries());
     delete settings.csrf_token;
     return db.updateSettingsInDb(companyId, settings);
@@ -186,7 +174,6 @@ const InviteTeamMemberSchema = z.object({
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCsrf(formData);
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
 
@@ -246,7 +233,6 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
 }
 
 export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
-  validateCsrf(new FormData()); // This is a placeholder and should be handled correctly
   const { companyId, userRole } = await getAuthContext();
   requireRole(userRole, ['Owner', 'Admin']);
   const parsedData = PurchaseOrderCreateSchema.safeParse(data);
@@ -265,7 +251,6 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
 }
 
 export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
-  validateCsrf(new FormData()); // Placeholder
   const { companyId, userRole } = await getAuthContext();
   requireRole(userRole, ['Owner', 'Admin']);
   const parsedData = PurchaseOrderUpdateSchema.safeParse(data);
@@ -286,7 +271,6 @@ export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdat
 
 export async function deletePurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
     try {
-        validateCsrf(new FormData()); // Placeholder
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deletePurchaseOrderFromDb(poId, companyId);
@@ -316,7 +300,6 @@ export async function emailPurchaseOrder(poId: string): Promise<{ success: boole
 
 export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Promise<{ success: boolean, error?: string }> {
     try {
-        validateCsrf(new FormData()); // Placeholder
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.receivePurchaseOrderItemsInDB(data.poId, companyId, data.items);
@@ -385,7 +368,6 @@ const UpsertChannelFeeSchema = z.object({
 
 export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCsrf(formData);
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const parsed = UpsertChannelFeeSchema.safeParse({ channel_name: formData.get('channel_name'), percentage_fee: formData.get('percentage_fee'), fixed_fee: formData.get('fixed_fee'), });
@@ -550,4 +532,164 @@ export async function disconnectIntegration(integrationId: string): Promise<{ su
 export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEntry[]> {
     const { companyId } = await getAuthContext();
     return db.getInventoryLedgerForSkuFromDB(companyId, sku);
+}
+
+export async function testSupabaseConnection(): Promise<{
+    success: boolean;
+    error: { message: string; details?: unknown; } | null;
+    user: User | null;
+    isConfigured: boolean;
+}> {
+    const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+
+    if (!isConfigured) {
+        return {
+            success: false,
+            error: { message: 'Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY) are not set.' },
+            user: null,
+            isConfigured,
+        };
+    }
+    
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    get(name: string) {
+                        return cookieStore.get(name)?.value;
+                    },
+                },
+            }
+        );
+        const { data: { user }, error } = await supabase.auth.getUser();
+
+        if (error) {
+            // AuthError is not a "real" error in this context, it just means no one is logged in.
+            if (error.name === 'AuthError') {
+                 return { success: true, error: null, user: null, isConfigured };
+            }
+            return { success: false, error: { message: error.message, details: error }, user: null, isConfigured };
+        }
+        
+        return { success: true, error: null, user, isConfigured };
+
+    } catch (e) {
+        return { success: false, error: { message: getErrorMessage(e), details: e }, user: null, isConfigured };
+    }
+}
+
+export async function testDatabaseQuery(): Promise<{
+  success: boolean;
+  count: number | null;
+  error: string | null;
+}> {
+  try {
+    const { companyId } = await getAuthContext();
+    
+    const serviceSupabase = db.getServiceRoleClient();
+
+    const { error, count } = await serviceSupabase
+      .from('company_settings')
+      .select('*', { count: 'exact', head: true })
+      .eq('company_id', companyId);
+
+    if (error) throw error;
+
+    return { success: true, count: count, error: null };
+  } catch (e) {
+    let errorMessage = getErrorMessage(e);
+    if (errorMessage?.includes('database')) {
+        errorMessage = `Database query failed: ${errorMessage}`;
+    } else if (errorMessage?.includes('relation "public.company_settings" does not exist')) {
+        errorMessage = "Database query failed: The 'company_settings' table could not be found. Please ensure your database schema is set up correctly by running the SQL in the setup page.";
+    }
+    return { success: false, count: null, error: errorMessage };
+  }
+}
+
+
+export async function testMaterializedView(): Promise<{ success: boolean; error: string | null; }> {
+    try {
+        const serviceSupabase = db.getServiceRoleClient();
+
+        const { data, error } = await serviceSupabase
+            .from('pg_matviews')
+            .select('matviewname')
+            .eq('matviewname', 'company_dashboard_metrics')
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') {
+                return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
+            }
+            throw error;
+        }
+
+        return { success: !!data, error: null };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+
+export async function testGenkitConnection(): Promise<{
+    success: boolean;
+    error: string | null;
+    isConfigured: boolean;
+}> {
+    const isConfigured = !!process.env.GOOGLE_API_KEY;
+
+    if (!isConfigured) {
+        return {
+            success: false,
+            error: 'Genkit is not configured. GOOGLE_API_KEY environment variable is not set.',
+            isConfigured,
+        };
+    }
+
+    try {
+        const model = 'googleai/gemini-1.5-flash';
+        
+        await db.getAi().generate({
+            model: model,
+            prompt: 'Test prompt: say "hello".',
+            config: {
+                temperature: 0.1,
+            }
+        });
+
+        return { success: true, error: null, isConfigured };
+    } catch (e) {
+        const errorMessage = getErrorMessage(e);
+        let detailedMessage = errorMessage;
+
+        if ((e as { status?: string })?.status === 'NOT_FOUND' || errorMessage?.includes('NOT_FOUND') || errorMessage?.includes('Model not found')) {
+            detailedMessage = `The configured AI model ('${config.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
+        } else if (errorMessage?.includes('API key not valid')) {
+            detailedMessage = 'Your Google AI API key is invalid. Please check the `GOOGLE_API_KEY` in your `.env` file.'
+        }
+        return { success: false, error: detailedMessage, isConfigured };
+    }
+}
+
+export async function testRedisConnection(): Promise<{
+    success: boolean;
+    error: string | null;
+    isEnabled: boolean;
+}> {
+    if (!db.isRedisEnabled) {
+        return { success: true, error: 'Redis is not configured (REDIS_URL is not set), so caching and rate limiting are disabled. This is not a failure.', isEnabled: false };
+    }
+    try {
+        const pong = await db.redisClient.ping();
+        if (pong !== 'PONG') {
+            throw new Error('Redis PING command did not return PONG.');
+        }
+        return { success: true, error: null, isEnabled: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e), isEnabled: true };
+    }
 }

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -11,7 +12,7 @@ import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
-import { getDbSchemaAndData as getDbSchema, getQueryPatternsForCompany, saveSuccessfulQuery, getSettings as getCompanySettings } from '@/services/database';
+import { getDbSchemaAndData, getQueryPatternsForCompany, saveSuccessfulQuery, getSettings } from '@/services/database';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
@@ -536,8 +537,8 @@ const universalChatOrchestrator = ai.defineFlow(
     }
     
     const [schemaData, settings, dynamicPatterns] = await Promise.all([
-        getDbSchema(companyId),
-        getCompanySettings(companyId),
+        getDbSchemaAndData(companyId),
+        getSettings(companyId),
         getQueryPatternsForCompany(companyId)
     ]);
 

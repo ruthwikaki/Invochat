@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -26,6 +27,8 @@ export default function LoginPage({
   const [loadingToken, setLoadingToken] = useState(true);
 
   useEffect(() => {
+    // Reading the cookie on the client side ensures we get the latest value
+    // after the middleware has run.
     setCsrfToken(getCookie('csrf_token'));
     setLoadingToken(false);
   }, []);
