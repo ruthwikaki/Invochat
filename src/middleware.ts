@@ -64,7 +64,7 @@ export async function middleware(req: NextRequest) {
       value: newCsrfToken,
       httpOnly: false, // Must be readable by client-side script
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax', // Use 'lax' for better compatibility with form submissions
       path: '/',
     });
   }
