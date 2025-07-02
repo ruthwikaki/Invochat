@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
@@ -10,14 +10,15 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { useSearchParams } from 'next/navigation';
 
-function LoginSubmitButton() {
+function LoginSubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
         <Button 
             type="submit" 
-            disabled={pending} 
+            disabled={pending || disabled} 
             className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
@@ -50,7 +51,20 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-export default function LoginPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { error?: string; message?: string } }) {
+export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const [csrfToken, setCsrfToken] = useState<string>('');
+
+  useEffect(() => {
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    if (token) {
+      setCsrfToken(token);
+    }
+  }, []);
+
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
       <div className="absolute inset-0 -z-10">
@@ -102,21 +116,21 @@ export default function LoginPage({ csrfToken, searchParams }: { csrfToken: stri
                 />
             </div>
             
-            {searchParams?.error && (
+            {searchParams?.get('error') && (
                 <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">
                     <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                    <AlertDescription>{searchParams.error}</AlertDescription>
+                    <AlertDescription>{searchParams.get('error')}</AlertDescription>
                 </Alert>
             )}
 
-            {searchParams?.message && (
+            {searchParams?.get('message') && (
                 <Alert className="bg-blue-500/10 border-blue-500/30 text-blue-300">
-                    <AlertDescription>{searchParams.message}</AlertDescription>
+                    <AlertDescription>{searchParams.get('message')}</AlertDescription>
                 </Alert>
             )}
             
             <div className="pt-2">
-                <LoginSubmitButton />
+                <LoginSubmitButton disabled={!csrfToken} />
             </div>
         </form>
 

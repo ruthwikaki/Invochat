@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +16,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { useSearchParams } from 'next/navigation';
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
@@ -46,17 +47,30 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
-        <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
+        <Button type="submit" className="w-full" disabled={pending || disabled}>
+            {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
         </Button>
     );
 }
 
-export default function UpdatePasswordPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { error?: string } }) {
-    const [error, setError] = useState(searchParams?.error || null);
+export default function UpdatePasswordPage() {
+    const searchParams = useSearchParams();
+    const [error, setError] = useState(searchParams?.get('error') || null);
+    const [csrfToken, setCsrfToken] = useState<string>('');
+
+    useEffect(() => {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+        ?.split('=')[1];
+      if (token) {
+        setCsrfToken(token);
+      }
+    }, []);
+
 
     const handleSubmit = async (formData: FormData) => {
         if (formData.get('password') !== formData.get('confirmPassword')) {
@@ -112,7 +126,7 @@ export default function UpdatePasswordPage({ csrfToken, searchParams }: { csrfTo
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton />
+            <SubmitButton disabled={!csrfToken} />
           </form>
         </CardContent>
       </Card>

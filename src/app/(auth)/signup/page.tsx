@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -18,12 +18,13 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { useSearchParams } from 'next/navigation';
 
-function SignupSubmitButton() {
+function SignupSubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
+      <Button type="submit" className="w-full h-12 text-base" disabled={pending || disabled}>
         {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
@@ -57,9 +58,21 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-export default function SignupPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { success?: string; error?: string } }) {
+export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const [csrfToken, setCsrfToken] = useState<string>('');
 
-  if (searchParams?.success) {
+  useEffect(() => {
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    if (token) {
+      setCsrfToken(token);
+    }
+  }, []);
+
+  if (searchParams?.get('success')) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold">
@@ -145,13 +158,13 @@ export default function SignupPage({ csrfToken, searchParams }: { csrfToken: str
                 minLength={6}
               />
             </div>
-            {searchParams?.error && (
+            {searchParams?.get('error') && (
               <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">
                  <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{searchParams.error}</AlertDescription>
+                <AlertDescription>{searchParams.get('error')}</AlertDescription>
               </Alert>
             )}
-            <SignupSubmitButton />
+            <SignupSubmitButton disabled={!csrfToken} />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}

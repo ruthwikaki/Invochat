@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,21 +18,33 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { useSearchParams } from 'next/navigation';
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" className="w-full" disabled={pending || disabled}>
         {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
       </Button>
     );
 }
 
-export default function ForgotPasswordPage({ csrfToken, searchParams }: { csrfToken: string, searchParams?: { success?: string; error?: string } }) {
+export default function ForgotPasswordPage() {
+  const searchParams = useSearchParams();
+  const [csrfToken, setCsrfToken] = useState<string>("");
 
-  if (searchParams?.success) {
+  useEffect(() => {
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    if (token) {
+      setCsrfToken(token);
+    }
+  }, []);
+
+  if (searchParams?.get('success')) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
         <motion.div
@@ -81,7 +93,7 @@ export default function ForgotPasswordPage({ csrfToken, searchParams }: { csrfTo
         </CardHeader>
         <CardContent className="p-0">
           <form action={requestPasswordReset} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
             <div className="grid gap-2">
               <Label htmlFor="email" className="text-slate-300">Email</Label>
               <Input
@@ -93,13 +105,13 @@ export default function ForgotPasswordPage({ csrfToken, searchParams }: { csrfTo
                 className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-            {searchParams?.error && (
+            {searchParams?.get('error') && (
               <Alert variant="destructive">
                  <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{searchParams.error}</AlertDescription>
+                <AlertDescription>{searchParams.get('error')}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton />
+            <SubmitButton disabled={!csrfToken} />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}
