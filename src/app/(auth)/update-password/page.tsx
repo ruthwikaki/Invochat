@@ -1,8 +1,8 @@
 
-import { cookies } from 'next/headers';
+'use client';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CSRF_COOKIE_NAME } from '@/lib/csrf';
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm';
 
 export default function UpdatePasswordPage({
@@ -10,7 +10,6 @@ export default function UpdatePasswordPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const csrfToken = cookies().get(CSRF_COOKIE_NAME)?.value || '';
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
     
   return (
@@ -31,7 +30,7 @@ export default function UpdatePasswordPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <UpdatePasswordForm csrfToken={csrfToken} error={error} />
+          <UpdatePasswordForm error={error} />
         </CardContent>
       </Card>
     </div>

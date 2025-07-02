@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,22 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { PasswordInput } from './PasswordInput';
 
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    return parts.pop()?.split(';').shift() || null;
+  }
+  return null;
+}
 
-function SignupSubmitButton() {
+function SubmitButton() {
     const { pending } = useFormStatus();
     return (
       <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
@@ -23,20 +34,28 @@ function SignupSubmitButton() {
 }
 
 interface SignupFormProps {
-    csrfToken: string;
     error: string | null;
 }
 
-export function SignupForm({ csrfToken, error: initialError }: SignupFormProps) {
+export function SignupForm({ error: initialError }: SignupFormProps) {
     const [error, setError] = useState(initialError);
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
+    useEffect(() => {
+        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    }, []);
+    
+    useEffect(() => {
+        setError(initialError);
+    }, [initialError]);
+    
     const handleInteraction = () => {
         if (error) setError(null);
     };
 
     return (
         <form action={signup} className="grid gap-4" onChange={handleInteraction}>
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
                 <Input
@@ -75,7 +94,18 @@ export function SignupForm({ csrfToken, error: initialError }: SignupFormProps) 
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SignupSubmitButton />
+            <Button type="submit" className="w-full h-12 text-base" disabled={!csrfToken}>
+                <SubmitButtonContent />
+            </Button>
         </form>
+    );
+}
+
+function SubmitButtonContent() {
+    const { pending } = useFormStatus();
+    return (
+        <>
+            {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
+        </>
     );
 }

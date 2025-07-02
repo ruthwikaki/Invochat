@@ -1,9 +1,9 @@
 
-import { cookies } from 'next/headers';
+'use client';
+
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CSRF_COOKIE_NAME } from '@/lib/csrf';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -12,7 +12,6 @@ export default function LoginPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const csrfToken = cookies().get(CSRF_COOKIE_NAME)?.value || '';
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
 
@@ -41,7 +40,7 @@ export default function LoginPage({
                   <AlertDescription>{message}</AlertDescription>
               </Alert>
           )}
-          <LoginForm csrfToken={csrfToken} error={error} />
+          <LoginForm error={error} />
           <div className="mt-6 text-center text-sm text-slate-400">
             Don't have an account?{' '}
             <Link href="/signup" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">

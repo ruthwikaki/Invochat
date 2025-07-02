@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,19 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    return parts.pop()?.split(';').shift() || null;
+  }
+  return null;
+}
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -21,20 +33,24 @@ function SubmitButton() {
 }
 
 interface ForgotPasswordFormProps {
-    csrfToken: string;
     error: string | null;
 }
 
-export function ForgotPasswordForm({ csrfToken, error: initialError }: ForgotPasswordFormProps) {
+export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormProps) {
   const [error, setError] = useState(initialError);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
+  useEffect(() => {
+    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+  }, []);
+  
   const handleInteraction = () => {
     if (error) setError(null);
   };
 
   return (
     <form action={requestPasswordReset} className="grid gap-4" onChange={handleInteraction}>
-      <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
+      <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
       <div className="grid gap-2">
         <Label htmlFor="email" className="text-slate-300">Email</Label>
         <Input
@@ -52,7 +68,18 @@ export function ForgotPasswordForm({ csrfToken, error: initialError }: ForgotPas
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <SubmitButton />
+      <Button type="submit" className="w-full" disabled={!csrfToken}>
+        <SubmitButtonContent />
+      </Button>
     </form>
+  );
+}
+
+function SubmitButtonContent() {
+  const { pending } = useFormStatus();
+  return (
+    <>
+      {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
+    </>
   );
 }
