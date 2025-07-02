@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -54,6 +54,14 @@ const availableAnalyses = [
       details: "This analysis helps you prioritize which items to focus on for stock control, marketing, and sales efforts. 'A' items are your most valuable, 'C' items are the least."
     },
     {
+      key: 'turnover',
+      title: 'Inventory Turnover Report',
+      icon: RefreshCw,
+      description: 'Calculate how many times inventory is sold and replaced over a period.',
+      prompt: 'What is my inventory turnover rate for the last 90 days?',
+      details: "This report calculates your inventory turnover rate (COGS / Average Inventory), a key indicator of sales efficiency and inventory health. A higher number is generally better."
+    },
+    {
       key: 'forecast',
       title: 'Demand Forecasting',
       icon: TrendingUp,
@@ -63,7 +71,7 @@ const availableAnalyses = [
     },
     {
         key: 'velocity',
-        title: 'Sales Velocity Analysis',
+        title: 'Best & Worst Sellers',
         icon: Activity,
         description: 'Identify your fastest and slowest-selling products over the last 90 days.',
         prompt: 'Identify my 10 fastest and 10 slowest-moving products over the last 90 days based on units sold.',

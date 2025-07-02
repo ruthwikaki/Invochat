@@ -20,6 +20,7 @@ import { getReorderSuggestions } from './reorder-tool';
 import { getSupplierPerformanceReport } from './supplier-performance-tool';
 import { createPurchaseOrdersTool } from './create-po-tool';
 import { getDeadStockReport } from './dead-stock-tool';
+import { getInventoryTurnoverReport } from './inventory-turnover-tool';
 import { logError } from '@/lib/error-handler';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -356,7 +357,7 @@ const FEW_SHOT_EXAMPLES = `
   ${BUSINESS_QUERY_EXAMPLES}
 `;
 
-const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport, createPurchaseOrdersTool, getDeadStockReport];
+const tools = [getEconomicIndicators, getReorderSuggestions, getSupplierPerformanceReport, createPurchaseOrdersTool, getDeadStockReport, getInventoryTurnoverReport];
 
 const SqlGenerationOutputSchema = z.object({
   sqlQuery: z.string().optional().describe('The generated SQL query, using named placeholders (e.g., :paramName) for user-provided values.'),
@@ -406,6 +407,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     11. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, or which supplier is 'best', you MUST use the \`getSupplierPerformanceReport\` tool.
     12. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions and they confirm they want to proceed, you MUST use the \`createPurchaseOrdersFromSuggestions\` tool.
     13. **Dead Stock**: If the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products', you MUST use the \`getDeadStockReport\` tool.
+    14. **Inventory Turnover**: If the user asks about 'inventory turnover rate', 'stock turn', or how efficiently they are selling through stock, you MUST use the \`getInventoryTurnoverReport\` tool.
     
     **Step 3: Consult Examples for Structure.**
     Review these examples to understand the expected query style and placeholder usage.

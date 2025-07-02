@@ -9,4 +9,5 @@ import '@/ai/flows/supplier-performance-tool.ts';
 import '@/ai/flows/create-po-tool.ts';
 import '@/ai/flows/economic-tool.ts';
 import '@/ai/flows/dead-stock-tool.ts';
+import '@/ai/flows/inventory-turnover-tool.ts';
 import '@/ai/flows/insights-summary-flow.ts';

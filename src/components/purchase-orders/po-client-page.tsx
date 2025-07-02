@@ -17,6 +17,7 @@ import { format } from 'date-fns';
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { deletePurchaseOrder } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface PurchaseOrderClientPageProps {
   initialPurchaseOrders: PurchaseOrder[];
@@ -171,9 +172,31 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                         No purchase orders found matching your search.
                       </TableCell>
                     </TableRow>
-                  ) : filteredPOs.map(po => (
+                  ) : filteredPOs.map(po => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Compare against the start of today
+                    const expectedDate = po.expected_date ? new Date(po.expected_date) : null;
+                    const isOverdue = expectedDate && !['received', 'cancelled'].includes(po.status || '') && expectedDate < today;
+
+                    return (
                     <TableRow key={po.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/purchase-orders/${po.id}`)}>
-                      <TableCell className="font-medium">{po.po_number}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                            {isOverdue ? (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger>
+                                            <div className="h-2.5 w-2.5 rounded-full bg-destructive" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Overdue since {format(new Date(po.expected_date!), 'PP')}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            ) : null}
+                            {po.po_number}
+                        </div>
+                      </TableCell>
                       <TableCell>{po.supplier_name}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(po.status)} className={getStatusColor(po.status)}>
@@ -200,7 +223,7 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )})}
                 </TableBody>
               </Table>
             </div>
@@ -210,5 +233,3 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
     </div>
   );
 }
-
-    
