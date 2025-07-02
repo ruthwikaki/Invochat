@@ -12,7 +12,7 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
-import { motion, useAnimationControls } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { useCsrfToken } from '@/hooks/use-csrf';
@@ -75,18 +75,14 @@ PasswordInput.displayName = 'PasswordInput';
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
     const { toast } = useToast();
-    const controls = useAnimationControls();
-
+    const [shouldShake, setShouldShake] = useState(false);
+    
     useEffect(() => {
-        // This ensures the intro animation runs, and then the shake animation runs if there's an error.
-        const sequence = async () => {
-            await controls.start("visible");
-            if (searchParams?.error) {
-                await controls.start("shake");
-            }
-        };
-        sequence();
-    }, [searchParams, controls]);
+        // Set state to trigger shake animation if there's an error in the URL
+        if (searchParams?.error) {
+            setShouldShake(true);
+        }
+    }, [searchParams?.error]);
 
     useEffect(() => {
          if (searchParams?.message) {
@@ -95,7 +91,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 description: searchParams.message,
             });
         }
-    }, [searchParams, toast]);
+    }, [searchParams?.message, toast]);
 
     const cardVariants = {
         hidden: { opacity: 0, y: 50, scale: 0.95 },
@@ -122,7 +118,8 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         <motion.div
             variants={cardVariants}
             initial="hidden"
-            animate={controls}
+            animate={shouldShake ? ["visible", "shake"] : "visible"}
+            onAnimationComplete={() => setShouldShake(false)} // Reset shake after it plays
             className={cn(
                 "w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl",
                 "bg-slate-900/50 backdrop-blur-lg border border-slate-700"
