@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
@@ -15,26 +15,6 @@ import { useCsrfToken } from '@/hooks/use-csrf';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { login } from '@/app/(auth)/actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
-function LoginButton() {
-  const { pending } = useFormStatus();
-  const token = useCsrfToken();
-  const isDisabled = pending || !token;
-
-  return (
-    <Button
-      type="submit"
-      disabled={isDisabled}
-      className="w-full"
-    >
-      {pending ? (
-        <Loader2 className="w-5 h-5 animate-spin" />
-      ) : (
-        'Sign In'
-      )}
-    </Button>
-  );
-}
 
 function PasswordInput() {
     const [showPassword, setShowPassword] = useState(false);
@@ -63,10 +43,22 @@ function PasswordInput() {
     );
 }
 
-export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
+function SubmitButton() {
+    const { pending } = useFormStatus();
+    const token = useCsrfToken();
+    const isDisabled = pending || !token;
+
+    return (
+        <Button type="submit" disabled={isDisabled} className="w-full">
+            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+        </Button>
+    )
+}
+
+export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
 
   return (
-    <div className="flex items-center justify-center min-h-screen w-full bg-muted/40 p-4">
+    <div className="flex items-center justify-center min-h-dvh w-full bg-background/95 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-3 mb-4">
@@ -111,9 +103,15 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 <AlertDescription>{searchParams.error}</AlertDescription>
                 </Alert>
             )}
+
+            {searchParams?.message && (
+                <Alert>
+                <AlertDescription>{searchParams.message}</AlertDescription>
+                </Alert>
+            )}
             
             <div className="pt-2">
-                <LoginButton />
+                <SubmitButton />
             </div>
             </form>
 
