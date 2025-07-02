@@ -1,9 +1,15 @@
 
 'use client';
+
 import { useState, useEffect } from 'react';
 import { CSRF_COOKIE_NAME } from '@/lib/csrf';
 
-// A simple, robust function to get a cookie by name from the browser.
+/**
+ * A simple, robust function to get a cookie by name from the browser.
+ * This function should only be called on the client side.
+ * @param name The name of the cookie to retrieve.
+ * @returns The cookie value, or null if not found.
+ */
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') {
     return null;
@@ -18,23 +24,17 @@ function getCookie(name: string): string | null {
 
 /**
  * A client-side hook to get the CSRF token.
- * It initializes its state synchronously from the cookie, which helps prevent
- * race conditions where components render before the token is available.
+ * It waits for the component to mount on the client, then reads the
+ * security token from the cookie once, ensuring reliability.
  */
 export function useCsrfToken() {
-  // Initialize state directly from the cookie if available.
-  const [token, setToken] = useState<string | null>(() => getCookie(CSRF_COOKIE_NAME));
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect serves as a fallback, for example if the cookie is set
-    // after the initial component mount for some reason.
-    if (!token) {
-      const cookieToken = getCookie(CSRF_COOKIE_NAME);
-      if (cookieToken) {
-        setToken(cookieToken);
-      }
-    }
-  }, [token]);
+    // This effect runs only once on the client, after the component has mounted.
+    // This is the correct and safe way to access browser-specific APIs like `document.cookie`.
+    setToken(getCookie(CSRF_COOKIE_NAME));
+  }, []); // The empty dependency array `[]` ensures this effect runs only once.
 
   return token;
 }
