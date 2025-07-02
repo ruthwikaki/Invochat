@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -21,6 +20,7 @@ import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon
 import Link from 'next/link';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 const businessRulesFields: { key: keyof CompanySettings; label: string; description: string, type: string }[] = [
     { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".', type: 'number' },
@@ -35,7 +35,7 @@ const themeFields: { key: keyof CompanySettings; label: string; description: str
     { key: 'theme_accent_color', label: 'Accent Color', description: 'Color for secondary elements and hovers.' },
 ];
 
-function ChannelFeeManager() {
+function ChannelFeeManager({ csrfToken }: { csrfToken: string | null }) {
     const [fees, setFees] = useState<ChannelFee[]>([]);
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
@@ -94,6 +94,7 @@ function ChannelFeeManager() {
             <div>
                  <h4 className="font-semibold mb-2">Add or Update Fee</h4>
                  <form action={handleFeeSubmit} className="space-y-4 rounded-md border p-4">
+                    <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
                     <div className="space-y-2">
                         <Label htmlFor="channel_name">Channel Name</Label>
                         <Input name="channel_name" id="channel_name" placeholder="e.g., Shopify" required />
@@ -112,7 +113,7 @@ function ChannelFeeManager() {
                              <DollarSign className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         </div>
                     </div>
-                    <Button type="submit" disabled={isPending} className="w-full">
+                    <Button type="submit" disabled={isPending || !csrfToken} className="w-full">
                         {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save Channel Fee
                     </Button>
@@ -128,6 +129,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
     useEffect(() => {
         async function fetchSettings() {
@@ -146,7 +148,16 @@ export default function SettingsPage() {
             }
         }
         fetchSettings();
-    }, []);
+
+        // Fetch CSRF token from cookie
+        const token = document.cookie
+            .split('; ')
+            .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+            ?.split('=')[1];
+        if (token) {
+            setCsrfToken(token);
+        }
+    }, [toast]);
     
     const handleInputChange = (key: keyof CompanySettings, value: string) => {
         const fieldType = [...businessRulesFields, ...themeFields].find(f => f.key === key)?.type;
@@ -158,16 +169,8 @@ export default function SettingsPage() {
         e.preventDefault();
         startTransition(async () => {
             try {
-                // Ensure numeric values are numbers before sending
-                const settingsToUpdate = { ...settings };
-                [...businessRulesFields].forEach(field => {
-                    const fieldDef = [...businessRulesFields].find(f => f.key === field.key);
-                    if (fieldDef?.type === 'number' && typeof settingsToUpdate[field.key] !== 'number') {
-                         settingsToUpdate[field.key] = Number(settingsToUpdate[field.key]) || 0;
-                    }
-                });
-                
-                await updateCompanySettings(settingsToUpdate as CompanySettings);
+                const formData = new FormData(e.currentTarget);
+                await updateCompanySettings(formData);
 
                 toast({
                     title: 'Success',
@@ -190,42 +193,91 @@ export default function SettingsPage() {
         <AppPage>
             <AppPageHeader title="Settings" />
             
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                 <div className="lg:col-span-2 space-y-6">
-                    {/* Business Rules Card */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <SettingsIcon className="h-5 w-5" />
-                                Business Rules
-                            </CardTitle>
-                            <CardDescription>
-                                Define thresholds that affect reports, alerts, and AI responses.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {loading ? <Skeleton className="h-48 w-full" /> : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    {businessRulesFields.map(({ key, label, description, type }) => (
-                                        <div key={key} className="space-y-2">
-                                            <Label htmlFor={key} className="text-base">{label}</Label>
-                                            <Input
-                                                id={key}
-                                                type={type}
-                                                value={settings[key] || ''}
-                                                onChange={(e) => handleInputChange(key, e.target.value)}
-                                                className="text-lg"
-                                            />
-                                            <p className="text-sm text-muted-foreground">{description}</p>
+                    <form onSubmit={handleSubmit}>
+                        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+                        {/* Business Rules Card */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <SettingsIcon className="h-5 w-5" />
+                                    Business Rules
+                                </CardTitle>
+                                <CardDescription>
+                                    Define thresholds that affect reports, alerts, and AI responses.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {loading ? <Skeleton className="h-48 w-full" /> : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {businessRulesFields.map(({ key, label, description, type }) => (
+                                            <div key={key} className="space-y-2">
+                                                <Label htmlFor={key} className="text-base">{label}</Label>
+                                                <Input
+                                                    id={key}
+                                                    name={key}
+                                                    type={type}
+                                                    value={settings[key] || ''}
+                                                    onChange={(e) => handleInputChange(key, e.target.value)}
+                                                    className="text-lg"
+                                                />
+                                                <p className="text-sm text-muted-foreground">{description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Theming Card */}
+                         <Card className="mt-6">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Palette className="h-5 w-5" />
+                                    Branding & Theming
+                                </CardTitle>
+                                <CardDescription>
+                                    Customize the look and feel of your workspace. Use HSL format for colors.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {loading ? <Skeleton className="h-64 w-full" /> : (
+                                    <div className="space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {themeFields.map(({ key, label, description }) => (
+                                                <div key={key} className="space-y-2">
+                                                    <Label htmlFor={key}>{label}</Label>
+                                                    <Input
+                                                        id={key}
+                                                        name={key}
+                                                        type="text"
+                                                        value={settings[key] as string || ''}
+                                                        onChange={(e) => handleInputChange(key, e.target.value)}
+                                                        placeholder='e.g., 262 84% 59%'
+                                                    />
+                                                    <p className="text-xs text-muted-foreground">{description}</p>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted p-2 rounded-lg">
+                                            <Info className="h-4 w-4 shrink-0" />
+                                            <span>You can get HSL color values from web tools like <a href="https://hslpicker.com/" target="_blank" rel="noopener noreferrer" className="underline">hslpicker.com</a>.</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                         <div className="flex justify-end pt-4 mt-6">
+                            <Button type="submit" disabled={isPending || loading || !csrfToken} size="lg">
+                                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isPending ? 'Saving...' : 'Save All Settings'}
+                            </Button>
+                        </div>
+                    </form>
 
                      {/* Channel Fees Card */}
-                    <Card>
+                    <Card className="mt-6">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <DollarSign className="h-5 w-5" />
@@ -236,55 +288,9 @@ export default function SettingsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <ChannelFeeManager />
+                            <ChannelFeeManager csrfToken={csrfToken} />
                         </CardContent>
                     </Card>
-
-
-                    {/* Theming Card */}
-                     <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Palette className="h-5 w-5" />
-                                Branding & Theming
-                            </CardTitle>
-                            <CardDescription>
-                                Customize the look and feel of your workspace. Use HSL format for colors.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {loading ? <Skeleton className="h-64 w-full" /> : (
-                                <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        {themeFields.map(({ key, label, description }) => (
-                                            <div key={key} className="space-y-2">
-                                                <Label htmlFor={key}>{label}</Label>
-                                                <Input
-                                                    id={key}
-                                                    type="text"
-                                                    value={settings[key] as string || ''}
-                                                    onChange={(e) => handleInputChange(key, e.target.value)}
-                                                    placeholder='e.g., 262 84% 59%'
-                                                />
-                                                <p className="text-xs text-muted-foreground">{description}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted p-2 rounded-lg">
-                                        <Info className="h-4 w-4 shrink-0" />
-                                        <span>You can get HSL color values from web tools like <a href="https://hslpicker.com/" target="_blank" rel="noopener noreferrer" className="underline">hslpicker.com</a>.</span>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <div className="flex justify-end pt-4">
-                        <Button type="submit" disabled={isPending || loading} size="lg">
-                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isPending ? 'Saving...' : 'Save All Settings'}
-                        </Button>
-                    </div>
                 </div>
 
                 <div className="space-y-6 lg:col-span-1">
@@ -329,7 +335,7 @@ export default function SettingsPage() {
                     </Card>
 
                 </div>
-            </form>
+            </div>
         </AppPage>
     );
 }

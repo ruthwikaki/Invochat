@@ -449,11 +449,13 @@ const queryValidationPrompt = ai.definePrompt({
         If even one is missing, FAIL validation.
     4.  **Read-Only Check**: Is the query a read-only \`SELECT\` statement?
         If it's anything else, FAIL validation.
+    5.  **Check for Common Injection Patterns**: Does the query contain patterns indicative of SQL injection attacks, such as \`'1'='1'\`, \`UNION SELECT\`, or execution of commands like \`pg_sleep\`?
+        If yes, FAIL validation immediately.
 
     **LOGIC & CORRECTNESS CHECKLIST:**
-    5.  **Syntax Validity**: Is the syntax valid for PostgreSQL?
-    6.  **Logical Answer**: Does the query logically answer the user's question?
-    7.  **Business Sense**: Does it use the correct columns/tables based on the question and business context?
+    6.  **Syntax Validity**: Is the syntax valid for PostgreSQL?
+    7.  **Logical Answer**: Does the query logically answer the user's question?
+    8.  **Business Sense**: Does it use the correct columns/tables based on the question and business context?
 
     **OUTPUT FORMAT:**
     - If ALL security and logic checks pass, return \`{"isValid": true}\`.
