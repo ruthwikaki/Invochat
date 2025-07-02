@@ -37,7 +37,6 @@ export async function middleware(req: NextRequest) {
     response.cookies.set({
       name: CSRF_COOKIE_NAME,
       value: csrfToken,
-      httpOnly: true, // More secure as it's not accessible by client-side script attacks
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
