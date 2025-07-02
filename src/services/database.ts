@@ -947,35 +947,51 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
         const supabase = getServiceRoleClient();
         const settings = await getSettings(companyId);
 
-        // This query identifies items that are below their reorder point and suggests an order quantity.
         const query = `
             WITH sales_velocity AS (
-                -- Calculate recent sales velocity (units sold in the last X days)
                 SELECT 
                     oi.sku,
-                    SUM(oi.quantity) / ${settings.fast_moving_days}.0 as daily_sales_velocity
+                    SUM(oi.quantity)::float / GREATEST(${settings.fast_moving_days}, 1) as daily_sales_velocity
                 FROM order_items oi
                 JOIN orders o ON oi.sale_id = o.id
                 WHERE o.company_id = '${companyId}'
                   AND o.sale_date >= CURRENT_DATE - INTERVAL '${settings.fast_moving_days} days'
                 GROUP BY oi.sku
             ),
+            ranked_suppliers AS (
+                SELECT 
+                    sc.sku,
+                    v.vendor_name,
+                    sc.supplier_id,
+                    sc.unit_cost,
+                    ROW_NUMBER() OVER(PARTITION BY sc.sku ORDER BY sc.unit_cost ASC) as rn
+                FROM supplier_catalogs sc
+                JOIN vendors v ON sc.supplier_id = v.id
+                WHERE v.company_id = '${companyId}'
+            ),
+            best_supplier AS (
+                SELECT sku, vendor_name as supplier_name, supplier_id, unit_cost
+                FROM ranked_suppliers
+                WHERE rn = 1
+            ),
             reorder_points AS (
-                -- Determine the reorder point: either from a manual rule or calculated
                 SELECT
                     i.sku,
                     i.name as product_name,
                     i.quantity as current_quantity,
                     COALESCE(rr.min_stock, i.reorder_point, 0) as reorder_point,
-                    -- Suggest ordering up to the max_stock level, or a fixed reorder quantity, or enough for 30 days of sales
-                    COALESCE(rr.max_stock - i.quantity, rr.reorder_quantity, ceil(sv.daily_sales_velocity * 30)) as suggested_reorder_quantity,
-                    -- Find the best supplier for this item
-                    (SELECT v.vendor_name FROM supplier_catalogs sc JOIN vendors v ON sc.supplier_id = v.id WHERE sc.sku = i.sku ORDER BY sc.unit_cost ASC LIMIT 1) as supplier_name,
-                    (SELECT sc.supplier_id FROM supplier_catalogs sc WHERE sc.sku = i.sku ORDER BY sc.unit_cost ASC LIMIT 1) as supplier_id,
-                    (SELECT sc.unit_cost FROM supplier_catalogs sc WHERE sc.sku = i.sku ORDER BY sc.unit_cost ASC LIMIT 1) as unit_cost
+                    COALESCE(
+                        rr.max_stock - i.quantity, 
+                        rr.reorder_quantity, 
+                        ceil(COALESCE(sv.daily_sales_velocity, 0) * 30)
+                    ) as suggested_reorder_quantity,
+                    bs.supplier_name,
+                    bs.supplier_id,
+                    bs.unit_cost
                 FROM inventory i
                 LEFT JOIN reorder_rules rr ON i.sku = rr.sku AND i.company_id = rr.company_id
                 LEFT JOIN sales_velocity sv ON i.sku = sv.sku
+                LEFT JOIN best_supplier bs ON i.sku = bs.sku
                 WHERE i.company_id = '${companyId}'
             )
             SELECT *
@@ -1246,16 +1262,38 @@ export async function deleteInventoryItemsFromDb(companyId: string, skus: string
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('deleteInventoryItemsFromDb', async () => {
         const supabase = getServiceRoleClient();
+        
+        // Data integrity check: ensure these SKUs are not in use.
+        const { count: orderItemsCount, error: orderItemsError } = await supabase
+            .from('order_items')
+            .select('id', { count: 'exact', head: true })
+            .in('sku', skus)
+            .limit(1);
+
+        if (orderItemsError) throw orderItemsError;
+        if (orderItemsCount && orderItemsCount > 0) {
+            throw new Error('One or more items could not be deleted because they are part of historical sales orders.');
+        }
+
+        const { count: poItemsCount, error: poItemsError } = await supabase
+            .from('purchase_order_items')
+            .select('id', { count: 'exact', head: true })
+            .in('sku', skus)
+            .limit(1);
+
+        if (poItemsError) throw poItemsError;
+        if (poItemsCount && poItemsCount > 0) {
+            throw new Error('One or more items could not be deleted because they are part of historical purchase orders.');
+        }
+
         const { error } = await supabase
             .from('inventory')
             .delete()
             .eq('company_id', companyId)
             .in('sku', skus);
+            
         if (error) {
             logError(error, { context: `deleteInventoryItemsFromDb for company ${companyId}` });
-            if (error.message.includes('foreign key constraint')) {
-                throw new Error("One or more items could not be deleted because they are referenced in existing sales or purchase orders.");
-            }
             throw error;
         }
     });
