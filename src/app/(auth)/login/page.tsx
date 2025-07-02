@@ -1,9 +1,9 @@
+
 'use client';
 
 import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,14 +14,19 @@ import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} className="w-full">
+    <Button
+      type="submit"
+      disabled={pending}
+      className="w-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-cyan-400 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50"
+    >
       {pending ? (
         <motion.div
-          className="w-5 h-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin"
+          className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
           aria-label="Loading..."
         />
       ) : (
@@ -39,7 +44,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
         <Input
           ref={ref}
           type={showPassword ? 'text' : 'password'}
-          className="pr-10"
+          className="pr-10 bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-cyan-500"
           {...props}
         />
         <Button
@@ -76,88 +81,90 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         }
     }, [searchParams, toast]);
 
+    const cardVariants = {
+        initial: { opacity: 0, y: 50, scale: 0.95 },
+        animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: 'easeOut' } },
+        exit: { opacity: 0, y: -30, scale: 0.98, transition: { duration: 0.3, ease: 'easeIn' } },
+    };
+
     return (
-        <div className="w-full lg:grid lg:min-h-dvh lg:grid-cols-2 xl:min-h-dvh">
-            <div className="flex items-center justify-center py-12">
-                <div className="mx-auto grid w-[350px] gap-6">
-                    <div className="grid gap-2 text-center">
-                        <div className="flex items-center justify-center gap-3 text-3xl font-bold text-foreground mb-4">
-                            <InvoChatLogo className="h-10 w-10 text-primary" />
-                            <h1>InvoChat</h1>
-                        </div>
-                        <h1 className="text-3xl font-bold">Welcome Back</h1>
-                        <p className="text-balance text-muted-foreground">
-                            Enter your credentials to access your account
-                        </p>
-                    </div>
-                    <form action={login} className="grid gap-4">
-                        <CSRFInput />
-                        <div className="grid gap-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input
-                                id="email"
-                                name="email"
-                                type="email"
-                                placeholder="you@company.com"
-                                required
-                                autoComplete="email"
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="password">Password</Label>
-                                <Link
-                                    href="/forgot-password"
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Forgot password?
-                                </Link>
-                            </div>
-                            <PasswordInput
-                                id="password"
-                                name="password"
-                                placeholder="••••••••"
-                                required
-                                autoComplete="current-password"
-                            />
-                        </div>
-                        
-                        {searchParams?.error && (
-                            <Alert variant="destructive">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertDescription>{searchParams.error}</AlertDescription>
-                            </Alert>
-                        )}
-                        
-                        <SubmitButton />
-                    </form>
-                    <div className="mt-4 text-center text-sm">
-                        Don&apos;t have an account?{' '}
-                        <Link href="/signup" className="font-semibold text-primary hover:underline">
-                            Sign up
-                        </Link>
-                    </div>
-                    <div className="mt-6 text-center text-xs text-muted-foreground">
-                        <Link href="/terms" className="underline underline-offset-4">
-                            Terms of Service
-                        </Link>{" "}
-                        &{" "}
-                        <Link href="/privacy" className="underline underline-offset-4">
-                            Privacy Policy
-                        </Link>
-                    </div>
-                </div>
-            </div>
-            <div className="hidden bg-muted lg:block">
-                <Image
-                    src="https://placehold.co/1200x1800.png"
-                    alt="Warehouse inventory"
-                    width="1200"
-                    height="1800"
-                    data-ai-hint="warehouse inventory"
-                    className="h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
-                />
-            </div>
+      <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-[#020617] text-white">
+        {/* Animated Background */}
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_500px_at_50%_200px,#3b82f633,transparent)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] animate-background-pan" />
         </div>
+
+        <motion.div
+            variants={cardVariants}
+            initial="initial"
+            animate={searchParams?.error ? "shake" : "animate"}
+            className={cn(
+                "w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl",
+                "bg-slate-900/50 backdrop-blur-lg border border-slate-700"
+            )}
+        >
+            <div className="text-center">
+                <div className="flex justify-center items-center gap-3 mb-4">
+                    <InvoChatLogo className="h-10 w-10 text-primary" />
+                    <h1 className="text-4xl font-bold tracking-tighter">InvoChat</h1>
+                </div>
+                <h2 className="text-2xl font-semibold">AI-Powered Insights Await</h2>
+                <p className="text-slate-400 mt-2">Sign in to transform your warehouse with intelligent automation.</p>
+            </div>
+
+            <form action={login} className="space-y-4">
+                <CSRFInput />
+                <div className="space-y-2">
+                    <Label htmlFor="email" className="text-slate-300">Email</Label>
+                    <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="you@company.com"
+                        required
+                        autoComplete="email"
+                        className="bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-cyan-500"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="password" className="text-slate-300">Password</Label>
+                        <Link
+                            href="/forgot-password"
+                            className="text-sm text-cyan-400 hover:underline"
+                        >
+                            Forgot password?
+                        </Link>
+                    </div>
+                    <PasswordInput
+                        id="password"
+                        name="password"
+                        placeholder="••••••••"
+                        required
+                        autoComplete="current-password"
+                    />
+                </div>
+                
+                {searchParams?.error && (
+                    <Alert variant="destructive" className="bg-destructive/10 border-destructive/30 text-destructive-foreground">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>{searchParams.error}</AlertDescription>
+                    </Alert>
+                )}
+                
+                <div className="pt-2">
+                    <SubmitButton />
+                </div>
+            </form>
+
+            <div className="text-center text-sm text-slate-400">
+                Don&apos;t have an account?{' '}
+                <Link href="/signup" className="font-semibold text-cyan-400 hover:underline">
+                    Sign up
+                </Link>
+            </div>
+        </motion.div>
+    </div>
     );
 }
