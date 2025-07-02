@@ -14,6 +14,7 @@ import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCsrfToken } from '@/hooks/use-csrf';
+import { motion, useAnimationControls } from 'framer-motion';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -43,7 +44,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
         <Input
           ref={ref}
           type={showPassword ? 'text' : 'password'}
-          className="pr-10 bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-accent"
+          className="pr-10 bg-slate-800/50 border-slate-700 h-12 text-base transition-shadow duration-300 focus-visible:ring-1 focus-visible:ring-accent focus-visible:shadow-[0_0_15px_hsl(var(--accent))]"
           {...props}
         />
         <Button
@@ -70,23 +71,31 @@ PasswordInput.displayName = 'PasswordInput';
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
     const { toast } = useToast();
-    
+    const formControls = useAnimationControls();
+
     useEffect(() => {
-         if (searchParams?.message) {
+        if (searchParams?.message) {
             toast({
                 title: 'Success',
                 description: searchParams.message,
             });
         }
-    }, [searchParams?.message, toast]);
+        if (searchParams?.error) {
+            formControls.start({ x: [-10, 10, -5, 5, 0], transition: { duration: 0.5, ease: 'easeInOut' } });
+        }
+    }, [searchParams, toast, formControls]);
 
     return (
-      <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-[#020617] text-white p-4">
-        {/* Background Gradients */}
-        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900" />
-        <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
+      <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
+        {/* Animated Background */}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900" />
 
-        <div className="w-full max-w-sm p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-900/50 backdrop-blur-lg border border-slate-700/50">
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+            className="w-full max-w-sm p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-900/50 backdrop-blur-lg border border-slate-700/50"
+        >
             <div className="text-center">
                 <div className="flex justify-center items-center gap-3 mb-4">
                     <InvoChatLogo className="h-10 w-10 text-primary" />
@@ -96,7 +105,11 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 <p className="text-slate-400 mt-2 text-sm">Sign in to access AI-powered insights.</p>
             </div>
 
-            <form action={login} className="space-y-4">
+            <motion.form
+                animate={formControls}
+                action={login}
+                className="space-y-4"
+            >
                 <CSRFInput />
                 <div className="space-y-2">
                     <Label htmlFor="email" className="text-slate-300">Email</Label>
@@ -107,7 +120,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                         placeholder="you@company.com"
                         required
                         autoComplete="email"
-                        className="bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-accent"
+                        className="bg-slate-800/50 border-slate-700 h-12 text-base transition-shadow duration-300 focus-visible:ring-1 focus-visible:ring-accent focus-visible:shadow-[0_0_15px_hsl(var(--accent))]"
                     />
                 </div>
                 <div className="space-y-2">
@@ -139,7 +152,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 <div className="pt-2">
                     <SubmitButton />
                 </div>
-            </form>
+            </motion.form>
 
             <div className="text-center text-sm text-slate-400">
                 Don't have an account?{' '}
@@ -147,7 +160,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                     Sign up
                 </Link>
             </div>
-        </div>
+        </motion.div>
     </div>
     );
 }

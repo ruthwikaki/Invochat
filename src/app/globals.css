@@ -9,11 +9,11 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --background: 222 83% 4%; /* #020617 */
+    --foreground: 210 40% 98%;
+
+    --card: 222 83% 8%; /* Darker slate */
+    --card-foreground: 210 40% 98%;
     
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
@@ -21,27 +21,27 @@ body {
     --primary: 217 91% 60%; /* Electric Blue #3B82F6 */
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 215 14% 34%; /* #4B5563 */
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%; /* #4B5563 */
     
     --accent: 188 95% 43%; /* Cyan #06B6D4 */
-    --accent-foreground: 222 47% 11%;
+    --accent-foreground: 210 40% 98%;
     
-    --destructive: 350 89% 60%; /* #F43F5E */
+    --destructive: 350 70% 55%; /* #F43F5E */
     --destructive-foreground: 0 0% 98%;
     
-    --warning: 38 92% 50%; /* #F59E0B */
+    --warning: 38 92% 55%; /* #F59E0B */
     --warning-foreground: 222 47% 11%;
     
     --success: 158 81% 39%; /* #10B981 */
     --success-foreground: 0 0% 98%;
     
-    --border: 220 13% 91%;
-    --input: 220 13% 89%;
-    --ring: 217 91% 60%; /* Primary color for rings */
+    --border: 217 33% 25%;
+    --input: 217 33% 20%;
+    --ring: 188 95% 43%; /* Accent color for rings */
     
     --radius: 0.75rem;
 
