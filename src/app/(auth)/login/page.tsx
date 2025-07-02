@@ -3,6 +3,7 @@
 import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +70,7 @@ PasswordInput.displayName = 'PasswordInput';
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
     const { toast } = useToast();
+    const [errorKey, setErrorKey] = useState(Date.now());
 
     useEffect(() => {
         if (searchParams?.message) {
@@ -76,6 +78,9 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 title: 'Success',
                 description: searchParams.message,
             });
+        }
+        if(searchParams?.error) {
+            setErrorKey(Date.now()); // Re-trigger animation on new error
         }
     }, [searchParams, toast]);
 
@@ -86,7 +91,10 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
          <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
 
 
-        <div
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
             className="w-full max-w-sm p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-900/50 backdrop-blur-lg border border-slate-700/50"
         >
             <div className="text-center">
@@ -134,12 +142,22 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                     />
                 </div>
                 
+                <AnimatePresence>
                 {searchParams?.error && (
-                    <Alert variant="destructive" className="bg-destructive/10 border-destructive/30 text-destructive-foreground">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>{searchParams.error}</AlertDescription>
-                    </Alert>
+                    <motion.div
+                        key={errorKey}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0, x: [-5, 5, -5, 5, 0] }}
+                        exit={{ opacity: 0, y: 10 }}
+                        transition={{ duration: 0.4, type: 'spring' }}
+                    >
+                        <Alert variant="destructive" className="bg-destructive/10 border-destructive/30 text-destructive-foreground">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>{searchParams.error}</AlertDescription>
+                        </Alert>
+                    </motion.div>
                 )}
+                </AnimatePresence>
                 
                 <div className="pt-2">
                     <SubmitButton />
@@ -152,7 +170,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                     Sign up
                 </Link>
             </div>
-        </div>
+        </motion.div>
     </div>
     );
 }
