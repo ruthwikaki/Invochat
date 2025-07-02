@@ -8,71 +8,27 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
- 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
- 
-    --primary: 217 91% 60%;
-    --primary-foreground: 210 40% 98%;
- 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
- 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
- 
-    --accent: 188 95% 43%;
-    --accent-foreground: 222.2 47.4% 11.2%;
- 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 210 40% 98%;
-    
-    --warning: 47.9 95.8% 53.1%;
-    --warning-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
- 
-    --radius: 0.5rem;
-
-    --chart-1: 217 91% 60%;
-    --chart-2: 188 95% 43%;
-    --chart-3: 158 81% 39%;
-    --chart-4: 217 70% 70%;
-    --chart-5: 188 75% 53%;
-  }
- 
-  .dark {
     --background: 222 83% 4%; /* #020617 */
     --foreground: 210 40% 98%;
 
     --card: 215 39% 17%; /* #1E293B */
     --card-foreground: 210 40% 98%;
-    
+ 
     --popover: 222 83% 4%;
     --popover-foreground: 210 40% 98%;
-    
-    --primary: 217 91% 60%; /* #3B82F6 */
-    --primary-foreground: 0 0% 98%;
-
+ 
+    --primary: 217 91% 60%; /* Electric Blue */
+    --primary-foreground: 210 40% 98%;
+ 
     --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
-
+ 
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
-    
-    --accent: 188 95% 43%; /* #06B6D4 */
+ 
+    --accent: 188 95% 43%; /* Cyan */
     --accent-foreground: 210 40% 98%;
-    
+ 
     --destructive: 350 70% 55%;
     --destructive-foreground: 0 0% 98%;
 
@@ -81,11 +37,11 @@ body {
     
     --warning: 38 92% 55%;
     --warning-foreground: 222 47% 11%;
-    
+
     --border: 217 33% 25%;
     --input: 217 33% 20%;
-    --ring: 188 95% 43%;
-    
+    --ring: 188 95% 43%; /* Cyan */
+ 
     --radius: 0.75rem;
 
     --chart-1: 217 91% 60%;
@@ -93,6 +49,33 @@ body {
     --chart-3: 158 81% 39%;
     --chart-4: 217 70% 70%;
     --chart-5: 188 75% 53%;
+  }
+
+  /* Keep a light theme variant for users who might switch */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 188 95% 43%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --success: 142.1 76.2% 36.3%;
+    --success-foreground: 210 40% 98%;
+    --warning: 47.9 95.8% 53.1%;
+    --warning-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
   }
 }
  
@@ -103,4 +86,32 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Add custom animations for the login page */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
 }
