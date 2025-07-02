@@ -53,11 +53,10 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 PasswordInput.displayName = 'PasswordInput';
 
 // Helper component for the submit button to handle form status
-function SubmitButton({ isCsrfReady }: { isCsrfReady: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !isCsrfReady;
     return (
-        <Button type="submit" className="w-full" disabled={isDisabled}>
+        <Button type="submit" className="w-full" disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
         </Button>
     );
@@ -134,7 +133,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton isCsrfReady={!!csrfToken} />
+            <SubmitButton />
           </form>
         </CardContent>
       </Card>

@@ -22,12 +22,10 @@ import { motion } from 'framer-motion';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 // Helper component for the submit button to handle form status
-function SignupSubmitButton({ isCsrfReady }: { isCsrfReady: boolean }) {
+function SignupSubmitButton() {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !isCsrfReady;
-
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
+      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
@@ -176,7 +174,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SignupSubmitButton isCsrfReady={!!csrfToken} />
+            <SignupSubmitButton />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}

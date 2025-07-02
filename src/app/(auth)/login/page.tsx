@@ -44,13 +44,12 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 PasswordInput.displayName = 'PasswordInput';
 
 // The submit button must be a separate component to use useFormStatus
-function LoginSubmitButton({ isCsrfReady }: { isCsrfReady: boolean }) {
+function LoginSubmitButton() {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !isCsrfReady;
     return (
         <Button 
             type="submit" 
-            disabled={isDisabled} 
+            disabled={pending} 
             className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
@@ -140,7 +139,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             )}
             
             <div className="pt-2">
-                <LoginSubmitButton isCsrfReady={!!csrfToken} />
+                <LoginSubmitButton />
             </div>
         </form>
 

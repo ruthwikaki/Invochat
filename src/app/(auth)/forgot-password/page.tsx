@@ -22,12 +22,10 @@ import { useState, useEffect } from 'react';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 // Helper component for the submit button to handle form status
-function SubmitButton({ isCsrfReady }: { isCsrfReady: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !isCsrfReady;
-
     return (
-      <Button type="submit" className="w-full" disabled={isDisabled}>
+      <Button type="submit" className="w-full" disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
       </Button>
     );
@@ -116,7 +114,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton isCsrfReady={!!csrfToken} />
+            <SubmitButton />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}
