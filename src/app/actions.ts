@@ -226,30 +226,31 @@ export async function handleUserMessage(
 
         if (historyError) throw new Error("Could not fetch conversation history.");
         
+        // Corrected History Construction Logic
         historyForAI = (history || [])
             .reverse() // Reverse to get chronological order
-            .map(msg => {
+            .flatMap(msg => {
+                const messages: HistoryMessage[] = [];
                 if (msg.role === 'user') {
-                    return { role: 'user', content: [{ text: msg.content! }] };
-                } 
-                
-                const contentParts = [];
-                // Add the text part if it exists
-                if (msg.content) {
-                    contentParts.push({ text: msg.content });
-                }
+                    messages.push({ role: 'user', content: [{ text: msg.content! }] });
+                } else if (msg.role === 'assistant') {
+                    const assistantContent = [];
+                    if (msg.content) {
+                        assistantContent.push({ text: msg.content });
+                    }
+                    messages.push({ role: 'assistant', content: assistantContent });
+                    
+                    const toolName = msg.component;
+                    const vizData = msg.visualization?.data;
+                    const componentData = msg.componentProps;
 
-                // Add the tool response part if it exists
-                const toolName = msg.component;
-                const toolData = msg.componentProps as Record<string, any> | undefined;
-
-                if (toolName && toolData) {
-                    contentParts.push({ 
-                        toolResponse: { name: toolName, output: toolData.items || toolData.data || toolData } 
-                    });
+                    if (toolName && componentData) {
+                         messages.push({ role: 'tool', content: [{ toolResponse: { name: toolName, output: componentData.items || componentData.data || componentData } }] });
+                    } else if (vizData) {
+                        messages.push({ role: 'tool', content: [{ toolResponse: { name: 'runSQL', output: vizData } }] });
+                    }
                 }
-                
-                return { role: 'assistant', content: contentParts };
+                return messages;
             });
     }
 

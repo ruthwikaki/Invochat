@@ -77,11 +77,13 @@ async function processCsv<T extends z.ZodType>(
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
+        // Securely inject the company_id before validation.
+        row.company_id = companyId;
+
         const result = schema.safeParse(row);
 
         if (result.success) {
-            // Securely inject the company_id after validation.
-            validRows.push({ ...result.data, company_id: companyId });
+            validRows.push(result.data);
         } else {
             const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
             validationErrors.push({ row: i + 2, message: errorMessage }); // +2 because of header and 0-indexing

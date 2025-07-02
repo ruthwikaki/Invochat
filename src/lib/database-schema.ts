@@ -226,11 +226,90 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_variant_id TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS platform TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS external_id TEXT;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS platform TEXT;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS external_id TEXT;
+
+-- Add foreign key constraint from inventory to locations
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'fk_inventory_location' AND conrelid = 'public.inventory'::regclass
+    ) THEN
+        ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_location
+        FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
+    END IF;
+END;
+$$;
+
+-- Add foreign key constraint from orders to customers
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'fk_orders_customer' AND conrelid = 'public.orders'::regclass
+    ) THEN
+        ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_id UUID;
+        ALTER TABLE public.orders ADD CONSTRAINT fk_orders_customer
+        FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
+    END IF;
+END;
+$$;
+
+-- ========= Part 3: Functions & Triggers =========
+
+-- Function to handle new user creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  new_company_id UUID;
+  user_role TEXT := 'Owner';
+BEGIN
+  -- Extract company name and ID from the user's metadata, if they exist
+  DECLARE
+    company_name TEXT := new.raw_user_meta_data->>'company_name';
+    company_id_from_meta UUID := (new.raw_user_meta_data->>'company_id')::UUID;
+  BEGIN
+    -- If a company ID was passed during signup (e.g., from an invite), use it.
+    -- Otherwise, create a new company for the new user.
+    IF company_id_from_meta IS NOT NULL THEN
+      new_company_id := company_id_from_meta;
+      user_role := 'Member'; -- Invited users start as Members
+    ELSE
+      INSERT INTO public.companies (name)
+      VALUES (COALESCE(company_name, 'My Company'))
+      RETURNING id INTO new_company_id;
+    END IF;
+
+    -- Update the user's app_metadata with the company ID and role
+    UPDATE auth.users
+    SET app_metadata = jsonb_set(
+        jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', to_jsonb(new_company_id)),
+        '{role}', to_jsonb(user_role)
+    )
+    WHERE id = new.id;
+
+    -- Insert a corresponding record into the public.users table
+    INSERT INTO public.users (id, company_id, email, role)
+    VALUES (new.id, new_company_id, new.email, user_role);
+
+    RETURN new;
+  END;
+END;
+$$;
+
+-- Drop existing trigger to avoid duplicates, then re-create it
 DROP TRIGGER IF EXISTS on_auth_user_created on auth.users;
 
-create or replace trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
 
 create or replace function public.execute_dynamic_query(query_text text)
 returns json
@@ -340,15 +419,13 @@ BEGIN
             SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id 
             FROM supplier_catalogs sc
             JOIN vendors v ON sc.supplier_id = v.id AND v.company_id = p_company_id
-            WHERE p_supplier_id IS NULL OR sc.supplier_id = p_supplier_id
-            ORDER BY sc.sku, sc.unit_cost ASC
         ) as primary_supplier ON i.sku = primary_supplier.sku
         LEFT JOIN monthly_sales ms ON i.sku = ms.sku
         WHERE i.company_id = p_company_id
         AND (p_query IS NULL OR p_query = '' OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
         AND (p_category IS NULL OR p_category = '' OR i.category = p_category)
         AND (p_location_id IS NULL OR i.location_id = p_location_id)
-        AND (p_supplier_id IS NULL OR primary_supplier.supplier_id IS NOT NULL)
+        AND (p_supplier_id IS NULL OR primary_supplier.supplier_id = p_supplier_id)
         ORDER BY i.name
     ) t;
     RETURN result_json;
@@ -429,7 +506,7 @@ DECLARE result_json json;
 BEGIN
     WITH date_range AS (SELECT (CURRENT_DATE - (p_days || ' days')::interval) as start_date),
     orders_in_range AS (SELECT id, total_amount, sale_date, customer_id FROM public.orders WHERE company_id = p_company_id AND sale_date >= (SELECT start_date FROM date_range)),
-    sales_details_in_range AS (SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost FROM public.order_items oi JOIN orders_in_range s ON oi.sale_id = s.id JOIN public.inventory i ON oi.sku = oi.sku AND i.company_id = p_company_id),
+    sales_details_in_range AS (SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost FROM public.order_items oi JOIN orders_in_range s ON oi.sale_id = s.id JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id),
     sales_trend AS (SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales" FROM orders_in_range GROUP BY 1 ORDER BY 1),
     top_customers AS (SELECT c.customer_name as name, SUM(s.total_amount) as value FROM orders_in_range s JOIN public.customers c ON s.customer_id = c.id WHERE s.customer_id IS NOT NULL GROUP BY c.customer_name ORDER BY value DESC LIMIT 5),
     inventory_by_category AS (SELECT category as name, sum(quantity * cost) as value FROM public.inventory WHERE company_id = p_company_id AND category IS NOT NULL GROUP BY category),
