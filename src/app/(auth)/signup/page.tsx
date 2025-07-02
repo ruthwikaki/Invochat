@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -18,20 +17,15 @@ import Link from 'next/link';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
-import { CSRFInput } from '@/components/auth/csrf-input';
 import { motion } from 'framer-motion';
-import { useCsrfToken } from '@/hooks/use-csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  const token = useCsrfToken();
-  const isDisabled = pending || !token;
-
-  return (
-    <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
-      {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
-    </Button>
-  );
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
 }
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
@@ -68,6 +62,22 @@ PasswordInput.displayName = 'PasswordInput';
 
 
 export default function SignupPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+  }, []);
+
+  const SubmitButton = () => {
+    const { pending } = useFormStatus();
+    const isDisabled = pending || !csrfToken;
+
+    return (
+      <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
+        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
+      </Button>
+    );
+  }
 
   if (searchParams?.success) {
     return (
@@ -125,7 +135,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
         </CardHeader>
         <CardContent className="p-0">
           <form action={signup} className="grid gap-4">
-            <CSRFInput />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
               <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
               <Input

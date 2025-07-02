@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -17,23 +16,36 @@ import Link from 'next/link';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
-import { CSRFInput } from '@/components/auth/csrf-input';
 import { motion } from 'framer-motion';
-import { useCsrfToken } from '@/hooks/use-csrf';
+import { useState, useEffect } from 'react';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  const token = useCsrfToken();
-  const isDisabled = pending || !token;
 
-  return (
-    <Button type="submit" className="w-full" disabled={isDisabled}>
-      {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
-    </Button>
-  );
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
 }
 
 export default function ForgotPasswordPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+  }, []);
+
+  const SubmitButton = () => {
+    const { pending } = useFormStatus();
+    const isDisabled = pending || !csrfToken;
+
+    return (
+      <Button type="submit" className="w-full" disabled={isDisabled}>
+        {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
+      </Button>
+    );
+  }
 
   if (searchParams?.success) {
     return (
@@ -87,7 +99,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent className="p-0">
           <form action={requestPasswordReset} className="grid gap-4">
-            <CSRFInput />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
               <Label htmlFor="email" className="text-slate-300">Email</Label>
               <Input

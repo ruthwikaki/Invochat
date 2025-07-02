@@ -1,8 +1,7 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -17,19 +16,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArvoLogo } from '@/components/arvo-logo';
 import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
-import { CSRFInput } from '@/components/auth/csrf-input';
-import { useCsrfToken } from '@/hooks/use-csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  const token = useCsrfToken();
-  const isDisabled = pending || !token;
 
-  return (
-    <Button type="submit" className="w-full" disabled={isDisabled}>
-      {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
-    </Button>
-  );
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
 }
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
@@ -67,6 +62,11 @@ PasswordInput.displayName = 'PasswordInput';
 
 export default function UpdatePasswordPage({ searchParams }: { searchParams?: { error?: string } }) {
     const [error, setError] = useState(searchParams?.error || null);
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    }, []);
 
     const handleSubmit = async (formData: FormData) => {
         if (formData.get('password') !== formData.get('confirmPassword')) {
@@ -75,6 +75,16 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
         }
         setError(null);
         await updatePassword(formData);
+    }
+    
+    const SubmitButton = () => {
+        const { pending } = useFormStatus();
+        const isDisabled = pending || !csrfToken;
+        return (
+            <Button type="submit" className="w-full" disabled={isDisabled}>
+            {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
+            </Button>
+        );
     }
 
   return (
@@ -99,7 +109,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent className="p-0">
           <form action={handleSubmit} className="grid gap-4">
-            <CSRFInput />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
               <Label htmlFor="password" className="text-slate-300">New Password</Label>
                <PasswordInput

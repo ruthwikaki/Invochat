@@ -1,7 +1,6 @@
-
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
@@ -10,9 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArvoLogo } from '@/components/arvo-logo';
-import { useCsrfToken } from '@/hooks/use-csrf';
-import { CSRFInput } from '@/components/auth/csrf-input';
 import { login } from '@/app/(auth)/actions';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 function PasswordInput() {
     const [showPassword, setShowPassword] = useState(false);
@@ -42,10 +48,16 @@ function PasswordInput() {
     );
 }
 
-function SubmitButton() {
+export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+  }, []);
+
+  const SubmitButton = () => {
     const { pending } = useFormStatus();
-    const token = useCsrfToken();
-    const isDisabled = pending || !token;
+    const isDisabled = pending || !csrfToken;
 
     return (
         <Button 
@@ -56,9 +68,7 @@ function SubmitButton() {
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
         </Button>
     )
-}
-
-export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
+  }
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -84,7 +94,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         </div>
 
         <form action={login} className="space-y-4">
-            <CSRFInput />
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="space-y-2">
                 <Label htmlFor="email" className="text-slate-300">Email</Label>
                 <Input
