@@ -11,6 +11,9 @@ import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage } from '@/lib/error-handler';
+import { withTimeout } from '@/lib/async-utils';
+
+const AUTH_TIMEOUT = 15000; // 15 seconds
 
 function getSupabaseClient() {
     const cookieStore = cookies();
@@ -65,7 +68,12 @@ export async function login(formData: FormData) {
 
     const { email, password } = parsed.data;
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+        AUTH_TIMEOUT,
+        'Authentication service is not responding. Please try again later.'
+    );
 
     if (error || !data.session) {
       const msg = error?.message || 'Login failed. Check credentials or confirm your email.';
@@ -83,7 +91,7 @@ export async function login(formData: FormData) {
   } catch (e) {
     const errorMessage = getErrorMessage(e);
     logger.error('Login action failed catastrophically:', errorMessage);
-    redirect(`/login?error=${encodeURIComponent(`An unexpected error occurred. Please try again.`)}`);
+    redirect(`/login?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
   }
 }
 
@@ -96,6 +104,7 @@ const signupSchema = z.object({
 
 
 export async function signup(formData: FormData) {
+  try {
     validateCsrf(formData, '/signup');
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
@@ -115,31 +124,36 @@ export async function signup(formData: FormData) {
     const { email, password, companyName } = parsed.data;
     const supabase = getSupabaseClient();
 
-    const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
-            data: {
-                company_name: companyName,
-                company_id: crypto.randomUUID(),
-            }
-        }
-    });
+    const { data, error } = await withTimeout(
+      supabase.auth.signUp({
+          email,
+          password,
+          options: {
+              emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
+              data: {
+                  company_name: companyName,
+                  company_id: crypto.randomUUID(),
+              }
+          }
+      }),
+      AUTH_TIMEOUT,
+      'Signup service is not responding. Please try again later.'
+    );
 
     if (error) {
         redirect(`/signup?error=${encodeURIComponent(error.message)}`);
     }
 
     if (data.user) {
-        // If a user object is returned, it means the signup was accepted,
-        // either for a new user or to re-send a confirmation to an existing
-        // unconfirmed user. In both cases, directing to the success page
-        // is the correct action.
         redirect('/signup?success=true');
+    } else {
+       redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
     }
-    
-    redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
+  } catch (e) {
+    const errorMessage = getErrorMessage(e);
+    logger.error('Signup action failed catastrophically:', errorMessage);
+    redirect(`/signup?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
+  }
 }
 
 
@@ -148,6 +162,7 @@ const requestPasswordResetSchema = z.object({
 });
 
 export async function requestPasswordReset(formData: FormData) {
+  try {
     validateCsrf(formData, '/forgot-password');
     const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
 
@@ -156,9 +171,13 @@ export async function requestPasswordReset(formData: FormData) {
     }
 
     const supabase = getSupabaseClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
-    });
+    const { error } = await withTimeout(
+      supabase.auth.resetPasswordForEmail(parsed.data.email, {
+          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
+      }),
+      AUTH_TIMEOUT,
+      'Password reset service is not responding. Please try again later.'
+    );
     
     if (error) {
         logger.error("Password reset error:", error);
@@ -166,6 +185,11 @@ export async function requestPasswordReset(formData: FormData) {
     }
     
     redirect('/forgot-password?success=true');
+  } catch (e) {
+    const errorMessage = getErrorMessage(e);
+    logger.error('Password reset request failed catastrophically:', errorMessage);
+    redirect(`/forgot-password?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
+  }
 }
 
 const updatePasswordSchema = z.object({
