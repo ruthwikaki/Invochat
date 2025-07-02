@@ -7,9 +7,9 @@ import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { UnifiedInventoryItem, Location } from '@/types';
+import type { UnifiedInventoryItem, Location, Supplier } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,14 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { InventoryEditDialog } from './inventory-edit-dialog';
 import { Package } from 'lucide-react';
 import { InventoryHistoryDialog } from './inventory-history-dialog';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
   categories: string[];
   locations: Location[];
+  suppliers: Supplier[];
 }
 
 const StatusBadge = ({ quantity, reorderPoint }: { quantity: number, reorderPoint: number | null }) => {
@@ -72,7 +74,7 @@ function EmptyInventoryState() {
 }
 
 
-export function InventoryClientPage({ initialInventory, categories, locations }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, categories, locations, suppliers }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace } = useRouter();
@@ -97,7 +99,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
     replace(`${pathname}?${params.toString()}`);
   }, 300);
 
-  const handleFilterChange = (type: 'category' | 'location', value: string) => {
+  const handleFilterChange = (type: 'category' | 'location' | 'supplier', value: string) => {
     const params = new URLSearchParams(searchParams);
     if (value && value !== 'all') {
       params.set(type, value);
@@ -160,7 +162,7 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
   const isAllSelected = numSelected > 0 && numSelected === numInventory;
   const isSomeSelected = numSelected > 0 && numSelected < numInventory;
   
-  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('location');
+  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('location') || !!searchParams.get('supplier');
   const showEmptyState = inventory.length === 0 && !isFiltered;
   const showNoResultsState = inventory.length === 0 && isFiltered;
   
@@ -176,7 +178,23 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                 className="pl-10"
             />
         </div>
-        <div className="flex w-full md:w-auto gap-2">
+        <div className="flex w-full md:w-auto gap-2 flex-wrap">
+            <Select
+                onValueChange={(value) => handleFilterChange('supplier', value)}
+                defaultValue={searchParams.get('supplier') || 'all'}
+            >
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Filter by supplier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Suppliers</SelectItem>
+                {suppliers.map((supplier) => (
+                  <SelectItem key={supplier.id} value={supplier.id}>
+                    {supplier.vendor_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select
                 onValueChange={(value) => handleFilterChange('location', value)}
                 defaultValue={searchParams.get('location') || 'all'}
@@ -366,11 +384,19 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
                 >
                     <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
                         <p className="text-sm font-medium">{numSelected} item(s) selected</p>
-                        <Button variant="outline" size="sm" disabled>Edit Selected</Button>
                         <Button variant="destructive" size="sm" onClick={() => setItemToDelete(Array.from(selectedRows))}>Delete Selected</Button>
-                        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
-                            <Warehouse className="h-4 w-4"/>
-                        </Button>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
+                                        <X className="h-4 w-4"/>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Deselect All</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 </motion.div>
             )}
@@ -378,5 +404,3 @@ export function InventoryClientPage({ initialInventory, categories, locations }:
     </div>
   );
 }
-
-    

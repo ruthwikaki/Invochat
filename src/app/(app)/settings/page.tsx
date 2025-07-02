@@ -152,7 +152,7 @@ export default function SettingsPage() {
             }
         }
         fetchSettings();
-    }, [toast]);
+    }, []);
     
     const handleInputChange = (key: keyof CompanySettings, value: string) => {
         const fieldType = [...generalSettingsFields, ...businessRulesFields, ...themeFields].find(f => f.key === key)?.type;

@@ -4,12 +4,15 @@
 import { getCompanySettings } from '@/app/data-actions';
 import { logger } from '@/lib/logger';
 import { useEffect } from 'react';
+import { useAuth } from '@/context/auth-context';
 
 /**
  * A client component that fetches company-specific theme settings
  * and applies them as CSS variables to the root element.
  */
 export function DynamicThemeProvider() {
+    const { user } = useAuth();
+    
     useEffect(() => {
         const applyCustomTheme = async () => {
             try {
@@ -29,12 +32,17 @@ export function DynamicThemeProvider() {
 
             } catch (error) {
                 // It's okay if this fails; the default theme will simply be used.
+                // This can happen on the login page before a user session is established.
                 logger.warn("[Dynamic Theme] Could not apply custom theme.", error);
             }
         };
 
-        applyCustomTheme();
-    }, []);
+        // Only run if there is a logged-in user.
+        if (user) {
+            applyCustomTheme();
+        }
+        
+    }, [user]); // Re-run when the user logs in or out.
 
     // This component does not render any visible UI.
     return null;

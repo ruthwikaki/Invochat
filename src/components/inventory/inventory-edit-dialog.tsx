@@ -65,7 +65,7 @@ export function InventoryEditDialog({ item, onClose, onSave, locations }: Invent
         location_id: item.location_id
       });
     }
-  }, [item, form]);
+  }, [item]);
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
