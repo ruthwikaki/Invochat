@@ -181,7 +181,7 @@ export const PurchaseOrderItemSchema = z.object({
   quantity_ordered: z.number().int(),
   quantity_received: z.number().int(),
   unit_cost: z.number(),
-  tax_rate: z.number(),
+  tax_rate: z.number().nullable(),
 });
 export type PurchaseOrderItem = z.infer<typeof PurchaseOrderItemSchema>;
 

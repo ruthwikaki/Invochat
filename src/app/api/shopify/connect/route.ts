@@ -14,7 +14,7 @@ const connectSchema = z.object({
 });
 
 async function shopifyFetch(shopDomain: string, accessToken: string, endpoint: string) {
-    const url = `${shopDomain}/admin/api/2024-04/${endpoint}`;
+    const url = `https://${new URL(shopDomain).hostname}/admin/api/2024-04/${endpoint}`;
     const response = await fetch(url, {
         method: 'GET',
         headers: {

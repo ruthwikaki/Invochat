@@ -71,7 +71,7 @@ export async function middleware(req: NextRequest) {
       value: newCsrfToken,
       httpOnly: false, // Must be readable by client-side script
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       path: '/',
     });
   }

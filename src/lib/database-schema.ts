@@ -226,62 +226,7 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_variant_id TEXT;
-ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS unique_shopify_variant_per_company;
-ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS unique_external_variant_per_company;
-ALTER TABLE public.inventory ADD CONSTRAINT unique_external_variant_per_company UNIQUE (company_id, source_platform, external_variant_id);
-
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS platform TEXT;
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS external_id TEXT;
-ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_shopify_customer_per_company;
-ALTER TABLE public.customers DROP COLUMN IF EXISTS shopify_customer_id;
-ALTER TABLE public.customers DROP CONSTRAINT IF EXISTS unique_external_customer_per_company;
-ALTER TABLE public.customers ADD CONSTRAINT unique_external_customer_per_company UNIQUE (company_id, platform, external_id);
-
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS platform TEXT;
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS external_id TEXT;
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL;
-ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS unique_shopify_order_per_company;
-ALTER TABLE public.orders DROP COLUMN IF EXISTS shopify_order_id;
-ALTER TABLE public.orders DROP COLUMN IF EXISTS customer_name;
-ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS unique_external_order_per_company;
-ALTER TABLE public.orders ADD CONSTRAINT unique_external_order_per_company UNIQUE (company_id, platform, external_id);
-
--- ========= Part 3: Functions and Triggers =========
-
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-declare
-  user_company_id uuid;
-  user_company_name text;
-  user_role text;
-  is_invite boolean;
-begin
-  is_invite := new.invited_at IS NOT NULL;
-  IF is_invite THEN
-    user_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
-    user_role := 'Member';
-    IF user_company_id IS NULL THEN
-      raise exception 'Invited user must have a company_id in metadata.';
-    END IF;
-  ELSE
-    user_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
-    user_company_name := new.raw_user_meta_data->>'company_name';
-    user_role := 'Owner';
-    insert into public.companies (id, name)
-    values (user_company_id, user_company_name)
-    on conflict (id) do nothing;
-  END IF;
-  insert into public.users (id, email, company_id, role)
-  values (new.id, new.email, user_company_id, user_role);
-  update auth.users
-  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', user_company_id, 'role', user_role)
-  where id = new.id;
-  return new;
-end;
-$$;
+DROP TRIGGER IF EXISTS on_auth_user_created on auth.users;
 
 create or replace trigger on_auth_user_created
   after insert on auth.users
@@ -531,27 +476,41 @@ $$;
 CREATE OR REPLACE FUNCTION public.update_purchase_order(p_po_id uuid, p_company_id uuid, p_supplier_id uuid, p_po_number text, p_status text, p_order_date date, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-    old_items jsonb; new_total_amount numeric; item jsonb; old_item record; diff integer;
+    new_total_amount numeric; 
+    item_update jsonb;
+    item_from_db purchase_order_items;
+    diff integer;
 BEGIN
-    SELECT json_agg(json_build_object('sku', sku, 'quantity_ordered', quantity_ordered)) INTO old_items FROM public.purchase_order_items WHERE po_id = p_po_id;
     new_total_amount := (SELECT SUM((item->>'quantity_ordered')::numeric * (item->>'unit_cost')::numeric) FROM jsonb_array_elements(p_items) as item);
 
     UPDATE public.purchase_orders SET supplier_id = p_supplier_id, po_number = p_po_number, status = p_status, order_date = p_order_date, expected_date = p_expected_date, notes = p_notes, total_amount = new_total_amount, updated_at = NOW()
     WHERE id = p_po_id AND company_id = p_company_id;
 
-    FOR old_item IN SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id LOOP
-        UPDATE public.inventory SET on_order_quantity = on_order_quantity - old_item.quantity_ordered
-        WHERE company_id = p_company_id AND sku = old_item.sku;
+    -- Adjust inventory for removed items
+    FOR item_from_db IN SELECT * FROM public.purchase_order_items WHERE po_id = p_po_id AND sku NOT IN (SELECT value->>'sku' FROM jsonb_array_elements_text(p_items)) LOOP
+        UPDATE public.inventory SET on_order_quantity = on_order_quantity - (item_from_db.quantity_ordered - item_from_db.quantity_received)
+        WHERE company_id = p_company_id AND sku = item_from_db.sku;
     END LOOP;
 
-    DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
+    DELETE FROM public.purchase_order_items WHERE po_id = p_po_id AND sku NOT IN (SELECT value->>'sku' FROM jsonb_array_elements_text(p_items));
 
-    FOR item IN SELECT * FROM jsonb_array_elements(p_items) LOOP
-        INSERT INTO public.purchase_order_items (po_id, sku, quantity_ordered, unit_cost)
-        VALUES (p_po_id, item->>'sku', (item->>'quantity_ordered')::integer, (item->>'unit_cost')::numeric);
+    -- Upsert new/updated items
+    FOR item_update IN SELECT * FROM jsonb_array_elements(p_items) LOOP
+        SELECT * INTO item_from_db FROM public.purchase_order_items WHERE po_id = p_po_id AND sku = item_update->>'sku';
 
-        UPDATE public.inventory SET on_order_quantity = on_order_quantity + (item->>'quantity_ordered')::integer
-        WHERE company_id = p_company_id AND sku = item->>'sku';
+        IF FOUND THEN
+            -- Item exists, update it and adjust inventory by the difference
+            diff := (item_update->>'quantity_ordered')::integer - item_from_db.quantity_ordered;
+            UPDATE public.purchase_order_items SET quantity_ordered = (item_update->>'quantity_ordered')::integer, unit_cost = (item_update->>'unit_cost')::numeric
+            WHERE id = item_from_db.id;
+            UPDATE public.inventory SET on_order_quantity = on_order_quantity + diff WHERE company_id = p_company_id AND sku = item_update->>'sku';
+        ELSE
+            -- New item, insert it and add to inventory on_order_quantity
+            INSERT INTO public.purchase_order_items (po_id, sku, quantity_ordered, unit_cost)
+            VALUES (p_po_id, item_update->>'sku', (item_update->>'quantity_ordered')::integer, (item_update->>'unit_cost')::numeric);
+            UPDATE public.inventory SET on_order_quantity = on_order_quantity + (item_update->>'quantity_ordered')::integer
+            WHERE company_id = p_company_id AND sku = item_update->>'sku';
+        END IF;
     END LOOP;
 END;
 $$;

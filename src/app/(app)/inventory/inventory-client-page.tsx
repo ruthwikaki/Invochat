@@ -241,7 +241,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action will attempt to permanently delete the selected {itemToDelete?.length} item(s). If an item has associated orders, deletion will fail to protect data integrity.
+                    This action will attempt to permanently delete the selected {itemToDelete?.length} item(s). This will fail if an item is part of any past sales or purchase orders, to protect your data integrity.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

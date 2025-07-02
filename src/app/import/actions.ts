@@ -77,15 +77,13 @@ async function processCsv<T extends z.ZodType>(
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        // For tables that need it, inject the company_id before validation if it's not in the CSV
-        if (['reorder_rules', 'inventory', 'locations', 'vendors'].includes(tableName) && !row.company_id) {
-            row.company_id = companyId;
-        }
+        // Always set the company_id to the authenticated user's company to prevent mix-ups.
+        row.company_id = companyId;
 
         const result = schema.safeParse(row);
 
         if (result.success) {
-            validRows.push({ ...result.data, company_id: companyId });
+            validRows.push(result.data);
         } else {
             const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
             validationErrors.push({ row: i + 2, message: errorMessage }); // +2 because of header and 0-indexing

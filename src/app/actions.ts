@@ -226,31 +226,30 @@ export async function handleUserMessage(
 
         if (historyError) throw new Error("Could not fetch conversation history.");
         
-        // Convert the database history to the format expected by the AI
         historyForAI = (history || [])
             .reverse() // Reverse to get chronological order
             .map(msg => {
-                // If it's a user message, the format is simple.
                 if (msg.role === 'user') {
                     return { role: 'user', content: [{ text: msg.content! }] };
                 } 
                 
-                // If it's an assistant message, check if it was a tool call.
+                const contentParts = [];
+                // Add the text part if it exists
+                if (msg.content) {
+                    contentParts.push({ text: msg.content });
+                }
+
+                // Add the tool response part if it exists
                 const toolName = msg.component;
                 const toolData = msg.componentProps as Record<string, any> | undefined;
 
                 if (toolName && toolData) {
-                    // Critical Fix: Reconstruct the tool response correctly for the AI's history.
-                    // The AI needs both the request (which is implicit in the previous user message)
-                    // and the response (the data from the tool).
-                    return { 
-                        role: 'assistant', 
-                        content: [{ toolResponse: { name: toolName, output: toolData.items || toolData.data || toolData } }] 
-                    };
+                    contentParts.push({ 
+                        toolResponse: { name: toolName, output: toolData.items || toolData.data || toolData } 
+                    });
                 }
                 
-                // Otherwise, it was a standard text response from the assistant.
-                return { role: 'assistant', content: [{ text: msg.content! }] };
+                return { role: 'assistant', content: contentParts };
             });
     }
 

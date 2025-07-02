@@ -12,7 +12,7 @@ const ContentPartSchema = z.object({
 
 // A message in the conversation history, aligned with Genkit's history message structure.
 const HistoryMessageSchema = z.object({
-  role: z.enum(['user', 'assistant']),
+  role: z.enum(['user', 'assistant', 'tool']), // Role can be user, model, or tool
   content: z.array(ContentPartSchema),
 });
 

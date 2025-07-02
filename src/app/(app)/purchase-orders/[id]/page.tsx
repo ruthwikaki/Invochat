@@ -156,5 +156,3 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
     </AppPage>
   );
 }
-
-    
