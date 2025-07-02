@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -15,15 +16,16 @@ import { CSRFInput } from '@/components/auth/csrf-input';
 import { login } from '@/app/(auth)/actions';
 
 // A dedicated client component for the submit button.
-// This is the correct way to use the useFormStatus hook, which
-// must be a child of the <form> element.
-function LoginButton() {
+// It is now aware of the CSRF token loading state.
+function LoginButton({ token }: { token: string | null }) {
   const { pending } = useFormStatus();
+  // The button is disabled if the form is submitting OR if the CSRF token hasn't loaded yet.
+  const isDisabled = pending || !token;
 
   return (
     <Button
       type="submit"
-      disabled={pending}
+      disabled={isDisabled}
       className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg flex items-center justify-center"
     >
       {pending ? (
@@ -67,7 +69,7 @@ function PasswordInput() {
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
   // This hook ensures the CSRF token is available on the client
   // before the user can submit the form.
-  useCsrfToken();
+  const token = useCsrfToken();
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -132,7 +134,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
           )}
           
           <div className="pt-2">
-            <LoginButton />
+            <LoginButton token={token} />
           </div>
         </form>
 
