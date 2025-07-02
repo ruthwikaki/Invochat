@@ -12,7 +12,7 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
-import { motion } from 'framer-motion';
+import { motion, useAnimationControls } from 'framer-motion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { useCsrfToken } from '@/hooks/use-csrf';
@@ -75,6 +75,18 @@ PasswordInput.displayName = 'PasswordInput';
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
     const { toast } = useToast();
+    const controls = useAnimationControls();
+
+    useEffect(() => {
+        // This ensures the intro animation runs, and then the shake animation runs if there's an error.
+        const sequence = async () => {
+            await controls.start("visible");
+            if (searchParams?.error) {
+                await controls.start("shake");
+            }
+        };
+        sequence();
+    }, [searchParams, controls]);
 
     useEffect(() => {
          if (searchParams?.message) {
@@ -86,9 +98,17 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     }, [searchParams, toast]);
 
     const cardVariants = {
-        initial: { opacity: 0, y: 50, scale: 0.95 },
-        animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: 'easeOut' } },
-        exit: { opacity: 0, y: -30, scale: 0.98, transition: { duration: 0.3, ease: 'easeIn' } },
+        hidden: { opacity: 0, y: 50, scale: 0.95 },
+        visible: { 
+            opacity: 1, 
+            y: 0, 
+            scale: 1,
+            transition: { duration: 0.5, ease: 'easeOut' } 
+        },
+        shake: {
+            x: [0, -10, 10, -10, 10, 0],
+            transition: { duration: 0.5 }
+        }
     };
 
     return (
@@ -101,12 +121,11 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
 
         <motion.div
             variants={cardVariants}
-            initial="initial"
-            animate="animate"
+            initial="hidden"
+            animate={controls}
             className={cn(
                 "w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl",
-                "bg-slate-900/50 backdrop-blur-lg border border-slate-700",
-                searchParams?.error && "animate-shake"
+                "bg-slate-900/50 backdrop-blur-lg border border-slate-700"
             )}
         >
             <div className="text-center">
