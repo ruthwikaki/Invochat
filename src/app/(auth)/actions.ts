@@ -10,6 +10,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getErrorMessage } from '@/lib/error-handler';
 
 function getSupabaseClient() {
     const cookieStore = cookies();
@@ -48,39 +49,42 @@ const loginSchema = z.object({
 });
 
 export async function login(formData: FormData) {
-  validateCsrf(formData, '/login');
+  try {
+    validateCsrf(formData, '/login');
 
-  const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-  const { limited } = await rateLimit(ip, 'auth', 5, 60); // 5 requests per minute per IP
-  if (limited) {
-    logger.warn(`[Rate Limit] Blocked login attempt from IP: ${ip}`);
-    redirect(`/login?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
+    const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+    const { limited } = await rateLimit(ip, 'auth', 5, 60); // 5 requests per minute per IP
+    if (limited) {
+      redirect(`/login?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
+    }
+
+    const parsed = loginSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) {
+      redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
+    }
+
+    const { email, password } = parsed.data;
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error || !data.session) {
+      const msg = error?.message || 'Login failed. Check credentials or confirm your email.';
+      redirect(`/login?error=${encodeURIComponent(msg)}`);
+    }
+
+    const companyId = data.user.app_metadata?.company_id;
+    if (!companyId) {
+      revalidatePath('/setup-incomplete', 'page');
+      redirect('/setup-incomplete');
+    }
+
+    revalidatePath('/dashboard', 'page');
+    redirect('/dashboard');
+  } catch (e) {
+    const errorMessage = getErrorMessage(e);
+    logger.error('Login action failed catastrophically:', errorMessage);
+    redirect(`/login?error=${encodeURIComponent(`An unexpected error occurred. Please try again.`)}`);
   }
-
-  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
-  }
-
-  const { email, password } = parsed.data;
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error || !data.session) {
-    const msg = error?.message || 'Login failed. Check credentials or confirm your email.';
-    redirect(`/login?error=${encodeURIComponent(msg)}`);
-  }
-
-  const companyId = data.user.app_metadata?.company_id || data.user.user_metadata?.company_id;
-  if (!companyId) {
-    revalidatePath('/', 'layout');
-    revalidatePath('/setup-incomplete', 'page');
-    redirect('/setup-incomplete');
-  }
-
-  revalidatePath('/', 'layout');
-  revalidatePath('/dashboard', 'page');
-  redirect('/dashboard');
 }
 
 
