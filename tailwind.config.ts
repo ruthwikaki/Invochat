@@ -93,15 +93,10 @@ export default {
             height: '0',
           },
         },
-        'shimmer': {
-          'from': { transform: 'translateX(-100%)' },
-          'to': { transform: 'translateX(100%)' },
-        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'shimmer': 'shimmer 2.5s infinite',
       },
     },
   },
