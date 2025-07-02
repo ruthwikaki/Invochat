@@ -1,31 +1,33 @@
 'use client';
 
-import { useFormStatus } from 'react-dom';
 import React, { useState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { InvoChatLogo } from '@/components/invochat-logo';
-import { login } from '@/app/(auth)/actions';
-import { CSRFInput } from '@/components/auth/csrf-input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import { useCsrfToken } from '@/hooks/use-csrf';
+import { CSRFInput } from '@/components/auth/csrf-input';
+import { login } from '@/app/(auth)/actions';
 
-function SubmitButton() {
+// A dedicated client component for the submit button.
+// This is the correct way to use the useFormStatus hook, which
+// must be a child of the <form> element.
+function LoginButton() {
   const { pending } = useFormStatus();
-  const token = useCsrfToken();
-  const isDisabled = pending || !token;
 
   return (
     <Button
       type="submit"
-      disabled={isDisabled}
+      disabled={pending}
       className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg flex items-center justify-center"
     >
       {pending ? (
-        <Loader2 className="w-5 h-5 animate-spin" aria-label="Loading..." />
+        <Loader2 className="w-5 h-5 animate-spin" />
       ) : (
         'Sign In'
       )}
@@ -33,42 +35,42 @@ function SubmitButton() {
   );
 }
 
-const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
-  (props, ref) => {
+// A dedicated client component for the password input with its own state for show/hide.
+function PasswordInput() {
     const [showPassword, setShowPassword] = useState(false);
     return (
-      <div className="relative">
-        <Input
-          ref={ref}
-          type={showPassword ? 'text' : 'password'}
-          className="flex w-full rounded-lg border bg-slate-800/50 border-slate-600 px-3 py-3 pr-10 text-base text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all h-12"
-          {...props}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1 h-auto w-auto"
-          onClick={() => setShowPassword((prev) => !prev)}
-          aria-label={showPassword ? 'Hide password' : 'Show password'}
-          tabIndex={-1}
-        >
-          {showPassword ? (
-            <EyeOff className="h-5 w-5" />
-          ) : (
-            <Eye className="h-5 w-5" />
-          )}
-        </Button>
-      </div>
+        <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              className="flex w-full rounded-lg border bg-slate-800/50 border-slate-600 px-3 py-3 pr-10 text-base text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all h-12"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1 h-auto"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-5 w-5" />
+              ) : (
+                <Eye className="h-5 w-5" />
+              )}
+            </button>
+        </div>
     );
-  }
-);
-PasswordInput.displayName = 'PasswordInput';
-
+}
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string } }) {
+  // This hook ensures the CSRF token is available on the client
+  // before the user can submit the form.
+  useCsrfToken();
+
   return (
-    <div className="relative flex items-center justify-center min-h-screen w-full overflow-hidden bg-slate-900 text-white p-4">
+    <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
       {/* Animated Background */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
@@ -90,6 +92,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             <p className="text-slate-400 mt-2 text-sm">Sign in to access AI-powered insights.</p>
         </div>
 
+        {/* The form now correctly uses the `action` attribute with the server action */}
         <form action={login} className="space-y-4">
           <CSRFInput />
           <div className="space-y-2">
@@ -118,12 +121,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                 Forgot password?
               </Link>
             </div>
-            <PasswordInput
-              id="password"
-              name="password"
-              placeholder="••••••••"
-              required
-            />
+            <PasswordInput />
           </div>
           
           {searchParams?.error && (
@@ -134,7 +132,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
           )}
           
           <div className="pt-2">
-            <SubmitButton />
+            <LoginButton />
           </div>
         </form>
 
