@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
