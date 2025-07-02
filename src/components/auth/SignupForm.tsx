@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,25 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
 import { PasswordInput } from './PasswordInput';
 
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    return parts.pop()?.split(';').shift() || null;
-  }
-  return null;
-}
-
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
+      <Button type="submit" className="w-full h-12 text-base" disabled={disabled || pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
@@ -35,15 +22,12 @@ function SubmitButton() {
 
 interface SignupFormProps {
     error: string | null;
+    csrfToken: string | null;
+    loadingToken: boolean;
 }
 
-export function SignupForm({ error: initialError }: SignupFormProps) {
+export function SignupForm({ error: initialError, csrfToken, loadingToken }: SignupFormProps) {
     const [error, setError] = useState(initialError);
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-    useEffect(() => {
-        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
-    }, []);
     
     useEffect(() => {
         setError(initialError);
@@ -94,18 +78,7 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full h-12 text-base" disabled={!csrfToken}>
-                <SubmitButtonContent />
-            </Button>
+            <SubmitButton disabled={loadingToken || !csrfToken} />
         </form>
-    );
-}
-
-function SubmitButtonContent() {
-    const { pending } = useFormStatus();
-    return (
-        <>
-            {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
-        </>
     );
 }

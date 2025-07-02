@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -10,27 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
 import { PasswordInput } from './PasswordInput';
 
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) {
-    return parts.pop()?.split(';').shift() || null;
-  }
-  return null;
-}
-
-function LoginSubmitButton() {
+function LoginSubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
         <Button 
             type="submit" 
-            disabled={pending} 
+            disabled={disabled || pending} 
             className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
@@ -40,15 +27,12 @@ function LoginSubmitButton() {
 
 interface LoginFormProps {
     error: string | null;
+    csrfToken: string | null;
+    loadingToken: boolean;
 }
 
-export function LoginForm({ error: initialError }: LoginFormProps) {
+export function LoginForm({ error: initialError, csrfToken, loadingToken }: LoginFormProps) {
   const [error, setError] = useState(initialError);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
-  }, []);
 
   useEffect(() => {
     setError(initialError);
@@ -99,23 +83,8 @@ export function LoginForm({ error: initialError }: LoginFormProps) {
         )}
         
         <div className="pt-2">
-             <Button 
-                type="submit" 
-                disabled={!csrfToken} 
-                className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
-            >
-                <LoginSubmitButtonContent />
-            </Button>
+            <LoginSubmitButton disabled={loadingToken || !csrfToken} />
         </div>
     </form>
   );
-}
-
-function LoginSubmitButtonContent() {
-    const { pending } = useFormStatus();
-    return (
-        <>
-            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
-        </>
-    )
 }

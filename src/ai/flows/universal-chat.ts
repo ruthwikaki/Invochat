@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -165,7 +164,7 @@ const BUSINESS_QUERY_EXAMPLES = `
               STDDEV(monthly_quantity) as stddev_monthly
        FROM historical_sales
        GROUP BY sku
-     )
+     ),
      SELECT t.sku, 
             i.name as product_name,
             ROUND(t.base + t.trend * EXTRACT(epoch FROM DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month')))) as forecasted_quantity,
@@ -196,7 +195,7 @@ const BUSINESS_QUERY_EXAMPLES = `
               SUM(total_revenue) OVER () as grand_total_revenue,
               ROW_NUMBER() OVER (ORDER BY total_revenue DESC) as rank
        FROM product_revenue
-     )
+     ),
      SELECT sku, 
             product_name,
             total_revenue,
@@ -718,5 +717,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    

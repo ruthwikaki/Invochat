@@ -1,11 +1,19 @@
-
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 export default function LoginPage({
   searchParams,
@@ -14,6 +22,13 @@ export default function LoginPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [loadingToken, setLoadingToken] = useState(true);
+
+  useEffect(() => {
+    setCsrfToken(getCookie('csrf_token'));
+    setLoadingToken(false);
+  }, []);
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -40,7 +55,11 @@ export default function LoginPage({
                   <AlertDescription>{message}</AlertDescription>
               </Alert>
           )}
-          <LoginForm error={error} />
+          <LoginForm 
+            error={error} 
+            csrfToken={csrfToken}
+            loadingToken={loadingToken}
+          />
           <div className="mt-6 text-center text-sm text-slate-400">
             Don't have an account?{' '}
             <Link href="/signup" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">

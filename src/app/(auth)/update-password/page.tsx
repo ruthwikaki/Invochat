@@ -1,9 +1,17 @@
-
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm';
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 export default function UpdatePasswordPage({
   searchParams,
@@ -11,6 +19,13 @@ export default function UpdatePasswordPage({
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [loadingToken, setLoadingToken] = useState(true);
+
+  useEffect(() => {
+    setCsrfToken(getCookie('csrf_token'));
+    setLoadingToken(false);
+  }, []);
     
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 text-white p-4">
@@ -30,7 +45,11 @@ export default function UpdatePasswordPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <UpdatePasswordForm error={error} />
+          <UpdatePasswordForm 
+            error={error} 
+            csrfToken={csrfToken}
+            loadingToken={loadingToken}
+          />
         </CardContent>
       </Card>
     </div>

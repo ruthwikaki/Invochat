@@ -1,4 +1,3 @@
-
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { logger } from './lib/logger';
@@ -31,14 +30,14 @@ export async function middleware(req: NextRequest) {
 
   // CSRF Protection: Ensure a token cookie exists.
   // The client will read from this cookie and include it in form submissions.
-  let csrfToken = req.cookies.get(CSRF_COOKIE_NAME)?.value;
-  if (!csrfToken) {
-    csrfToken = generateCSRFToken();
+  if (!req.cookies.has(CSRF_COOKIE_NAME)) {
+    const csrfToken = generateCSRFToken();
     response.cookies.set({
       name: CSRF_COOKIE_NAME,
       value: csrfToken,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
+      httpOnly: false, // Must be false for client-side script access
       path: '/',
     });
   }

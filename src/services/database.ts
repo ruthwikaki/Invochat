@@ -1,9 +1,8 @@
-
 'use server';
 
 /**
  * @fileoverview
- * This file contains server-side functions for querying the Supabase database.
+ * This file is the single source of truth for all direct database queries.
  * It uses the Supabase Admin client (service_role) to bypass Row Level Security (RLS).
  * SECURITY: All functions in this file MUST manually filter queries by `companyId`.
  */
@@ -84,9 +83,9 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
             currency: 'USD',
             timezone: 'UTC',
             tax_rate: 0,
-            theme_primary_color: '256 47% 52%',
-            theme_background_color: '0 0% 98%',
-            theme_accent_color: '256 47% 52% / 0.1',
+            theme_primary_color: '256 75% 61%',
+            theme_background_color: '222 83% 4%',
+            theme_accent_color: '217 33% 17%',
             custom_rules: {},
         };
         
@@ -106,13 +105,10 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
 }
 
 const CompanySettingsUpdateSchema = z.object({
-    dead_stock_days: z.number().int().positive('Dead stock days must be a positive number.').optional(),
-    fast_moving_days: z.number().int().positive('Fast-moving days must be a positive number.').optional(),
-    overstock_multiplier: z.number().positive('Overstock multiplier must be a positive number.').optional(),
-    high_value_threshold: z.number().int().positive('High-value threshold must be a positive number.').optional(),
-    currency: z.string().nullable().optional(),
-    timezone: z.string().nullable().optional(),
-    tax_rate: z.number().nullable().optional(),
+    dead_stock_days: z.coerce.number().int().positive('Dead stock days must be a positive number.').optional(),
+    fast_moving_days: z.coerce.number().int().positive('Fast-moving days must be a positive number.').optional(),
+    overstock_multiplier: z.coerce.number().positive('Overstock multiplier must be a positive number.').optional(),
+    high_value_threshold: z.coerce.number().int().positive('High-value threshold must be a positive number.').optional(),
     theme_primary_color: z.string().nullable().optional(),
     theme_background_color: z.string().nullable().optional(),
     theme_accent_color: z.string().nullable().optional(),
@@ -122,7 +118,6 @@ const CompanySettingsUpdateSchema = z.object({
 export async function updateSettingsInDb(companyId: string, settings: Partial<CompanySettings>): Promise<CompanySettings> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
 
-    // Use a stricter schema for updates, ensuring only valid fields are passed.
     const parsedSettings = CompanySettingsUpdateSchema.partial().safeParse(settings);
     
     if (!parsedSettings.success) {
@@ -133,7 +128,6 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
     return withPerformanceTracking('updateCompanySettings', async () => {
         const supabase = getServiceRoleClient();
         
-        // Use the validated and coerced data from Zod, not the raw input.
         const { data, error } = await supabase
             .from('company_settings')
             .update({ ...parsedSettings.data, updated_at: new Date().toISOString() })
@@ -149,7 +143,6 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
         logger.info(`[Cache Invalidation] Business settings updated. Invalidating relevant caches for company ${companyId}.`);
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         
-        // Revalidate the final data against the full schema before returning.
         return CompanySettingsSchema.parse(data);
     });
 }
@@ -266,7 +259,6 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
         return [];
     }
     
-    // Use .partial() to allow objects that don't perfectly match the schema
     const result = z.array(DeadStockItemSchema.partial()).safeParse(data || []);
     if (!result.success) {
         logError(result.error, {context: 'Zod parsing error for dead stock data'});
@@ -776,7 +768,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
                     AVG(daily_customers) as avg_customers,
                     STDDEV(daily_customers) as stddev_customers
                 FROM daily_metrics
-            )
+            ),
             SELECT
                 d.date,
                 d.daily_revenue,
@@ -1449,6 +1441,27 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
     return parsedData.data;
   });
 }
+
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string, location?: string, supplier?: string }): Promise<UnifiedInventoryItem[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_unified_inventory', {
+            p_company_id: companyId,
+            p_query: params.query || null,
+            p_category: params.category || null,
+            p_location_id: params.location ? (isValidUuid(params.location) ? params.location : null) : null,
+            p_supplier_id: params.supplier ? (isValidUuid(params.supplier) ? params.supplier : null) : null,
+        });
+
+        if (error) {
+            logError(error, { context: 'getUnifiedInventoryFromDB RPC failed' });
+            throw new Error(`Could not load inventory data: ${error.message}`);
+        }
+        return (data || []) as UnifiedInventoryItem[];
+    });
+}
+
 
 export async function getInventoryLedgerForSkuFromDB(companyId: string, sku: string): Promise<InventoryLedgerEntry[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
