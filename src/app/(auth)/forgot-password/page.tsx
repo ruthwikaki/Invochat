@@ -2,17 +2,10 @@
 import { cookies } from 'next/headers';
 import React from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 import { CSRF_COOKIE_NAME } from '@/lib/csrf';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 
@@ -28,29 +21,22 @@ export default function ForgotPasswordPage({
   if (success) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
-        <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="w-full"
-        >
-            <Card className="w-full max-w-sm text-center mx-auto">
-                <CardHeader>
-                    <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
-                        <CheckCircle className="h-8 w-8 text-success" />
-                    </div>
-                    <CardTitle className="mt-4">Check Your Email</CardTitle>
-                    <CardDescription>
-                        If an account with that email exists, we've sent a link to reset your password.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button asChild className="w-full">
-                        <Link href="/login">Back to Sign In</Link>
-                    </Button>
-                </CardContent>
-            </Card>
-        </motion.div>
+        <Card className="w-full max-w-sm text-center mx-auto">
+          <CardHeader>
+              <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
+                  <CheckCircle className="h-8 w-8 text-success" />
+              </div>
+              <CardTitle className="mt-4">Check Your Email</CardTitle>
+              <CardDescription>
+                  If an account with that email exists, we've sent a link to reset your password.
+              </CardDescription>
+          </CardHeader>
+          <CardContent>
+              <Button asChild className="w-full">
+                  <Link href="/login">Back to Sign In</Link>
+              </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

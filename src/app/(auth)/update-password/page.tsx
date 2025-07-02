@@ -1,12 +1,6 @@
 
 import { cookies } from 'next/headers';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CSRF_COOKIE_NAME } from '@/lib/csrf';
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm';

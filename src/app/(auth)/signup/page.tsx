@@ -1,17 +1,10 @@
 
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { CSRF_COOKIE_NAME } from '@/lib/csrf';
 import { SignupForm } from '@/components/auth/SignupForm';
 
@@ -31,29 +24,22 @@ export default function SignupPage({
           <InvoChatLogo className="h-10 w-10 text-primary" />
            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">InvoChat</h1>
         </div>
-        <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="w-full"
-        >
-            <Card className="w-full max-w-sm text-center mx-auto bg-slate-800/80 border-slate-700/50 text-white">
-                <CardHeader>
-                    <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
-                        <CheckCircle className="h-8 w-8 text-green-400" />
-                    </div>
-                    <CardTitle className="mt-4 text-slate-200">Success!</CardTitle>
-                    <CardDescription className="text-slate-400">
-                        Please check your email to verify your account, then sign in.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button asChild className="w-full">
-                        <Link href="/login">Back to Sign In</Link>
-                    </Button>
-                </CardContent>
-            </Card>
-        </motion.div>
+        <Card className="w-full max-w-sm text-center mx-auto bg-slate-800/80 border-slate-700/50 text-white">
+          <CardHeader>
+              <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
+                  <CheckCircle className="h-8 w-8 text-green-400" />
+              </div>
+              <CardTitle className="mt-4 text-slate-200">Success!</CardTitle>
+              <CardDescription className="text-slate-400">
+                  Please check your email to verify your account, then sign in.
+              </CardDescription>
+          </CardHeader>
+          <CardContent>
+              <Button asChild className="w-full">
+                  <Link href="/login">Back to Sign In</Link>
+              </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
