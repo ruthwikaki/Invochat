@@ -14,7 +14,6 @@ import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
 import { useCsrfToken } from '@/hooks/use-csrf';
 
 function SubmitButton() {
@@ -26,13 +25,10 @@ function SubmitButton() {
     <Button
       type="submit"
       disabled={isDisabled}
-      className="w-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-cyan-400 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50"
+      className="w-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50"
     >
       {isDisabled ? (
-        <motion.div
-          className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
-          aria-label="Loading..."
-        />
+        <Loader2 className="w-5 h-5 animate-spin" aria-label="Loading..." />
       ) : (
         'Sign In'
       )}
@@ -48,7 +44,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
         <Input
           ref={ref}
           type={showPassword ? 'text' : 'password'}
-          className="pr-10 bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-cyan-500"
+          className="pr-10 bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-accent"
           {...props}
         />
         <Button
@@ -78,9 +74,10 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     const [shouldShake, setShouldShake] = useState(false);
     
     useEffect(() => {
-        // Set state to trigger shake animation if there's an error in the URL
         if (searchParams?.error) {
             setShouldShake(true);
+            const timer = setTimeout(() => setShouldShake(false), 500);
+            return () => clearTimeout(timer);
         }
     }, [searchParams?.error]);
 
@@ -94,44 +91,30 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     }, [searchParams?.message, toast]);
 
     const cardVariants = {
-        hidden: { opacity: 0, y: 50, scale: 0.95 },
-        visible: { 
-            opacity: 1, 
-            y: 0, 
-            scale: 1,
-            transition: { duration: 0.5, ease: 'easeOut' } 
-        },
-        shake: {
-            x: [0, -10, 10, -10, 10, 0],
-            transition: { duration: 0.5 }
-        }
+        initial: { opacity: 0, y: 20, scale: 0.98 },
+        animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: 'easeOut' } },
+        shake: { x: [-8, 8, -8, 8, 0], transition: { duration: 0.4 } }
     };
 
     return (
-      <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-[#020617] text-white">
-        {/* Animated Background */}
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_500px_at_50%_200px,#3b82f633,transparent)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] animate-background-pan" />
-        </div>
+      <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-[#020617] text-white p-4">
+        {/* Background Gradients */}
+        <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900" />
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
 
         <motion.div
             variants={cardVariants}
-            initial="hidden"
-            animate={shouldShake ? ["visible", "shake"] : "visible"}
-            onAnimationComplete={() => setShouldShake(false)} // Reset shake after it plays
-            className={cn(
-                "w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl",
-                "bg-slate-900/50 backdrop-blur-lg border border-slate-700"
-            )}
+            initial="initial"
+            animate={shouldShake ? ["animate", "shake"] : "animate"}
+            className="w-full max-w-sm p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-900/50 backdrop-blur-lg border border-slate-700/50"
         >
             <div className="text-center">
                 <div className="flex justify-center items-center gap-3 mb-4">
                     <InvoChatLogo className="h-10 w-10 text-primary" />
                     <h1 className="text-4xl font-bold tracking-tighter">InvoChat</h1>
                 </div>
-                <h2 className="text-2xl font-semibold">AI-Powered Insights Await</h2>
-                <p className="text-slate-400 mt-2">Sign in to transform your warehouse with intelligent automation.</p>
+                <h2 className="text-xl font-semibold text-slate-200">Welcome to Intelligent Inventory</h2>
+                <p className="text-slate-400 mt-2 text-sm">Sign in to access AI-powered insights.</p>
             </div>
 
             <form action={login} className="space-y-4">
@@ -145,7 +128,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                         placeholder="you@company.com"
                         required
                         autoComplete="email"
-                        className="bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-cyan-500"
+                        className="bg-slate-800/50 border-slate-700 h-12 text-base focus-visible:ring-accent"
                     />
                 </div>
                 <div className="space-y-2">
@@ -153,7 +136,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                         <Label htmlFor="password" className="text-slate-300">Password</Label>
                         <Link
                             href="/forgot-password"
-                            className="text-sm text-cyan-400 hover:underline"
+                            className="text-sm text-accent hover:underline"
                         >
                             Forgot password?
                         </Link>
@@ -180,8 +163,8 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             </form>
 
             <div className="text-center text-sm text-slate-400">
-                Don&apos;t have an account?{' '}
-                <Link href="/signup" className="font-semibold text-cyan-400 hover:underline">
+                Don't have an account?{' '}
+                <Link href="/signup" className="font-semibold text-accent hover:underline">
                     Sign up
                 </Link>
             </div>

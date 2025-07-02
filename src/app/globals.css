@@ -9,8 +9,8 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 98%; /* #FAFAFA */
-    --foreground: 222 47% 11%; /* #111827 */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
     
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
@@ -41,7 +41,7 @@ body {
     
     --border: 220 13% 91%;
     --input: 220 13% 89%;
-    --ring: 188 95% 43%; /* Cyan */
+    --ring: 217 91% 60%; /* Primary color for rings */
     
     --radius: 0.75rem;
 
@@ -50,7 +50,8 @@ body {
     --chart-3: 158 81% 39%;
     --chart-4: 217 70% 70%;
     --chart-5: 188 75% 53%;
-
+    
+    /* Default sidebar theme is light */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 47% 11%;
     --sidebar-primary: 217 91% 60%;
@@ -62,10 +63,10 @@ body {
   }
 
   .dark {
-    --background: 222 83% 4%; /* Near Black Blue */
-    --foreground: 210 40% 98%; /* White */
+    --background: 222 83% 4%; /* #020617 */
+    --foreground: 210 40% 98%;
 
-    --card: 222 83% 8%;
+    --card: 222 83% 8%; /* Darker slate */
     --card-foreground: 210 40% 98%;
 
     --popover: 222 83% 8%;
@@ -94,7 +95,7 @@ body {
 
     --border: 217 33% 25%;
     --input: 217 33% 20%;
-    --ring: 188 95% 43%;
+    --ring: 188 95% 43%; /* Accent color for rings */
     
     --chart-1: 217 91% 60%;
     --chart-2: 188 95% 43%;
@@ -102,6 +103,7 @@ body {
     --chart-4: 217 70% 70%;
     --chart-5: 188 75% 53%;
 
+    /* Dark sidebar theme */
     --sidebar-background: 222 83% 4%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 210 40% 98%;
