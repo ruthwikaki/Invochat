@@ -95,7 +95,6 @@ export type Alert = {
 export type DashboardMetrics = {
     totalSalesValue: number;
     totalProfit: number;
-    returnRate: number;
     totalInventoryValue: number;
     lowStockItemsCount: number;
     deadStockItemsCount: number;

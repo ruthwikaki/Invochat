@@ -168,7 +168,10 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             .eq('company_id', companyId)
             .single();
 
-        if (mvError) logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
+        if (mvError && mvError.code !== 'PGRST116') {
+            logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
+            // Don't throw, allow the RPC to work, but some metrics will be 0.
+        }
         
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_dashboard_metrics', {
             p_company_id: companyId,
@@ -181,12 +184,15 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         }
 
         const metrics = rpcData || {};
-        const { data: customers } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+        const { data: customers, error: customerError } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+
+        if (customerError) {
+            logError(customerError, { context: `Could not fetch customer count for company ${companyId}`});
+        }
 
         const finalMetrics: DashboardMetrics = {
             totalSalesValue: Math.round(metrics.totalSalesValue || 0),
             totalProfit: Math.round(metrics.totalProfit || 0),
-            returnRate: metrics.returnRate || 0,
             totalInventoryValue: Math.round(mvData?.inventory_value || 0),
             lowStockItemsCount: mvData?.low_stock_count || 0,
             deadStockItemsCount: metrics.deadStockItemsCount || 0,
