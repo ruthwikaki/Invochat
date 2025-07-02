@@ -4,13 +4,12 @@
 import { z } from 'zod';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import crypto from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
-import { getErrorMessage } from '@/lib/error-handler';
+import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
 
 const AUTH_TIMEOUT = 15000; // 15 seconds
@@ -42,8 +41,6 @@ function validateCsrf(formData: FormData, redirectPath: string) {
 
     if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
         logger.warn(`[CSRF] Invalid token for action at path: ${redirectPath}`);
-        // This is a special case where we must throw to stop execution immediately.
-        // We will catch this specifically if needed, but usually letting Next handle it is fine.
         redirect(`${redirectPath}?error=${encodeURIComponent('Invalid form submission. Please try again.')}`);
     }
 }
@@ -54,51 +51,50 @@ const loginSchema = z.object({
 });
 
 export async function login(formData: FormData) {
-  validateCsrf(formData, '/login');
-
-  const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-  const { limited } = await rateLimit(ip, 'auth', 5, 60);
-  if (limited) {
-    return redirect(`/login?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
-  }
-
-  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    return redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
-  }
-
-  const { email, password } = parsed.data;
-  const supabase = getSupabaseClient();
-  
-  let data, error;
-
   try {
-    const response = await withTimeout(
+    validateCsrf(formData, '/login');
+
+    const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+    const { limited } = await rateLimit(ip, 'auth', 5, 60);
+    if (limited) {
+      return redirect(`/login?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
+    }
+
+    const parsed = loginSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) {
+      return redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
+    }
+
+    const { email, password } = parsed.data;
+    const supabase = getSupabaseClient();
+    
+    const { data, error } = await withTimeout(
         supabase.auth.signInWithPassword({ email, password }),
         AUTH_TIMEOUT,
         'Authentication service is not responding. Please try again later.'
     );
-    data = response.data;
-    error = response.error;
-  } catch(e) {
-    const errorMessage = getErrorMessage(e);
-    logger.error('Login action failed during auth call:', errorMessage);
-    return redirect(`/login?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
-  }
 
-  if (error || !data.session) {
-    const msg = error?.message || 'Login failed. Check credentials or confirm your email.';
-    return redirect(`/login?error=${encodeURIComponent(msg)}`);
-  }
+    if (error || !data.session) {
+      const msg = error?.message || 'Login failed. Check credentials or confirm your email.';
+      return redirect(`/login?error=${encodeURIComponent(msg)}`);
+    }
 
-  const companyId = data.user.app_metadata?.company_id;
-  if (!companyId) {
-    revalidatePath('/setup-incomplete', 'page');
-    return redirect('/setup-incomplete');
-  }
+    const companyId = data.user.app_metadata?.company_id;
+    if (!companyId) {
+      revalidatePath('/setup-incomplete', 'page');
+      return redirect('/setup-incomplete');
+    }
 
-  revalidatePath('/dashboard', 'page');
-  return redirect('/dashboard');
+    revalidatePath('/dashboard', 'page');
+    return redirect('/dashboard');
+  } catch (e) {
+      if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
+        throw e;
+      }
+      const errorMessage = getErrorMessage(e);
+      logger.error('Login action failed catastrophically:', errorMessage);
+      return redirect(`/login?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
+  }
 }
 
 
@@ -110,28 +106,29 @@ const signupSchema = z.object({
 
 
 export async function signup(formData: FormData) {
-  validateCsrf(formData, '/signup');
-
-  const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-  const { limited } = await rateLimit(ip, 'auth', 5, 60);
-  if (limited) {
-    logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
-    return redirect(`/signup?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
-  }
-
-  const parsed = signupSchema.safeParse(Object.fromEntries(formData));
-
-  if (!parsed.success) {
-      const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
-      return redirect(`/signup?error=${encodeURIComponent(errorMessages)}`);
-  }
-
-  const { email, password, companyName } = parsed.data;
-  const supabase = getSupabaseClient();
-  
-  let data, error;
   try {
-    const response = await withTimeout(
+    validateCsrf(formData, '/signup');
+
+    const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+    const { limited } = await rateLimit(ip, 'auth', 5, 60);
+    if (limited) {
+      logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
+      return redirect(`/signup?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
+    }
+
+    const parsed = signupSchema.safeParse(Object.fromEntries(formData));
+
+    if (!parsed.success) {
+        const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
+        return redirect(`/signup?error=${encodeURIComponent(errorMessages)}`);
+    }
+
+    const { email, password, companyName } = parsed.data;
+    const supabase = getSupabaseClient();
+    
+    // **THE FIX**: Do NOT pass a company_id here.
+    // The database trigger will see that it's null and create a new company.
+    const { data, error } = await withTimeout(
       supabase.auth.signUp({
           email,
           password,
@@ -139,30 +136,30 @@ export async function signup(formData: FormData) {
               emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
               data: {
                   company_name: companyName,
-                  company_id: crypto.randomUUID(),
               }
           }
       }),
       AUTH_TIMEOUT,
       'Signup service is not responding. Please try again later.'
     );
-    data = response.data;
-    error = response.error;
-  } catch (e) {
-    const errorMessage = getErrorMessage(e);
-    logger.error('Signup action failed during auth call:', errorMessage);
-    return redirect(`/signup?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
-  }
-  
-  if (error) {
-      return redirect(`/signup?error=${encodeURIComponent(error.message)}`);
-  }
+    
+    if (error) {
+        return redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+    }
 
-  if (data.user) {
-      return redirect('/signup?success=true');
+    if (data.user) {
+        return redirect('/signup?success=true');
+    }
+    
+    return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
+  } catch(e) {
+      if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
+        throw e;
+      }
+      const errorMessage = getErrorMessage(e);
+      logger.error('Signup action failed catastrophically:', errorMessage);
+      return redirect(`/signup?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
   }
-  
-  return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
 }
 
 
@@ -171,36 +168,37 @@ const requestPasswordResetSchema = z.object({
 });
 
 export async function requestPasswordReset(formData: FormData) {
-  validateCsrf(formData, '/forgot-password');
-  const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
-
-  if (!parsed.success) {
-      return redirect(`/forgot-password?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
-  }
-
-  const supabase = getSupabaseClient();
-  let error;
   try {
-    const response = await withTimeout(
+    validateCsrf(formData, '/forgot-password');
+    const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
+
+    if (!parsed.success) {
+        return redirect(`/forgot-password?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+    }
+
+    const supabase = getSupabaseClient();
+    const { error } = await withTimeout(
       supabase.auth.resetPasswordForEmail(parsed.data.email, {
           redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
       }),
       AUTH_TIMEOUT,
       'Password reset service is not responding. Please try again later.'
     );
-    error = response.error;
-  } catch (e) {
-    const errorMessage = getErrorMessage(e);
-    logger.error('Password reset request failed during auth call:', errorMessage);
-    return redirect(`/forgot-password?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
-  }
+      
+    if (error) {
+        logger.error("Password reset error:", error);
+        return redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
+    }
     
-  if (error) {
-      logger.error("Password reset error:", error);
-      return redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
+    return redirect('/forgot-password?success=true');
+  } catch (e) {
+      if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
+        throw e;
+      }
+      const errorMessage = getErrorMessage(e);
+      logger.error('Password reset request failed catastrophically:', errorMessage);
+      return redirect(`/forgot-password?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
   }
-  
-  return redirect('/forgot-password?success=true');
 }
 
 const updatePasswordSchema = z.object({

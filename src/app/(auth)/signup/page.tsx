@@ -13,10 +13,10 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { motion } from 'framer-motion';
@@ -29,7 +29,7 @@ function SubmitButton() {
 
   return (
     <Button type="submit" className="w-full" disabled={isDisabled}>
-      {isDisabled ? <Loader2 className="animate-spin" /> : 'Sign up'}
+      {isDisabled ? <Loader2 className="animate-spin" /> : 'Create Account'}
     </Button>
   );
 }
@@ -151,6 +151,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
             </div>
             {searchParams?.error && (
               <Alert variant="destructive">
+                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
