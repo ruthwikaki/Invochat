@@ -51,7 +51,7 @@ body {
     --chart-5: 188 75% 53%;
   }
 
-  /* Keep a light theme variant for users who might switch */
+  /* A light theme variant for users who might switch via settings */
   .light {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -88,7 +88,7 @@ body {
   }
 }
 
-/* Add custom animations for the login page */
+/* Custom animations for the login page */
 @keyframes blob {
   0% {
     transform: translate(0px, 0px) scale(1);
