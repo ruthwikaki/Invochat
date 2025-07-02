@@ -166,9 +166,9 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             .from('company_dashboard_metrics')
             .select('inventory_value, low_stock_count, total_skus')
             .eq('company_id', companyId)
-            .single();
+            .maybeSingle();
 
-        if (mvError && mvError.code !== 'PGRST116') {
+        if (mvError) {
             logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
             // Don't throw, allow the RPC to work, but some metrics will be 0.
         }
@@ -200,9 +200,9 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             totalOrders: metrics.totalOrders || 0,
             totalCustomers: customers?.count || 0,
             averageOrderValue: metrics.averageOrderValue || 0,
-            salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[]) || [],
-            inventoryByCategoryData: (metrics.inventoryByCategoryData as { name: string; value: number }[]) || [],
-            topCustomersData: (metrics.topCustomersData as { name: string; value: number }[]) || [],
+            salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[] | null) || [],
+            inventoryByCategoryData: (metrics.inventoryByCategoryData as { name: string; value: number }[] | null) || [],
+            topCustomersData: (metrics.topCustomersData as { name: string; value: number }[] | null) || [],
         };
         
         if (isRedisEnabled) {

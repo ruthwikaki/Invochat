@@ -501,26 +501,69 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION get_dashboard_metrics(p_company_id uuid, p_days integer)
-RETURNS json AS $$
+RETURNS json LANGUAGE plpgsql AS $$
 DECLARE result_json json;
 BEGIN
-    WITH date_range AS (SELECT (CURRENT_DATE - (p_days || ' days')::interval) as start_date),
-    orders_in_range AS (SELECT id, total_amount, sale_date, customer_id FROM public.orders WHERE company_id = p_company_id AND sale_date >= (SELECT start_date FROM date_range)),
-    sales_details_in_range AS (SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost FROM public.order_items oi JOIN orders_in_range s ON oi.sale_id = s.id JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id),
-    sales_trend AS (SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales" FROM orders_in_range GROUP BY 1 ORDER BY 1),
-    top_customers AS (SELECT c.customer_name as name, SUM(s.total_amount) as value FROM orders_in_range s JOIN public.customers c ON s.customer_id = c.id WHERE s.customer_id IS NOT NULL GROUP BY c.customer_name ORDER BY value DESC LIMIT 5),
-    inventory_by_category AS (SELECT category as name, sum(quantity * cost) as value FROM public.inventory WHERE company_id = p_company_id AND category IS NOT NULL GROUP BY category),
-    main_metrics AS (SELECT (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range) as "totalSalesValue", (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range) as "totalProfit", (SELECT COUNT(*) FROM orders_in_range) as "totalOrders")
+    WITH date_range AS (
+        SELECT (CURRENT_DATE - (p_days || ' days')::interval) as start_date
+    ),
+    orders_in_range AS (
+        SELECT id, total_amount, sale_date, customer_id
+        FROM public.orders
+        WHERE company_id = p_company_id AND sale_date >= (SELECT start_date FROM date_range)
+    ),
+    sales_details_in_range AS (
+        SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost
+        FROM public.order_items oi
+        JOIN orders_in_range s ON oi.sale_id = s.id
+        JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
+    ),
+    sales_trend AS (
+        SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
+        FROM orders_in_range GROUP BY 1 ORDER BY 1
+    ),
+    top_customers AS (
+        SELECT c.customer_name as name, SUM(s.total_amount) as value
+        FROM orders_in_range s
+        JOIN public.customers c ON s.customer_id = c.id
+        WHERE s.customer_id IS NOT NULL
+        GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
+    ),
+    inventory_by_category AS (
+        SELECT category as name, sum(quantity * cost) as value
+        FROM public.inventory
+        WHERE company_id = p_company_id AND category IS NOT NULL
+        GROUP BY category
+    ),
+    dead_stock_calc AS (
+        SELECT COUNT(*)::int as count
+        FROM public.inventory i
+        JOIN public.company_settings s ON i.company_id = s.company_id
+        WHERE i.company_id = p_company_id
+          AND i.quantity > 0
+          AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - (s.dead_stock_days || ' days')::interval)
+    ),
+    main_metrics AS (
+        SELECT
+            (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range) as "totalSalesValue",
+            (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range) as "totalProfit",
+            (SELECT COUNT(*) FROM orders_in_range) as "totalOrders",
+            (SELECT count FROM dead_stock_calc) as "deadStockItemsCount"
+    )
     SELECT json_build_object(
-        'totalSalesValue', m."totalSalesValue", 'totalProfit', m."totalProfit",
+        'totalSalesValue', m."totalSalesValue",
+        'totalProfit', m."totalProfit",
         'averageOrderValue', CASE WHEN m."totalOrders" > 0 THEN m."totalSalesValue" / m."totalOrders" ELSE 0 END,
-        'totalOrders', m."totalOrders", 'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
-        'topCustomersData', (SELECT json_agg(t) FROM top_customers t), 'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t),
-        'deadStockItemsCount', (SELECT COUNT(*)::int FROM public.inventory i JOIN public.company_settings s ON i.company_id = s.company_id WHERE i.company_id = p_company_id AND i.quantity > 0 AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - (s.dead_stock_days || ' days')::interval))
+        'totalOrders', m."totalOrders",
+        'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
+        'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
+        'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t),
+        'deadStockItemsCount', m."deadStockItemsCount"
     ) INTO result_json FROM main_metrics m;
     RETURN result_json;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
 
 CREATE OR REPLACE FUNCTION get_alerts(p_company_id uuid)
 RETURNS json AS $$
