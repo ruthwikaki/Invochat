@@ -3,6 +3,7 @@
 
 import { redisClient, isRedisEnabled } from '@/lib/redis';
 import { logger } from '@/lib/logger';
+import { createClient } from '@supabase/supabase-js';
 
 if (isRedisEnabled) {
     logger.info('[Monitoring] Performance monitoring service is active.');
@@ -109,3 +110,5 @@ export async function incrementCacheMiss(cacheType: string): Promise<void> {
         logger.error(`[Monitoring] Failed to increment cache miss for ${cacheType}:`, e);
     }
 }
+
+    

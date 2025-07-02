@@ -15,6 +15,10 @@ import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import { deleteSecret } from '@/features/integrations/services/encryption';
+import { ai } from '@/ai/genkit';
+import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import { config } from '@/config/app-config';
+import { createClient } from '@supabase/supabase-js';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -615,14 +619,12 @@ export async function testMaterializedView(): Promise<{ success: boolean; error:
     try {
         const serviceSupabase = db.getServiceRoleClient();
 
-        const { data, error } = await serviceSupabase
-            .from('pg_matviews')
-            .select('matviewname')
-            .eq('matviewname', 'company_dashboard_metrics')
-            .single();
+        const { data, error } = await serviceSupabase.rpc('execute_dynamic_query', {
+          query_text: "SELECT 'company_dashboard_metrics'::regclass"
+        });
 
         if (error) {
-            if (error.code === 'PGRST116') {
+            if (error.message.includes('does not exist')) {
                 return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
             }
             throw error;
@@ -651,9 +653,9 @@ export async function testGenkitConnection(): Promise<{
     }
 
     try {
-        const model = 'googleai/gemini-1.5-flash';
+        const model = config.ai.model;
         
-        await db.getAi().generate({
+        await ai.generate({
             model: model,
             prompt: 'Test prompt: say "hello".',
             config: {
@@ -680,11 +682,11 @@ export async function testRedisConnection(): Promise<{
     error: string | null;
     isEnabled: boolean;
 }> {
-    if (!db.isRedisEnabled) {
+    if (!isRedisEnabled) {
         return { success: true, error: 'Redis is not configured (REDIS_URL is not set), so caching and rate limiting are disabled. This is not a failure.', isEnabled: false };
     }
     try {
-        const pong = await db.redisClient.ping();
+        const pong = await redisClient.ping();
         if (pong !== 'PONG') {
             throw new Error('Redis PING command did not return PONG.');
         }
@@ -693,3 +695,5 @@ export async function testRedisConnection(): Promise<{
         return { success: false, error: getErrorMessage(e), isEnabled: true };
     }
 }
+
+    
