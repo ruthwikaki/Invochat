@@ -1,6 +1,6 @@
 
 /**
- * @fileoverview Centralized, environment-aware configuration for InvoChat.
+ * @fileoverview Centralized, environment-aware configuration for ARVO.
  *
  * This file consolidates all external configuration, pulling from environment
  * variables with sensible defaults. This is crucial for security and for
@@ -42,7 +42,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 export const config = {
   app: {
-    name: process.env.NEXT_PUBLIC_APP_NAME || 'InvoChat',
+    name: process.env.NEXT_PUBLIC_APP_NAME || 'ARVO',
     url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
     environment: process.env.NODE_ENV || 'development',
   },

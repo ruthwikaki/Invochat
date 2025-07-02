@@ -8,28 +8,28 @@ body {
  
 @layer base {
   :root {
-    --background: 0 0% 98%; /* #FAFAFA */
-    --foreground: 222.2 84% 4.9%;
+    --background: 222 83% 4%; /* #020617 - Deep space black */
+    --foreground: 210 40% 98%;
  
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 215 39% 17%; /* #1E293B */
+    --card-foreground: 210 40% 98%;
  
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 222 83% 4%;
+    --popover-foreground: 210 40% 98%;
  
-    --primary: 256 75% 51%; /* #6B46C1 */
+    --primary: 256 75% 61%; /* Lighter purple for dark mode */
     --primary-foreground: 210 40% 98%;
  
-    --secondary: 217 33% 50%; /* #475569 */
+    --secondary: 217 33% 37%;
     --secondary-foreground: 210 40% 98%;
  
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
  
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
  
-    --destructive: 0 84.2% 60.2%;
+    --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
 
     --success: 142.1 76.2% 36.3%;
@@ -37,11 +37,11 @@ body {
 
     --warning: 47.9 95.8% 53.1%;
     --warning-foreground: 222.2 47.4% 11.2%;
- 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 256 75% 51%;
- 
+
+    --border: 217 33% 25%;
+    --input: 217 33% 20%;
+    --ring: 256 75% 61%;
+
     --radius: 0.5rem;
 
     --chart-1: 256 75% 51%;

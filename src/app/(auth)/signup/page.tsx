@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { ArvoLogo } from '@/components/arvo-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
@@ -28,7 +28,7 @@ function SubmitButton() {
   const isDisabled = pending || !token;
 
   return (
-    <Button type="submit" className="w-full" disabled={isDisabled}>
+    <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
       {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
     </Button>
   );
@@ -42,14 +42,14 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
         <Input
           ref={ref}
           type={showPassword ? 'text' : 'password'}
-          className="pr-10"
+          className="pr-10 bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
           {...props}
         />
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:bg-transparent"
+          className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-slate-400 hover:bg-transparent hover:text-white"
           onClick={() => setShowPassword((prev) => !prev)}
           aria-label={showPassword ? 'Hide password' : 'Show password'}
           tabIndex={-1}
@@ -71,10 +71,10 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
 
   if (searchParams?.success) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
+      <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-          <InvoChatLogo className="h-10 w-10 text-primary" />
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">InvoChat</h1>
+          <ArvoLogo className="h-10 w-10 text-primary" />
+           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">ARVO</h1>
         </div>
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -82,13 +82,13 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
             transition={{ duration: 0.5, ease: 'easeOut' }}
             className="w-full"
         >
-            <Card className="w-full max-w-sm text-center mx-auto">
+            <Card className="w-full max-w-sm text-center mx-auto bg-slate-800/80 border-slate-700/50 text-white">
                 <CardHeader>
                     <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
-                        <CheckCircle className="h-8 w-8 text-success" />
+                        <CheckCircle className="h-8 w-8 text-green-400" />
                     </div>
-                    <CardTitle className="mt-4">Success!</CardTitle>
-                    <CardDescription>
+                    <CardTitle className="mt-4 text-slate-200">Success!</CardTitle>
+                    <CardDescription className="text-slate-400">
                         Please check your email to verify your account, then sign in.
                     </CardDescription>
                 </CardHeader>
@@ -104,43 +104,52 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 text-white p-4">
+       <div className="absolute inset-0 -z-10">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
+            <div className="absolute top-0 left-1/4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob" />
+            <div className="absolute top-0 right-1/4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000" />
+            <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000" />
+        </div>
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <InvoChatLogo className="h-10 w-10 text-primary" />
-        <h1 className="text-4xl font-bold tracking-tight text-foreground">InvoChat</h1>
+        <ArvoLogo className="h-10 w-10 text-primary" />
+        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">ARVO</h1>
       </div>
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Create Your Account</CardTitle>
-          <CardDescription>
+      <Card className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
+        <CardHeader className="p-0 text-center">
+          <CardTitle className="text-2xl text-slate-200">Create Your Account</CardTitle>
+          <CardDescription className="text-slate-400">
             Get started with AI-powered inventory intelligence.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <form action={signup} className="grid gap-4">
             <CSRFInput />
             <div className="grid gap-2">
-              <Label htmlFor="companyName">Company Name</Label>
+              <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
               <Input
                 id="companyName"
                 name="companyName"
                 type="text"
                 placeholder="Your Company Inc."
                 required
+                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-slate-300">Email</Label>
               <Input
                 id="email"
                 name="email"
                 type="email"
                 placeholder="you@company.com"
                 required
+                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-slate-300">Password</Label>
               <PasswordInput
                 id="password"
                 name="password"
@@ -150,16 +159,16 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
               />
             </div>
             {searchParams?.error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
             <SubmitButton />
           </form>
-          <div className="mt-4 text-center text-sm">
+          <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}
-            <Link href="/login" className="underline text-primary">
+            <Link href="/login" className="underline text-blue-400">
               Sign in
             </Link>
           </div>
