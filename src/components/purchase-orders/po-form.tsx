@@ -130,25 +130,6 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
                     <Input id="po_number" {...form.register('po_number')} />
                      {form.formState.errors.po_number && <p className="text-sm text-destructive">{form.formState.errors.po_number.message}</p>}
                 </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Controller
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                           <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <SelectTrigger id="status">
-                                <SelectValue placeholder="Select a status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="draft">Draft</SelectItem>
-                                <SelectItem value="sent">Sent</SelectItem>
-                                <SelectItem value="cancelled">Cancelled</SelectItem>
-                            </SelectContent>
-                           </Select>
-                        )}
-                    />
-                </div>
                 <div className="space-y-2">
                     <Label htmlFor="order_date">Order Date</Label>
                     <Controller

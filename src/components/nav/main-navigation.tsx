@@ -22,6 +22,7 @@ import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/chat', label: 'Chat', icon: MessageSquare, exact: false },
   { href: '/analytics', label: 'Strategic Reports', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/locations', label: 'Locations', icon: Warehouse },
@@ -40,13 +41,9 @@ export function MainNavigation() {
   return (
     <SidebarMenu>
       {menuItems.map((item) => {
-        // Simplified and more robust active state logic.
-        // For the dashboard, the path must be an exact match.
-        // For all other main routes, it checks if the path starts with the href,
-        // which correctly handles nested pages (e.g., /purchase-orders/new).
-        const isActive = item.href === '/dashboard' 
-          ? pathname === item.href 
-          : pathname.startsWith(item.href);
+        const isActive = item.exact === false
+            ? pathname.startsWith(item.href)
+            : pathname === item.href;
           
         return (
           <SidebarMenuItem key={item.href}>

@@ -16,38 +16,15 @@ export function generateCSRFToken(): string {
 }
 
 /**
- * Compares two strings in a way that protects against timing attacks.
- * This is a standard and safe implementation for this use case.
- * It's crucial for securely validating tokens without leaking information.
- * @param a The first string (e.g., from a form).
- * @param b The second string (e.g., from a cookie).
- * @returns True if the strings are identical, false otherwise.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  // Both strings must be of equal length.
-  if (a.length !== b.length) {
-    return false;
-  }
-
-  let result = 0;
-  // XOR each character code. If strings are identical, result will remain 0.
-  // This loop always runs for the full length of the string, preventing an
-  // attacker from guessing the token's content based on response time.
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-
-  return result === 0;
-}
-
-/**
  * Validates a CSRF token from a form against the one stored in a cookie.
  * Uses a timing-safe comparison to prevent timing attacks.
+ * @param tokenFromForm The token from the form input.
+ * @param tokenFromCookie The token from the cookie.
+ * @returns {boolean} True if the tokens are valid and match, false otherwise.
  */
 export function validateCSRFToken(tokenFromForm: string, tokenFromCookie: string): boolean {
   if (!tokenFromForm || !tokenFromCookie || typeof tokenFromForm !== 'string' || typeof tokenFromCookie !== 'string') {
     return false;
   }
-
-  return timingSafeEqual(tokenFromForm, tokenFromCookie);
+  return tokenFromForm === tokenFromCookie;
 }

@@ -19,13 +19,11 @@ function PlatformConnectCard({
     description,
     onConnectClick,
     comingSoon = false,
-    brandColor,
 }: {
     platform: Platform;
     description: string;
     onConnectClick: () => void;
     comingSoon?: boolean;
-    brandColor?: string;
 }) {
     return (
         <Card className="bg-background/50 backdrop-blur-sm">
@@ -37,7 +35,7 @@ function PlatformConnectCard({
                     <h3 className="text-lg font-semibold capitalize">{platform.replace(/_/g, ' ')}</h3>
                     <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
-                <Button onClick={onConnectClick} disabled={comingSoon} style={brandColor ? { backgroundColor: brandColor, color: 'white' } : {}}>
+                <Button onClick={onConnectClick} disabled={comingSoon}>
                     {comingSoon ? 'Coming Soon' : 'Connect Store'}
                 </Button>
             </div>
@@ -111,7 +109,6 @@ export function IntegrationsClientPage() {
                             platform="shopify"
                             description="Sync your products, inventory levels, and orders directly from your Shopify store."
                             onConnectClick={() => setIsShopifyModalOpen(true)}
-                            brandColor="#78AB43"
                          />
                     )}
                     {!connectedPlatforms.has('woocommerce') && (
@@ -119,7 +116,6 @@ export function IntegrationsClientPage() {
                             platform="woocommerce"
                             description="Sync your products, inventory, and orders from your WooCommerce-powered site."
                             onConnectClick={() => setIsWooCommerceModalOpen(true)}
-                            brandColor="#96588A"
                          />
                     )}
                      {!connectedPlatforms.has('amazon_fba') && (
@@ -127,7 +123,6 @@ export function IntegrationsClientPage() {
                             platform="amazon_fba"
                             description="Connect your Amazon Seller Central account to manage FBA inventory."
                             onConnectClick={() => setIsAmazonModalOpen(true)}
-                            brandColor="#FF9900"
                          />
                     )}
                 </div>

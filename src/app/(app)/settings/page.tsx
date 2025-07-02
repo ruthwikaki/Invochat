@@ -29,12 +29,6 @@ const businessRulesFields: { key: keyof CompanySettings; label: string; descript
     { key: 'high_value_threshold', label: 'High-Value Threshold ($)', description: 'The cost above which an item is considered "high-value".', type: 'number' },
 ];
 
-const generalSettingsFields: { key: keyof CompanySettings; label: string; description: string, type: string, placeholder: string }[] = [
-    { key: 'currency', label: 'Currency Code', description: 'e.g., USD, EUR. Used for formatting.', type: 'text', placeholder: 'USD' },
-    { key: 'timezone', label: 'Timezone', description: 'e.g., UTC, America/New_York. Used for date display.', type: 'text', placeholder: 'UTC' },
-    { key: 'tax_rate', label: 'Default Tax Rate (%)', description: 'Default sales tax rate for calculations.', type: 'number', placeholder: '8.5' },
-];
-
 const themeFields: { key: keyof CompanySettings; label: string; description: string }[] = [
     { key: 'theme_primary_color', label: 'Primary Color', description: 'Main color for buttons and highlights.' },
     { key: 'theme_background_color', label: 'Background Color', description: 'Main page background color.' },
@@ -155,7 +149,7 @@ export default function SettingsPage() {
     }, []);
     
     const handleInputChange = (key: keyof CompanySettings, value: string) => {
-        const fieldType = [...generalSettingsFields, ...businessRulesFields, ...themeFields].find(f => f.key === key)?.type;
+        const fieldType = [...businessRulesFields, ...themeFields].find(f => f.key === key)?.type;
         const processedValue = fieldType === 'number' && value !== '' ? Number(value) : value;
         setSettings(prev => ({ ...prev, [key]: processedValue }));
     };
@@ -166,8 +160,8 @@ export default function SettingsPage() {
             try {
                 // Ensure numeric values are numbers before sending
                 const settingsToUpdate = { ...settings };
-                [...businessRulesFields, ...generalSettingsFields].forEach(field => {
-                    const fieldDef = [...businessRulesFields, ...generalSettingsFields].find(f => f.key === field.key);
+                [...businessRulesFields].forEach(field => {
+                    const fieldDef = [...businessRulesFields].find(f => f.key === field.key);
                     if (fieldDef?.type === 'number' && typeof settingsToUpdate[field.key] !== 'number') {
                          settingsToUpdate[field.key] = Number(settingsToUpdate[field.key]) || 0;
                     }
@@ -294,38 +288,6 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-6 lg:col-span-1">
-                     {/* General Settings Card */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Briefcase className="h-5 w-5" />
-                                General
-                            </CardTitle>
-                             <CardDescription>
-                                Company-wide localization and financial settings.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             {loading ? <Skeleton className="h-48 w-full" /> : (
-                                <div className="space-y-6">
-                                    {generalSettingsFields.map(({ key, label, description, type, placeholder }) => (
-                                        <div key={key} className="space-y-2">
-                                            <Label htmlFor={key}>{label}</Label>
-                                            <Input
-                                                id={key}
-                                                type={type}
-                                                value={settings[key] as any || ''}
-                                                onChange={(e) => handleInputChange(key, e.target.value)}
-                                                placeholder={placeholder}
-                                            />
-                                            <p className="text-xs text-muted-foreground">{description}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
                      <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">

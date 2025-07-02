@@ -35,14 +35,14 @@ function formatNumber(value: number) {
 }
 
 // --- Page-Specific Components ---
-function Sparkline({ data, positive = true }: { data: { value: number }[], positive?: boolean }) {
+function Sparkline({ data }: { data: { value: number }[] }) {
     return (
         <ResponsiveContainer width="100%" height={40}>
             <LineChart data={data}>
                 <Line
                     type="natural"
                     dataKey="value"
-                    stroke={positive ? 'hsl(var(--primary-foreground))' : 'hsl(var(--primary-foreground))'}
+                    stroke={'hsl(var(--primary-foreground))'}
                     strokeWidth={2}
                     dot={false}
                     isAnimationActive={false}
@@ -90,7 +90,7 @@ function GradientMetricCard({
                 <CardContent className="flex items-end justify-between">
                     <div className="text-4xl font-bold">{value}</div>
                     <div className="w-24 h-10">
-                       <Sparkline data={sparklineData} positive={trendDirection === 'up'} />
+                       <Sparkline data={sparklineData} />
                     </div>
                 </CardContent>
             </Card>
@@ -232,4 +232,3 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
     );
 }
 
-    

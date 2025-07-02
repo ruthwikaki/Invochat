@@ -811,29 +811,6 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     });
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string, supplier?: string }): Promise<UnifiedInventoryItem[]> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        
-        // Use the new, secure RPC function
-        const { data, error } = await supabase.rpc('get_unified_inventory', {
-            p_company_id: companyId,
-            p_query: params.query || null,
-            p_category: params.category || null,
-            p_location_id: params.location || null,
-            p_supplier_id: params.supplier || null
-        });
-
-        if (error) {
-            logError(error, { context: `Error fetching unified inventory for company ${companyId}` });
-            throw error;
-        }
-
-        return (data || []) as UnifiedInventoryItem[];
-    });
-}
-
 export async function getInventoryCategoriesFromDB(companyId: string): Promise<string[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getInventoryCategoriesFromDB', async () => {
