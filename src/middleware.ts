@@ -5,13 +5,7 @@ import { logger } from './lib/logger';
 import { generateCSRFToken, CSRF_COOKIE_NAME } from './lib/csrf';
 
 export async function middleware(req: NextRequest) {
-  const requestHeaders = new Headers(req.headers);
-  
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  });
+  const response = NextResponse.next();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,21 +29,20 @@ export async function middleware(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // CSRF Protection: Ensure a token exists and pass it in the headers for server actions
+  // CSRF Protection: Ensure a token cookie exists.
+  // The client will read from this cookie and include it in form submissions.
   let csrfToken = req.cookies.get(CSRF_COOKIE_NAME)?.value;
   if (!csrfToken) {
     csrfToken = generateCSRFToken();
     response.cookies.set({
       name: CSRF_COOKIE_NAME,
       value: csrfToken,
-      httpOnly: true, // More secure as it's not needed by client JS
+      httpOnly: true, // More secure as it's not accessible by client-side script attacks
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
     });
   }
-  requestHeaders.set('X-CSRF-Token', csrfToken);
-
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];

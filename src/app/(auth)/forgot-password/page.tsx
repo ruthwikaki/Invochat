@@ -1,6 +1,7 @@
 
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,17 +19,29 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full" disabled={pending}>
+      <Button type="submit" className="w-full" disabled={disabled || pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
       </Button>
     );
 }
 
 export default function ForgotPasswordPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    if (token) {
+      setCsrfToken(token);
+    }
+  }, []);
 
   if (searchParams?.success) {
     return (
@@ -65,9 +78,6 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
         <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
-            <div className="absolute top-0 left-1/4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob" />
-            <div className="absolute top-0 right-1/4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000" />
-            <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000" />
         </div>
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
         <InvoChatLogo className="h-10 w-10 text-primary" />
@@ -82,6 +92,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent className="p-0">
           <form action={requestPasswordReset} className="grid gap-4">
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
               <Label htmlFor="email" className="text-slate-300">Email</Label>
               <Input
@@ -99,7 +110,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton />
+            <SubmitButton disabled={!csrfToken} />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}

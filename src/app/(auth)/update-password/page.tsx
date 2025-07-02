@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
@@ -46,18 +47,29 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
-        <Button type="submit" className="w-full" disabled={pending}>
+        <Button type="submit" className="w-full" disabled={disabled || pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
         </Button>
     );
 }
 
 export default function UpdatePasswordPage({ searchParams }: { searchParams?: { error?: string } }) {
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
     const [error, setError] = useState(searchParams?.error || null);
 
+    useEffect(() => {
+        const token = document.cookie
+            .split('; ')
+            .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+            ?.split('=')[1];
+        if (token) {
+            setCsrfToken(token);
+        }
+    }, []);
+    
     const handleSubmit = async (formData: FormData) => {
         if (formData.get('password') !== formData.get('confirmPassword')) {
             setError('Passwords do not match.');
@@ -72,9 +84,6 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
         <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
-            <div className="absolute top-0 left-1/4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob" />
-            <div className="absolute top-0 right-1/4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000" />
-            <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000" />
         </div>
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
         <InvoChatLogo className="h-10 w-10 text-primary" />
@@ -89,6 +98,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent className="p-0">
           <form action={handleSubmit} className="grid gap-4">
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
               <Label htmlFor="password" className="text-slate-300">New Password</Label>
                <PasswordInput
@@ -114,7 +124,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton />
+            <SubmitButton disabled={!csrfToken} />
           </form>
         </CardContent>
       </Card>
