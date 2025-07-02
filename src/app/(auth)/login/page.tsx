@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -12,11 +13,40 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-// This function is defined outside the main component to avoid re-creation on renders.
-function SubmitButton({ isReady }: { isReady: boolean }) {
-    const { pending } = useFormStatus();
-    const isDisabled = pending || !isReady;
+// Helper component to show the password input with a toggle
+const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
+  (props, ref) => {
+    const [showPassword, setShowPassword] = useState(false);
+    return (
+      <div className="relative">
+        <Input
+          ref={ref}
+          type={showPassword ? 'text' : 'password'}
+          className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
+          {...props}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+        >
+          {showPassword ? (
+            <EyeOff className="h-5 w-5" />
+          ) : (
+            <Eye className="h-5 w-5" />
+          )}
+        </button>
+      </div>
+    );
+  }
+);
+PasswordInput.displayName = 'PasswordInput';
 
+// The submit button must be a separate component to use useFormStatus
+function LoginSubmitButton({ isCsrfReady }: { isCsrfReady: boolean }) {
+    const { pending } = useFormStatus();
+    const isDisabled = pending || !isCsrfReady;
     return (
         <Button 
             type="submit" 
@@ -28,47 +58,18 @@ function SubmitButton({ isReady }: { isReady: boolean }) {
     )
 }
 
-function PasswordInput() {
-    const [showPassword, setShowPassword] = useState(false);
-    return (
-        <div className="relative">
-            <Input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              required
-              className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1"
-              aria-label={showPassword ? "Hide password" : "Show password"}
-            >
-              {showPassword ? (
-                <EyeOff className="h-5 w-5" />
-              ) : (
-                <Eye className="h-5 w-5" />
-              )}
-            </button>
-        </div>
-    );
-}
-
-// A helper function to safely read the cookie on the client side.
-function getCsrfTokenFromCookie(): string | null {
-    if (typeof document === 'undefined') return null;
-    return document.cookie.split('; ').find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))?.split('=')[1] || null;
-}
-
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect runs once on the client after the component mounts.
-    setCsrfToken(getCsrfTokenFromCookie());
-  }, []); // Empty dependency array ensures it runs once.
+    // This effect runs once on the client after the component mounts
+    // to read the security token from the browser's cookie.
+    const token = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    setCsrfToken(token || null);
+  }, []); // Empty dependency array ensures it runs only once.
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -117,7 +118,12 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                     Forgot password?
                 </Link>
                 </div>
-                <PasswordInput />
+                <PasswordInput
+                    id="password"
+                    name="password"
+                    placeholder="••••••••"
+                    required
+                />
             </div>
             
             {searchParams?.error && (
@@ -134,7 +140,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             )}
             
             <div className="pt-2">
-                <SubmitButton isReady={!!csrfToken} />
+                <LoginSubmitButton isCsrfReady={!!csrfToken} />
             </div>
         </form>
 

@@ -1,7 +1,8 @@
+
 'use client';
 
-import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
+import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -18,7 +19,7 @@ import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-// Helper components defined outside the main component
+// Helper component for the password input with a show/hide toggle
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -51,9 +52,10 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function SubmitButton({ isReady }: { isReady: boolean }) {
+// Helper component for the submit button to handle form status
+function SubmitButton({ isCsrfReady }: { isCsrfReady: boolean }) {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !isReady;
+    const isDisabled = pending || !isCsrfReady;
     return (
         <Button type="submit" className="w-full" disabled={isDisabled}>
         {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
@@ -61,17 +63,18 @@ function SubmitButton({ isReady }: { isReady: boolean }) {
     );
 }
 
-function getCsrfTokenFromCookie(): string | null {
-    if (typeof document === 'undefined') return null;
-    return document.cookie.split('; ').find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))?.split('=')[1] || null;
-}
-
 export default function UpdatePasswordPage({ searchParams }: { searchParams?: { error?: string } }) {
     const [error, setError] = useState(searchParams?.error || null);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
     useEffect(() => {
-        setCsrfToken(getCsrfTokenFromCookie());
+        // This effect runs once on the client after the component mounts
+        // to read the security token from the browser's cookie.
+        const token = document.cookie
+            .split('; ')
+            .find((row) => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+            ?.split('=')[1];
+        setCsrfToken(token || null);
     }, []);
 
     const handleSubmit = async (formData: FormData) => {
@@ -131,7 +134,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton isReady={!!csrfToken} />
+            <SubmitButton isCsrfReady={!!csrfToken} />
           </form>
         </CardContent>
       </Card>

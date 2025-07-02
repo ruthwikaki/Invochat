@@ -1,7 +1,9 @@
+
 'use client';
 
-import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
+import { useFormStatus } from 'react-dom';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,17 +15,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-// Define helper components OUTSIDE the main page component
-function SubmitButton({ isReady }: { isReady: boolean }) {
+// Helper component for the submit button to handle form status
+function SignupSubmitButton({ isCsrfReady }: { isCsrfReady: boolean }) {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !isReady;
+    const isDisabled = pending || !isCsrfReady;
 
     return (
       <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
@@ -32,6 +33,7 @@ function SubmitButton({ isReady }: { isReady: boolean }) {
     );
 }
 
+// Helper component for the password input with a show/hide toggle
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -64,17 +66,19 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function getCsrfTokenFromCookie(): string | null {
-    if (typeof document === 'undefined') return null;
-    return document.cookie.split('; ').find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))?.split('=')[1] || null;
-}
 
 export default function SignupPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setCsrfToken(getCsrfTokenFromCookie());
-  }, []);
+    // This effect runs once on the client after the component mounts
+    // to read the security token from the browser's cookie.
+    const token = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    setCsrfToken(token || null);
+  }, []); // Empty dependency array ensures it runs only once.
 
 
   if (searchParams?.success) {
@@ -172,7 +176,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton isReady={!!csrfToken} />
+            <SignupSubmitButton isCsrfReady={!!csrfToken} />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}

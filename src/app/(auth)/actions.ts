@@ -40,6 +40,7 @@ function validateCsrf(formData: FormData) {
     const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
 
     if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+        logger.warn(`[CSRF] Invalid token for form submission.`);
         throw new Error('Invalid form submission. Please refresh the page and try again.');
     }
 }
