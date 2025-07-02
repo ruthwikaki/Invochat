@@ -15,15 +15,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
+import { useCsrfToken } from '@/hooks/use-csrf';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
+  const token = useCsrfToken();
+  const isDisabled = pending || !token;
+
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? 'Updating...' : 'Update Password'}
+    <Button type="submit" className="w-full" disabled={isDisabled}>
+      {isDisabled ? <Loader2 className="animate-spin" /> : 'Update Password'}
     </Button>
   );
 }

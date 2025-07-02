@@ -15,16 +15,20 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle, AlertTriangle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { motion } from 'framer-motion';
+import { useCsrfToken } from '@/hooks/use-csrf';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
+  const token = useCsrfToken();
+  const isDisabled = pending || !token;
+
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? 'Sending...' : 'Send Password Reset Email'}
+    <Button type="submit" className="w-full" disabled={isDisabled}>
+      {isDisabled ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
     </Button>
   );
 }
@@ -106,5 +110,3 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
     </div>
   );
 }
-
-    

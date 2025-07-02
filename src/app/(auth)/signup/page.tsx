@@ -16,16 +16,20 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { motion } from 'framer-motion';
+import { useCsrfToken } from '@/hooks/use-csrf';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
+  const token = useCsrfToken();
+  const isDisabled = pending || !token;
+
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? 'Signing up...' : 'Sign up'}
+    <Button type="submit" className="w-full" disabled={isDisabled}>
+      {isDisabled ? <Loader2 className="animate-spin" /> : 'Sign up'}
     </Button>
   );
 }

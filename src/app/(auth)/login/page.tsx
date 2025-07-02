@@ -4,7 +4,7 @@
 import { useFormStatus } from 'react-dom';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,16 +15,20 @@ import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
+import { useCsrfToken } from '@/hooks/use-csrf';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
+  const token = useCsrfToken();
+  const isDisabled = pending || !token;
+
   return (
     <Button
       type="submit"
-      disabled={pending}
+      disabled={isDisabled}
       className="w-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-cyan-400 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50"
     >
-      {pending ? (
+      {isDisabled ? (
         <motion.div
           className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"
           aria-label="Loading..."
