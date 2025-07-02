@@ -102,10 +102,11 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         <motion.div
             variants={cardVariants}
             initial="initial"
-            animate={searchParams?.error ? "shake" : "animate"}
+            animate="animate"
             className={cn(
                 "w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl",
-                "bg-slate-900/50 backdrop-blur-lg border border-slate-700"
+                "bg-slate-900/50 backdrop-blur-lg border border-slate-700",
+                searchParams?.error && "animate-shake"
             )}
         >
             <div className="text-center">
