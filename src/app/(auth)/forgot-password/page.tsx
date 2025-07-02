@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -22,9 +21,14 @@ import { useState, useEffect } from 'react';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 
-function SubmitButton({ csrfToken }: { csrfToken: string | null }) {
+function getCsrfTokenFromCookie(): string | null {
+    if (typeof document === 'undefined') return null;
+    return document.cookie.split('; ').find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))?.split('=')[1] || null;
+}
+
+function SubmitButton({ isReady }: { isReady: boolean }) {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !csrfToken;
+    const isDisabled = pending || !isReady;
 
     return (
       <Button type="submit" className="w-full" disabled={isDisabled}>
@@ -37,11 +41,8 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const cookieValue = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(cookieValue || null);
+    // This effect runs once on the client after the component mounts.
+    setCsrfToken(getCsrfTokenFromCookie());
   }, []);
 
 
@@ -115,7 +116,7 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton csrfToken={csrfToken} />
+            <SubmitButton isReady={!!csrfToken} />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}

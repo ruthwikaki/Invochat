@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -52,9 +51,9 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function SubmitButton({ csrfToken }: { csrfToken: string | null }) {
+function SubmitButton({ isReady }: { isReady: boolean }) {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !csrfToken;
+    const isDisabled = pending || !isReady;
     return (
         <Button type="submit" className="w-full" disabled={isDisabled}>
         {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
@@ -62,16 +61,17 @@ function SubmitButton({ csrfToken }: { csrfToken: string | null }) {
     );
 }
 
+function getCsrfTokenFromCookie(): string | null {
+    if (typeof document === 'undefined') return null;
+    return document.cookie.split('; ').find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))?.split('=')[1] || null;
+}
+
 export default function UpdatePasswordPage({ searchParams }: { searchParams?: { error?: string } }) {
     const [error, setError] = useState(searchParams?.error || null);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
     useEffect(() => {
-        const cookieValue = document.cookie
-            .split('; ')
-            .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-            ?.split('=')[1];
-        setCsrfToken(cookieValue || null);
+        setCsrfToken(getCsrfTokenFromCookie());
     }, []);
 
     const handleSubmit = async (formData: FormData) => {
@@ -131,7 +131,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton csrfToken={csrfToken} />
+            <SubmitButton isReady={!!csrfToken} />
           </form>
         </CardContent>
       </Card>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -21,11 +20,10 @@ import { signup } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-
 // Define helper components OUTSIDE the main page component
-function SubmitButton({ csrfToken }: { csrfToken: string | null }) {
+function SubmitButton({ isReady }: { isReady: boolean }) {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !csrfToken;
+    const isDisabled = pending || !isReady;
 
     return (
       <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
@@ -66,16 +64,16 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
+function getCsrfTokenFromCookie(): string | null {
+    if (typeof document === 'undefined') return null;
+    return document.cookie.split('; ').find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))?.split('=')[1] || null;
+}
 
 export default function SignupPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const cookieValue = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(cookieValue || null);
+    setCsrfToken(getCsrfTokenFromCookie());
   }, []);
 
 
@@ -174,7 +172,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton csrfToken={csrfToken} />
+            <SubmitButton isReady={!!csrfToken} />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}

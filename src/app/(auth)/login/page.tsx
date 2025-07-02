@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -13,10 +12,10 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-// This component is defined OUTSIDE the main page component to prevent re-creation on renders.
-function SubmitButton({ csrfToken }: { csrfToken: string | null }) {
+// This function is defined outside the main component to avoid re-creation on renders.
+function SubmitButton({ isReady }: { isReady: boolean }) {
     const { pending } = useFormStatus();
-    const isDisabled = pending || !csrfToken;
+    const isDisabled = pending || !isReady;
 
     return (
         <Button 
@@ -57,17 +56,19 @@ function PasswordInput() {
     );
 }
 
+// A helper function to safely read the cookie on the client side.
+function getCsrfTokenFromCookie(): string | null {
+    if (typeof document === 'undefined') return null;
+    return document.cookie.split('; ').find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))?.split('=')[1] || null;
+}
+
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // A robust way to get the cookie value on the client side.
-    const cookieValue = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(cookieValue || null);
-  }, []);
+    // This effect runs once on the client after the component mounts.
+    setCsrfToken(getCsrfTokenFromCookie());
+  }, []); // Empty dependency array ensures it runs once.
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -133,7 +134,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             )}
             
             <div className="pt-2">
-                <SubmitButton csrfToken={csrfToken} />
+                <SubmitButton isReady={!!csrfToken} />
             </div>
         </form>
 
