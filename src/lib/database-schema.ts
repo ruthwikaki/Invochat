@@ -296,7 +296,7 @@ BEGIN
 
     -- Insert a corresponding record into the public.users table
     INSERT INTO public.users (id, company_id, email, role)
-    VALUES (new.id, new_company_id, new.email, user_role);
+    VALUES (new.id, new_company_id, email, user_role);
 
     RETURN new;
   END;
@@ -542,7 +542,6 @@ BEGIN
             FROM (
                 SELECT c.customer_name as name, SUM(s.total_amount) as value
                 FROM orders_in_range s
-                -- Use LEFT JOIN to not lose sales data if customer is deleted
                 LEFT JOIN public.customers c ON s.customer_id = c.id
                 WHERE s.customer_id IS NOT NULL
                 GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
