@@ -90,7 +90,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             <div className="flex justify-center items-center gap-3 mb-4">
                 <InvoChatLogo className="h-10 w-10 text-blue-500" />
                 <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  InvoChat
+                  ARVO
                 </h1>
             </div>
             <h2 className="text-xl font-semibold text-slate-200">Welcome to Intelligent Inventory</h2>

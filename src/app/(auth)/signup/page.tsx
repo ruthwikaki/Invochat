@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
@@ -29,7 +29,7 @@ function SubmitButton() {
 
   return (
     <Button type="submit" className="w-full" disabled={isDisabled}>
-      {isDisabled ? <Loader2 className="animate-spin" /> : 'Create Account'}
+      {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
     </Button>
   );
 }
@@ -74,7 +74,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
       <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
           <InvoChatLogo className="h-10 w-10" />
-          <h1>InvoChat</h1>
+          <h1>ARVO</h1>
         </div>
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -107,13 +107,13 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
         <InvoChatLogo className="h-10 w-10" />
-        <h1>InvoChat</h1>
+        <h1>ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">Create Account</CardTitle>
           <CardDescription>
-            Enter your information to create your InvoChat account
+            Enter your information to create your ARVO account
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
@@ -28,7 +28,7 @@ function SubmitButton() {
 
   return (
     <Button type="submit" className="w-full" disabled={isDisabled}>
-      {isDisabled ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
+      {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
     </Button>
   );
 }

@@ -51,6 +51,12 @@ const loginSchema = z.object({
 });
 
 export async function login(formData: FormData) {
+  const parsed = loginSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    return redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
+  }
+  const { email, password } = parsed.data;
+
   try {
     validateCsrf(formData, '/login');
 
@@ -59,15 +65,8 @@ export async function login(formData: FormData) {
     if (limited) {
       return redirect(`/login?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
     }
-
-    const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) {
-      return redirect(`/login?error=${encodeURIComponent('Invalid email or password format.')}`);
-    }
-
-    const { email, password } = parsed.data;
-    const supabase = getSupabaseClient();
     
+    const supabase = getSupabaseClient();
     const { data, error } = await withTimeout(
         supabase.auth.signInWithPassword({ email, password }),
         AUTH_TIMEOUT,
@@ -85,8 +84,6 @@ export async function login(formData: FormData) {
       return redirect('/setup-incomplete');
     }
 
-    revalidatePath('/dashboard', 'page');
-    return redirect('/dashboard');
   } catch (e) {
       if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
         throw e;
@@ -95,6 +92,9 @@ export async function login(formData: FormData) {
       logger.error('Login action failed catastrophically:', errorMessage);
       return redirect(`/login?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
   }
+  
+  revalidatePath('/dashboard', 'page');
+  return redirect('/dashboard');
 }
 
 
@@ -106,6 +106,13 @@ const signupSchema = z.object({
 
 
 export async function signup(formData: FormData) {
+  const parsed = signupSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+      const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
+      return redirect(`/signup?error=${encodeURIComponent(errorMessages)}`);
+  }
+  const { email, password, companyName } = parsed.data;
+
   try {
     validateCsrf(formData, '/signup');
 
@@ -116,18 +123,8 @@ export async function signup(formData: FormData) {
       return redirect(`/signup?error=${encodeURIComponent('Too many requests. Please try again in a minute.')}`);
     }
 
-    const parsed = signupSchema.safeParse(Object.fromEntries(formData));
-
-    if (!parsed.success) {
-        const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
-        return redirect(`/signup?error=${encodeURIComponent(errorMessages)}`);
-    }
-
-    const { email, password, companyName } = parsed.data;
     const supabase = getSupabaseClient();
     
-    // **THE FIX**: Do NOT pass a company_id here.
-    // The database trigger will see that it's null and create a new company.
     const { data, error } = await withTimeout(
       supabase.auth.signUp({
           email,
@@ -147,11 +144,10 @@ export async function signup(formData: FormData) {
         return redirect(`/signup?error=${encodeURIComponent(error.message)}`);
     }
 
-    if (data.user) {
-        return redirect('/signup?success=true');
+    if (!data.user) {
+        return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
     }
     
-    return redirect(`/signup?error=${encodeURIComponent("An unexpected error occurred during signup.")}`);
   } catch(e) {
       if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
         throw e;
@@ -160,6 +156,8 @@ export async function signup(formData: FormData) {
       logger.error('Signup action failed catastrophically:', errorMessage);
       return redirect(`/signup?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
   }
+
+  return redirect('/signup?success=true');
 }
 
 
@@ -168,14 +166,13 @@ const requestPasswordResetSchema = z.object({
 });
 
 export async function requestPasswordReset(formData: FormData) {
+  const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+      return redirect(`/forgot-password?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
+  }
+
   try {
     validateCsrf(formData, '/forgot-password');
-    const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
-
-    if (!parsed.success) {
-        return redirect(`/forgot-password?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
-    }
-
     const supabase = getSupabaseClient();
     const { error } = await withTimeout(
       supabase.auth.resetPasswordForEmail(parsed.data.email, {
@@ -190,7 +187,6 @@ export async function requestPasswordReset(formData: FormData) {
         return redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
     }
     
-    return redirect('/forgot-password?success=true');
   } catch (e) {
       if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
         throw e;
@@ -199,6 +195,8 @@ export async function requestPasswordReset(formData: FormData) {
       logger.error('Password reset request failed catastrophically:', errorMessage);
       return redirect(`/forgot-password?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
   }
+
+  return redirect('/forgot-password?success=true');
 }
 
 const updatePasswordSchema = z.object({
@@ -206,22 +204,29 @@ const updatePasswordSchema = z.object({
 });
 
 export async function updatePassword(formData: FormData) {
-    validateCsrf(formData, '/update-password');
     const parsed = updatePasswordSchema.safeParse(Object.fromEntries(formData));
 
     if (!parsed.success) {
         return redirect(`/update-password?error=${encodeURIComponent(parsed.error.issues[0].message)}`);
     }
-    
-    const supabase = getSupabaseClient();
 
-    // The user should be in a session from the password recovery link
-    const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+    try {
+        validateCsrf(formData, '/update-password');
+        const supabase = getSupabaseClient();
+        const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
 
-    if (error) {
-        return redirect(`/update-password?error=${encodeURIComponent(error.message)}`);
+        if (error) {
+            return redirect(`/update-password?error=${encodeURIComponent(error.message)}`);
+        }
+    } catch(e) {
+        if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
+            throw e;
+        }
+        const errorMessage = getErrorMessage(e);
+        logger.error('Update password action failed catastrophically:', errorMessage);
+        return redirect(`/update-password?error=${encodeURIComponent(`An unexpected error occurred: ${errorMessage}`)}`);
     }
-
+    
     return redirect('/login?message=Your password has been updated successfully.');
 }
 

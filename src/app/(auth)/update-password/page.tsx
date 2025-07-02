@@ -27,7 +27,7 @@ function SubmitButton() {
 
   return (
     <Button type="submit" className="w-full" disabled={isDisabled}>
-      {isDisabled ? <Loader2 className="animate-spin" /> : 'Update Password'}
+      {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
     </Button>
   );
 }
@@ -81,7 +81,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
     <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
         <InvoChatLogo className="h-10 w-10" />
-        <h1>InvoChat</h1>
+        <h1>ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>
