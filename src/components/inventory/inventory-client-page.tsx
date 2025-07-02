@@ -77,7 +77,7 @@ function EmptyInventoryState() {
 export function InventoryClientPage({ initialInventory, categories, locations, suppliers }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { replace } = useRouter();
+  const { replace, refresh } = useRouter();
   const { toast } = useToast();
 
   const [inventory, setInventory] = useState(initialInventory);
@@ -132,9 +132,9 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
     startDeleteTransition(async () => {
       const result = await deleteInventoryItems(itemToDelete);
       if (result.success) {
-        setInventory(prev => prev.filter(item => !itemToDelete.includes(item.sku)));
-        setSelectedRows(new Set());
         toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
+        refresh(); // Refresh from server to ensure consistency
+        setSelectedRows(new Set());
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
@@ -154,6 +154,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
 
   const handleSaveItem = (updatedItem: UnifiedInventoryItem) => {
     setInventory(prev => prev.map(item => item.sku === updatedItem.sku ? updatedItem : item));
+    refresh(); // Refresh from server to ensure consistency
   };
 
 

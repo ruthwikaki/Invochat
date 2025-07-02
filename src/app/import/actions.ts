@@ -141,6 +141,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
     try {
         const { user, companyId, userRole } = await getAuthContextForImport();
         
+        // Critical Security Fix: Ensure only authorized users can import data.
         if (userRole !== 'Owner' && userRole !== 'Admin') {
             return { success: false, summaryMessage: 'You do not have permission to import data.' };
         }
@@ -188,17 +189,23 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
                 if ((result.successCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
                     await refreshMaterializedViews(companyId);
+                    revalidatePath('/inventory');
                 }
                 break;
             case 'suppliers':
                 result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId);
-                if ((result.successCount || 0) > 0) await invalidateCompanyCache(companyId, ['suppliers']);
+                if ((result.successCount || 0) > 0) {
+                    await invalidateCompanyCache(companyId, ['suppliers']);
+                    revalidatePath('/suppliers');
+                }
                 break;
             case 'supplier_catalogs':
                 result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId);
+                 if ((result.successCount || 0) > 0) revalidatePath('/suppliers');
                 break;
             case 'reorder_rules':
                 result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId);
+                 if ((result.successCount || 0) > 0) revalidatePath('/reordering');
                 break;
             case 'locations':
                 result = await processCsv(fileContent, LocationImportSchema, 'locations', companyId);

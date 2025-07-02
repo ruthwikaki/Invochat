@@ -32,6 +32,12 @@ export async function runSync(integrationId: string, companyId: string) {
         throw new Error('Integration not found or access is denied.');
     }
 
+    // Concurrency Check: Prevent starting a new sync if one is already running.
+    if (integration.sync_status?.startsWith('syncing')) {
+        logger.warn(`[Sync Service] Sync already in progress for integration ${integrationId}. Aborting new request.`);
+        return;
+    }
+
     // 2. Set status to 'syncing' immediately to give user feedback.
     await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
 
