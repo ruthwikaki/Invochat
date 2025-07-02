@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     last_sold_date DATE,
     landed_cost NUMERIC(10, 2),
     barcode TEXT,
-    location_id UUID
+    location_id UUID,
+    CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku)
 );
 
 CREATE TABLE IF NOT EXISTS public.locations (
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
@@ -220,7 +222,7 @@ CREATE TABLE IF NOT EXISTS public.notification_preferences (
 );
 
 -- ========= Part 2: Schema Migrations & Alterations =========
--- This section ensures older schemas are updated correctly by adding columns if they don't exist.
+-- This section ensures older schemas are updated correctly.
 
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
@@ -392,6 +394,7 @@ BEGIN
             JOIN vendors v ON sc.supplier_id = v.id AND v.company_id = p_company_id
             ORDER BY sc.sku, sc.unit_cost ASC
         ) as primary_supplier ON i.sku = primary_supplier.sku
+        LEFT JOIN monthly_sales ms ON i.sku = ms.sku
         WHERE i.company_id = p_company_id
         AND (p_query IS NULL OR p_query = '' OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
         AND (p_category IS NULL OR p_category = '' OR i.category = p_category)
