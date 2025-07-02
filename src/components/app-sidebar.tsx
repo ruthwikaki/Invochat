@@ -15,7 +15,7 @@ import {
   Star,
   DatabaseZap,
 } from 'lucide-react';
-import { InvoChatLogo } from './invochat-logo';
+import { ArvoLogo } from './arvo-logo';
 import {
   Sidebar,
   SidebarContent,
@@ -68,7 +68,7 @@ export function AppSidebar() {
     <Sidebar className="w-80 flex-col border-r bg-card">
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <InvoChatLogo className="h-7 w-7" />
+          <ArvoLogo className="h-7 w-7" />
           <h1 className="text-xl font-semibold">ARVO</h1>
         </div>
         <SidebarTrigger className="md:hidden" />

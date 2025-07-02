@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { ArvoLogo } from '@/components/arvo-logo';
 import { useCsrfToken } from '@/hooks/use-csrf';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { login } from '@/app/(auth)/actions';
@@ -69,7 +70,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-3 mb-4">
-                <InvoChatLogo className="h-10 w-10 text-primary" />
+                <ArvoLogo className="h-10 w-10 text-primary" />
                 <h1 className="text-4xl font-bold tracking-tight text-foreground">
                   ARVO
                 </h1>

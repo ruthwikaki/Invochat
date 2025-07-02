@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -14,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { ArvoLogo } from '@/components/arvo-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
@@ -72,7 +73,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-          <InvoChatLogo className="h-10 w-10 text-primary" />
+          <ArvoLogo className="h-10 w-10 text-primary" />
           <h1 className="text-4xl font-bold tracking-tight text-foreground">ARVO</h1>
         </div>
         <motion.div
@@ -105,7 +106,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-muted/40 p-4">
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <InvoChatLogo className="h-10 w-10 text-primary" />
+        <ArvoLogo className="h-10 w-10 text-primary" />
         <h1 className="text-4xl font-bold tracking-tight text-foreground">ARVO</h1>
       </div>
       <Card className="w-full max-w-sm">
