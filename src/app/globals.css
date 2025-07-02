@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -12,36 +11,36 @@ body {
     --background: 222 83% 4%; /* #020617 */
     --foreground: 210 40% 98%;
 
-    --card: 222 83% 8%; /* Darker slate */
+    --card: 215 39% 17%; /* #1E293B - Used for the main app layout cards */
     --card-foreground: 210 40% 98%;
     
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 222 83% 4%;
+    --popover-foreground: 210 40% 98%;
     
-    --primary: 217 91% 60%; /* Electric Blue #3B82F6 */
+    --primary: 217 91% 60%; /* #3B82F6 */
     --primary-foreground: 0 0% 98%;
 
     --secondary: 217 33% 17%;
     --secondary-foreground: 210 40% 98%;
 
     --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%; /* #4B5563 */
+    --muted-foreground: 215 20% 65%;
     
-    --accent: 188 95% 43%; /* Cyan #06B6D4 */
+    --accent: 188 95% 43%; /* #06B6D4 */
     --accent-foreground: 210 40% 98%;
     
-    --destructive: 350 70% 55%; /* #F43F5E */
+    --destructive: 350 70% 55%;
     --destructive-foreground: 0 0% 98%;
     
-    --warning: 38 92% 55%; /* #F59E0B */
+    --warning: 38 92% 55%;
     --warning-foreground: 222 47% 11%;
     
-    --success: 158 81% 39%; /* #10B981 */
+    --success: 158 81% 39%;
     --success-foreground: 0 0% 98%;
     
     --border: 217 33% 25%;
     --input: 217 33% 20%;
-    --ring: 188 95% 43%; /* Accent color for rings */
+    --ring: 188 95% 43%;
     
     --radius: 0.75rem;
 
@@ -63,16 +62,16 @@ body {
   }
 
   .dark {
-    --background: 222 83% 4%; /* #020617 */
+    --background: 222 83% 4%;
     --foreground: 210 40% 98%;
 
-    --card: 222 83% 8%; /* Darker slate */
+    --card: 215 39% 17%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 222 83% 8%;
+    --popover: 222 83% 4%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 217 91% 60%; /* Electric Blue */
+    --primary: 217 91% 60%;
     --primary-foreground: 210 40% 98%;
 
     --secondary: 217 33% 17%;
@@ -81,7 +80,7 @@ body {
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
 
-    --accent: 188 95% 43%; /* Cyan */
+    --accent: 188 95% 43%;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 350 70% 55%;
@@ -95,7 +94,7 @@ body {
 
     --border: 217 33% 25%;
     --input: 217 33% 20%;
-    --ring: 188 95% 43%; /* Accent color for rings */
+    --ring: 188 95% 43%;
     
     --chart-1: 217 91% 60%;
     --chart-2: 188 95% 43%;

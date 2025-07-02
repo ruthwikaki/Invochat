@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -18,7 +17,6 @@ import { useCsrfToken } from '@/hooks/use-csrf';
 function SubmitButton() {
   const { pending } = useFormStatus();
   const token = useCsrfToken();
-  // The button is disabled if the form is submitting OR if the CSRF token hasn't loaded yet.
   const isDisabled = pending || !token;
 
   return (
@@ -27,9 +25,7 @@ function SubmitButton() {
       disabled={isDisabled}
       className="w-full h-12 text-base font-semibold bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50"
     >
-      {isDisabled && !pending ? (
-        <Loader2 className="w-5 h-5 animate-spin" aria-label="Initializing..." />
-      ) : pending ? (
+      {pending ? (
         <Loader2 className="w-5 h-5 animate-spin" aria-label="Loading..." />
       ) : (
         'Sign In'
@@ -46,7 +42,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
         <Input
           ref={ref}
           type={showPassword ? 'text' : 'password'}
-          className="pr-10 bg-slate-800/50 border-slate-700 h-12 text-base"
+          className="pr-10 bg-slate-800/50 border-slate-700 h-12 text-base focus:ring-accent"
           {...props}
         />
         <Button
@@ -86,7 +82,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
     return (
       <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
         {/* Animated Background */}
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900/10 to-background" />
          <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
 
 
@@ -116,7 +112,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                         placeholder="you@company.com"
                         required
                         autoComplete="email"
-                        className="bg-slate-800/50 border-slate-700 h-12 text-base"
+                        className="bg-slate-800/50 border-slate-700 h-12 text-base focus:ring-accent"
                     />
                 </div>
                 <div className="space-y-2">
