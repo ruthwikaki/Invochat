@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArvoLogo } from '@/components/arvo-logo';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import { useCsrfToken } from '@/hooks/use-csrf';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { login } from '@/app/(auth)/actions';
@@ -58,13 +58,13 @@ function SubmitButton() {
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
 
   return (
-    <div className="flex items-center justify-center min-h-dvh w-full bg-background/95 p-4">
+    <div className="flex items-center justify-center min-h-dvh w-full bg-muted/40 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
             <div className="flex justify-center items-center gap-3 mb-4">
-                <ArvoLogo className="h-10 w-10 text-primary" />
+                <InvoChatLogo className="h-10 w-10 text-primary" />
                 <h1 className="text-4xl font-bold tracking-tight text-foreground">
-                  ARVO
+                  InvoChat
                 </h1>
             </div>
             <CardTitle className="text-2xl">Welcome Back</CardTitle>
