@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -54,7 +53,7 @@ import { revalidatePath } from 'next/cache';
 import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
-import { sendPurchaseOrderEmail } from '@/services/email';
+import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
@@ -128,7 +127,7 @@ export async function getDashboardData(dateRange: string = '30d') {
     }
 }
 
-export async function getUnifiedInventory(params: { query?: string; category?: string, location?: string }): Promise<UnifiedInventoryItem[]> {
+export async function getUnifiedInventory(params: { query?: string; category?: string, location?: string, supplier?: string }): Promise<UnifiedInventoryItem[]> {
     const { companyId } = await getAuthContext();
     return getUnifiedInventoryFromDB(companyId, params);
 }
@@ -160,7 +159,23 @@ export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | 
 
 export async function getAlertsData() {
     const { companyId } = await getAuthContext();
-    return getAlertsFromDB(companyId);
+    const alerts = await getAlertsFromDB(companyId);
+
+    // Simulate sending email alerts for any low stock items found
+    const lowStockAlerts = alerts.filter(alert => alert.type === 'low_stock');
+    if (lowStockAlerts.length > 0) {
+        logger.info(`[Alerts] Found ${lowStockAlerts.length} low stock alerts. Simulating email notifications.`);
+        for (const alert of lowStockAlerts) {
+            // In a real app, this would be queued to avoid blocking the request.
+            // We use a `catch` here because we don't want a failed email simulation
+            // to prevent the user from seeing their alerts in the UI.
+            sendEmailAlert(alert).catch(err => {
+                logError(err, { context: 'Failed to send simulated email alert' });
+            });
+        }
+    }
+    
+    return alerts;
 }
 
 export async function getDatabaseSchemaAndData() {

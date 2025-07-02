@@ -367,7 +367,7 @@ begin
 end;
 $$;
 
-CREATE OR REPLACE FUNCTION public.get_unified_inventory(p_company_id uuid, p_query text, p_category text, p_location_id uuid)
+CREATE OR REPLACE FUNCTION public.get_unified_inventory(p_company_id uuid, p_query text, p_category text, p_location_id uuid, p_supplier_id uuid)
 RETURNS json LANGUAGE plpgsql AS $$
 DECLARE result_json json;
 BEGIN
@@ -388,10 +388,18 @@ BEGIN
         FROM inventory i
         LEFT JOIN locations l ON i.location_id = l.id
         LEFT JOIN monthly_sales ms ON i.sku = ms.sku
+        LEFT JOIN (
+            SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id 
+            FROM supplier_catalogs sc
+            JOIN vendors v ON sc.supplier_id = v.id
+            WHERE v.company_id = p_company_id
+            ORDER BY sc.sku, sc.unit_cost ASC
+        ) as primary_supplier ON i.sku = primary_supplier.sku
         WHERE i.company_id = p_company_id
         AND (p_query IS NULL OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
         AND (p_category IS NULL OR i.category = p_category)
         AND (p_location_id IS NULL OR i.location_id = p_location_id)
+        AND (p_supplier_id IS NULL OR primary_supplier.supplier_id = p_supplier_id)
         ORDER BY i.name
     ) t;
     RETURN result_json;

@@ -811,7 +811,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     });
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string }): Promise<UnifiedInventoryItem[]> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string, supplier?: string }): Promise<UnifiedInventoryItem[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
@@ -821,7 +821,8 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             p_company_id: companyId,
             p_query: params.query || null,
             p_category: params.category || null,
-            p_location_id: params.location || null
+            p_location_id: params.location || null,
+            p_supplier_id: params.supplier || null
         });
 
         if (error) {

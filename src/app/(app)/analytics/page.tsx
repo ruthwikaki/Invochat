@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -22,7 +22,7 @@ function LoadingState() {
         </CardHeader>
         <CardContent className="space-y-4">
             <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-4 w-1/4" />
+            <Skeleton className="h-4 w-1/ch/4" />
         </CardContent>
     </Card>
   );
@@ -76,6 +76,14 @@ const availableAnalyses = [
         description: 'Identify your fastest and slowest-selling products over the last 90 days.',
         prompt: 'Identify my 10 fastest and 10 slowest-moving products over the last 90 days based on units sold.',
         details: "This report shows you which products are moving quickly ('fast-movers') and which are not ('slow-movers'), allowing you to adjust marketing or consider discontinuing items."
+    },
+     {
+        key: 'inventory_value',
+        title: 'Inventory Value Report',
+        icon: Archive,
+        description: 'Get a full breakdown of your current inventory value by category.',
+        prompt: 'What is my total inventory value, broken down by category?',
+        details: "This report provides a summary of your inventory's total financial value, grouped by product category. It's useful for financial planning and understanding where your capital is tied up."
     },
     {
         key: 'profit_margin',
@@ -216,10 +224,3 @@ export default function AnalyticsPage() {
             <AppPageHeader 
                 title="Strategic Reports"
                 description="Generate deep-dive analyses with a single click."
-            />
-            <div className="flex-grow">
-                <StrategicReports />
-            </div>
-        </AppPage>
-    );
-}
