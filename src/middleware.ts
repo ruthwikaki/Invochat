@@ -5,10 +5,11 @@ import { logger } from './lib/logger';
 import { generateCSRFToken, CSRF_COOKIE_NAME } from './lib/csrf';
 
 export async function middleware(req: NextRequest) {
-  // Create the response object ONCE at the beginning.
+  const requestHeaders = new Headers(req.headers);
+  
   const response = NextResponse.next({
     request: {
-      headers: req.headers,
+      headers: requestHeaders,
     },
   });
 
@@ -21,53 +22,34 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // Mutate the request cookies for the current lifecycle
-          req.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-          // Mutate the single response object's cookies for the client
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          });
+          req.cookies.set({ name, value, ...options });
+          response.cookies.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          // Mutate the request cookies
-          req.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-          // Mutate the response cookies
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
+          req.cookies.set({ name, value: '', ...options });
+          response.cookies.set({ name, value: '', ...options });
         },
       },
     }
   );
 
-  // This will now use the handlers above, which mutate the single `response` object.
   const { data: { user } } = await supabase.auth.getUser();
 
-  // CSRF Protection: Set cookie on the same response object AFTER Supabase has run.
-  const csrfToken = req.cookies.get(CSRF_COOKIE_NAME)?.value;
+  // CSRF Protection: Ensure a token exists and pass it in the headers for server actions
+  let csrfToken = req.cookies.get(CSRF_COOKIE_NAME)?.value;
   if (!csrfToken) {
-    const newCsrfToken = generateCSRFToken();
+    csrfToken = generateCSRFToken();
     response.cookies.set({
       name: CSRF_COOKIE_NAME,
-      value: newCsrfToken,
-      httpOnly: false, // Must be readable by client-side script
+      value: csrfToken,
+      httpOnly: true, // More secure as it's not needed by client JS
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax', // Use 'lax' for better compatibility with form submissions
+      sameSite: 'lax',
       path: '/',
     });
   }
+  requestHeaders.set('X-CSRF-Token', csrfToken);
+
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
@@ -76,13 +58,10 @@ export async function middleware(req: NextRequest) {
   const isPublicRoute = publicRoutes.includes(pathname);
 
   try {
-    // If user is authenticated
     if (user) {
-      // Allow access to update-password page if there's a recovery code
       if (pathname === '/update-password' && req.nextUrl.searchParams.has('code')) {
         return response;
       }
-
       if (isAuthRoute) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
@@ -103,14 +82,12 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
     } else {
-      // If user is not authenticated and trying to access a protected route
       if (!isAuthRoute && !isPublicRoute && pathname !== '/update-password') {
         return NextResponse.redirect(new URL('/login', req.url));
       }
     }
   } catch (error) {
     logger.error('[Middleware] Error:', error);
-    // On error, allow access to auth routes but protect others
     if (!isAuthRoute && !isPublicRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }

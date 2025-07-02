@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
@@ -11,9 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-// Helper component to show the password input with a toggle
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -31,11 +29,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
           className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors p-1"
           aria-label={showPassword ? "Hide password" : "Show password"}
         >
-          {showPassword ? (
-            <EyeOff className="h-5 w-5" />
-          ) : (
-            <Eye className="h-5 w-5" />
-          )}
+          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
         </button>
       </div>
     );
@@ -43,7 +37,6 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-// The submit button must be a separate component to use useFormStatus
 function LoginSubmitButton() {
     const { pending } = useFormStatus();
     return (
@@ -58,21 +51,8 @@ function LoginSubmitButton() {
 }
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // This effect runs once on the client after the component mounts
-    // to read the security token from the browser's cookie.
-    const token = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(token || null);
-  }, []); // Empty dependency array ensures it runs only once.
-
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
-      {/* Animated Background */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
@@ -94,7 +74,6 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         </div>
 
         <form action={login} className="space-y-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="space-y-2">
                 <Label htmlFor="email" className="text-slate-300">Email</Label>
                 <Input

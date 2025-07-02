@@ -27,9 +27,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { CSRFInput } from '../auth/csrf-input';
 
-// A new dialog component for changing a user's role
 function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending }: { member: TeamMember | null, onRoleChange: (newRole: TeamMember['role']) => void, open: boolean, onOpenChange: (open: boolean) => void, isPending: boolean }) {
     if (!member) return null;
 
@@ -48,7 +46,7 @@ function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending 
                         Select a new role for this user. This will be saved to the database.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
+                <form action={() => handleSave()} className="space-y-4 py-4">
                     <Label htmlFor="role-select">Role</Label>
                     <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as TeamMember['role'])}>
                         <SelectTrigger id="role-select" disabled={isPending}>
@@ -60,14 +58,14 @@ function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending 
                             <SelectItem value="Owner" disabled>Owner (Cannot be assigned)</SelectItem>
                         </SelectContent>
                     </Select>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>Cancel</Button>
-                    <Button onClick={handleSave} disabled={isPending}>
-                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save Changes
-                    </Button>
-                </DialogFooter>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>Cancel</Button>
+                        <Button type="submit" disabled={isPending}>
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Save Changes
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     )
@@ -179,7 +177,6 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                 </DialogDescription>
                             </DialogHeader>
                             <form action={handleInvite} className="space-y-4">
-                                <CSRFInput />
                                 <div>
                                     <Label htmlFor="email" className="sr-only">Email</Label>
                                     <Input

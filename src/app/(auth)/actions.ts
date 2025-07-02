@@ -8,7 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
-import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from '@/lib/csrf';
 import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
 
@@ -35,12 +35,12 @@ function getSupabaseClient() {
     );
 }
 
-function validateCsrf(formData: FormData) {
-    const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-    const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+function validateCsrf() {
+    const tokenFromHeader = headers().get(CSRF_HEADER_NAME);
+    const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
 
-    if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
-        logger.warn(`[CSRF] Invalid token for form submission.`);
+    if (!validateCSRFToken(tokenFromHeader, tokenFromCookie)) {
+        logger.warn(`[CSRF] Invalid token. Action rejected.`);
         throw new Error('Invalid form submission. Please refresh the page and try again.');
     }
 }
@@ -52,7 +52,7 @@ const loginSchema = z.object({
 
 export async function login(formData: FormData) {
   try {
-    validateCsrf(formData);
+    validateCsrf();
     
     const parsed = loginSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) {
@@ -85,7 +85,6 @@ export async function login(formData: FormData) {
     }
 
   } catch (e) {
-      // Allow Next.js's redirect exceptions to propagate
       if (isError(e) && e.message.includes('NEXT_REDIRECT')) {
         throw e;
       }
@@ -108,7 +107,7 @@ const signupSchema = z.object({
 
 export async function signup(formData: FormData) {
   try {
-    validateCsrf(formData);
+    validateCsrf();
 
     const parsed = signupSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) {
@@ -168,7 +167,7 @@ const requestPasswordResetSchema = z.object({
 
 export async function requestPasswordReset(formData: FormData) {
   try {
-    validateCsrf(formData);
+    validateCsrf();
     const parsed = requestPasswordResetSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) {
         throw new Error(parsed.error.issues[0].message);
@@ -206,7 +205,7 @@ const updatePasswordSchema = z.object({
 
 export async function updatePassword(formData: FormData) {
     try {
-        validateCsrf(formData);
+        validateCsrf();
         const parsed = updatePasswordSchema.safeParse(Object.fromEntries(formData));
         if (!parsed.success) {
             throw new Error(parsed.error.issues[0].message);

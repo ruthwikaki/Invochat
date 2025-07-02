@@ -2,7 +2,7 @@
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { 
     getDashboardMetrics, 
     getDeadStockPageData,
@@ -51,7 +51,7 @@ import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { invalidateCompanyCache, isRedisEnabled, redisClient } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
-import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
 import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
@@ -62,8 +62,6 @@ import { deleteSecret } from '@/features/integrations/services/encryption';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
-// This function provides a robust way to get the company ID and role for the current user.
-// It throws an error if any issue occurs, which is caught by error boundaries.
 async function getAuthContext(): Promise<{ userId: string, companyId: string, userRole: UserRole }> {
     logger.debug('[getAuthContext] Attempting to determine Company ID and Role...');
     try {
@@ -98,21 +96,24 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string, us
         return { userId: user.id, companyId, userRole: userRole as UserRole };
     } catch (e) {
         logError(e, { context: 'getAuthContext' });
-        // Re-throw the error to be caught by the calling function's error boundary.
         throw e;
     }
 }
 
-/**
- * A helper function to enforce Role-Based Access Control.
- * @param currentUserRole The role of the user trying to perform the action.
- * @param allowedRoles An array of roles that are permitted to perform the action.
- * @throws {Error} If the user's role is not in the allowed list.
- */
 function requireRole(currentUserRole: UserRole, allowedRoles: UserRole[]) {
     if (!allowedRoles.includes(currentUserRole)) {
         logger.warn(`[RBAC] Access denied for role '${currentUserRole}'. Allowed roles: ${allowedRoles.join(', ')}.`);
         throw new Error('You do not have permission to perform this action.');
+    }
+}
+
+function validateCsrf() {
+    const tokenFromHeader = headers().get(CSRF_HEADER_NAME);
+    const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+
+    if (!validateCSRFToken(tokenFromHeader, tokenFromCookie)) {
+        logger.warn(`[CSRF] Invalid token. Action rejected.`);
+        throw new Error('Invalid form submission. Please refresh the page and try again.');
     }
 }
 
@@ -123,7 +124,6 @@ export async function getDashboardData(dateRange: string = '30d') {
         return getDashboardMetrics(companyId, dateRange);
     } catch (error) {
         logError(error, { context: 'getDashboardData' });
-        // Re-throw the error so the calling page's error boundary can catch it.
         throw error;
     }
 }
@@ -161,21 +161,15 @@ export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | 
 export async function getAlertsData() {
     const { companyId } = await getAuthContext();
     const alerts = await getAlertsFromDB(companyId);
-
-    // Simulate sending email alerts for any low stock items found
     const lowStockAlerts = alerts.filter(alert => alert.type === 'low_stock');
     if (lowStockAlerts.length > 0) {
         logger.info(`[Alerts] Found ${lowStockAlerts.length} low stock alerts. Simulating email notifications.`);
         for (const alert of lowStockAlerts) {
-            // In a real app, this would be queued to avoid blocking the request.
-            // We use a `catch` here because we don't want a failed email simulation
-            // to prevent the user from seeing their alerts in the UI.
             sendEmailAlert(alert).catch(err => {
                 logError(err, { context: 'Failed to send simulated email alert' });
             });
         }
     }
-    
     return alerts;
 }
 
@@ -192,35 +186,19 @@ export async function getCompanySettings(): Promise<CompanySettings> {
 export async function getInsightsPageData(): Promise<{ summary: string; anomalies: Anomaly[]; topDeadStock: DeadStockItem[]; topLowStock: Alert[]; }> {
   try {
     const { companyId } = await getAuthContext();
-
-    // Fetch all data points in parallel
     const [anomalies, deadStockData, alerts] = await Promise.all([
       getAnomalyInsightsFromDB(companyId),
       getDeadStockPageData(companyId),
       getAlertsData(),
     ]);
-
-    const topDeadStock = deadStockData.deadStockItems
-      .sort((a, b) => (b.total_value || 0) - (a.total_value || 0))
-      .slice(0, 5);
-
-    const topLowStock = alerts
-      .filter(a => a.type === 'low_stock')
-      .slice(0, 5);
-
-    // Generate the summary using the AI flow
+    const topDeadStock = deadStockData.deadStockItems.sort((a, b) => (b.total_value || 0) - (a.total_value || 0)).slice(0, 5);
+    const topLowStock = alerts.filter(a => a.type === 'low_stock').slice(0, 5);
     const summary = await generateInsightsSummary({
       anomalies,
       lowStockCount: alerts.filter(a => a.type === 'low_stock').length,
       deadStockCount: deadStockData.deadStockItems.length,
     });
-    
-    return {
-      summary,
-      anomalies,
-      topDeadStock,
-      topLowStock,
-    };
+    return { summary, anomalies, topDeadStock, topLowStock };
   } catch (error) {
     logError(error, { context: 'getInsightsPageData' });
     throw error;
@@ -230,13 +208,13 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
 export async function updateCompanySettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
     const { companyId, userRole } = await getAuthContext();
     requireRole(userRole, ['Owner', 'Admin']);
+    validateCsrf();
     return updateSettingsInDb(companyId, settings);
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();
     const members = await getTeamMembersFromDB(companyId);
-
     return members.map(member => ({
         id: member.id,
         email: member.email,
@@ -250,17 +228,9 @@ const InviteTeamMemberSchema = z.object({
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-
-        const cookieStore = cookies();
-        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
-        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-        if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
-            logger.warn(`[CSRF] Invalid token for invite team member action.`);
-            return { success: false, error: 'Invalid form submission. Please try again.' };
-        }
 
         const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
         if (!parsed.success) {
@@ -269,13 +239,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         const { email } = parsed.data;
 
         const supabase = getServiceRoleClient();
-        
-        const { data: companyData, error: companyError } = await supabase
-            .from('companies')
-            .select('name')
-            .eq('id', companyId)
-            .single();
-
+        const { data: companyData, error: companyError } = await supabase.from('companies').select('name').eq('id', companyId).single();
         if (companyError || !companyData) {
             throw new Error('Could not retrieve company information to send invite.');
         }
@@ -299,134 +263,64 @@ export async function testSupabaseConnection(): Promise<{
     const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
     if (!isConfigured) {
-        return {
-            success: false,
-            error: { message: 'Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY) are not set.' },
-            user: null,
-            isConfigured,
-        };
+        return { success: false, error: { message: 'Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY) are not set.' }, user: null, isConfigured };
     }
     
     try {
         const cookieStore = cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
+        const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { cookies: { get(name: string) { return cookieStore.get(name)?.value; }, }, });
         const { data: { user }, error } = await supabase.auth.getUser();
 
         if (error) {
-            // AuthError is not a "real" error in this context, it just means no one is logged in.
-            if (error.name === 'AuthError') {
-                 return { success: true, error: null, user: null, isConfigured };
-            }
+            if (error.name === 'AuthError') { return { success: true, error: null, user: null, isConfigured }; }
             return { success: false, error: { message: error.message, details: error }, user: null, isConfigured };
         }
-        
         return { success: true, error: null, user, isConfigured };
-
     } catch (e) {
         return { success: false, error: { message: getErrorMessage(e), details: e }, user: null, isConfigured };
     }
 }
 
-// Corrected to use service_role key to bypass RLS for a raw table count.
-export async function testDatabaseQuery(): Promise<{
-  success: boolean;
-  count: number | null;
-  error: string | null;
-}> {
+export async function testDatabaseQuery(): Promise<{ success: boolean; count: number | null; error: string | null; }> {
   try {
     const { companyId } = await getAuthContext();
-    
     const serviceSupabase = getServiceRoleClient();
-
-    // Test a table that is guaranteed to exist for any configured company
-    const { error, count } = await serviceSupabase
-      .from('company_settings')
-      .select('*', { count: 'exact', head: true })
-      .eq('company_id', companyId);
-
+    const { error, count } = await serviceSupabase.from('company_settings').select('*', { count: 'exact', head: true }).eq('company_id', companyId);
     if (error) throw error;
-
     return { success: true, count: count, error: null };
   } catch (e) {
-    // If getCompanyId throws, its error message is more informative.
     let errorMessage = getErrorMessage(e);
-    if (errorMessage?.includes('database')) { // Supabase-specific error
-        errorMessage = `Database query failed: ${errorMessage}`;
-    } else if (errorMessage?.includes('relation "public.company_settings" does not exist')) {
-        errorMessage = "Database query failed: The 'company_settings' table could not be found. Please ensure your database schema is set up correctly by running the SQL in the setup page.";
-    }
+    if (errorMessage?.includes('database')) { errorMessage = `Database query failed: ${errorMessage}`; }
+    else if (errorMessage?.includes('relation "public.company_settings" does not exist')) { errorMessage = "Database query failed: The 'company_settings' table could not be found. Please ensure your database schema is set up correctly by running the SQL in the setup page."; }
     return { success: false, count: null, error: errorMessage };
   }
 }
 
-
 export async function testMaterializedView(): Promise<{ success: boolean; error: string | null; }> {
     try {
         const serviceSupabase = getServiceRoleClient();
-
-        const { data, error } = await serviceSupabase
-            .from('pg_matviews')
-            .select('matviewname')
-            .eq('matviewname', 'company_dashboard_metrics')
-            .single();
-
+        const { data, error } = await serviceSupabase.from('pg_matviews').select('matviewname').eq('matviewname', 'company_dashboard_metrics').single();
         if (error) {
-            // If it's a 'no rows returned' error, it means the view doesn't exist.
-            if (error.code === 'PGRST116') {
-                return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
-            }
-            throw error; // For other unexpected errors
+            if (error.code === 'PGRST116') { return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' }; }
+            throw error;
         }
-
         return { success: !!data, error: null };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
 }
 
-
-export async function testGenkitConnection(): Promise<{
-    success: boolean;
-    error: string | null;
-    isConfigured: boolean;
-}> {
+export async function testGenkitConnection(): Promise<{ success: boolean; error: string | null; isConfigured: boolean; }> {
     const isConfigured = !!process.env.GOOGLE_API_KEY;
-
-    if (!isConfigured) {
-        return {
-            success: false,
-            error: 'Genkit is not configured. GOOGLE_API_KEY environment variable is not set.',
-            isConfigured,
-        };
-    }
+    if (!isConfigured) { return { success: false, error: 'Genkit is not configured. GOOGLE_API_KEY environment variable is not set.', isConfigured }; }
 
     try {
-        // Use the model from the app config for an accurate test
         const model = config.ai.model;
-        
-        await ai.generate({
-            model: model,
-            prompt: 'Test prompt: say "hello".',
-            config: {
-                temperature: 0.1,
-            }
-        });
-
+        await ai.generate({ model, prompt: 'Test prompt: say "hello".', config: { temperature: 0.1 } });
         return { success: true, error: null, isConfigured };
     } catch (e) {
         const errorMessage = getErrorMessage(e);
         let detailedMessage = errorMessage;
-
         if ((e as { status?: string })?.status === 'NOT_FOUND' || errorMessage?.includes('NOT_FOUND') || errorMessage?.includes('Model not found')) {
             detailedMessage = `The configured AI model ('${config.ai.model}') is not available. This is often due to the "Generative Language API" not being enabled in your Google Cloud project, or the project is missing a billing account.`;
         } else if (errorMessage?.includes('API key not valid')) {
@@ -436,19 +330,11 @@ export async function testGenkitConnection(): Promise<{
     }
 }
 
-export async function testRedisConnection(): Promise<{
-    success: boolean;
-    error: string | null;
-    isEnabled: boolean;
-}> {
-    if (!isRedisEnabled) {
-        return { success: true, error: 'Redis is not configured (REDIS_URL is not set), so caching and rate limiting are disabled. This is not a failure.', isEnabled: false };
-    }
+export async function testRedisConnection(): Promise<{ success: boolean; error: string | null; isEnabled: boolean; }> {
+    if (!isRedisEnabled) { return { success: true, error: 'Redis is not configured (REDIS_URL is not set), so caching and rate limiting are disabled. This is not a failure.', isEnabled: false }; }
     try {
         const pong = await redisClient.ping();
-        if (pong !== 'PONG') {
-            throw new Error('Redis PING command did not return PONG.');
-        }
+        if (pong !== 'PONG') { throw new Error('Redis PING command did not return PONG.'); }
         return { success: true, error: null, isEnabled: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e), isEnabled: true };
@@ -457,25 +343,19 @@ export async function testRedisConnection(): Promise<{
 
 export async function removeTeamMember(memberIdToRemove: string): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { userId: currentUserId, userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-
-        // Security check: You cannot remove yourself.
-        if (memberIdToRemove === currentUserId) {
-            return { success: false, error: "You cannot remove yourself from the team." };
-        }
+        if (memberIdToRemove === currentUserId) { return { success: false, error: "You cannot remove yourself from the team." }; }
 
         const result = await removeTeamMemberFromDb(memberIdToRemove, companyId);
-        
         if (result.success) {
             logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
             revalidatePath('/settings/team');
         } else {
              logger.error(`[Remove Action] Failed to remove team member ${memberIdToRemove}:`, result.error);
         }
-        
         return result;
-
     } catch (e) {
         logError(e, { context: 'removeTeamMember' });
         return { success: false, error: getErrorMessage(e) };
@@ -484,9 +364,9 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
 
 export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
-        
         const result = await updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
 
         if (result.success) {
@@ -495,23 +375,19 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         } else {
             logger.error(`[Role Update Action] Failed to update role for ${memberIdToUpdate}:`, result.error);
         }
-       
         return result;
-
     } catch (e) {
         logError(e, { context: 'updateTeamMemberRole' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
 
-
 export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
+  validateCsrf();
   const { companyId, userRole } = await getAuthContext();
   requireRole(userRole, ['Owner', 'Admin']);
   const parsedData = PurchaseOrderCreateSchema.safeParse(data);
-  if (!parsedData.success) {
-    return { success: false, error: "Invalid form data provided." };
-  }
+  if (!parsedData.success) { return { success: false, error: "Invalid form data provided." }; }
   
   try {
     const newPo = await createPurchaseOrderInDb(companyId, parsedData.data);
@@ -520,20 +396,17 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
   } catch (e) {
     logError(e, { context: 'createPurchaseOrder action' });
     const message = getErrorMessage(e);
-    if (message.includes('unique_po_number_per_company')) {
-        return { success: false, error: 'This Purchase Order number already exists. Please use a unique PO number.' };
-    }
+    if (message.includes('unique_po_number_per_company')) { return { success: false, error: 'This Purchase Order number already exists. Please use a unique PO number.' }; }
     return { success: false, error: message };
   }
 }
 
 export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdateInput): Promise<{ success: boolean, error?: string, data?: PurchaseOrder }> {
+  validateCsrf();
   const { companyId, userRole } = await getAuthContext();
   requireRole(userRole, ['Owner', 'Admin']);
   const parsedData = PurchaseOrderUpdateSchema.safeParse(data);
-  if (!parsedData.success) {
-    return { success: false, error: "Invalid form data provided for update." };
-  }
+  if (!parsedData.success) { return { success: false, error: "Invalid form data provided for update." }; }
 
   try {
     await updatePurchaseOrderInDb(poId, companyId, parsedData.data);
@@ -543,15 +416,14 @@ export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdat
   } catch (e) {
     logError(e, { context: 'updatePurchaseOrder action' });
     const message = getErrorMessage(e);
-    if (message.includes('unique_po_number_per_company')) {
-        return { success: false, error: 'This Purchase Order number already exists. Please use a unique PO number.' };
-    }
+    if (message.includes('unique_po_number_per_company')) { return { success: false, error: 'This Purchase Order number already exists. Please use a unique PO number.' }; }
     return { success: false, error: message };
   }
 }
 
 export async function deletePurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await deletePurchaseOrderFromDb(poId, companyId);
@@ -565,18 +437,14 @@ export async function deletePurchaseOrder(poId: string): Promise<{ success: bool
 
 export async function emailPurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const purchaseOrder = await getPurchaseOrderByIdFromDB(poId, companyId);
-        if (!purchaseOrder) {
-            return { success: false, error: "Purchase Order not found." };
-        }
-        if (!purchaseOrder.supplier_email) {
-            return { success: false, error: "Supplier does not have an email address on file." };
-        }
+        if (!purchaseOrder) { return { success: false, error: "Purchase Order not found." }; }
+        if (!purchaseOrder.supplier_email) { return { success: false, error: "Supplier does not have an email address on file." }; }
 
         await sendPurchaseOrderEmail(purchaseOrder);
-
         return { success: true };
     } catch (e) {
         logError(e, { context: `emailPurchaseOrder for PO ${poId}`});
@@ -584,9 +452,9 @@ export async function emailPurchaseOrder(poId: string): Promise<{ success: boole
     }
 }
 
-
 export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Promise<{ success: boolean, error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await receivePurchaseOrderItemsInDB(data.poId, companyId, data.items);
@@ -605,54 +473,38 @@ export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
     return getReorderSuggestionsFromDB(companyId);
 }
 
-export async function createPurchaseOrdersFromSuggestions(
-  suggestions: ReorderSuggestion[]
-): Promise<{ success: boolean; error?: string; createdPoCount: number }> {
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; error?: string; createdPoCount: number }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
 
-        if (suggestions.length === 0) {
-            return { success: false, error: "No suggestions were selected.", createdPoCount: 0 };
-        }
+        if (suggestions.length === 0) { return { success: false, error: "No suggestions were selected.", createdPoCount: 0 }; }
 
-        // Group suggestions by supplier
         const groupedBySupplier = suggestions.reduce((acc, suggestion) => {
             const supplierId = suggestion.supplier_id;
-            if (!supplierId) return acc; // Skip suggestions with no supplier
-
-            if (!acc[supplierId]) {
-                acc[supplierId] = [];
-            }
+            if (!supplierId) return acc;
+            if (!acc[supplierId]) { acc[supplierId] = []; }
             acc[supplierId].push(suggestion);
             return acc;
         }, {} as Record<string, ReorderSuggestion[]>);
 
-
         let createdPoCount = 0;
         for (const supplierId in groupedBySupplier) {
             const supplierSuggestions = groupedBySupplier[supplierId];
-            
             const poInput: PurchaseOrderCreateInput = {
                 supplier_id: supplierId,
                 po_number: `PO-${Date.now()}-${createdPoCount}`,
                 order_date: new Date(),
                 status: 'draft',
-                items: supplierSuggestions.map(s => ({
-                    sku: s.sku,
-                    quantity_ordered: s.suggested_reorder_quantity,
-                    unit_cost: s.unit_cost,
-                })),
+                items: supplierSuggestions.map(s => ({ sku: s.sku, quantity_ordered: s.suggested_reorder_quantity, unit_cost: s.unit_cost, })),
             };
-
             await createPurchaseOrderInDb(companyId, poInput);
             createdPoCount++;
         }
-
         revalidatePath('/purchase-orders');
         revalidatePath('/reordering');
         return { success: true, createdPoCount };
-
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
         return { success: false, error: getErrorMessage(e), createdPoCount: 0 };
@@ -672,18 +524,11 @@ const UpsertChannelFeeSchema = z.object({
 
 export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        const parsed = UpsertChannelFeeSchema.safeParse({
-            channel_name: formData.get('channel_name'),
-            percentage_fee: formData.get('percentage_fee'),
-            fixed_fee: formData.get('fixed_fee'),
-        });
-        
-        if (!parsed.success) {
-            return { success: false, error: parsed.error.issues[0].message };
-        }
-        
+        const parsed = UpsertChannelFeeSchema.safeParse({ channel_name: formData.get('channel_name'), percentage_fee: formData.get('percentage_fee'), fixed_fee: formData.get('fixed_fee'), });
+        if (!parsed.success) { return { success: false, error: parsed.error.issues[0].message }; }
         await upsertChannelFeeInDB(companyId, parsed.data);
         revalidatePath('/settings');
         return { success: true };
@@ -693,7 +538,6 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     }
 }
 
-// Location Data Actions
 export async function getLocations(): Promise<Location[]> {
     const { companyId } = await getAuthContext();
     return getLocationsFromDB(companyId);
@@ -706,6 +550,7 @@ export async function getLocationById(id: string): Promise<Location | null> {
 
 export async function createLocation(data: LocationFormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await createLocationInDB(companyId, data);
@@ -719,6 +564,7 @@ export async function createLocation(data: LocationFormData): Promise<{ success:
 
 export async function updateLocation(id: string, data: LocationFormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await updateLocationInDB(id, companyId, data);
@@ -732,6 +578,7 @@ export async function updateLocation(id: string, data: LocationFormData): Promis
 
 export async function deleteLocation(id: string): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await deleteLocationFromDB(id, companyId);
@@ -744,7 +591,6 @@ export async function deleteLocation(id: string): Promise<{ success: boolean; er
     }
 }
 
-// Supplier Data Actions
 export async function getSupplierById(id: string): Promise<Supplier | null> {
     const { companyId } = await getAuthContext();
     return getSupplierByIdFromDB(id, companyId);
@@ -752,6 +598,7 @@ export async function getSupplierById(id: string): Promise<Supplier | null> {
 
 export async function createSupplier(data: SupplierFormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await createSupplierInDb(companyId, data);
@@ -765,6 +612,7 @@ export async function createSupplier(data: SupplierFormData): Promise<{ success:
 
 export async function updateSupplier(id: string, data: SupplierFormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await updateSupplierInDb(id, companyId, data);
@@ -778,6 +626,7 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
 
 export async function deleteSupplier(id: string): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await deleteSupplierFromDb(id, companyId);
@@ -791,6 +640,7 @@ export async function deleteSupplier(id: string): Promise<{ success: boolean; er
 
 export async function deleteInventoryItems(skus: string[]): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await deleteInventoryItemsFromDb(companyId, skus);
@@ -806,19 +656,16 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
 
 export async function updateInventoryItem(sku: string, data: InventoryUpdateData): Promise<{ success: boolean; error?: string; updatedItem?: UnifiedInventoryItem }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const parsedData = InventoryUpdateSchema.safeParse(data);
-        if (!parsedData.success) {
-            return { success: false, error: "Invalid form data provided." };
-        }
+        if (!parsedData.success) { return { success: false, error: "Invalid form data provided." }; }
         
         const updatedItem = await updateInventoryItemInDb(companyId, sku, parsedData.data);
-        
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         await refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
-        
         return { success: true, updatedItem };
     } catch (e) {
         logError(e, { context: 'updateInventoryItem action' });
@@ -826,7 +673,6 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
     }
 }
 
-// Integrations
 export async function getIntegrations(): Promise<Integration[]> {
     const { companyId } = await getAuthContext();
     return getIntegrationsByCompanyId(companyId);
@@ -834,12 +680,11 @@ export async function getIntegrations(): Promise<Integration[]> {
 
 export async function disconnectIntegration(integrationId: string): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCsrf();
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const integration = await getIntegrationsByCompanyId(companyId).then(integrations => integrations.find(i => i.id === integrationId));
-        if (!integration) {
-            return { success: false, error: "Integration not found or you do not have permission to access it." };
-        }
+        if (!integration) { return { success: false, error: "Integration not found or you do not have permission to access it." }; }
         await deleteSecret(companyId, integration.platform);
         await deleteIntegrationFromDb(integrationId, companyId);
         revalidatePath('/settings/integrations');

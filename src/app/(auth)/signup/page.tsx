@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,7 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-// Helper component for the submit button to handle form status
 function SignupSubmitButton() {
     const { pending } = useFormStatus();
     return (
@@ -31,7 +29,6 @@ function SignupSubmitButton() {
     );
 }
 
-// Helper component for the password input with a show/hide toggle
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
   (props, ref) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -52,11 +49,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
           aria-label={showPassword ? 'Hide password' : 'Show password'}
           tabIndex={-1}
         >
-          {showPassword ? (
-            <EyeOff className="h-4 w-4" />
-          ) : (
-            <Eye className="h-4 w-4" />
-          )}
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
       </div>
     );
@@ -66,18 +59,6 @@ PasswordInput.displayName = 'PasswordInput';
 
 
 export default function SignupPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // This effect runs once on the client after the component mounts
-    // to read the security token from the browser's cookie.
-    const token = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(token || null);
-  }, []); // Empty dependency array ensures it runs only once.
-
 
   if (searchParams?.success) {
     return (
@@ -135,7 +116,6 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
         </CardHeader>
         <CardContent className="p-0">
           <form action={signup} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
               <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
               <Input

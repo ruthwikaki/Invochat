@@ -18,10 +18,7 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-// Helper component for the submit button to handle form status
 function SubmitButton() {
     const { pending } = useFormStatus();
     return (
@@ -32,17 +29,6 @@ function SubmitButton() {
 }
 
 export default function ForgotPasswordPage({ searchParams }: { searchParams?: { success?: string; error?: string } }) {
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // This effect runs once on the client after the component mounts
-    // to read the security token from the browser's cookie.
-    const token = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(token || null);
-  }, []);
 
   if (searchParams?.success) {
     return (
@@ -96,7 +82,6 @@ export default function ForgotPasswordPage({ searchParams }: { searchParams?: { 
         </CardHeader>
         <CardContent className="p-0">
           <form action={requestPasswordReset} className="grid gap-4">
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
             <div className="grid gap-2">
               <Label htmlFor="email" className="text-slate-300">Email</Label>
               <Input
