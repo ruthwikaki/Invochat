@@ -5,7 +5,8 @@ import { logger } from './lib/logger';
 import { generateCSRFToken, CSRF_COOKIE_NAME } from './lib/csrf';
 
 export async function middleware(req: NextRequest) {
-  let response = NextResponse.next({
+  // Create the response object ONCE at the beginning.
+  const response = NextResponse.next({
     request: {
       headers: req.headers,
     },
@@ -20,18 +21,13 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // If the cookie is set, update the request cookies as well.
-          // This will make sure that the server component is aware of the session.
+          // Mutate the request cookies for the current lifecycle
           req.cookies.set({
             name,
             value,
             ...options,
           });
-          response = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
+          // Mutate the single response object's cookies for the client
           response.cookies.set({
             name,
             value,
@@ -39,17 +35,13 @@ export async function middleware(req: NextRequest) {
           });
         },
         remove(name: string, options: CookieOptions) {
-          // If the cookie is removed, update the request cookies as well.
+          // Mutate the request cookies
           req.cookies.set({
             name,
             value: '',
             ...options,
           });
-          response = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
+          // Mutate the response cookies
           response.cookies.set({
             name,
             value: '',
@@ -60,9 +52,10 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // CSRF Protection: Set cookie on all requests
-  // This cookie is NOT httpOnly, so it can be read by client-side script
-  // to be included in form submissions.
+  // This will now use the handlers above, which mutate the single `response` object.
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // CSRF Protection: Set cookie on the same response object AFTER Supabase has run.
   const csrfToken = req.cookies.get(CSRF_COOKIE_NAME)?.value;
   if (!csrfToken) {
     const newCsrfToken = generateCSRFToken();
@@ -83,8 +76,6 @@ export async function middleware(req: NextRequest) {
   const isPublicRoute = publicRoutes.includes(pathname);
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-
     // If user is authenticated
     if (user) {
       // Allow access to update-password page if there's a recovery code
