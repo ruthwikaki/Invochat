@@ -155,9 +155,9 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     currency TEXT DEFAULT 'USD',
     timezone TEXT DEFAULT 'UTC',
     tax_rate NUMERIC DEFAULT 0,
-    theme_primary_color TEXT DEFAULT '256 47% 52%',
-    theme_background_color TEXT DEFAULT '0 0% 98%',
-    theme_accent_color TEXT DEFAULT '256 47% 52% / 0.1',
+    theme_primary_color TEXT DEFAULT '256 75% 61%',
+    theme_background_color TEXT DEFAULT '222 83% 4%',
+    theme_accent_color TEXT DEFAULT '217 33% 17%',
     custom_rules JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -502,64 +502,70 @@ $$;
 
 CREATE OR REPLACE FUNCTION get_dashboard_metrics(p_company_id uuid, p_days integer)
 RETURNS json LANGUAGE plpgsql AS $$
-DECLARE result_json json;
+DECLARE
+    result_json json;
 BEGIN
     WITH date_range AS (
-        SELECT (CURRENT_DATE - (p_days || ' days')::interval) as start_date
+        SELECT (CURRENT_DATE - (p_days || ' days')::interval)::date as start_date,
+               CURRENT_DATE as end_date
     ),
     orders_in_range AS (
         SELECT id, total_amount, sale_date, customer_id
         FROM public.orders
-        WHERE company_id = p_company_id AND sale_date >= (SELECT start_date FROM date_range)
+        WHERE company_id = p_company_id AND sale_date::date BETWEEN (SELECT start_date FROM date_range) AND (SELECT end_date FROM date_range)
     ),
     sales_details_in_range AS (
-        SELECT oi.quantity, oi.unit_price as sales_price, COALESCE(i.landed_cost, i.cost) as cost
-        FROM public.order_items oi
-        JOIN orders_in_range s ON oi.sale_id = s.id
-        JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
-    ),
-    sales_trend AS (
-        SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
-        FROM orders_in_range GROUP BY 1 ORDER BY 1
-    ),
-    top_customers AS (
-        SELECT c.customer_name as name, SUM(s.total_amount) as value
-        FROM orders_in_range s
-        JOIN public.customers c ON s.customer_id = c.id
-        WHERE s.customer_id IS NOT NULL
-        GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
-    ),
-    inventory_by_category AS (
-        SELECT category as name, sum(quantity * cost) as value
-        FROM public.inventory
-        WHERE company_id = p_company_id AND category IS NOT NULL
-        GROUP BY category
-    ),
-    dead_stock_calc AS (
-        SELECT COUNT(*)::int as count
-        FROM public.inventory i
-        JOIN public.company_settings s ON i.company_id = s.company_id
-        WHERE i.company_id = p_company_id
-          AND i.quantity > 0
-          AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - (s.dead_stock_days || ' days')::interval)
-    ),
-    main_metrics AS (
         SELECT
-            (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range) as "totalSalesValue",
-            (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range) as "totalProfit",
-            (SELECT COUNT(*) FROM orders_in_range) as "totalOrders",
-            (SELECT count FROM dead_stock_calc) as "deadStockItemsCount"
+            oi.quantity,
+            oi.unit_price as sales_price,
+            COALESCE(i.landed_cost, i.cost) as cost
+        FROM public.order_items oi
+        -- Use LEFT JOIN to not lose sales data if inventory item is deleted
+        LEFT JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
+        WHERE oi.sale_id IN (SELECT id FROM orders_in_range)
     )
     SELECT json_build_object(
-        'totalSalesValue', m."totalSalesValue",
-        'totalProfit', m."totalProfit",
-        'averageOrderValue', CASE WHEN m."totalOrders" > 0 THEN m."totalSalesValue" / m."totalOrders" ELSE 0 END,
-        'totalOrders', m."totalOrders",
-        'salesTrendData', (SELECT json_agg(t) FROM sales_trend t),
-        'topCustomersData', (SELECT json_agg(t) FROM top_customers t),
-        'inventoryByCategoryData', (SELECT json_agg(t) FROM inventory_by_category t),
-        'deadStockItemsCount', m."deadStockItemsCount"
-    ) INTO result_json FROM main_metrics m;
+        'totalSalesValue', (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range),
+        'totalProfit', (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range),
+        'totalOrders', (SELECT COUNT(*) FROM orders_in_range),
+        'averageOrderValue', (SELECT COALESCE(AVG(total_amount), 0) FROM orders_in_range),
+        'salesTrendData', COALESCE((
+            SELECT json_agg(t)
+            FROM (
+                SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
+                FROM orders_in_range
+                GROUP BY 1 ORDER BY 1
+            ) t
+        ), '[]'::json),
+        'topCustomersData', COALESCE((
+            SELECT json_agg(t)
+            FROM (
+                SELECT c.customer_name as name, SUM(s.total_amount) as value
+                FROM orders_in_range s
+                -- Use LEFT JOIN to not lose sales data if customer is deleted
+                LEFT JOIN public.customers c ON s.customer_id = c.id
+                WHERE s.customer_id IS NOT NULL
+                GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
+            ) t
+        ), '[]'::json),
+        'inventoryByCategoryData', COALESCE((
+            SELECT json_agg(t)
+            FROM (
+                SELECT COALESCE(category, 'Uncategorized') as name, sum(quantity * cost) as value
+                FROM public.inventory
+                WHERE company_id = p_company_id
+                GROUP BY category
+            ) t
+        ), '[]'::json),
+        'deadStockItemsCount', (
+            SELECT COUNT(*)::int
+            FROM public.inventory i
+            JOIN public.company_settings s ON i.company_id = s.company_id
+            WHERE i.company_id = p_company_id
+              AND i.quantity > 0
+              AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - (s.dead_stock_days || ' days')::interval)
+        )
+    ) INTO result_json;
     RETURN result_json;
 END;
 $$;

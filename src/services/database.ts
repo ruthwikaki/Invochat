@@ -183,7 +183,8 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             throw rpcError;
         }
 
-        const metrics = rpcData || {};
+        const metrics = rpcData || { totalSalesValue: 0, totalProfit: 0, totalOrders: 0, averageOrderValue: 0, deadStockItemsCount: 0, salesTrendData: [], topCustomersData: [], inventoryByCategoryData: [] };
+        
         const { data: customers, error: customerError } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
         if (customerError) {
@@ -931,7 +932,7 @@ export async function updateTeamMemberRoleInDb(
         });
 
         if (authUpdateError) {
-            logError(authUpdateError, { context: `Failed to update auth role for ${memberIdToUpdate}` });
+            logError(authUpdateError, { context: `Failed to auth role for ${memberIdToUpdate}` });
             // This is a problem, but the primary DB is updated. We'll log it but not fail the whole op.
         }
 
