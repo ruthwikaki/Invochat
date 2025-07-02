@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, Fragment, useTransition } from 'react';
+import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';

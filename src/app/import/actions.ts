@@ -182,13 +182,14 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         const fileContent = await file.text();
         
         let result: Omit<ImportResult, 'success'>;
+        let requiresCacheRefresh = false;
 
         switch (dataType) {
             case 'inventory':
                 result = await processCsv(fileContent, InventoryImportSchema, 'inventory', companyId);
                 if ((result.successCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
-                    await refreshMaterializedViews(companyId);
+                    requiresCacheRefresh = true;
                     revalidatePath('/inventory');
                 }
                 break;
@@ -201,11 +202,9 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
                 break;
             case 'supplier_catalogs':
                 result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId);
-                 if ((result.successCount || 0) > 0) revalidatePath('/suppliers');
                 break;
             case 'reorder_rules':
                 result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId);
-                 if ((result.successCount || 0) > 0) revalidatePath('/reordering');
                 break;
             case 'locations':
                 result = await processCsv(fileContent, LocationImportSchema, 'locations', companyId);
@@ -213,6 +212,10 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
                 break;
             default:
                 throw new Error(`Unsupported data type: ${dataType}`);
+        }
+        
+        if (requiresCacheRefresh) {
+            await refreshMaterializedViews(companyId);
         }
 
         return { success: true, ...result };

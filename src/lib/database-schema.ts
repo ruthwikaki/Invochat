@@ -391,6 +391,7 @@ BEGIN
             SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id 
             FROM supplier_catalogs sc
             JOIN vendors v ON sc.supplier_id = v.id AND v.company_id = p_company_id
+            WHERE p_supplier_id IS NULL OR sc.supplier_id = p_supplier_id
             ORDER BY sc.sku, sc.unit_cost ASC
         ) as primary_supplier ON i.sku = primary_supplier.sku
         LEFT JOIN monthly_sales ms ON i.sku = ms.sku
@@ -398,7 +399,7 @@ BEGIN
         AND (p_query IS NULL OR p_query = '' OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
         AND (p_category IS NULL OR p_category = '' OR i.category = p_category)
         AND (p_location_id IS NULL OR i.location_id = p_location_id)
-        AND (p_supplier_id IS NULL OR primary_supplier.supplier_id = p_supplier_id)
+        AND (p_supplier_id IS NULL OR primary_supplier.supplier_id IS NOT NULL)
         ORDER BY i.name
     ) t;
     RETURN result_json;
@@ -508,7 +509,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION create_purchase_order_and_update_inventory(p_company_id uuid, p_supplier_id uuid, p_po_number text, p_order_date date, p_total_amount numeric, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.create_purchase_order_and_update_inventory(p_company_id uuid, p_supplier_id uuid, p_po_number text, p_order_date date, p_total_amount numeric, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
 RETURNS public.purchase_orders LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE new_po purchase_orders; item jsonb;
 BEGIN
@@ -527,7 +528,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION update_purchase_order(p_po_id uuid, p_company_id uuid, p_supplier_id uuid, p_po_number text, p_status text, p_order_date date, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
+CREATE OR REPLACE FUNCTION public.update_purchase_order(p_po_id uuid, p_company_id uuid, p_supplier_id uuid, p_po_number text, p_status text, p_order_date date, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
     old_items jsonb; new_total_amount numeric; item jsonb; old_item record; diff integer;
@@ -555,7 +556,7 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION delete_purchase_order(p_po_id uuid, p_company_id uuid)
+CREATE OR REPLACE FUNCTION public.delete_purchase_order(p_po_id uuid, p_company_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE item record;
 BEGIN
