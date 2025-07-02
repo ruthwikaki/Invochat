@@ -47,10 +47,10 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function SubmitButton({ disabled }: { disabled: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-        <Button type="submit" className="w-full" disabled={disabled || pending}>
+        <Button type="submit" className="w-full" disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
         </Button>
     );
@@ -85,7 +85,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
         </div>
-      <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
+      <div className="mb-8 flex items-center gap-3 text-3xl font-bold">
         <InvoChatLogo className="h-10 w-10 text-primary" />
         <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">InvoChat</h1>
       </div>
@@ -124,7 +124,7 @@ export default function UpdatePasswordPage({ searchParams }: { searchParams?: { 
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton disabled={!csrfToken} />
+            <SubmitButton />
           </form>
         </CardContent>
       </Card>

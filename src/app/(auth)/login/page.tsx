@@ -38,12 +38,12 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'i
 );
 PasswordInput.displayName = 'PasswordInput';
 
-function LoginSubmitButton({ disabled }: { disabled: boolean }) {
+function LoginSubmitButton() {
     const { pending } = useFormStatus();
     return (
         <Button 
             type="submit" 
-            disabled={disabled || pending} 
+            disabled={pending} 
             className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
@@ -55,6 +55,8 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
+    // This effect runs on the client after the component mounts.
+    // It reads the CSRF token from the cookie and sets it in state.
     const token = document.cookie
       .split('; ')
       .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
@@ -129,7 +131,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             )}
             
             <div className="pt-2">
-                <LoginSubmitButton disabled={!csrfToken} />
+                <LoginSubmitButton />
             </div>
         </form>
 
