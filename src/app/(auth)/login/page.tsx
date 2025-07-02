@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,16 +9,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArvoLogo } from '@/components/arvo-logo';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-  return null;
+// This component is defined OUTSIDE the main page component to prevent re-creation on renders.
+function SubmitButton({ csrfToken }: { csrfToken: string | null }) {
+    const { pending } = useFormStatus();
+    const isDisabled = pending || !csrfToken;
+
+    return (
+        <Button 
+            type="submit" 
+            disabled={isDisabled} 
+            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
+        >
+            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+        </Button>
+    )
 }
 
 function PasswordInput() {
@@ -52,23 +61,13 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    // A robust way to get the cookie value on the client side.
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    setCsrfToken(cookieValue || null);
   }, []);
-
-  const SubmitButton = () => {
-    const { pending } = useFormStatus();
-    const isDisabled = pending || !csrfToken;
-
-    return (
-        <Button 
-            type="submit" 
-            disabled={isDisabled} 
-            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
-        >
-            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
-        </Button>
-    )
-  }
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -84,9 +83,9 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
       <div className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
         <div className="text-center">
           <div className="flex justify-center items-center gap-3 mb-4">
-            <ArvoLogo className="h-10 w-10 text-blue-500" />
+            <InvoChatLogo className="h-10 w-10 text-blue-500" />
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              ARVO
+              InvoChat
             </h1>
           </div>
           <h2 className="text-xl font-semibold text-slate-200">Welcome to Intelligent Inventory</h2>
@@ -134,7 +133,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
             )}
             
             <div className="pt-2">
-                <SubmitButton />
+                <SubmitButton csrfToken={csrfToken} />
             </div>
         </form>
 

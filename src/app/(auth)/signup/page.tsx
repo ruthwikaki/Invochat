@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFormStatus } from 'react-dom';
@@ -14,18 +15,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import { ArvoLogo } from '@/components/arvo-logo';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
 import { signup } from '@/app/(auth)/actions';
 import { motion } from 'framer-motion';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-  return null;
+
+// Define helper components OUTSIDE the main page component
+function SubmitButton({ csrfToken }: { csrfToken: string | null }) {
+    const { pending } = useFormStatus();
+    const isDisabled = pending || !csrfToken;
+
+    return (
+      <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
+        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
+      </Button>
+    );
 }
 
 const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
@@ -65,26 +71,20 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    const cookieValue = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    setCsrfToken(cookieValue || null);
   }, []);
 
-  const SubmitButton = () => {
-    const { pending } = useFormStatus();
-    const isDisabled = pending || !csrfToken;
-
-    return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
-        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
-      </Button>
-    );
-  }
 
   if (searchParams?.success) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-          <ArvoLogo className="h-10 w-10 text-primary" />
-           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">ARVO</h1>
+          <InvoChatLogo className="h-10 w-10 text-primary" />
+           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">InvoChat</h1>
         </div>
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -123,8 +123,8 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
             <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000" />
         </div>
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold text-foreground">
-        <ArvoLogo className="h-10 w-10 text-primary" />
-        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">ARVO</h1>
+        <InvoChatLogo className="h-10 w-10 text-primary" />
+        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">InvoChat</h1>
       </div>
       <Card className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
         <CardHeader className="p-0 text-center">
@@ -174,7 +174,7 @@ export default function SignupPage({ searchParams }: { searchParams?: { success?
                 <AlertDescription>{searchParams.error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton />
+            <SubmitButton csrfToken={csrfToken} />
           </form>
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}

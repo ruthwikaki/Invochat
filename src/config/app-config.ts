@@ -42,7 +42,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 export const config = {
   app: {
-    name: process.env.NEXT_PUBLIC_APP_NAME || 'ARVO',
+    name: process.env.NEXT_PUBLIC_APP_NAME || 'InvoChat',
     url: process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000',
     environment: process.env.NODE_ENV || 'development',
   },
