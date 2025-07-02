@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -405,7 +404,7 @@ const sqlGenerationPrompt = ai.definePrompt({
     9.  **Inventory Reordering**: If the user asks what to reorder, which products are low on stock, or to create a purchase order, you MUST use the \`getReorderSuggestions\` tool.
     10. **Economic Questions**: If the user's question is about a general economic indicator (like inflation, GDP, etc.) that is NOT in their database, you MUST use the \`getEconomicIndicators\` tool.
     11. **Supplier Performance**: If the user asks about supplier reliability, on-time delivery, or which supplier is 'best', you MUST use the \`getSupplierPerformanceReport\` tool.
-    12. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions and they confirm they want to proceed, you MUST use the \`createPurchaseOrdersFromSuggestions\` tool.
+    12. **Creating Purchase Orders**: If you have just presented the user with reorder suggestions (via the 'getReorderSuggestions' tool) and they confirm they want to proceed, you MUST use the \`createPurchaseOrdersFromSuggestions\` tool, passing the suggestions from the conversation history into the tool's 'suggestions' parameter.
     13. **Dead Stock**: If the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products', you MUST use the \`getDeadStockReport\` tool.
     14. **Inventory Turnover**: If the user asks about 'inventory turnover rate', 'stock turn', or how efficiently they are selling through stock, you MUST use the \`getInventoryTurnoverReport\` tool.
     
@@ -564,18 +563,6 @@ const universalChatOrchestrator = ai.defineFlow(
     if (toolCalls && toolCalls.length > 0) {
         logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCalls[0].name}`);
         const toolCall = toolCalls[0];
-        
-        if (toolCall.name === 'createPurchaseOrdersFromSuggestions' && !toolCall.input.suggestions) {
-            const lastAiMessage = conversationHistory.slice().reverse().find(m => m.role === 'assistant');
-            if (lastAiMessage) {
-                const potentialSuggestions = (lastAiMessage as any).tool_response?.output;
-                 if (Array.isArray(potentialSuggestions)) {
-                    logger.info(`[UniversalChat:Flow] Found suggestions in previous turn for createPurchaseOrdersTool.`);
-                    toolCall.input.suggestions = potentialSuggestions;
-                }
-            }
-        }
-        
         const toolResult = await ai.runTool(toolCall);
         
         const queryDataJson = JSON.stringify([toolResult.output]);

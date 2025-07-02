@@ -41,7 +41,6 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
             expected_date: initialData.expected_date ? new Date(initialData.expected_date) : null,
             items: initialData.items?.map(item => ({
                 sku: item.sku,
-                product_name: item.product_name,
                 quantity_ordered: item.quantity_ordered,
                 unit_cost: item.unit_cost,
             })) || [],
@@ -51,7 +50,7 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
         po_number: `PO-${Date.now()}`,
         order_date: new Date(),
         status: 'draft',
-        items: [{ sku: '', product_name: '', quantity_ordered: 1, unit_cost: 0 }],
+        items: [{ sku: '', quantity_ordered: 1, unit_cost: 0 }],
         supplier_id: '',
         notes: '',
         expected_date: null
@@ -119,7 +118,7 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
                                 <SelectValue placeholder="Select a supplier" />
                             </SelectTrigger>
                             <SelectContent>
-                                {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                                {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.vendor_name}</SelectItem>)}
                             </SelectContent>
                            </Select>
                         )}
@@ -236,7 +235,7 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
                     </TableBody>
                 </Table>
                 {form.formState.errors.items && <p className="text-sm text-destructive mt-2">{form.formState.errors.items.message || form.formState.errors.items.root?.message}</p>}
-                <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ sku: '', product_name: '', quantity_ordered: 1, unit_cost: 0 })}>
+                <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ sku: '', quantity_ordered: 1, unit_cost: 0 })}>
                     <Plus className="mr-2 h-4 w-4" /> Add Item
                 </Button>
             </CardContent>
@@ -264,9 +263,3 @@ export function PurchaseOrderForm({ suppliers, initialData }: PurchaseOrderFormP
                         Save Purchase Order
                     </Button>
                  </CardContent>
-            </Card>
-        </div>
-      </div>
-    </form>
-  );
-}

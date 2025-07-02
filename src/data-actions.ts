@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -813,19 +812,13 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
             return { success: false, error: "Invalid form data provided." };
         }
         
-        await updateInventoryItemInDb(companyId, sku, parsedData.data);
+        const updatedItem = await updateInventoryItemInDb(companyId, sku, parsedData.data);
         
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         await refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
         
-        // Fetch the single, updated item to ensure all computed fields are correct
-        const updatedItems = await getUnifiedInventoryFromDB(companyId, { sku });
-        if (updatedItems.length === 0) {
-            throw new Error("Failed to refetch the updated item.");
-        }
-        
-        return { success: true, updatedItem: updatedItems[0] };
+        return { success: true, updatedItem };
     } catch (e) {
         logError(e, { context: 'updateInventoryItem action' });
         return { success: false, error: getErrorMessage(e) };

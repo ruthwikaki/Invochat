@@ -3,7 +3,7 @@
 
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { UniversalChatOutputSchema } from '@/types/ai-schemas';
-import type { Message, Conversation, DeadStockItem, SupplierPerformanceReport } from '@/types';
+import type { Message, Conversation, DeadStockItem, SupplierPerformanceReport, ReorderSuggestion } from '@/types';
 import { createServerClient } from '@supabase/ssr';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
@@ -14,6 +14,7 @@ import { config } from '@/config/app-config';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
+import { HistoryMessage } from 'genkit/ai';
 
 // Securely gets the user and company ID from the current session.
 async function getAuthContext(): Promise<{ userId: string, companyId: string }> {
@@ -105,8 +106,16 @@ function transformDataForChart(data: Record<string, unknown>[] | null | undefine
     if (keys.length < 2) return [];
 
     if (chartType === 'scatter') {
-        // For scatter plots, ensure x and y exist and are numbers.
-        return data.filter(p => typeof p.x === 'number' && typeof p.y === 'number');
+        const xKey = keys.find(k => k.toLowerCase().includes('x')) || keys[0];
+        const yKey = keys.find(k => k.toLowerCase().includes('y')) || keys[1];
+        const nameKey = keys.find(k => k.toLowerCase().includes('name')) || keys[2];
+        return data
+            .map(p => ({
+                x: parseFloat(String(p[xKey])),
+                y: parseFloat(String(p[yKey])),
+                name: String(p[nameKey] ?? 'Unnamed')
+            }))
+            .filter(p => !isNaN(p.x) && !isNaN(p.y));
     }
     
     // Auto-detect name and value keys based on common patterns and types.
@@ -192,7 +201,7 @@ export async function handleUserMessage(
       throw new Error('Rate limited');
     }
 
-    let historyForAI: { role: 'user' | 'assistant'; content: { text: string }[] }[] = [];
+    let historyForAI: HistoryMessage[] = [];
 
     if (!currentConversationId) {
         const title = source === 'analytics_page' 
@@ -207,13 +216,11 @@ export async function handleUserMessage(
         
         if (convoError) throw new Error(`Could not create conversation: ${convoError.message}`);
         currentConversationId = newConvo.id;
-        historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
     } else {
         const { data: history, error: historyError } = await getServiceRoleClient()
             .from('messages')
-            .select('role, content')
+            .select('*') // Select all fields to get component props
             .eq('conversation_id', currentConversationId)
-            // Note: The RLS policy on 'messages' table should enforce company_id check.
             .order('created_at', { ascending: false })
             .limit(config.ai.historyLimit);
 
@@ -221,15 +228,25 @@ export async function handleUserMessage(
         
         // Convert the database history to the format expected by the AI
         historyForAI = (history || [])
-            .filter(msg => typeof msg.content === 'string')
             .reverse() // Reverse to get chronological order
-            .map(msg => ({
-                role: msg.role as 'user' | 'assistant',
-                content: [{ text: msg.content! }] // Wrap content in the required structure
-            }));
-        // Add the current user query to the history
-        historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
+            .map(msg => {
+                if (msg.role === 'user') {
+                    return { role: 'user', content: [{ text: msg.content! }] };
+                } else { // assistant
+                    const toolName = msg.component;
+                    const toolData = msg.componentProps as { items?: ReorderSuggestion[], data?: any[] } | undefined;
+                    
+                    if (toolName && toolData) {
+                        const outputData = toolData.items || toolData.data;
+                        return { role: 'assistant', content: [{ toolResponse: { name: toolName, output: outputData } }] };
+                    }
+                    return { role: 'assistant', content: [{ text: msg.content! }] };
+                }
+            });
     }
+
+    // Add the current user query to the history being sent to the AI
+    historyForAI.push({ role: 'user', content: [{ text: userQuery }] });
 
 
     await getServiceRoleClient().from('messages').insert({
@@ -278,6 +295,11 @@ export async function handleUserMessage(
                 assistantMessage.component = 'deadStockTable';
                 assistantMessage.componentProps = { data: responseData.data as DeadStockItem[] };
                 break;
+             case 'createPurchaseOrdersFromSuggestions':
+                // For this tool, the primary response is text, but we store the data for context.
+                assistantMessage.component = 'confirmation';
+                assistantMessage.componentProps = { data: responseData.data };
+                break;
         }
     } else if (responseData.visualization && responseData.visualization.type !== 'none' && Array.isArray(responseData.data) && responseData.data.length > 0) {
       // Handle generic visualizations from SQL queries
@@ -296,6 +318,9 @@ export async function handleUserMessage(
             const dataKey = (vizType === 'scatter')
                 ? 'y'
                 : Object.keys(firstItem).find(k => typeof firstItem[k] === 'number') || 'value';
+            const xAxisKey = (vizType === 'scatter') ? 'x' : nameKey;
+            const yAxisKey = (vizType === 'scatter') ? 'y' : dataKey;
+
 
             assistantMessage.visualization = { 
               type: 'chart', 
@@ -305,8 +330,8 @@ export async function handleUserMessage(
                 title: vizTitle || 'Data Visualization', 
                 dataKey: dataKey, 
                 nameKey: nameKey,
-                xAxisKey: (vizType === 'scatter') ? 'x' : nameKey,
-                yAxisKey: (vizType === 'scatter') ? 'y' : dataKey,
+                xAxisKey: xAxisKey,
+                yAxisKey: yAxisKey,
               }
             };
         }
@@ -346,5 +371,3 @@ export async function handleUserMessage(
   } finally {
       const endTime = performance.now();
       await trackEndpointPerformance('handleUserMessage', endTime - startTime);
-  }
-}

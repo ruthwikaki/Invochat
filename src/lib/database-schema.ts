@@ -35,8 +35,7 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     last_sold_date DATE,
     landed_cost NUMERIC(10, 2),
     barcode TEXT,
-    location_id UUID,
-    CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku)
+    location_id UUID
 );
 
 CREATE TABLE IF NOT EXISTS public.locations (
@@ -386,18 +385,16 @@ BEGIN
             COALESCE(ms.units_sold, 0) as monthly_units_sold,
             ((i.price - COALESCE(i.landed_cost, i.cost)) * COALESCE(ms.units_sold, 0)) as monthly_profit
         FROM inventory i
-        LEFT JOIN locations l ON i.location_id = l.id
-        LEFT JOIN monthly_sales ms ON i.sku = ms.sku
+        LEFT JOIN locations l ON i.location_id = l.id AND l.company_id = i.company_id
         LEFT JOIN (
             SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id 
             FROM supplier_catalogs sc
-            JOIN vendors v ON sc.supplier_id = v.id
-            WHERE v.company_id = p_company_id
+            JOIN vendors v ON sc.supplier_id = v.id AND v.company_id = p_company_id
             ORDER BY sc.sku, sc.unit_cost ASC
         ) as primary_supplier ON i.sku = primary_supplier.sku
         WHERE i.company_id = p_company_id
-        AND (p_query IS NULL OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
-        AND (p_category IS NULL OR i.category = p_category)
+        AND (p_query IS NULL OR p_query = '' OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
+        AND (p_category IS NULL OR p_category = '' OR i.category = p_category)
         AND (p_location_id IS NULL OR i.location_id = p_location_id)
         AND (p_supplier_id IS NULL OR primary_supplier.supplier_id = p_supplier_id)
         ORDER BY i.name

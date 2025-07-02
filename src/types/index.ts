@@ -27,10 +27,10 @@ export type Message = {
   company_id: string;
   role: 'user' | 'assistant';
   content: string;
-  component?: 'deadStockTable' | 'reorderList' | 'supplierPerformanceTable';
+  component?: 'deadStockTable' | 'reorderList' | 'supplierPerformanceTable' | 'confirmation';
   componentProps?: {
     items?: ReorderSuggestion[];
-    data?: DeadStockItem[] | SupplierPerformanceReport[];
+    data?: DeadStockItem[] | SupplierPerformanceReport[] | any[];
   };
   visualization?: {
     type: 'table' | 'chart' | 'alert';
@@ -209,7 +209,6 @@ export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
 const POItemInputSchema = z.object({
     sku: z.string().min(1, 'SKU is required.'),
-    product_name: z.string().optional(),
     quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
     unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
 });
@@ -331,7 +330,4 @@ export const InventoryLedgerEntrySchema = z.object({
     related_id: z.string().uuid().nullable(),
     notes: z.string().nullable(),
 });
-export type InventoryLedgerEntry = z.infer<typeof InventoryLedgerEntrySchema>;
-
-// Export the generic Integration type
-export type { Integration };
+export type InventoryLedgerEntry = z
