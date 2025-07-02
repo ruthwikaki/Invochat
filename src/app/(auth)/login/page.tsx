@@ -12,7 +12,6 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { login } from '@/app/(auth)/actions';
 import { CSRFInput } from '@/components/auth/csrf-input';
 import { useToast } from '@/hooks/use-toast';
-import { motion } from 'framer-motion';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCsrfToken } from '@/hooks/use-csrf';
 
@@ -71,16 +70,7 @@ PasswordInput.displayName = 'PasswordInput';
 
 export default function LoginPage({ searchParams }: { searchParams?: { error?: string, message?: string } }) {
     const { toast } = useToast();
-    const [shouldShake, setShouldShake] = useState(false);
     
-    useEffect(() => {
-        if (searchParams?.error) {
-            setShouldShake(true);
-            const timer = setTimeout(() => setShouldShake(false), 500);
-            return () => clearTimeout(timer);
-        }
-    }, [searchParams?.error]);
-
     useEffect(() => {
          if (searchParams?.message) {
             toast({
@@ -90,24 +80,13 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
         }
     }, [searchParams?.message, toast]);
 
-    const cardVariants = {
-        initial: { opacity: 0, y: 20, scale: 0.98 },
-        animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.5, ease: 'easeOut' } },
-        shake: { x: [-8, 8, -8, 8, 0], transition: { duration: 0.4 } }
-    };
-
     return (
       <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-[#020617] text-white p-4">
         {/* Background Gradients */}
         <div className="fixed inset-0 -z-10 bg-gradient-to-br from-slate-900 via-purple-900/50 to-slate-900" />
         <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
 
-        <motion.div
-            variants={cardVariants}
-            initial="initial"
-            animate={shouldShake ? ["animate", "shake"] : "animate"}
-            className="w-full max-w-sm p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-900/50 backdrop-blur-lg border border-slate-700/50"
-        >
+        <div className="w-full max-w-sm p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-900/50 backdrop-blur-lg border border-slate-700/50">
             <div className="text-center">
                 <div className="flex justify-center items-center gap-3 mb-4">
                     <InvoChatLogo className="h-10 w-10 text-primary" />
@@ -168,7 +147,7 @@ export default function LoginPage({ searchParams }: { searchParams?: { error?: s
                     Sign up
                 </Link>
             </div>
-        </motion.div>
+        </div>
     </div>
     );
 }
