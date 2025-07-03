@@ -3,11 +3,11 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
-import { getSecret } from './encryption';
 import { runShopifyFullSync } from './platforms/shopify';
 import { runWooCommerceFullSync } from './platforms/woocommerce';
 import { runAmazonFbaFullSync } from './platforms/amazon_fba';
 import { logger } from '@/lib/logger';
+import type { Integration } from '../types';
 
 /**
  * The main dispatcher for running an integration sync.
@@ -42,23 +42,17 @@ export async function runSync(integrationId: string, companyId: string) {
     await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
 
     try {
-        // 3. Decrypt the access token using the company-specific key.
-        const plaintextCredentials = await getSecret(integration.company_id, integration.platform);
-        if (!plaintextCredentials) {
-            throw new Error(`Could not retrieve credentials from Vault for integration ${integration.id}`);
-        }
-        const credentials = JSON.parse(plaintextCredentials);
-        
-        // 4. Dispatch to the correct platform-specific service.
+        // 3. Dispatch to the correct platform-specific service.
+        // Each service is now responsible for fetching its own credentials.
         switch (integration.platform) {
             case 'shopify':
-                await runShopifyFullSync(integration, credentials);
+                await runShopifyFullSync(integration);
                 break;
             case 'woocommerce':
-                await runWooCommerceFullSync(integration, credentials);
+                await runWooCommerceFullSync(integration);
                 break;
             case 'amazon_fba':
-                await runAmazonFbaFullSync(integration, credentials);
+                await runAmazonFbaFullSync(integration);
                 break;
             default:
                 throw new Error(`Unsupported integration platform: ${integration.platform}`);

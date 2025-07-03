@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, Fragment, useTransition } from 'react';
+import { useState, Fragment, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
@@ -87,13 +87,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
   const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
-
-  // This effect ensures the component's state stays in sync with the server-provided data
-  // when filters are applied via URL changes.
-  useEffect(() => {
-    setInventory(initialInventory);
-  }, [initialInventory]);
-
+  
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
     if (term) {
@@ -138,7 +132,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
       const result = await deleteInventoryItems(itemToDelete);
       if (result.success) {
         toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
-        refresh(); // Refresh from server to ensure consistency
+        setInventory(prev => prev.filter(item => !itemToDelete.includes(item.sku)));
         setSelectedRows(new Set());
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });

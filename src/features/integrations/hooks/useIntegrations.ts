@@ -6,6 +6,7 @@ import { getIntegrations, disconnectIntegration as disconnectAction } from '@/ap
 import { Integration } from '../types';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
+import { getErrorMessage } from '@/lib/error-handler';
 
 export function useIntegrations() {
     const { user } = useAuth();
@@ -35,25 +36,32 @@ export function useIntegrations() {
     
     const triggerSync = (integrationId: string) => {
         startSyncTransition(async () => {
-            const payload = {
-                integrationId,
-            };
+            try {
+                const payload = { integrationId };
 
-            const response = await fetch('/api/shopify/sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+                const response = await fetch('/api/shopify/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
 
-            const result = await response.json();
-            if (response.ok) {
-                toast({ title: 'Sync Started', description: 'Your data will be updated shortly.'});
-                // Optimistically update the UI
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.error || 'An unknown error occurred during sync.');
+                    } catch (e) {
+                        throw new Error(errorText || 'An unknown server error occurred.');
+                    }
+                }
+                
+                const result = await response.json();
+                toast({ title: 'Sync Started', description: result.message || 'Your data will be updated shortly.'});
                 setIntegrations(prev => 
                     prev.map(i => i.id === integrationId ? { ...i, sync_status: 'syncing' } : i)
                 );
-            } else {
-                 toast({ variant: 'destructive', title: 'Sync Failed', description: result.error });
+            } catch(e) {
+                toast({ variant: 'destructive', title: 'Sync Failed', description: getErrorMessage(e) });
             }
         });
     };
