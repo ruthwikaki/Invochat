@@ -348,7 +348,7 @@ export async function testMaterializedView(): Promise<{ success: boolean; error:
     try {
         const serviceSupabase = getServiceRoleClient();
 
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
+        const { data, error } = await serviceSupabase.rpc('execute_dynamic_query', {
           query_text: "SELECT 'company_dashboard_metrics'::regclass"
         });
         
