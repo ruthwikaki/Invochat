@@ -224,3 +224,8 @@ export default function AnalyticsPage() {
             <AppPageHeader 
                 title="Strategic Reports"
                 description="Generate deep-dive analyses with a single click."
+            />
+            <StrategicReports />
+        </AppPage>
+    );
+}
