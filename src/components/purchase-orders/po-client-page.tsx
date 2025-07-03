@@ -3,7 +3,8 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 import type { PurchaseOrder } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,7 +22,52 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 interface PurchaseOrderClientPageProps {
   initialPurchaseOrders: PurchaseOrder[];
+  totalCount: number;
+  itemsPerPage: number;
 }
+
+const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const currentPage = Number(searchParams.get('page')) || 1;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    const createPageURL = (pageNumber: number | string) => {
+        const params = new URLSearchParams(searchParams);
+        params.set('page', pageNumber.toString());
+        return `${pathname}?${params.toString()}`;
+    };
+
+    if (totalPages <= 1) {
+        return null;
+    }
+
+    return (
+        <div className="flex items-center justify-between p-4 border-t">
+            <p className="text-sm text-muted-foreground">
+                Showing page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> ({totalCount} items)
+            </p>
+            <div className="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage - 1))}
+                    disabled={currentPage <= 1}
+                >
+                    Previous
+                </Button>
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage + 1))}
+                    disabled={currentPage >= totalPages}
+                >
+                    Next
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 
 const getStatusVariant = (status: PurchaseOrder['status']) => {
   if (!status) return 'outline';
@@ -82,20 +128,27 @@ function EmptyPOState() {
   );
 }
 
-export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrderClientPageProps) {
-  const [purchaseOrders, setPurchaseOrders] = useState(initialPurchaseOrders);
-  const [searchTerm, setSearchTerm] = useState('');
+export function PurchaseOrderClientPage({ initialPurchaseOrders, totalCount, itemsPerPage }: PurchaseOrderClientPageProps) {
   const [isDeleting, startDeleteTransition] = useTransition();
   const [poToDelete, setPoToDelete] = useState<PurchaseOrder | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  const filteredPOs = purchaseOrders.filter(po =>
-    po.po_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    po.supplier_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSearch = useDebouncedCallback((term: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', '1');
+    if (term) {
+      params.set('query', term);
+    } else {
+      params.delete('query');
+    }
+    router.replace(`${pathname}?${params.toString()}`);
+  }, 300);
   
-  const showEmptyState = filteredPOs.length === 0 && !searchTerm;
+  const showEmptyState = totalCount === 0 && !searchParams.get('query');
+  const showNoResultsState = totalCount === 0 && searchParams.get('query');
 
   const handleDelete = () => {
     if (!poToDelete) return;
@@ -103,7 +156,7 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
       const result = await deletePurchaseOrder(poToDelete.id);
       if (result.success) {
         toast({ title: "Purchase Order Deleted", description: `PO #${poToDelete.po_number} has been removed.` });
-        setPurchaseOrders(prev => prev.filter(p => p.id !== poToDelete.id));
+        router.refresh();
       } else {
         toast({ variant: 'destructive', title: "Error Deleting PO", description: result.error });
       }
@@ -118,8 +171,8 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by PO number or supplier..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
+            defaultValue={searchParams.get('query')?.toString()}
             className="pl-10"
           />
         </div>
@@ -166,13 +219,13 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPOs.length === 0 && searchTerm ? (
+                  {showNoResultsState ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-24 text-center">
                         No purchase orders found matching your search.
                       </TableCell>
                     </TableRow>
-                  ) : filteredPOs.map(po => {
+                  ) : initialPurchaseOrders.map(po => {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0); // Compare against the start of today
                     const expectedDate = po.expected_date ? new Date(po.expected_date) : null;
@@ -227,6 +280,7 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders }: PurchaseOrder
                 </TableBody>
               </Table>
             </div>
+            <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
           </CardContent>
         </Card>
       )}

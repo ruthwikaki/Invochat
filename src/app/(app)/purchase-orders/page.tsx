@@ -3,8 +3,19 @@ import { getPurchaseOrders } from '@/app/data-actions';
 import { PurchaseOrderClientPage } from '@/components/purchase-orders/po-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
-export default async function PurchaseOrdersPage() {
-  const purchaseOrders = await getPurchaseOrders();
+const ITEMS_PER_PAGE = 25;
+
+export default async function PurchaseOrdersPage({
+    searchParams,
+}: {
+    searchParams?: {
+        query?: string;
+        page?: string;
+    };
+}) {
+  const query = searchParams?.query || '';
+  const currentPage = Number(searchParams?.page) || 1;
+  const poData = await getPurchaseOrders({ query, page: currentPage });
 
   return (
     <AppPage className="flex flex-col h-full">
@@ -12,7 +23,11 @@ export default async function PurchaseOrdersPage() {
         title="Purchase Orders"
         description="Manage your incoming inventory and supplier orders."
       />
-      <PurchaseOrderClientPage initialPurchaseOrders={purchaseOrders} />
+      <PurchaseOrderClientPage 
+        initialPurchaseOrders={poData.items}
+        totalCount={poData.totalCount}
+        itemsPerPage={ITEMS_PER_PAGE}
+      />
     </AppPage>
   );
 }

@@ -465,6 +465,45 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION public.get_purchase_orders(
+    p_company_id uuid,
+    p_query text,
+    p_limit integer,
+    p_offset integer
+)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN (
+        WITH filtered_pos AS (
+            SELECT
+                po.id, po.company_id, po.supplier_id, po.po_number, po.status, po.order_date::text,
+                po.expected_date::text, po.total_amount, po.notes, po.created_at::text, po.updated_at::text,
+                v.vendor_name,
+                v.contact_info as supplier_email
+            FROM public.purchase_orders po
+            LEFT JOIN public.vendors v ON po.supplier_id = v.id
+            WHERE po.company_id = p_company_id
+              AND (
+                p_query IS NULL OR
+                po.po_number ILIKE '%' || p_query || '%' OR
+                v.vendor_name ILIKE '%' || p_query || '%'
+              )
+        ),
+        count_query AS (
+            SELECT count(*) as total FROM filtered_pos
+        )
+        SELECT json_build_object(
+            'items', (SELECT json_agg(t) FROM (
+                SELECT * FROM filtered_pos ORDER BY order_date DESC LIMIT p_limit OFFSET p_offset
+            ) t),
+            'totalCount', (SELECT total FROM count_query)
+        )
+    );
+END;
+$$;
+
 
 -- ========= Part 4: Row-Level Security (RLS) Policies =========
 

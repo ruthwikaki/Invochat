@@ -2,7 +2,7 @@
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem } from '@/types';
 import { logger } from '@/lib/logger';
@@ -113,9 +113,14 @@ export async function getSuppliersData() {
     return db.getSuppliersFromDB(companyId);
 }
 
-export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
+const PO_ITEMS_PER_PAGE = 25;
+export async function getPurchaseOrders(params: { query?: string, page?: number }): Promise<{ items: PurchaseOrder[], totalCount: number }> {
     const { companyId } = await getAuthContext();
-    return db.getPurchaseOrdersFromDB(companyId);
+    const limit = PO_ITEMS_PER_PAGE;
+    const page = params.page || 1;
+    const offset = (page - 1) * limit;
+    
+    return db.getPurchaseOrdersFromDB(companyId, { query: params.query, limit, offset });
 }
 
 export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
@@ -429,7 +434,7 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
             return { success: false, error: "You cannot remove yourself from the team." };
         }
 
-        const result = await db.removeTeamMemberFromDb(memberIdToRemove, companyId);
+        const result = await db.removeTeamMemberFromDb(memberIdToRemove, companyId, currentUserId);
         
         if (result.success) {
             logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
@@ -449,7 +454,7 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
 export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
      if (!db.isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
      return db.withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
-        const { userRole, companyId } = await getAuthContext();
+        const { userId, userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
         
         const result = await db.updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
@@ -768,14 +773,14 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
 
 export async function updateInventoryItem(sku: string, data: InventoryUpdateData): Promise<{ success: boolean; error?: string; updatedItem?: UnifiedInventoryItem }> {
     try {
-        const { companyId, userRole } = await getAuthContext();
+        const { userId, companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const parsedData = InventoryUpdateSchema.safeParse(data);
         if (!parsedData.success) {
             return { success: false, error: "Invalid form data provided." };
         }
         
-        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data);
+        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data, userId);
         
         await db.refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
@@ -814,4 +819,225 @@ export async function disconnectIntegration(integrationId: string): Promise<{ su
 export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEntry[]> {
     const { companyId } = await getAuthContext();
     return db.getInventoryLedgerForSkuFromDB(companyId, sku);
+}
+
+export async function deleteCustomer(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
+        await db.deleteCustomerFromDb(id, companyId);
+        // Note: We don't revalidate paths here because customers are not directly viewed in a list.
+        // The effect will be visible in reports and analytics.
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'deleteCustomer action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
+    try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60);
+        if (limited) {
+            return { error: 'You have reached the request limit. Please try again in a minute.' };
+        }
+
+        const companyId = await getAuthContext().then(ctx => ctx.companyId);
+        
+        let currentConversationId = conversationId;
+        if (!currentConversationId) {
+            const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
+            currentConversationId = await saveConversation(companyId, newTitle);
+        }
+
+        const userMessageToSave = {
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'user' as const,
+            content: content,
+        };
+        await saveMessage(userMessageToSave);
+
+        // Fetch recent messages for history
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: historyData, error: historyError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', currentConversationId)
+            .order('created_at', { ascending: false })
+            .limit(config.ai.historyLimit);
+
+        if (historyError) {
+            logError(historyError, { context: 'Failed to fetch conversation history' });
+        }
+        const conversationHistory = (historyData || []).map(m => ({
+            role: m.role as 'user' | 'assistant' | 'tool',
+            content: [{ text: m.content }]
+        })).reverse();
+
+
+        const response = await universalChatFlow({ companyId, conversationHistory });
+        
+        let component = null;
+        let componentProps = {};
+
+        if (response.toolName === 'getDeadStockReport') {
+            component = 'deadStockTable';
+            componentProps = { data: response.data };
+        }
+        if (response.toolName === 'getReorderSuggestions') {
+            component = 'reorderList';
+            componentProps = { items: response.data };
+        }
+        if (response.toolName === 'getSupplierPerformanceReport') {
+            component = 'supplierPerformanceTable';
+            componentProps = { data: response.data };
+        }
+         if (response.toolName === 'createPurchaseOrdersFromSuggestions') {
+            component = 'confirmation';
+            componentProps = { ...response.data };
+        }
+
+        const newMessage: Message = {
+            id: `ai_${Date.now()}`,
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'assistant',
+            content: response.response,
+            visualization: response.visualization,
+            confidence: response.confidence,
+            assumptions: response.assumptions,
+            created_at: new Date().toISOString(),
+            component,
+            componentProps
+        };
+
+        await saveMessage({ ...newMessage, id: undefined, created_at: undefined });
+        
+        return { newMessage, conversationId: currentConversationId };
+
+    } catch(e) {
+        logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
+        return { error: getErrorMessage(e) };
+    }
+}
+
+async function saveConversation(companyId: string, title: string) {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: { get: (name: string) => cookieStore.get(name)?.value },
+        }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated.');
+    
+    const { data, error } = await supabase
+        .from('conversations')
+        .insert({
+            user_id: user.id,
+            company_id: companyId,
+            title: title
+        })
+        .select('id')
+        .single();
+
+    if (error) {
+        logError(error, { context: 'Failed to save new conversation' });
+        throw new Error('Could not save conversation to the database.');
+    }
+    return data.id;
+}
+
+
+async function saveMessage(message: Omit<Message, 'id' | 'created_at'>) {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: { get: (name: string) => cookieStore.get(name)?.value },
+        }
+    );
+    const { error } = await supabase.from('messages').insert(message);
+    if (error) {
+        logError(error, { context: 'Failed to save message' });
+    }
+}
+
+export async function getConversations() {
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+            cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        const { data, error } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('last_accessed_at', { ascending: false });
+
+        if (error) {
+            logError(error, { context: 'Failed to get conversations' });
+            return [];
+        }
+        return data || [];
+    } catch(e) {
+        logError(e, { context: 'getConversations action' });
+        return [];
+    }
+}
+
+export async function getMessages(conversationId: string) {
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+            cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        // Update last accessed time
+        await supabase
+            .from('conversations')
+            .update({ last_accessed_at: new Date().toISOString() })
+            .eq('id', conversationId);
+
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true });
+        
+        if (error) {
+            logError(error, { context: `Failed to get messages for conversation ${conversationId}` });
+            return [];
+        }
+        return data || [];
+    } catch (e) {
+        logError(e, { context: `getMessages action for conversation ${conversationId}` });
+        return [];
+    }
 }

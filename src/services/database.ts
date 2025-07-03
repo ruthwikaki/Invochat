@@ -329,21 +329,29 @@ export async function getSuppliersFromDB(companyId: string) {
     });
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrder[]> {
+export async function getPurchaseOrdersFromDB(companyId: string, params: { query?: string; limit: number; offset: number }): Promise<{ items: PurchaseOrder[], totalCount: number }> {
      if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
      return withPerformanceTracking('getPurchaseOrdersFromDB', async () => {
         const supabase = getServiceRoleClient();
         
         const { data, error } = await supabase.rpc('get_purchase_orders', {
-            p_company_id: companyId
+            p_company_id: companyId,
+            p_query: params.query || null,
+            p_limit: params.limit,
+            p_offset: params.offset,
         });
 
         if (error) {
             logError(error, { context: 'Error fetching purchase orders from DB' });
             throw new Error(`Could not load purchase order data: ${error.message}`);
         }
+        
+        const result = data as { items: any[], totalCount: number };
 
-        return z.array(PurchaseOrderSchema.partial()).parse(data || []);
+        return {
+            items: z.array(PurchaseOrderSchema.partial()).parse(result.items || []),
+            totalCount: result.totalCount || 0,
+        };
      });
 }
 
