@@ -296,7 +296,7 @@ BEGIN
 
     -- Insert a corresponding record into the public.users table
     INSERT INTO public.users (id, company_id, email, role)
-    VALUES (new.id, new_company_id, email, user_role);
+    VALUES (new.id, new_company_id, new.email, user_role);
 
     RETURN new;
   END;
