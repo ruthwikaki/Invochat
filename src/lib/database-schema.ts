@@ -268,40 +268,42 @@ SECURITY DEFINER
 AS $$
 DECLARE
   new_company_id UUID;
-  user_role TEXT := 'Owner';
+  user_role TEXT;
+  company_name_from_meta TEXT;
+  company_id_from_meta_text TEXT;
 BEGIN
-  -- Extract company name and ID from the user's metadata, if they exist
-  DECLARE
-    company_name TEXT := new.raw_user_meta_data->>'company_name';
-    company_id_from_meta UUID := (new.raw_user_meta_data->>'company_id')::UUID;
-  BEGIN
-    -- If a company ID was passed during signup (e.g., from an invite), use it.
+  -- Extract values from raw_user_meta_data, which is of type jsonb
+  company_name_from_meta := new.raw_user_meta_data->>'company_name';
+  company_id_from_meta_text := new.raw_user_meta_data->>'company_id';
+
+  -- If a company ID was passed during signup (e.g., from an invite), use it.
+  IF company_id_from_meta_text IS NOT NULL THEN
+    new_company_id := company_id_from_meta_text::UUID;
+    user_role := 'Member'; -- Invited users start as Members
+  ELSE
     -- Otherwise, create a new company for the new user.
-    IF company_id_from_meta IS NOT NULL THEN
-      new_company_id := company_id_from_meta;
-      user_role := 'Member'; -- Invited users start as Members
-    ELSE
-      INSERT INTO public.companies (name)
-      VALUES (COALESCE(company_name, 'My Company'))
-      RETURNING id INTO new_company_id;
-    END IF;
+    INSERT INTO public.companies (name)
+    VALUES (COALESCE(company_name_from_meta, 'My Company'))
+    RETURNING id INTO new_company_id;
+    user_role := 'Owner';
+  END IF;
 
-    -- Update the user's app_metadata with the company ID and role
-    UPDATE auth.users
-    SET app_metadata = jsonb_set(
-        jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', to_jsonb(new_company_id)),
-        '{role}', to_jsonb(user_role)
-    )
-    WHERE id = new.id;
+  -- Update the user's app_metadata with the company ID and role
+  UPDATE auth.users
+  SET app_metadata = jsonb_set(
+      jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', to_jsonb(new_company_id)),
+      '{role}', to_jsonb(user_role)
+  )
+  WHERE id = new.id;
 
-    -- Insert a corresponding record into the public.users table
-    INSERT INTO public.users (id, company_id, email, role)
-    VALUES (new.id, new_company_id, new.email, user_role);
+  -- Insert a corresponding record into the public.users table
+  INSERT INTO public.users (id, company_id, email, role)
+  VALUES (new.id, new_company_id, new.email, user_role);
 
-    RETURN new;
-  END;
+  RETURN new;
 END;
 $$;
+
 
 -- Drop existing trigger to avoid duplicates, then re-create it
 DROP TRIGGER IF EXISTS on_auth_user_created on auth.users;
@@ -662,7 +664,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
 RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT (auth.jwt()->>'company_id')::uuid;
+  SELECT (auth.jwt()->'app_metadata'->>'company_id')::uuid;
 $$;
 
 DO $$
@@ -730,3 +732,4 @@ BEGIN
     END LOOP;
 END;
 $$;
+

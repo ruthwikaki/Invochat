@@ -27,6 +27,15 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending }: { member: TeamMember | null, onRoleChange: (newRole: TeamMember['role']) => void, open: boolean, onOpenChange: (open: boolean) => void, isPending: boolean }) {
     if (!member) return null;
@@ -88,6 +97,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
     const { toast } = useToast();
     
     const currentUserRole = members.find(m => m.id === user?.id)?.role;
+    const csrfToken = getCookie('csrf_token');
 
     const handleInvite = async (formData: FormData) => {
         setFormError(null);
@@ -177,6 +187,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                 </DialogDescription>
                             </DialogHeader>
                             <form action={handleInvite} className="space-y-4">
+                                <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
                                 <div>
                                     <Label htmlFor="email" className="sr-only">Email</Label>
                                     <Input

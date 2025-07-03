@@ -19,6 +19,7 @@ import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRFToken } from '@/lib/csrf';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -190,8 +191,18 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
 export async function updateCompanySettings(formData: FormData): Promise<CompanySettings> {
     const { companyId, userRole } = await getAuthContext();
     requireRole(userRole, ['Owner', 'Admin']);
+
+    const cookieStore = cookies();
+    const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+    const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
+
+    if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+        throw new Error('Invalid form submission. Please refresh the page and try again.');
+    }
+    
     const settings = Object.fromEntries(formData.entries());
     delete settings.csrf_token;
+    
     return db.updateSettingsInDb(companyId, settings as Partial<CompanySettings>);
 }
 
@@ -215,13 +226,22 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
 
+        const cookieStore = cookies();
+        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
+
+        if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+            logger.warn(`[CSRF] Invalid token for invite team member action.`);
+            return { success: false, error: 'Invalid form submission. Please try again.' };
+        }
+
         const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
         if (!parsed.success) {
             return { success: false, error: parsed.error.issues[0].message };
         }
         const { email } = parsed.data;
 
-        await db.inviteUserToCompanyInDb(companyId, "Your Company", email); // Simplified company name
+        await db.inviteUserToCompanyInDb(companyId, email);
         revalidatePath('/settings/team');
         return { success: true };
     } catch (e) {

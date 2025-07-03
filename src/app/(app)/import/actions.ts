@@ -152,7 +152,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
         const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
 
-        if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+        if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
             logger.warn(`[CSRF] Invalid token for data import action.`);
             return { success: false, summaryMessage: 'Invalid form submission. Please refresh the page and try again.' };
         }

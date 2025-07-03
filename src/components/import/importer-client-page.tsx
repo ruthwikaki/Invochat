@@ -12,6 +12,15 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, CheckCircle, Loader2, Table, UploadCloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 const importOptions = {
     inventory: {
@@ -87,6 +96,7 @@ export function ImporterClientPage() {
     const [isDragging, setIsDragging] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
     const formRef = useRef<HTMLFormElement>(null);
+    const csrfToken = getCookie('csrf_token');
 
     const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -129,10 +139,10 @@ export function ImporterClientPage() {
         formRef.current.requestSubmit();
     };
 
-    const handleDragEnter = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-    const handleDragLeave = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-    const handleDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
-    const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    const handleDragEnter = (e: DragEvent<HTMLFormElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+    const handleDragLeave = (e: DragEvent<HTMLFormElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
+    const handleDragOver = (e: DragEvent<HTMLFormElement>) => { e.preventDefault(); e.stopPropagation(); };
+    const handleDrop = (e: DragEvent<HTMLFormElement>) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
@@ -144,88 +154,89 @@ export function ImporterClientPage() {
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <Card className="lg:col-span-1">
-                <form ref={formRef} onSubmit={handleFormSubmit}>
-                    <CardHeader>
-                        <CardTitle>Upload Your Data</CardTitle>
-                        <CardDescription>
-                            Select the data type, then drag and drop your CSV file or click to browse.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <input type="hidden" name="dataType" value={dataType} />
-                        <div className="space-y-2">
-                            <Label htmlFor="data-type">1. Select Data Type</Label>
-                            <Select value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>
-                                <SelectTrigger id="data-type">
-                                    <SelectValue placeholder="Select a data type to import" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(importOptions).map(([key, { label }]) => (
-                                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <Label>2. Upload File</Label>
-                            <div 
-                                onDragEnter={handleDragEnter}
-                                onDragLeave={handleDragLeave}
-                                onDragOver={handleDragOver}
-                                onDrop={handleDrop}
-                                className={cn(
-                                    "relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition-colors",
-                                    isDragging && "border-primary bg-primary/10"
-                                )}
-                            >
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
-                                    <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragging && "text-primary")} />
-                                    {fileName ? (
-                                        <>
-                                            <p className="font-semibold text-primary">{fileName}</p>
-                                            <p className="text-xs text-muted-foreground">Drop another file to replace</p>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <p className="mb-2 text-sm text-foreground">
-                                                <span className="font-semibold">Click to upload</span> or drag and drop
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">CSV files supported (up to 10MB)</p>
-                                        </>
-                                    )}
-                                </div>
-                                <Input 
-                                    id="file" 
-                                    name="file" 
-                                    type="file" 
-                                    accept=".csv" 
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    onChange={(e) => {
-                                        if (e.target.files && e.target.files.length > 0) {
-                                            formRef.current?.requestSubmit();
-                                        }
-                                    }}
-                                />
+            <form ref={formRef} onSubmit={handleFormSubmit}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+            >
+                <Card className="lg:col-span-1">
+                        <CardHeader>
+                            <CardTitle>Upload Your Data</CardTitle>
+                            <CardDescription>
+                                Select the data type, then drag and drop your CSV file or click to browse.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <input type="hidden" name="dataType" value={dataType} />
+                            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+                            <div className="space-y-2">
+                                <Label htmlFor="data-type">1. Select Data Type</Label>
+                                <Select value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>
+                                    <SelectTrigger id="data-type">
+                                        <SelectValue placeholder="Select a data type to import" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(importOptions).map(([key, { label }]) => (
+                                            <SelectItem key={key} value={key}>{label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
-                        </div>
-
-                        <Alert>
-                            <Table className="h-4 w-4" />
-                            <AlertTitle>Required CSV Columns for '{importOptions[dataType].label}'</AlertTitle>
-                            <AlertDescription>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    {importOptions[dataType].columns.map(col => (
-                                        <code key={col} className="text-xs font-mono bg-muted text-muted-foreground px-2 py-1 rounded-md">{col}</code>
-                                    ))}
+                            
+                            <div className="space-y-2">
+                                <Label>2. Upload File</Label>
+                                <div 
+                                    className={cn(
+                                        "relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition-colors",
+                                        isDragging && "border-primary bg-primary/10"
+                                    )}
+                                >
+                                    <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                                        <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragging && "text-primary")} />
+                                        {fileName ? (
+                                            <>
+                                                <p className="font-semibold text-primary">{fileName}</p>
+                                                <p className="text-xs text-muted-foreground">Drop another file to replace</p>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p className="mb-2 text-sm text-foreground">
+                                                    <span className="font-semibold">Click to upload</span> or drag and drop
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">CSV files supported (up to 10MB)</p>
+                                            </>
+                                        )}
+                                    </div>
+                                    <Input 
+                                        id="file" 
+                                        name="file" 
+                                        type="file" 
+                                        accept=".csv" 
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files.length > 0) {
+                                                formRef.current?.requestSubmit();
+                                            }
+                                        }}
+                                    />
                                 </div>
-                            </AlertDescription>
-                        </Alert>
-                    </CardContent>
-                </form>
-            </Card>
+                            </div>
 
+                            <Alert>
+                                <Table className="h-4 w-4" />
+                                <AlertTitle>Required CSV Columns for '{importOptions[dataType].label}'</AlertTitle>
+                                <AlertDescription>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {importOptions[dataType].columns.map(col => (
+                                            <code key={col} className="text-xs font-mono bg-muted text-muted-foreground px-2 py-1 rounded-md">{col}</code>
+                                        ))}
+                                    </div>
+                                </AlertDescription>
+                            </Alert>
+                        </CardContent>
+                </Card>
+            </form>
             <div className="lg:col-span-1">
                 {isPending ? (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
