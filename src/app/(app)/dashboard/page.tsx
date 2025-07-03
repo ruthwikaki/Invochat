@@ -231,4 +231,3 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
         </AppPage>
     );
 }
-

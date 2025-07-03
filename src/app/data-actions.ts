@@ -47,8 +47,8 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string, us
             throw new Error(`Authentication error: ${error.message}`);
         }
 
-        const companyId = user?.app_metadata?.company_id;
-        const userRole = user?.app_metadata?.role;
+        const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
+        const userRole = user?.app_metadata?.role || user?.user_metadata?.role;
 
         if (!user || !companyId || typeof companyId !== 'string' || !userRole) {
             logger.warn('[getAuthContext] Could not determine Company ID or Role. User may not be fully signed up or session is invalid.');
