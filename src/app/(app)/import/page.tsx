@@ -1,4 +1,6 @@
 
+'use client';
+
 import { Upload } from 'lucide-react';
 import { ImporterClientPage } from '@/components/import/importer-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';

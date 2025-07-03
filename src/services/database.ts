@@ -185,7 +185,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
 
         const metrics = rpcData || { totalSalesValue: 0, totalProfit: 0, totalOrders: 0, averageOrderValue: 0, deadStockItemsCount: 0, salesTrendData: [], topCustomersData: [], inventoryByCategoryData: [] };
         
-        const { data: customers, error: customerError } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
+        const { count: customerCount, error: customerError } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
         if (customerError) {
             logError(customerError, { context: `Could not fetch customer count for company ${companyId}`});
@@ -199,7 +199,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             deadStockItemsCount: metrics.deadStockItemsCount || 0,
             totalSkus: mvData?.total_skus || 0,
             totalOrders: metrics.totalOrders || 0,
-            totalCustomers: customers?.count || 0,
+            totalCustomers: customerCount || 0,
             averageOrderValue: metrics.averageOrderValue || 0,
             salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[] | null) || [],
             inventoryByCategoryData: (metrics.inventoryByCategoryData as { name: string; value: number }[] | null) || [],
@@ -776,7 +776,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
                     AVG(daily_customers) as avg_customers,
                     STDDEV(daily_customers) as stddev_customers
                 FROM daily_metrics
-            ),
+            )
             SELECT
                 d.date,
                 d.daily_revenue,
