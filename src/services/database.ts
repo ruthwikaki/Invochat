@@ -241,23 +241,9 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
     const supabase = getServiceRoleClient();
     const deadStockDays = settings.dead_stock_days;
 
-    const deadStockQuery = `
-        SELECT
-            i.sku,
-            i.name as product_name,
-            i.quantity,
-            i.cost,
-            (i.quantity * i.cost) as total_value,
-            i.last_sold_date
-        FROM inventory i
-        WHERE i.company_id = '${companyId}'
-        AND i.quantity > 0
-        AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - INTERVAL '${deadStockDays} days')
-        ORDER BY total_value DESC;
-    `;
-
-    const { data, error } = await supabase.rpc('execute_dynamic_query', {
-        query_text: deadStockQuery.trim().replace(/;/g, '')
+    const { data, error } = await supabase.rpc('get_dead_stock_alerts_data', {
+        p_company_id: companyId,
+        p_dead_stock_days: deadStockDays
     });
 
     if (error) {
@@ -355,18 +341,8 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
      return withPerformanceTracking('getPurchaseOrdersFromDB', async () => {
         const supabase = getServiceRoleClient();
         
-        const query = `
-            SELECT 
-                po.*,
-                v.vendor_name as supplier_name
-            FROM purchase_orders po
-            LEFT JOIN vendors v ON po.supplier_id = v.id
-            WHERE po.company_id = '${companyId}'
-            ORDER BY po.order_date DESC;
-        `;
-
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
-            query_text: query.trim().replace(/;/g, '')
+        const { data, error } = await supabase.rpc('get_purchase_orders', {
+            p_company_id: companyId
         });
 
         if (error) {
@@ -382,35 +358,10 @@ export async function getPurchaseOrderByIdFromDB(poId: string, companyId: string
     if (!isValidUuid(poId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('getPurchaseOrderByIdFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const query = `
-            SELECT 
-                po.*,
-                v.vendor_name as supplier_name,
-                v.contact_info as supplier_email,
-                (
-                    SELECT json_agg(
-                        json_build_object(
-                            'id', poi.id,
-                            'po_id', poi.po_id,
-                            'sku', poi.sku,
-                            'product_name', i.name,
-                            'quantity_ordered', poi.quantity_ordered,
-                            'quantity_received', poi.quantity_received,
-                            'unit_cost', poi.unit_cost,
-                            'tax_rate', poi.tax_rate
-                        )
-                    )
-                    FROM purchase_order_items poi
-                    JOIN inventory i ON poi.sku = i.sku AND i.company_id = po.company_id
-                    WHERE poi.po_id = po.id
-                ) as items
-            FROM purchase_orders po
-            LEFT JOIN vendors v ON po.supplier_id = v.id
-            WHERE po.id = '${poId}' AND po.company_id = '${companyId}';
-        `;
         
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
-            query_text: query.trim().replace(/;/g, '')
+        const { data, error } = await supabase.rpc('get_purchase_order_details', {
+            p_po_id: poId,
+            p_company_id: companyId,
         });
 
         if (error) {
@@ -758,46 +709,9 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('generateAnomalyInsights', async () => {
         const supabase = getServiceRoleClient();
-        const anomalyQuery = `
-            WITH daily_metrics AS (
-                SELECT DATE(sale_date) as date,
-                    SUM(total_amount) as daily_revenue,
-                    COUNT(DISTINCT customer_id) as daily_customers
-                FROM orders
-                WHERE company_id = '${companyId}'
-                AND sale_date >= CURRENT_DATE - INTERVAL '30 days'
-                GROUP BY DATE(sale_date)
-            ),
-            statistics AS (
-                SELECT AVG(daily_revenue) as avg_revenue,
-                    STDDEV(daily_revenue) as stddev_revenue,
-                    AVG(daily_customers) as avg_customers,
-                    STDDEV(daily_customers) as stddev_customers
-                FROM daily_metrics
-            )
-            SELECT
-                d.date,
-                d.daily_revenue,
-                d.daily_customers,
-                s.avg_revenue,
-                s.avg_customers,
-                CASE
-                    WHEN ABS(d.daily_revenue - s.avg_revenue) > (2 * s.stddev_revenue)
-                    THEN 'Revenue Anomaly'
-                    WHEN ABS(d.daily_customers - s.avg_customers) > (2 * s.stddev_customers)
-                    THEN 'Customer Count Anomaly'
-                    ELSE NULL
-                END as anomaly_type
-            FROM daily_metrics d, statistics s
-            WHERE (s.stddev_revenue > 0 OR s.stddev_customers > 0) AND (
-                (s.stddev_revenue > 0 AND ABS(d.daily_revenue - s.avg_revenue) > (2 * s.stddev_revenue))
-                OR
-                (s.stddev_customers > 0 AND ABS(d.daily_customers - s.avg_customers) > (2 * s.stddev_customers))
-            );
-        `;
-
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
-            query_text: anomalyQuery.trim().replace(/;/g, '')
+        
+        const { data, error } = await supabase.rpc('get_anomaly_insights', {
+            p_company_id: companyId
         });
 
         if (error) {
@@ -814,14 +728,8 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
     return withPerformanceTracking('getInventoryCategoriesFromDB', async () => {
         const supabase = getServiceRoleClient();
         
-        const query = `
-            SELECT DISTINCT category FROM inventory
-            WHERE company_id = '${companyId}' AND category IS NOT NULL
-            ORDER BY category ASC;
-        `;
-
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
-            query_text: query.trim().replace(/;/g, '')
+        const { data, error } = await supabase.rpc('get_distinct_categories', {
+            p_company_id: companyId
         });
 
         if (error) {
@@ -946,61 +854,9 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
         const supabase = getServiceRoleClient();
         const settings = await getSettings(companyId);
 
-        const query = `
-            WITH sales_velocity AS (
-                SELECT 
-                    oi.sku,
-                    SUM(oi.quantity)::float / GREATEST(${settings.fast_moving_days}, 1) as daily_sales_velocity
-                FROM order_items oi
-                JOIN orders o ON oi.sale_id = o.id
-                WHERE o.company_id = '${companyId}'
-                  AND o.sale_date >= CURRENT_DATE - INTERVAL '${settings.fast_moving_days} days'
-                GROUP BY oi.sku
-            ),
-            ranked_suppliers AS (
-                SELECT 
-                    sc.sku,
-                    v.vendor_name,
-                    sc.supplier_id,
-                    sc.unit_cost,
-                    ROW_NUMBER() OVER(PARTITION BY sc.sku ORDER BY sc.unit_cost ASC) as rn
-                FROM supplier_catalogs sc
-                JOIN vendors v ON sc.supplier_id = v.id
-                WHERE v.company_id = '${companyId}'
-            ),
-            best_supplier AS (
-                SELECT sku, vendor_name as supplier_name, supplier_id, unit_cost
-                FROM ranked_suppliers
-                WHERE rn = 1
-            ),
-            reorder_points AS (
-                SELECT
-                    i.sku,
-                    i.name as product_name,
-                    i.quantity as current_quantity,
-                    COALESCE(rr.min_stock, i.reorder_point, 0) as reorder_point,
-                    COALESCE(
-                        rr.max_stock - i.quantity, 
-                        rr.reorder_quantity, 
-                        ceil(COALESCE(sv.daily_sales_velocity, 0) * 30)
-                    ) as suggested_reorder_quantity,
-                    bs.supplier_name,
-                    bs.supplier_id,
-                    bs.unit_cost
-                FROM inventory i
-                LEFT JOIN reorder_rules rr ON i.sku = rr.sku AND i.company_id = rr.company_id
-                LEFT JOIN sales_velocity sv ON i.sku = sv.sku
-                LEFT JOIN best_supplier bs ON i.sku = bs.sku
-                WHERE i.company_id = '${companyId}'
-            )
-            SELECT *
-            FROM reorder_points
-            WHERE current_quantity < reorder_point
-            AND suggested_reorder_quantity > 0;
-        `;
-        
-        const { data, error } = await supabase.rpc('execute_dynamic_query', {
-            query_text: query.trim().replace(/;/g, '')
+        const { data, error } = await supabase.rpc('get_reorder_suggestions', {
+            p_company_id: companyId,
+            p_fast_moving_days: settings.fast_moving_days
         });
         
         if (error) {
@@ -1328,22 +1184,9 @@ export async function updateInventoryItemInDb(companyId: string, sku: string, it
         }
 
         // We need to fetch the stats for the unified view separately now.
-        const { data: stats } = await supabase.rpc('execute_dynamic_query', {
-            query_text: `
-                WITH monthly_sales AS (
-                    SELECT 
-                        oi.sku,
-                        SUM(oi.quantity) as units_sold
-                    FROM order_items oi
-                    JOIN orders o ON oi.sale_id = o.id
-                    WHERE o.company_id = '${companyId}' AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days' AND oi.sku = '${sku}'
-                    GROUP BY oi.sku
-                )
-                SELECT 
-                    COALESCE(ms.units_sold, 0) as monthly_units_sold,
-                    ((${data.price || 0} - COALESCE(${data.landed_cost || data.cost}, 0)) * COALESCE(ms.units_sold, 0)) as monthly_profit
-                FROM monthly_sales ms
-            `
+        const { data: stats } = await supabase.rpc('get_unified_inventory_item_stats', {
+            p_company_id: companyId,
+            p_sku: sku
         }).single();
 
 
@@ -1402,29 +1245,8 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
   return withPerformanceTracking('getSupplierPerformanceFromDB', async () => {
     const supabase = getServiceRoleClient();
     
-    // This query calculates supplier performance metrics from historical purchase orders.
-    const query = `
-      SELECT
-          v.vendor_name as supplier_name,
-          COUNT(po.id) as total_completed_orders,
-          -- Calculate the on-time delivery rate as a percentage
-          (AVG(CASE WHEN po.updated_at <= po.expected_date THEN 1 ELSE 0 END) * 100) as on_time_delivery_rate,
-          -- Calculate the average variance from the expected date in days
-          AVG(DATE_PART('day', po.updated_at - po.expected_date)) as average_delivery_variance_days,
-          -- Calculate the average lead time from order date to received date
-          AVG(DATE_PART('day', po.updated_at - po.order_date)) as average_lead_time_days
-      FROM purchase_orders po
-      JOIN vendors v ON po.supplier_id = v.id
-      WHERE po.company_id = '${companyId}'
-        AND po.status = 'received' -- Only consider completed orders for performance metrics
-        AND po.expected_date IS NOT NULL
-        AND po.updated_at IS NOT NULL
-      GROUP BY v.vendor_name
-      ORDER BY on_time_delivery_rate DESC;
-    `;
-        
-    const { data, error } = await supabase.rpc('execute_dynamic_query', {
-        query_text: query.trim().replace(/;/g, '')
+    const { data, error } = await supabase.rpc('get_supplier_performance', {
+        p_company_id: companyId
     });
     
     if (error) {

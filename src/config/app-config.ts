@@ -73,9 +73,15 @@ export const config = {
       aiQuery: parseIntWithDefault(process.env.REDIS_TTL_AI_QUERY, 3600), // 1 hour
     },
   },
+  ratelimit: {
+    ai: parseIntWithDefault(process.env.RATE_LIMIT_AI, 20),
+    auth: parseIntWithDefault(process.env.RATE_LIMIT_AUTH, 5),
+    import: parseIntWithDefault(process.env.RATE_LIMIT_IMPORT, 10),
+  },
   businessLogic: {
     deadStockDays: parseIntWithDefault(process.env.BL_DEAD_STOCK_DAYS, 90),
     fastMovingDays: parseIntWithDefault(process.env.BL_FAST_MOVING_DAYS, 30),
+    predictiveStockDays: parseIntWithDefault(process.env.BL_PREDICTIVE_STOCK_DAYS, 7),
     overstockMultiplier: parseIntWithDefault(process.env.BL_OVERSTOCK_MULTIPLIER, 3),
     highValueThreshold: parseIntWithDefault(process.env.BL_HIGH_VALUE_THRESHOLD, 1000),
   },
@@ -95,3 +101,4 @@ export const config = {
 
 // A type alias for convenience
 export type AppConfig = typeof config;
+

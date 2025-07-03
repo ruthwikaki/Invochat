@@ -290,8 +290,9 @@ BEGIN
   -- This is the critical step that makes the user's session valid
   UPDATE auth.users
   SET app_metadata = jsonb_set(
-      jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', to_jsonb(new_company_id)),
-      '{role}', to_jsonb(user_role)
+      COALESCE(app_metadata, '{}'::jsonb),
+      '{company_id,role}',
+      jsonb_build_array(to_jsonb(new_company_id), to_jsonb(user_role))
   )
   WHERE id = new.id;
 
@@ -307,19 +308,6 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
-
-create or replace function public.execute_dynamic_query(query_text text)
-returns json
-language plpgsql
-as $$
-declare
-  result_json json;
-begin
-  execute format('select coalesce(json_agg(t), ''[]'') from (%s) t', query_text)
-  into result_json;
-  return result_json;
-end;
-$$;
 
 create or replace function public.batch_upsert_with_transaction(
   p_table_name text,
@@ -473,6 +461,7 @@ CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_i
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE item jsonb; current_po_status text; total_ordered integer; total_received integer;
 BEGIN
+    -- This entire function now runs as a single transaction
     FOR item IN SELECT * FROM jsonb_array_elements(p_items_to_receive) LOOP
         UPDATE public.purchase_order_items SET quantity_received = quantity_received + (item->>'quantity_to_receive')::integer WHERE po_id = p_po_id AND sku = item->>'sku';
         UPDATE public.inventory SET quantity = quantity + (item->>'quantity_to_receive')::integer, on_order_quantity = on_order_quantity - (item->>'quantity_to_receive')::integer WHERE company_id = p_company_id AND sku = item->>'sku';
@@ -653,8 +642,7 @@ BEGIN
 END;
 $$;
 
-
--- ========= Part 12: Row-Level Security (RLS) Policies =========
+-- ========= Part 4: Row-Level Security (RLS) Policies =========
 
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
 RETURNS uuid LANGUAGE sql STABLE AS $$
@@ -701,9 +689,7 @@ ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
 CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id = public.current_user_company_id());
 
--- ========= Part 13: Secure Unused Future Tables =========
--- This section ensures that any unused tables from previous schema versions
--- are secured by default, resolving all linter warnings.
+-- ========= Part 5: Secure Unused Future Tables =========
 DO $$
 DECLARE
     t_name TEXT;
@@ -720,9 +706,9 @@ BEGIN
         IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = t_name) THEN
             EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
             EXECUTE format('DROP POLICY IF EXISTS "Deny all access by default" ON public.%I;', t_name);
-            -- This policy denies all access until a proper, company-specific policy is defined
             EXECUTE format('CREATE POLICY "Deny all access by default" ON public.%I FOR ALL USING (false);', t_name);
         END IF;
     END LOOP;
 END;
 $$;
+`;
