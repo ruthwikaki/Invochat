@@ -183,7 +183,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             throw rpcError;
         }
 
-        const metrics = rpcData || { totalSalesValue: 0, totalProfit: 0, totalOrders: 0, averageOrderValue: 0, deadStockItemsCount: 0, salesTrendData: [], topCustomersData: [], inventoryByCategoryData: [] };
+        const metrics = rpcData || {};
         
         const { count: customerCount, error: customerError } = await supabase.from('customers').select('id', { count: 'exact', head: true }).eq('company_id', companyId);
 
@@ -860,6 +860,7 @@ export async function inviteUserToCompanyInDb(companyId: string, companyName: st
             data: {
                 company_id: companyId,
                 company_name: companyName,
+                role: 'Member' // Default role for invites
             },
             redirectTo: `${config.app.url}/dashboard`,
         });
@@ -927,10 +928,10 @@ export async function updateTeamMemberRoleInDb(
         }
         
         // Also update the role in auth.users for the JWT
-        const { error: authUpdateError } = await supabase.auth.admin.updateUserById(memberIdToUpdate, {
+        const { data, error: authUpdateError } = await supabase.auth.admin.updateUserById(memberIdToUpdate, {
             app_metadata: { role: newRole }
         });
-
+        
         if (authUpdateError) {
             logError(authUpdateError, { context: `Failed to auth role for ${memberIdToUpdate}` });
             // This is a problem, but the primary DB is updated. We'll log it but not fail the whole op.

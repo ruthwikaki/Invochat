@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -21,6 +22,14 @@ import Link from 'next/link';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
+  return null;
+}
 
 const businessRulesFields: { key: keyof CompanySettings; label: string; description: string, type: string }[] = [
     { key: 'dead_stock_days', label: 'Dead Stock Threshold (Days)', description: 'Days an item must be unsold to be "dead stock".', type: 'number' },
@@ -150,13 +159,8 @@ export default function SettingsPage() {
         fetchSettings();
 
         // Fetch CSRF token from cookie
-        const token = document.cookie
-            .split('; ')
-            .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-            ?.split('=')[1];
-        if (token) {
-            setCsrfToken(token);
-        }
+        setCsrfToken(getCookie('csrf_token'));
+
     }, [toast]);
     
     const handleInputChange = (key: keyof CompanySettings, value: string) => {

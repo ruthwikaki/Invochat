@@ -47,14 +47,14 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string, us
             throw new Error(`Authentication error: ${error.message}`);
         }
 
-        const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
-        const userRole = user?.app_metadata?.role || user?.user_metadata?.role;
-
+        const companyId = user?.app_metadata?.company_id;
+        const userRole = user?.app_metadata?.role;
+        
         if (!user || !companyId || typeof companyId !== 'string' || !userRole) {
             logger.warn('[getAuthContext] Could not determine Company ID or Role. User may not be fully signed up or session is invalid.');
             throw new Error('Your user session is invalid or not fully configured. Please try signing out and signing back in.');
         }
-
+        
         logger.debug(`[getAuthContext] Success. Company ID: ${companyId}, Role: ${userRole}`);
         return { userId: user.id, companyId, userRole: userRole as UserRole };
     } catch (e) {
@@ -136,7 +136,7 @@ export async function getAlertsData() {
             });
         }
     }
-
+    
     return alerts;
 }
 
@@ -175,7 +175,7 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
       lowStockCount: alerts.filter(a => a.type === 'low_stock').length,
       deadStockCount: deadStockData.deadStockItems.length,
     });
-
+    
     return {
       summary,
       anomalies,
@@ -201,8 +201,9 @@ export async function updateCompanySettings(formData: FormData): Promise<Company
     }
 
     const settings = Object.fromEntries(formData.entries());
+    // remove csrf_token from settings object
     delete settings.csrf_token;
-
+    
     return db.updateSettingsInDb(companyId, settings as Partial<CompanySettings>);
 }
 
@@ -241,7 +242,19 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         }
         const { email } = parsed.data;
 
-        await db.inviteUserToCompanyInDb(companyId, email);
+        const supabase = getServiceRoleClient();
+        
+        const { data: companyData, error: companyError } = await supabase
+            .from('companies')
+            .select('name')
+            .eq('id', companyId)
+            .single();
+
+        if (companyError || !companyData) {
+            throw new Error('Could not retrieve company information to send invite.');
+        }
+
+        await db.inviteUserToCompanyInDb(companyId, companyData.name, email);
         revalidatePath('/settings/team');
         return { success: true };
     } catch (e) {
@@ -267,7 +280,7 @@ export async function testSupabaseConnection(): Promise<{
             isConfigured,
         };
     }
-
+    
     try {
         const cookieStore = cookies();
         const supabase = createServerClient(
@@ -290,7 +303,7 @@ export async function testSupabaseConnection(): Promise<{
             }
             return { success: false, error: { message: error.message, details: error }, user: null, isConfigured };
         }
-
+        
         return { success: true, error: null, user, isConfigured };
 
     } catch (e) {
@@ -298,6 +311,7 @@ export async function testSupabaseConnection(): Promise<{
     }
 }
 
+// Corrected to use service_role key to bypass RLS for a raw table count.
 export async function testDatabaseQuery(): Promise<{
   success: boolean;
   count: number | null;
@@ -305,7 +319,7 @@ export async function testDatabaseQuery(): Promise<{
 }> {
   try {
     const { companyId } = await getAuthContext();
-
+    
     const serviceSupabase = getServiceRoleClient();
 
     // Test a table that is guaranteed to exist for any configured company
@@ -334,13 +348,13 @@ export async function testMaterializedView(): Promise<{ success: boolean; error:
     try {
         const serviceSupabase = getServiceRoleClient();
 
-        const { data, error } = await serviceSupabase.rpc('execute_dynamic_query', {
+        const { data, error } = await supabase.rpc('execute_dynamic_query', {
           query_text: "SELECT 'company_dashboard_metrics'::regclass"
         });
-
+        
         if (error) {
             if (error.message.includes('does not exist')) {
-                return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
+                 return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
             }
             throw error;
         }
@@ -370,7 +384,7 @@ export async function testGenkitConnection(): Promise<{
     try {
         // Use the model from the app config for an accurate test
         const model = config.ai.model;
-
+        
         await ai.generate({
             model: model,
             prompt: 'Test prompt: say "hello".',
@@ -423,14 +437,14 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
         }
 
         const result = await db.removeTeamMemberFromDb(memberIdToRemove, companyId);
-
+        
         if (result.success) {
             logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
             revalidatePath('/settings/team');
         } else {
              logger.error(`[Remove Action] Failed to remove team member ${memberIdToRemove}:`, result.error);
         }
-
+        
         return result;
 
     } catch (e) {
@@ -440,10 +454,11 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
 }
 
 export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
-    try {
+     if (!isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
+     return withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
-
+        
         const result = await db.updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
 
         if (result.success) {
@@ -452,13 +467,9 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         } else {
             logger.error(`[Role Update Action] Failed to update role for ${memberIdToUpdate}:`, result.error);
         }
-
+       
         return result;
-
-    } catch (e) {
-        logError(e, { context: 'updateTeamMemberRole' });
-        return { success: false, error: getErrorMessage(e) };
-    }
+    });
 }
 
 
@@ -469,7 +480,7 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
   if (!parsedData.success) {
     return { success: false, error: "Invalid form data provided." };
   }
-
+  
   try {
     const newPo = await db.createPurchaseOrderInDb(companyId, parsedData.data);
     revalidatePath('/purchase-orders', 'layout');
@@ -589,7 +600,7 @@ export async function createPurchaseOrdersFromSuggestions(
         let createdPoCount = 0;
         for (const supplierId in groupedBySupplier) {
             const supplierSuggestions = groupedBySupplier[supplierId];
-
+            
             const poInput: PurchaseOrderCreateInput = {
                 supplier_id: supplierId,
                 po_number: `PO-${Date.now()}-${createdPoCount}`,
@@ -636,11 +647,11 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
             percentage_fee: formData.get('percentage_fee'),
             fixed_fee: formData.get('fixed_fee'),
         });
-
+        
         if (!parsed.success) {
             return { success: false, error: parsed.error.issues[0].message };
         }
-
+        
         await db.upsertChannelFeeInDB(companyId, parsed.data);
         revalidatePath('/settings');
         return { success: true };
@@ -768,12 +779,12 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
         if (!parsedData.success) {
             return { success: false, error: "Invalid form data provided." };
         }
-
+        
         const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data);
-
+        
         await db.refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
-
+        
         return { success: true, updatedItem };
     } catch (e) {
         logError(e, { context: 'updateInventoryItem action' });

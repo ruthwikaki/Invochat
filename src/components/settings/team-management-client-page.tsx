@@ -27,7 +27,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME } from '@/lib/csrf';
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -55,7 +55,7 @@ function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending 
                         Select a new role for this user. This will be saved to the database.
                     </DialogDescription>
                 </DialogHeader>
-                <form action={() => handleSave()} className="space-y-4 py-4">
+                <div className="space-y-4 py-4">
                     <Label htmlFor="role-select">Role</Label>
                     <Select value={selectedRole} onValueChange={(value) => setSelectedRole(value as TeamMember['role'])}>
                         <SelectTrigger id="role-select" disabled={isPending}>
@@ -67,14 +67,14 @@ function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending 
                             <SelectItem value="Owner" disabled>Owner (Cannot be assigned)</SelectItem>
                         </SelectContent>
                     </Select>
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>Cancel</Button>
-                        <Button type="submit" disabled={isPending}>
-                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Changes
-                        </Button>
-                    </DialogFooter>
-                </form>
+                </div>
+                 <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>Cancel</Button>
+                    <Button type="button" onClick={handleSave} disabled={isPending}>
+                        {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Changes
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     )
@@ -97,7 +97,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
     const { toast } = useToast();
     
     const currentUserRole = members.find(m => m.id === user?.id)?.role;
-    const csrfToken = getCookie('csrf_token');
+    const csrfToken = getCookie(CSRF_COOKIE_NAME);
 
     const handleInvite = async (formData: FormData) => {
         setFormError(null);

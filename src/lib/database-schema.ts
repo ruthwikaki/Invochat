@@ -269,36 +269,32 @@ SET search_path = public
 AS $$
 DECLARE
   new_company_id UUID;
-  user_role TEXT;
+  user_role TEXT := 'Owner'; -- New users are always owners of their new company
   new_company_name TEXT;
 BEGIN
-  -- Determine the company name. Use the metadata if present, otherwise default.
+  -- Create a new company for the new user
   new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', 'My Company');
-
-  -- Create a new company record
   INSERT INTO public.companies (name)
   VALUES (new_company_name)
   RETURNING id INTO new_company_id;
 
-  -- Set the user's role to 'Owner' since they are creating the company
-  user_role := 'Owner';
+  -- Insert a corresponding record into the public.users table for application use
+  INSERT INTO public.users (id, company_id, email, role)
+  VALUES (new.id, new_company_id, new.email, user_role);
+
+  -- Create default settings for the new company
+  INSERT INTO public.company_settings (company_id)
+  VALUES (new_company_id)
+  ON CONFLICT (company_id) DO NOTHING;
 
   -- Update the user's app_metadata with the new company ID and their role
+  -- This is the critical step that makes the user's session valid
   UPDATE auth.users
   SET app_metadata = jsonb_set(
       jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', to_jsonb(new_company_id)),
       '{role}', to_jsonb(user_role)
   )
   WHERE id = new.id;
-
-  -- Insert a corresponding record into the public.users table for application use
-  INSERT INTO public.users (id, company_id, email, role)
-  VALUES (new.id, new_company_id, new.email, user_role);
-
-  -- Create default settings for the new company, ensuring it doesn't fail if one already exists for some reason
-  INSERT INTO public.company_settings (company_id)
-  VALUES (new_company_id)
-  ON CONFLICT (company_id) DO NOTHING;
 
   RETURN new;
 END;
@@ -407,7 +403,7 @@ BEGIN
         WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days'
         GROUP BY oi.sku
     )
-    SELECT coalesce(json_agg(t), '[]') INTO result_json
+    SELECT coalesce(json_agg(t), '[]'::json) INTO result_json
     FROM (
         SELECT
             i.sku, i.name as product_name, i.category, i.quantity, i.cost, i.price,
@@ -438,7 +434,7 @@ CREATE OR REPLACE FUNCTION public.get_historical_sales(p_company_id uuid, p_skus
 RETURNS json LANGUAGE plpgsql AS $$
 DECLARE result_json json;
 BEGIN
-    SELECT coalesce(json_agg(t), '[]') INTO result_json
+    SELECT coalesce(json_agg(t), '[]'::json) INTO result_json
     FROM (
         SELECT sku, json_agg(json_build_object('month', sales_month, 'total_quantity', total_quantity) ORDER BY sales_month) as monthly_sales
         FROM (
@@ -496,7 +492,7 @@ CREATE OR REPLACE FUNCTION public.get_inventory_ledger_for_sku(p_company_id uuid
 RETURNS json LANGUAGE plpgsql AS $$
 DECLARE result_json json;
 BEGIN
-    SELECT coalesce(json_agg(t), '[]') INTO result_json
+    SELECT coalesce(json_agg(t), '[]'::json) INTO result_json
     FROM ( SELECT * FROM public.inventory_ledger WHERE company_id = p_company_id AND sku = p_sku ORDER BY created_at DESC LIMIT 100 ) t;
     RETURN result_json;
 END;
@@ -579,7 +575,7 @@ BEGIN
     low_stock_alerts AS (SELECT 'low_stock' as type, sku, name as product_name, quantity as current_stock, reorder_point FROM inventory WHERE company_id = p_company_id AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point),
     dead_stock_alerts AS (SELECT 'dead_stock' as type, sku, name as product_name, quantity as current_stock, last_sold_date, (quantity * cost) as value FROM inventory, settings WHERE inventory.company_id = p_company_id AND quantity > 0 AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - (settings.dead_stock_days || ' days')::interval)),
     predictive_alerts AS (SELECT 'predictive' as type, i.sku, i.name as product_name, i.quantity as current_stock, i.quantity / sv.daily_sales_velocity as days_of_stock_remaining FROM inventory i JOIN (SELECT oi.sku, SUM(oi.quantity)::float / NULLIF((SELECT fast_moving_days FROM settings), 0) as daily_sales_velocity FROM order_items oi JOIN orders o ON oi.sale_id = o.id WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - ((SELECT fast_moving_days FROM settings) || ' days')::interval GROUP BY oi.sku) sv ON i.sku = sv.sku WHERE i.company_id = p_company_id AND i.quantity > 0 AND sv.daily_sales_velocity > 0 AND (i.quantity / sv.daily_sales_velocity) < 7)
-    SELECT coalesce(json_agg(t), '[]') INTO result_json FROM (SELECT * FROM low_stock_alerts UNION ALL SELECT * FROM dead_stock_alerts UNION ALL SELECT null as reorder_point, * FROM predictive_alerts) t;
+    SELECT coalesce(json_agg(t), '[]'::json) FROM (SELECT * FROM low_stock_alerts UNION ALL SELECT * FROM dead_stock_alerts UNION ALL SELECT null as reorder_point, * FROM predictive_alerts) t;
     RETURN result_json;
 END;
 $$ LANGUAGE plpgsql;
