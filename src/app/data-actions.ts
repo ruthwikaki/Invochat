@@ -49,12 +49,12 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string, us
 
         const companyId = user?.app_metadata?.company_id;
         const userRole = user?.app_metadata?.role;
-        
+
         if (!user || !companyId || typeof companyId !== 'string' || !userRole) {
             logger.warn('[getAuthContext] Could not determine Company ID or Role. User may not be fully signed up or session is invalid.');
             throw new Error('Your user session is invalid or not fully configured. Please try signing out and signing back in.');
         }
-        
+
         logger.debug(`[getAuthContext] Success. Company ID: ${companyId}, Role: ${userRole}`);
         return { userId: user.id, companyId, userRole: userRole as UserRole };
     } catch (e) {
@@ -136,7 +136,7 @@ export async function getAlertsData() {
             });
         }
     }
-    
+
     return alerts;
 }
 
@@ -175,7 +175,7 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
       lowStockCount: alerts.filter(a => a.type === 'low_stock').length,
       deadStockCount: deadStockData.deadStockItems.length,
     });
-    
+
     return {
       summary,
       anomalies,
@@ -199,10 +199,10 @@ export async function updateCompanySettings(formData: FormData): Promise<Company
     if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
         throw new Error('Invalid form submission. Please refresh the page and try again.');
     }
-    
+
     const settings = Object.fromEntries(formData.entries());
     delete settings.csrf_token;
-    
+
     return db.updateSettingsInDb(companyId, settings as Partial<CompanySettings>);
 }
 
@@ -267,7 +267,7 @@ export async function testSupabaseConnection(): Promise<{
             isConfigured,
         };
     }
-    
+
     try {
         const cookieStore = cookies();
         const supabase = createServerClient(
@@ -290,7 +290,7 @@ export async function testSupabaseConnection(): Promise<{
             }
             return { success: false, error: { message: error.message, details: error }, user: null, isConfigured };
         }
-        
+
         return { success: true, error: null, user, isConfigured };
 
     } catch (e) {
@@ -305,7 +305,7 @@ export async function testDatabaseQuery(): Promise<{
 }> {
   try {
     const { companyId } = await getAuthContext();
-    
+
     const serviceSupabase = getServiceRoleClient();
 
     // Test a table that is guaranteed to exist for any configured company
@@ -370,7 +370,7 @@ export async function testGenkitConnection(): Promise<{
     try {
         // Use the model from the app config for an accurate test
         const model = config.ai.model;
-        
+
         await ai.generate({
             model: model,
             prompt: 'Test prompt: say "hello".',
@@ -423,14 +423,14 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
         }
 
         const result = await db.removeTeamMemberFromDb(memberIdToRemove, companyId);
-        
+
         if (result.success) {
             logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
             revalidatePath('/settings/team');
         } else {
              logger.error(`[Remove Action] Failed to remove team member ${memberIdToRemove}:`, result.error);
         }
-        
+
         return result;
 
     } catch (e) {
@@ -443,7 +443,7 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
     try {
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
-        
+
         const result = await db.updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
 
         if (result.success) {
@@ -452,7 +452,7 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         } else {
             logger.error(`[Role Update Action] Failed to update role for ${memberIdToUpdate}:`, result.error);
         }
-       
+
         return result;
 
     } catch (e) {
@@ -469,7 +469,7 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
   if (!parsedData.success) {
     return { success: false, error: "Invalid form data provided." };
   }
-  
+
   try {
     const newPo = await db.createPurchaseOrderInDb(companyId, parsedData.data);
     revalidatePath('/purchase-orders', 'layout');
@@ -589,7 +589,7 @@ export async function createPurchaseOrdersFromSuggestions(
         let createdPoCount = 0;
         for (const supplierId in groupedBySupplier) {
             const supplierSuggestions = groupedBySupplier[supplierId];
-            
+
             const poInput: PurchaseOrderCreateInput = {
                 supplier_id: supplierId,
                 po_number: `PO-${Date.now()}-${createdPoCount}`,
@@ -636,11 +636,11 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
             percentage_fee: formData.get('percentage_fee'),
             fixed_fee: formData.get('fixed_fee'),
         });
-        
+
         if (!parsed.success) {
             return { success: false, error: parsed.error.issues[0].message };
         }
-        
+
         await db.upsertChannelFeeInDB(companyId, parsed.data);
         revalidatePath('/settings');
         return { success: true };
@@ -768,12 +768,12 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
         if (!parsedData.success) {
             return { success: false, error: "Invalid form data provided." };
         }
-        
+
         const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data);
-        
+
         await db.refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
-        
+
         return { success: true, updatedItem };
     } catch (e) {
         logError(e, { context: 'updateInventoryItem action' });
@@ -809,5 +809,3 @@ export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEn
     const { companyId } = await getAuthContext();
     return db.getInventoryLedgerForSkuFromDB(companyId, sku);
 }
-
-    

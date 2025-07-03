@@ -235,7 +235,7 @@ ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS external_id TEXT;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
+        SELECT 1 FROM pg_constraint
         WHERE conname = 'fk_inventory_location' AND conrelid = 'public.inventory'::regclass
     ) THEN
         ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_location
@@ -248,7 +248,7 @@ $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
+        SELECT 1 FROM pg_constraint
         WHERE conname = 'fk_orders_customer' AND conrelid = 'public.orders'::regclass
     ) THEN
         ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_id UUID;
@@ -265,6 +265,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   new_company_id UUID;
@@ -293,7 +294,7 @@ BEGIN
   -- Insert a corresponding record into the public.users table
   INSERT INTO public.users (id, company_id, email, role)
   VALUES (new.id, new_company_id, new.email, user_role);
-  
+
   -- Create default settings for the new company
   INSERT INTO public.company_settings (company_id)
   VALUES (new_company_id)
@@ -417,7 +418,7 @@ BEGIN
         FROM inventory i
         LEFT JOIN locations l ON i.location_id = l.id AND l.company_id = i.company_id
         LEFT JOIN (
-            SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id 
+            SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id
             FROM supplier_catalogs sc
             JOIN vendors v ON sc.supplier_id = v.id AND v.company_id = p_company_id
         ) as primary_supplier ON i.sku = primary_supplier.sku
@@ -521,8 +522,7 @@ BEGIN
             oi.unit_price as sales_price,
             COALESCE(i.landed_cost, i.cost) as cost
         FROM public.order_items oi
-        -- Use LEFT JOIN to not lose sales data if inventory item is deleted
-        LEFT JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
+        JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
         WHERE oi.sale_id IN (SELECT id FROM orders_in_range)
     )
     SELECT json_build_object(
@@ -543,7 +543,7 @@ BEGIN
             FROM (
                 SELECT c.customer_name as name, SUM(s.total_amount) as value
                 FROM orders_in_range s
-                LEFT JOIN public.customers c ON s.customer_id = c.id
+                JOIN public.customers c ON s.customer_id = c.id
                 WHERE s.customer_id IS NOT NULL
                 GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
             ) t
@@ -606,7 +606,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.update_purchase_order(p_po_id uuid, p_company_id uuid, p_supplier_id uuid, p_po_number text, p_status text, p_order_date date, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-    new_total_amount numeric; 
+    new_total_amount numeric;
     item_update jsonb;
     item_from_db purchase_order_items;
     diff integer;
@@ -731,7 +731,3 @@ BEGIN
     END LOOP;
 END;
 $$;
-
-
-
-    
