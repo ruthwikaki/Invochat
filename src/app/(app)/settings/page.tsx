@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -16,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings, ChannelFee } from '@/types';
 import { getCompanySettings, updateCompanySettings, getChannelFees, upsertChannelFee } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2, DollarSign, Percent, Save, CreditCard } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2, DollarSign, Percent, Save, CreditCard, Download } from 'lucide-react';
 import Link from 'next/link';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -333,6 +334,26 @@ export default function SettingsPage() {
                         <CardFooter>
                             <Button asChild variant="secondary" className="w-full">
                                 <Link href="/settings/billing">Manage Billing</Link>
+                            </Button>
+                        </CardFooter>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Download className="h-5 w-5" />
+                                Data Export
+                            </CardTitle>
+                            <CardDescription>Request a full export of your company data.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-muted-foreground">
+                                Generate a CSV export of all your core business data.
+                            </p>
+                        </CardContent>
+                        <CardFooter>
+                            <Button asChild variant="secondary" className="w-full">
+                                <Link href="/settings/export">Export Data</Link>
                             </Button>
                         </CardFooter>
                     </Card>

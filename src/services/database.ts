@@ -9,8 +9,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -1044,44 +1044,43 @@ export async function deleteSupplierFromDb(id: string, companyId: string): Promi
     });
 }
 
-export async function deleteInventoryItemsFromDb(companyId: string, skus: string[]): Promise<void> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('deleteInventoryItemsFromDb', async () => {
+export async function softDeleteInventoryItemsFromDb(companyId: string, skus: string[], userId: string): Promise<void> {
+    if (!isValidUuid(companyId) || !isValidUuid(userId)) throw new Error('Invalid ID format.');
+
+    return withPerformanceTracking('softDeleteInventoryItemsFromDb', async () => {
         const supabase = getServiceRoleClient();
         
         // Data integrity check: ensure these SKUs are not in use.
-        const { count: orderItemsCount, error: orderItemsError } = await supabase
-            .from('order_items')
-            .select('id', { count: 'exact', head: true })
-            .in('sku', skus)
-            .limit(1);
-
-        if (orderItemsError) throw orderItemsError;
-        if (orderItemsCount && orderItemsCount > 0) {
-            throw new Error('One or more items could not be deleted because they are part of historical sales orders.');
+        const { data: activeReferences, error: refError } = await supabase.rpc('check_inventory_references', {
+            p_company_id: companyId,
+            p_skus: skus
+        });
+        
+        if (refError) {
+            logError(refError, { context: `Error checking inventory references for company ${companyId}` });
+            throw refError;
         }
 
-        const { count: poItemsCount, error: poItemsError } = await supabase
-            .from('purchase_order_items')
-            .select('id', { count: 'exact', head: true })
-            .in('sku', skus)
-            .limit(1);
-
-        if (poItemsError) throw poItemsError;
-        if (poItemsCount && poItemsCount > 0) {
-            throw new Error('One or more items could not be deleted because they are part of historical purchase orders.');
+        if (activeReferences && activeReferences.length > 0) {
+            const activeSkus = activeReferences.map((ref: {sku: string}) => ref.sku).join(', ');
+            throw new Error(`Cannot delete items with active references in orders or POs: ${activeSkus}`);
         }
 
         const { error } = await supabase
             .from('inventory')
-            .delete()
+            .update({
+                deleted_at: new Date().toISOString(),
+                deleted_by: userId
+            })
             .eq('company_id', companyId)
-            .in('sku', skus);
+            .in('sku', skus)
+            .is('deleted_at', null);
             
         if (error) {
-            logError(error, { context: `deleteInventoryItemsFromDb for company ${companyId}` });
+            logError(error, { context: `softDeleteInventoryItemsFromDb for company ${companyId}` });
             throw error;
         }
+        logger.info(`[DB Service] Soft-deleted ${skus.length} inventory items for company ${companyId}`);
     });
 }
 
@@ -1309,5 +1308,26 @@ export async function deleteCustomerFromDb(id: string, companyId: string): Promi
                 throw deleteError;
             }
         }
+    });
+}
+
+export async function createExportJobInDb(companyId: string, userId: string): Promise<ExportJob> {
+    if (!isValidUuid(companyId) || !isValidUuid(userId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('createExportJobInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('export_jobs')
+            .insert({
+                company_id: companyId,
+                requested_by_user_id: userId,
+                status: 'pending',
+            })
+            .select()
+            .single();
+        if (error) {
+            logError(error, { context: 'createExportJobInDb' });
+            throw error;
+        }
+        return ExportJobSchema.parse(data);
     });
 }

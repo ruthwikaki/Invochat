@@ -4,7 +4,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -759,9 +759,9 @@ export async function deleteSupplier(id: string): Promise<{ success: boolean; er
 
 export async function deleteInventoryItems(skus: string[]): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId, userRole } = await getAuthContext();
+        const { companyId, userRole, userId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await db.deleteInventoryItemsFromDb(companyId, skus);
+        await db.softDeleteInventoryItemsFromDb(companyId, skus, userId);
         revalidatePath('/inventory');
         await db.refreshMaterializedViews(companyId);
         return { success: true };
@@ -1039,5 +1039,30 @@ export async function getMessages(conversationId: string) {
     } catch (e) {
         logError(e, { context: `getMessages action for conversation ${conversationId}` });
         return [];
+    }
+}
+
+export async function requestCompanyDataExport(): Promise<{ success: boolean; error?: string; jobId?: string }> {
+    try {
+        const { companyId, userRole, userId } = await getAuthContext();
+        requireRole(userRole, ['Owner']); // Only owners can export data
+
+        // Rate limit this expensive operation
+        const { limited } = await rateLimit(`export:${companyId}`, 'data_export', 5, 86400); // 5 exports per day
+        if (limited) {
+            return { success: false, error: 'You have reached the daily export limit. Please try again tomorrow.' };
+        }
+
+        const newJob = await db.createExportJobInDb(companyId, userId);
+        
+        // In a real application, this would trigger a background worker.
+        // For this simulation, we just log that the job was created.
+        logger.info(`[Data Export] Job ${newJob.id} created for company ${companyId}. Background processing would start here.`);
+
+        revalidatePath('/settings/export');
+        return { success: true, jobId: newJob.id };
+    } catch(e) {
+        logError(e, { context: 'requestCompanyDataExport action' });
+        return { success: false, error: getErrorMessage(e) };
     }
 }

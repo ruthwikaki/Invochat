@@ -1,4 +1,5 @@
 
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -327,3 +328,14 @@ export const InventoryLedgerEntrySchema = z.object({
     notes: z.string().nullable(),
 });
 export type InventoryLedgerEntry = z.infer<typeof InventoryLedgerEntrySchema>;
+
+export const ExportJobSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    requested_by_user_id: z.string().uuid(),
+    status: z.enum(['pending', 'processing', 'completed', 'failed']),
+    download_url: z.string().url().nullable(),
+    expires_at: z.string().datetime({ offset: true }).nullable(),
+    created_at: z.string().datetime({ offset: true }),
+});
+export type ExportJob = z.infer<typeof ExportJobSchema>;
