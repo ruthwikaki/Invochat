@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     source_platform TEXT,
     external_product_id TEXT,
-    external_variant_id TEXT
+    external_variant_id TEXT,
+    external_quantity INTEGER,
+    last_sync TIMESTAMPTZ
 );
 
 -- This table tracks manual changes to inventory for audit purposes.
@@ -235,6 +237,27 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   created_at timestamptz DEFAULT now()
 );
 
+-- Table for resumable syncs
+CREATE TABLE IF NOT EXISTS public.sync_state (
+    integration_id UUID PRIMARY KEY REFERENCES public.integrations(id) ON DELETE CASCADE,
+    sync_type TEXT NOT NULL,
+    last_processed_cursor TEXT,
+    processed_count INTEGER DEFAULT 0,
+    last_update TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Table for logging permanent sync errors
+CREATE TABLE IF NOT EXISTS public.sync_errors (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    error_message TEXT,
+    stack_trace TEXT,
+    attempt_number INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+
 -- ========= Part 2: Schema Migrations & Constraints =========
 
 -- Fix existing duplicate SKUs before adding the unique constraint.
@@ -259,6 +282,7 @@ $$;
 
 -- Add all unique constraints to enforce data integrity at the DB level.
 ALTER TABLE public.inventory ADD CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku);
+ALTER TABLE public.inventory ADD CONSTRAINT unique_variant_per_company UNIQUE (company_id, source_platform, external_variant_id);
 ALTER TABLE public.locations ADD CONSTRAINT unique_location_name_per_company UNIQUE (company_id, name);
 ALTER TABLE public.vendors ADD CONSTRAINT unique_vendor_name_per_company UNIQUE (company_id, vendor_name);
 ALTER TABLE public.customers ADD CONSTRAINT unique_customer_per_platform UNIQUE (company_id, platform, external_id);
@@ -308,6 +332,15 @@ $$;
 DROP TRIGGER IF EXISTS on_auth_user_created on auth.users;
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
+-- Trigger to automatically update 'updated_at' columns
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = NOW();
+   RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Secure batch upsert function that enforces company_id from the user's session.
 CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
   p_table_name text, p_records jsonb, p_conflict_columns text[]
@@ -324,7 +357,7 @@ BEGIN
   END IF;
   SELECT jsonb_agg(jsonb_set(elem, '{company_id}', to_jsonb(company_id_from_jwt))) INTO sanitized_records FROM jsonb_array_elements(p_records) AS elem;
   update_set_clause := (SELECT string_agg(format('%I = excluded.%I', key, key), ', ') FROM jsonb_object_keys(sanitized_records -> 0) AS key WHERE NOT (key = ANY(p_conflict_columns)));
-  query := format('INSERT INTO %I SELECT * FROM jsonb_populate_recordset(null::%I, $1) ON CONFLICT (%s) DO UPDATE SET %s;', p_table_name, p_table_name, array_to_string(p_conflict_columns, ', '), update_set_clause);
+  query := format('INSERT INTO %I SELECT * FROM jsonb_populate_recordset(null::%I, $1) ON CONFLICT (%s) DO UPDATE SET %s, updated_at = NOW();', p_table_name, p_table_name, array_to_string(p_conflict_columns, ', '), update_set_clause);
   EXECUTE query USING sanitized_records;
 END;
 $$;
@@ -392,7 +425,7 @@ DECLARE
 BEGIN
     SELECT quantity INTO v_old_quantity FROM inventory WHERE company_id = p_company_id AND sku = p_sku;
     
-    UPDATE inventory SET quantity = p_new_quantity, version = version + 1, updated_at = NOW()
+    UPDATE inventory SET quantity = p_new_quantity, version = version + 1
     WHERE company_id = p_company_id AND sku = p_sku AND version = p_expected_version;
         
     GET DIAGNOSTICS v_rows_updated = ROW_COUNT;
@@ -406,7 +439,7 @@ BEGIN
     
     RETURN json_build_object('success', true);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 
 -- Purchase Order Over-Receiving Prevention
@@ -526,7 +559,8 @@ DECLARE
 BEGIN
     FOR t_name IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (
         'users', 'company_settings', 'inventory', 'customers', 'orders', 'vendors', 'reorder_rules', 
-        'purchase_orders', 'integrations', 'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 'sync_logs'
+        'purchase_orders', 'integrations', 'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 
+        'sync_logs', 'sync_state', 'sync_errors'
     ) LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
         EXECUTE format('DROP POLICY IF EXISTS "Enable all access for own company" ON public.%I;', t_name);
@@ -569,6 +603,9 @@ CREATE TRIGGER validate_inventory_location_ref BEFORE INSERT OR UPDATE ON public
 DROP TRIGGER IF EXISTS validate_order_item_refs ON public.order_items;
 CREATE TRIGGER validate_order_item_refs BEFORE INSERT ON public.order_items
   FOR EACH ROW EXECUTE FUNCTION validate_same_company_reference();
+  
+DROP TRIGGER IF EXISTS set_inventory_updated_at ON public.inventory;
+CREATE TRIGGER set_inventory_updated_at BEFORE UPDATE ON public.inventory FOR EACH ROW EXECUTE PROCEDURE public.update_updated_at_column();
 
 -- Apply Audit Triggers to all critical tables
 DO $$

@@ -14,11 +14,13 @@ import { getSecret } from './encryption';
  * The main dispatcher for running an integration sync.
  * This function is platform-agnostic. It fetches the integration details,
  * determines the platform, and calls the appropriate platform-specific
- * sync function.
+ * sync function. It also includes retry logic with exponential backoff.
  * @param integrationId The ID of the integration to sync.
  * @param companyId The ID of the company, for security verification.
+ * @param attempt The current retry attempt number.
  */
-export async function runSync(integrationId: string, companyId: string) {
+export async function runSync(integrationId: string, companyId: string, attempt = 1) {
+    const MAX_ATTEMPTS = 3;
     const supabase = getServiceRoleClient();
 
     // 1. Fetch integration details to verify ownership and get platform type.
@@ -34,7 +36,7 @@ export async function runSync(integrationId: string, companyId: string) {
     }
 
     // Concurrency Check: Prevent starting a new sync if one is already running.
-    if (integration.sync_status?.startsWith('syncing')) {
+    if (integration.sync_status?.startsWith('syncing') && attempt === 1) {
         logger.warn(`[Sync Service] Sync already in progress for integration ${integrationId}. Aborting new request.`);
         return;
     }
@@ -44,7 +46,6 @@ export async function runSync(integrationId: string, companyId: string) {
 
     try {
         // 3. Dispatch to the correct platform-specific service.
-        // The specific service is responsible for fetching its own credentials.
         switch (integration.platform) {
             case 'shopify':
                 await runShopifyFullSync(integration);
@@ -59,8 +60,26 @@ export async function runSync(integrationId: string, companyId: string) {
                 throw new Error(`Unsupported integration platform: ${integration.platform}`);
         }
     } catch (e: any) {
-        // If any part of the sync fails, log it and update the status.
-        logError(e, { context: `Full sync failed for integration ${integration.id}` });
-        await supabase.from('integrations').update({ sync_status: 'failed' }).eq('id', integration.id);
+        logError(e, { context: `Sync failed for integration ${integration.id}, attempt ${attempt}` });
+
+        if (attempt < MAX_ATTEMPTS) {
+            const delayMs = Math.pow(2, attempt) * 2000; // Exponential backoff starts at 2s, then 4s
+            logger.info(`[Sync Service] Retrying sync for ${integration.id} in ${delayMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            return runSync(integrationId, companyId, attempt + 1); // Recursive call for retry
+        } else {
+            logger.error(`[Sync Service] Max retries reached for integration ${integration.id}. Marking as failed.`);
+            await supabase.from('integrations').update({ sync_status: 'failed' }).eq('id', integration.id);
+            // Log the permanent failure for later analysis
+            await supabase.from('sync_errors').insert({
+                integration_id: integrationId,
+                company_id: companyId,
+                error_message: e.message,
+                stack_trace: e.stack,
+                attempt_number: attempt,
+            });
+            // Re-throw the error to be caught by the original caller if needed
+            throw new Error(`Sync failed after ${MAX_ATTEMPTS} attempts. Please check the logs.`);
+        }
     }
 }
