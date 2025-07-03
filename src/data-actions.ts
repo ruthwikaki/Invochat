@@ -768,14 +768,14 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
 
 export async function updateInventoryItem(sku: string, data: InventoryUpdateData): Promise<{ success: boolean; error?: string; updatedItem?: UnifiedInventoryItem }> {
     try {
-        const { companyId, userRole } = await getAuthContext();
+        const { userId, companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const parsedData = InventoryUpdateSchema.safeParse(data);
         if (!parsedData.success) {
             return { success: false, error: "Invalid form data provided." };
         }
         
-        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data);
+        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data, userId);
         
         await db.refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
@@ -814,6 +814,20 @@ export async function disconnectIntegration(integrationId: string): Promise<{ su
 export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEntry[]> {
     const { companyId } = await getAuthContext();
     return db.getInventoryLedgerForSkuFromDB(companyId, sku);
+}
+
+export async function deleteCustomer(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId, userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
+        await db.deleteCustomerFromDb(id, companyId);
+        // Note: We don't revalidate paths here because customers are not directly viewed in a list.
+        // The effect will be visible in reports and analytics.
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'deleteCustomer action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
 }
 
 export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
