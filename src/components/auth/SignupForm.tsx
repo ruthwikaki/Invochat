@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
 import { PasswordInput } from './PasswordInput';
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
@@ -40,7 +39,7 @@ export function SignupForm({ error: initialError, csrfToken, loadingToken }: Sig
 
     return (
         <form action={signup} className="grid gap-4" onChange={handleInteraction}>
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+            <input type="hidden" name="csrf_token" value={csrfToken || ''} />
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
                 <Input

@@ -27,7 +27,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME } from '@/lib/csrf';
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -97,7 +96,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
     const { toast } = useToast();
     
     const currentUserRole = members.find(m => m.id === user?.id)?.role;
-    const csrfToken = getCookie(CSRF_COOKIE_NAME);
+    const csrfToken = getCookie('csrf_token');
 
     const handleInvite = async (formData: FormData) => {
         setFormError(null);
@@ -187,7 +186,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                 </DialogDescription>
                             </DialogHeader>
                             <form action={handleInvite} className="space-y-4">
-                                <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+                                <input type="hidden" name="csrf_token" value={csrfToken || ''} />
                                 <div>
                                     <Label htmlFor="email" className="sr-only">Email</Label>
                                     <Input

@@ -3,9 +3,14 @@
 
 import type { Integration } from '../../types';
 import { logger } from '@/lib/logger';
+import { getSecret } from '../encryption';
 
 // Placeholder for WooCommerce sync logic
-export async function runWooCommerceFullSync(integration: Integration, credentialsJson: string) {
+export async function runWooCommerceFullSync(integration: Integration) {
+    const credentialsJson = await getSecret(integration.company_id, 'woocommerce');
+    if (!credentialsJson) {
+        throw new Error('Could not retrieve WooCommerce credentials from Vault.');
+    }
     const credentials = JSON.parse(credentialsJson);
 
     logger.info(`[Sync Placeholder] Starting WooCommerce sync for store: ${integration.shop_domain}`);

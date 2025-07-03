@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
 import { PasswordInput } from './PasswordInput';
 
 function LoginSubmitButton({ disabled }: { disabled: boolean }) {
@@ -45,7 +44,7 @@ export function LoginForm({ error: initialError, csrfToken, loadingToken }: Logi
 
   return (
     <form action={login} className="space-y-4" onChange={handleInteraction}>
-        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+        <input type="hidden" name="csrf_token" value={csrfToken || ''} />
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input

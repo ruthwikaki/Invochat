@@ -18,8 +18,30 @@ CREATE TABLE IF NOT EXISTS public.users (
     id UUID PRIMARY KEY,
     company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
     email TEXT,
-    role TEXT
+    role TEXT,
+    deleted_at TIMESTAMPTZ -- For soft-deleting user association
 );
+
+-- Handle pre-existing duplicates before adding unique constraint
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM inventory
+        GROUP BY company_id, sku
+        HAVING COUNT(*) > 1
+    ) THEN
+        WITH duplicates AS (
+            SELECT id, ROW_NUMBER() OVER (PARTITION BY company_id, sku ORDER BY id) as rn
+            FROM inventory
+        )
+        UPDATE inventory
+        SET sku = sku || '-DUP-' || id::text
+        WHERE id IN (SELECT id FROM duplicates WHERE rn > 1);
+    END IF;
+END;
+$$;
+
 
 CREATE TABLE IF NOT EXISTS public.inventory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -36,7 +58,20 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     landed_cost NUMERIC(10, 2),
     barcode TEXT,
     location_id UUID,
+    version INTEGER DEFAULT 1 NOT NULL, -- For optimistic locking
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku)
+);
+
+CREATE TABLE IF NOT EXISTS public.inventory_adjustments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    sku TEXT NOT NULL,
+    old_quantity INTEGER,
+    new_quantity INTEGER NOT NULL,
+    change_reason TEXT,
+    adjusted_by UUID REFERENCES public.users(id),
+    adjusted_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS public.locations (
@@ -343,25 +378,34 @@ exception
 end;
 $$;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
-SELECT
-  i.company_id,
-  COUNT(DISTINCT i.sku) as total_skus,
-  SUM(i.quantity * i.cost) as inventory_value,
-  COUNT(CASE WHEN i.quantity <= i.reorder_point AND i.reorder_point > 0 THEN 1 END) as low_stock_count
-FROM inventory i
-GROUP BY i.company_id
-WITH DATA;
+-- Changed from Materialized View to a regular table for per-company refreshes
+CREATE TABLE IF NOT EXISTS public.company_dashboard_metrics (
+  company_id UUID PRIMARY KEY,
+  total_skus BIGINT,
+  inventory_value NUMERIC,
+  low_stock_count BIGINT,
+  last_refreshed TIMESTAMPTZ
+);
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_company_dashboard_metrics_company_id
-ON public.company_dashboard_metrics(company_id);
 
-CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics()
-RETURNS void
-LANGUAGE sql
-AS $$
-  REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
-$$;
+CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics_for_company(p_company_id uuid)
+RETURNS VOID AS $$
+BEGIN
+    DELETE FROM company_dashboard_metrics WHERE company_id = p_company_id;
+    
+    INSERT INTO company_dashboard_metrics (
+        company_id, total_skus, inventory_value, low_stock_count, last_refreshed
+    )
+    SELECT 
+        p_company_id,
+        COUNT(DISTINCT i.sku),
+        SUM(i.quantity * i.cost),
+        COUNT(CASE WHEN i.quantity <= i.reorder_point AND i.reorder_point > 0 THEN 1 END),
+        NOW()
+    FROM inventory i
+    WHERE i.company_id = p_company_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 create or replace function public.delete_location_and_unassign_inventory(p_location_id uuid, p_company_id uuid)
 returns void language plpgsql security definer as $$
@@ -383,7 +427,7 @@ end;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(p_company_id uuid, p_query text, p_category text, p_location_id uuid, p_supplier_id uuid, p_limit integer, p_offset integer)
-RETURNS json LANGUAGE plpgsql AS $$
+RETURNS json LANGUAGE plpgsql SECURITY INVOKER AS $$
 DECLARE 
     result_json json;
     total_count integer;
@@ -437,7 +481,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_historical_sales(p_company_id uuid, p_skus text[])
-RETURNS json LANGUAGE plpgsql AS $$
+RETURNS json LANGUAGE plpgsql SECURITY INVOKER AS $$
 DECLARE result_json json;
 BEGIN
     SELECT coalesce(json_agg(t), '[]'::json) INTO result_json
@@ -478,25 +522,56 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE item jsonb; current_po_status text; total_ordered integer; total_received integer;
+DECLARE 
+    item RECORD; 
+    current_po_status TEXT; 
+    total_ordered INTEGER; 
+    total_received INTEGER;
+    v_already_received INTEGER;
+    v_ordered_quantity INTEGER;
+    v_can_receive INTEGER;
 BEGIN
     -- This entire function now runs as a single transaction
-    FOR item IN SELECT * FROM jsonb_array_elements(p_items_to_receive) LOOP
-        UPDATE public.purchase_order_items SET quantity_received = quantity_received + (item->>'quantity_to_receive')::integer WHERE po_id = p_po_id AND sku = item->>'sku';
-        UPDATE public.inventory SET quantity = quantity + (item->>'quantity_to_receive')::integer, on_order_quantity = on_order_quantity - (item->>'quantity_to_receive')::integer WHERE company_id = p_company_id AND sku = item->>'sku';
-        PERFORM public.create_inventory_ledger_entry(p_company_id, item->>'sku', 'purchase_order_received', (item->>'quantity_to_receive')::integer, p_po_id);
+    IF NOT EXISTS (SELECT 1 FROM purchase_orders WHERE id = p_po_id AND company_id = p_company_id) THEN
+        RAISE EXCEPTION 'Purchase order not found or access denied';
+    END IF;
+
+    FOR item IN SELECT * FROM jsonb_to_recordset(p_items_to_receive) AS x(sku TEXT, quantity_to_receive INTEGER) LOOP
+        SELECT poi.quantity_ordered, COALESCE(poi.quantity_received, 0)
+        INTO v_ordered_quantity, v_already_received
+        FROM purchase_order_items poi
+        WHERE poi.po_id = p_po_id AND poi.sku = item.sku;
+        
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'SKU % not found in this purchase order.', item.sku;
+        END IF;
+
+        v_can_receive := v_ordered_quantity - v_already_received;
+        
+        IF item.quantity_to_receive > v_can_receive THEN
+            RAISE EXCEPTION 'Cannot receive % units of SKU %. Only % are remaining to be received.', item.quantity_to_receive, item.sku, v_can_receive;
+        END IF;
+
+        IF item.quantity_to_receive > 0 THEN
+            UPDATE public.purchase_order_items SET quantity_received = quantity_received + item.quantity_to_receive WHERE po_id = p_po_id AND sku = item.sku;
+            UPDATE public.inventory SET quantity = quantity + item.quantity_to_receive, on_order_quantity = on_order_quantity - item.quantity_to_receive, updated_at = NOW() WHERE company_id = p_company_id AND sku = item.sku;
+            PERFORM public.create_inventory_ledger_entry(p_company_id, item.sku, 'purchase_order_received', item.quantity_to_receive, p_po_id);
+        END IF;
     END LOOP;
+
     SELECT SUM(quantity_ordered), SUM(quantity_received) INTO total_ordered, total_received FROM public.purchase_order_items WHERE po_id = p_po_id;
+    
     IF total_received >= total_ordered THEN current_po_status := 'received';
     ELSIF total_received > 0 THEN current_po_status := 'partial';
     ELSE SELECT status INTO current_po_status FROM public.purchase_orders WHERE id = p_po_id;
     END IF;
+
     UPDATE public.purchase_orders SET status = current_po_status, updated_at = NOW() WHERE id = p_po_id;
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_inventory_ledger_for_sku(p_company_id uuid, p_sku text)
-RETURNS json LANGUAGE plpgsql AS $$
+RETURNS json LANGUAGE plpgsql SECURITY INVOKER AS $$
 DECLARE result_json json;
 BEGIN
     SELECT coalesce(json_agg(t), '[]'::json) INTO result_json
@@ -506,7 +581,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION get_dashboard_metrics(p_company_id uuid, p_days integer)
-RETURNS json LANGUAGE plpgsql AS $$
+RETURNS json LANGUAGE plpgsql SECURITY INVOKER AS $$
 DECLARE
     result_json json;
 BEGIN
@@ -575,7 +650,7 @@ $$;
 
 
 CREATE OR REPLACE FUNCTION get_alerts(p_company_id uuid, p_dead_stock_days integer, p_fast_moving_days integer, p_predictive_stock_days integer)
-RETURNS json AS $$
+RETURNS json LANGUAGE plpgsql SECURITY INVOKER AS $$
 DECLARE result_json json;
 BEGIN
     WITH low_stock_alerts AS (
@@ -611,7 +686,7 @@ BEGIN
     ) t;
     RETURN result_json;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE OR REPLACE FUNCTION public.create_purchase_order_and_update_inventory(p_company_id uuid, p_supplier_id uuid, p_po_number text, p_order_date date, p_total_amount numeric, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
 RETURNS public.purchase_orders LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -687,6 +762,42 @@ BEGIN
 END;
 $$;
 
+
+CREATE OR REPLACE FUNCTION public.get_inventory_turnover_report(p_company_id uuid, p_days integer)
+RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER AS $$
+DECLARE
+    result jsonb;
+BEGIN
+    WITH cogs_calc AS (
+        SELECT SUM(oi.quantity * COALESCE(i.landed_cost, i.cost)) as total_cogs
+        FROM order_items oi
+        JOIN orders o ON oi.sale_id = o.id
+        JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
+        WHERE o.company_id = p_company_id
+          AND o.sale_date >= CURRENT_DATE - (p_days || ' days')::interval
+    ),
+    inventory_value AS (
+        SELECT SUM(quantity * COALESCE(landed_cost, cost)) as total_inventory_value
+        FROM inventory
+        WHERE company_id = p_company_id
+    )
+    SELECT jsonb_build_object(
+        'total_cogs', COALESCE(c.total_cogs, 0),
+        'average_inventory_value', COALESCE(iv.total_inventory_value, 0),
+        'turnover_rate',
+            CASE
+                WHEN iv.total_inventory_value > 0 THEN COALESCE(c.total_cogs, 0) / iv.total_inventory_value
+                ELSE 0
+            END,
+        'period_days', p_days
+    )
+    INTO result
+    FROM cogs_calc c, inventory_value iv;
+    RETURN result;
+END;
+$$;
+
+
 -- ========= Part 4: Row-Level Security (RLS) Policies =========
 
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
@@ -709,7 +820,7 @@ BEGIN
     LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
         EXECUTE format('DROP POLICY IF EXISTS "Users can manage data for their own company" ON public.%I;', t_name);
-        EXECUTE format('CREATE POLICY "Users can manage data for their own company" ON public.%I FOR ALL USING (company_id = public.current_user_company_id());', t_name);
+        EXECUTE format('CREATE POLICY "Users can manage data for their own company" ON public.%I FOR ALL USING (company_id = public.current_user_company_id() AND deleted_at IS NULL);', t_name);
     END LOOP;
 END;
 $$;
@@ -756,4 +867,3 @@ BEGIN
     END LOOP;
 END;
 $$;
-`;

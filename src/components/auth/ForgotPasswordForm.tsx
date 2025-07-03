@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
@@ -39,7 +38,7 @@ export function ForgotPasswordForm({ error: initialError, csrfToken, loadingToke
 
   return (
     <form action={requestPasswordReset} className="grid gap-4" onChange={handleInteraction}>
-      <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+      <input type="hidden" name="csrf_token" value={csrfToken || ''} />
       <div className="grid gap-2">
         <Label htmlFor="email" className="text-slate-300">Email</Label>
         <Input

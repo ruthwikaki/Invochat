@@ -6,6 +6,7 @@ import { logError } from '@/lib/error-handler';
 import type { Integration } from '../../types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
+import { getSecret } from '../encryption';
 
 const SHOPIFY_API_VERSION = '2024-04';
 const RATE_LIMIT_DELAY = 500; // 500ms delay between requests (2 req/s)
@@ -229,9 +230,13 @@ export async function syncOrders(integration: Integration, accessToken: string) 
   }
 }
 
-export async function runShopifyFullSync(integration: Integration, credentialsJson: string) {
+export async function runShopifyFullSync(integration: Integration) {
     const supabase = getServiceRoleClient();
     try {
+        const credentialsJson = await getSecret(integration.company_id, 'shopify');
+        if (!credentialsJson) {
+            throw new Error('Could not retrieve Shopify credentials from Vault.');
+        }
         const { accessToken } = JSON.parse(credentialsJson);
 
         // Run sequentially to provide better status updates

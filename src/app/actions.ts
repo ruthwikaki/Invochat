@@ -4,10 +4,9 @@
 import type { Message } from '@/types';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { headers } from 'next/headers';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
 
@@ -144,7 +143,7 @@ export async function getMessages(conversationId: string) {
 export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60); // 20 requests per minute
+        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60);
         if (limited) {
             return { error: 'You have reached the request limit. Please try again in a minute.' };
         }

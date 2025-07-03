@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
 import { PasswordInput } from './PasswordInput';
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
@@ -48,7 +47,7 @@ export function UpdatePasswordForm({ error: initialError, csrfToken, loadingToke
     
   return (
     <form action={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
-        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+        <input type="hidden" name="csrf_token" value={csrfToken || ''} />
         <div className="grid gap-2">
           <Label htmlFor="password" className="text-slate-300">New Password</Label>
            <PasswordInput

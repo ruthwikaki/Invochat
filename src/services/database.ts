@@ -42,12 +42,14 @@ export async function refreshMaterializedViews(companyId: string): Promise<void>
     if (!isValidUuid(companyId)) return;
     await withPerformanceTracking('refreshMaterializedViews', async () => {
         const supabase = getServiceRoleClient();
-        const { error } = await supabase.rpc('refresh_dashboard_metrics');
+        const { error } = await supabase.rpc('refresh_dashboard_metrics_for_company', {
+            p_company_id: companyId,
+        });
         if (error) {
-            logError(error, { context: `Failed to refresh materialized views for company ${companyId}` });
+            logError(error, { context: `Failed to refresh dashboard metrics for company ${companyId}` });
             // Don't throw, as this is a background optimization, not a critical failure
         } else {
-            logger.info(`[DB Service] Refreshed materialized views for company ${companyId}`);
+            logger.info(`[DB Service] Refreshed dashboard metrics for company ${companyId}`);
         }
     });
 }
@@ -168,8 +170,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             .maybeSingle();
 
         if (mvError) {
-            logError(mvError, { context: `Could not fetch from materialized view for company ${companyId}` });
-            // Don't throw, allow the RPC to work, but some metrics will be 0.
+            logError(mvError, { context: `Could not fetch from dashboard metrics table for company ${companyId}` });
         }
         
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_dashboard_metrics', {
@@ -756,7 +757,8 @@ export async function getTeamMembersFromDB(companyId: string): Promise<TeamMembe
         const { data, error } = await supabase
             .from('users')
             .select('id, email, role')
-            .eq('company_id', companyId);
+            .eq('company_id', companyId)
+            .is('deleted_at', null); // Only fetch active members
 
         if (error) {
             logError(error, { context: `Error fetching team members for company ${companyId}` });
@@ -802,13 +804,16 @@ export async function removeTeamMemberFromDb(
     return withPerformanceTracking('removeTeamMemberFromDb', async () => {
         const supabase = getServiceRoleClient();
         
-        const { error: adminError } = await supabase.auth.admin.deleteUser(userIdToRemove);
+        // Soft-delete the user's association with the company
+        const { error } = await supabase
+            .from('users')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', userIdToRemove)
+            .eq('company_id', companyId);
 
-        if (adminError) {
-             if (adminError.message.includes('User not found')) {
-                 return { success: false, error: "The user could not be found. They may have already been removed." };
-            }
-            throw new Error(adminError.message);
+        if (error) {
+            logError(error, { context: `Failed to soft-delete user ${userIdToRemove} from company ${companyId}` });
+            return { success: false, error: error.message };
         }
 
         return { success: true };

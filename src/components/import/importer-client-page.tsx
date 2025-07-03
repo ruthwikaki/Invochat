@@ -12,7 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, CheckCircle, Loader2, Table, UploadCloud } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -169,7 +168,7 @@ export function ImporterClientPage() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <input type="hidden" name="dataType" value={dataType} />
-                            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken || ''} />
+                            <input type="hidden" name="csrf_token" value={csrfToken || ''} />
                             <div className="space-y-2">
                                 <Label htmlFor="data-type">1. Select Data Type</Label>
                                 <Select value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>

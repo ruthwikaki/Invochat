@@ -16,10 +16,10 @@ import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import { deleteSecret } from '@/features/integrations/services/encryption';
 import { ai } from '@/ai/genkit';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRFToken } from '@/lib/csrf';
+import { validateCSRF } from '@/lib/csrf';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -195,14 +195,7 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
 export async function updateCompanySettings(formData: FormData): Promise<CompanySettings> {
     const { companyId, userRole } = await getAuthContext();
     requireRole(userRole, ['Owner', 'Admin']);
-
-    const cookieStore = cookies();
-    const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
-    const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-    if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
-        throw new Error('Invalid form submission. Please refresh the page and try again.');
-    }
+    validateCSRF(formData);
 
     const settings = Object.fromEntries(formData.entries());
     // remove csrf_token from settings object
@@ -230,15 +223,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
     try {
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-
-        const cookieStore = cookies();
-        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
-        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-        if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
-            logger.warn(`[CSRF] Invalid token for invite team member action.`);
-            return { success: false, error: 'Invalid form submission. Please try again.' };
-        }
+        validateCSRF(formData);
 
         const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
         if (!parsed.success) {
@@ -352,18 +337,18 @@ export async function testMaterializedView(): Promise<{ success: boolean; error:
     try {
         const serviceSupabase = getServiceRoleClient();
 
+        // This now checks for a regular table instead of a materialized view
         const { data, error } = await serviceSupabase
-            .from('pg_matviews')
-            .select('matviewname')
-            .eq('matviewname', 'company_dashboard_metrics')
-            .maybeSingle();
+            .from('company_dashboard_metrics')
+            .select('company_id')
+            .limit(1);
 
         if (error) {
+            // Check if the error indicates the table doesn't exist
+            if (error.code === '42P01') {
+                 return { success: false, error: 'The `company_dashboard_metrics` table is missing. Run the setup SQL for better performance.' };
+            }
             throw error;
-        }
-
-        if (!data) {
-             return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
         }
 
         return { success: true, error: null };
@@ -650,15 +635,7 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-
-        const cookieStore = cookies();
-        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
-        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-        if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
-            logger.warn(`[CSRF] Invalid token for channel fee action.`);
-            return { success: false, error: 'Invalid form submission. Please try again.' };
-        }
+        validateCSRF(formData);
 
         const parsed = UpsertChannelFeeSchema.safeParse({
             channel_name: formData.get('channel_name'),
