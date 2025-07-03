@@ -63,16 +63,13 @@ async function processCsv<T extends z.ZodType>(
         transformHeader: header => header.trim(),
     });
 
+    const validationErrors: { row: number; message: string }[] = [];
+
+    // Add parsing errors to the list of validation errors
     if (parsingErrors.length > 0) {
-        return { 
-            successCount: 0, 
-            errorCount: rows.length, 
-            errors: parsingErrors.map(e => ({ row: e.row, message: e.message })),
-            summaryMessage: 'Failed to parse CSV file. Please check the file format.'
-        };
+        parsingErrors.forEach(e => validationErrors.push({ row: e.row, message: e.message }));
     }
 
-    const validationErrors: { row: number; message: string }[] = [];
     const validRows: z.infer<T>[] = [];
 
     for (let i = 0; i < rows.length; i++) {

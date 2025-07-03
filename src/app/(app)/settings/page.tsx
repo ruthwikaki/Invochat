@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings, ChannelFee } from '@/types';
 import { getCompanySettings, updateCompanySettings, getChannelFees, upsertChannelFee } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2, DollarSign, Percent, Save, CreditCard, Download } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2, DollarSign, Percent, Save, CreditCard, Download, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -134,18 +134,21 @@ function ChannelFeeManager({ csrfToken }: { csrfToken: string | null }) {
 
 
 export default function SettingsPage() {
+    const [initialSettings, setInitialSettings] = useState<Partial<CompanySettings>>({});
     const [settings, setSettings] = useState<Partial<CompanySettings>>({});
     const [loading, setLoading] = useState(true);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
+    // Fetch initial settings
     useEffect(() => {
         async function fetchSettings() {
             setLoading(true);
             try {
                 const currentSettings = await getCompanySettings();
                 setSettings(currentSettings);
+                setInitialSettings(currentSettings);
             } catch (error) {
                 toast({
                     variant: 'destructive',
@@ -157,16 +160,30 @@ export default function SettingsPage() {
             }
         }
         fetchSettings();
-
-        // Fetch CSRF token from cookie
         setCsrfToken(getCookie('csrf_token'));
-
     }, [toast]);
+
+    // Live theme preview effect
+    useEffect(() => {
+        const root = document.documentElement;
+        if (settings.theme_primary_color) root.style.setProperty('--primary', settings.theme_primary_color);
+        if (settings.theme_background_color) root.style.setProperty('--background', settings.theme_background_color);
+        if (settings.theme_accent_color) root.style.setProperty('--accent', settings.theme_accent_color);
+    }, [settings.theme_primary_color, settings.theme_background_color, settings.theme_accent_color]);
     
     const handleInputChange = (key: keyof CompanySettings, value: string) => {
-        const fieldType = [...businessRulesFields, ...themeFields].find(f => f.key === key)?.type;
-        const processedValue = fieldType === 'number' && value !== '' ? Number(value) : value;
+        const field = businessRulesFields.find(f => f.key === key);
+        const processedValue = field?.type === 'number' && value !== '' ? Number(value) : value;
         setSettings(prev => ({ ...prev, [key]: processedValue }));
+    };
+
+    const handleResetTheme = () => {
+        setSettings(prev => ({
+            ...prev,
+            theme_primary_color: initialSettings.theme_primary_color,
+            theme_background_color: initialSettings.theme_background_color,
+            theme_accent_color: initialSettings.theme_accent_color,
+        }));
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -175,14 +192,11 @@ export default function SettingsPage() {
             try {
                 const formData = new FormData(e.currentTarget);
                 await updateCompanySettings(formData);
-
                 toast({
                     title: 'Success',
-                    description: 'Your settings have been updated. Refreshing to apply changes...',
+                    description: 'Your settings have been updated.',
                 });
-                
-                setTimeout(() => window.location.reload(), 1500);
-
+                setInitialSettings(settings); // Update the baseline for "Reset"
             } catch (error) {
                 toast({
                     variant: 'destructive',
@@ -237,13 +251,18 @@ export default function SettingsPage() {
                         {/* Theming Card */}
                          <Card className="mt-6">
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Palette className="h-5 w-5" />
-                                    Branding & Theming
-                                </CardTitle>
-                                <CardDescription>
-                                    Customize the look and feel of your workspace. Use HSL format for colors.
-                                </CardDescription>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Palette className="h-5 w-5" />
+                                            Branding & Theming
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Customize the look and feel of your workspace. Use HSL format for colors.
+                                        </CardDescription>
+                                    </div>
+                                    <Button type="button" variant="ghost" onClick={handleResetTheme}><Undo2 className="mr-2 h-4 w-4"/>Reset</Button>
+                                </div>
                             </CardHeader>
                             <CardContent>
                                 {loading ? <Skeleton className="h-64 w-full" /> : (

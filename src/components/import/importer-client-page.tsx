@@ -9,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, CheckCircle, Loader2, Table, UploadCloud } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Loader2, Table, UploadCloud, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { ScrollArea } from '../ui/scroll-area';
 
 const CSRF_FORM_NAME = 'csrf_token';
 const CSRF_COOKIE_NAME = 'csrf_token';
@@ -65,16 +66,16 @@ function ImportResultsCard({ results }: { results: Omit<ImportResult, 'success'>
                 {hasErrors && results.errors && (
                     <div>
                         <h3 className="mb-2 font-semibold">Error Details:</h3>
-                        <div className="max-h-60 overflow-y-auto rounded-md border bg-muted p-2">
+                        <ScrollArea className="h-60 rounded-md border bg-muted p-2">
                            <ul className="space-y-1 text-sm">
                                 {results.errors.map((err, index) => (
-                                    <li key={index} className="flex gap-2">
+                                    <li key={index} className="flex gap-2 p-1 border-b">
                                         <span className="font-mono text-muted-foreground">[Row {err.row}]</span>
                                         <span className="text-destructive">{err.message}</span>
                                     </li>
                                 ))}
                            </ul>
-                        </div>
+                        </ScrollArea>
                     </div>
                 )}
             </CardContent>

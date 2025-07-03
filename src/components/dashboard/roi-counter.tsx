@@ -24,13 +24,24 @@ export function RoiCounter({ metrics }: RoiCounterProps) {
     const ref = useRef(null);
     const isInView = useInView(ref, { once: true, amount: 0.3 });
 
-    // ROI Calculations based on your logic
-    const stockoutSavings = metrics.lowStockItemsCount * metrics.averageOrderValue;
-    // Placeholder values for concepts not yet implemented
-    const reorderSavings = stockoutSavings * 0.15; // Estimate: 15% savings on top of stockouts
-    const timeSavedHours = 10; // Placeholder: 10 hours saved per month
+    // --- More realistic ROI Calculations ---
+    // Estimated profit per average order (assuming 30% margin for this calculation)
+    const avgProfitPerOrder = metrics.averageOrderValue * 0.3;
 
-    const totalSavings = stockoutSavings + reorderSavings + (timeSavedHours * 25); // Assume $25/hr value of time
+    // Value from preventing stockouts. Each low stock item is a potential stockout.
+    const stockoutSavings = metrics.lowStockItemsCount * avgProfitPerOrder;
+    
+    // Value from addressing dead stock. Assumes we can recoup 25% of the tied-up capital.
+    const deadStockValue = metrics.deadStockItemsCount > 0
+        ? (metrics.totalInventoryValue / metrics.totalSkus) * metrics.deadStockItemsCount
+        : 0;
+    const deadStockSavings = deadStockValue * 0.25;
+
+    // Placeholder for time saved. Could be made more dynamic in future.
+    const timeSavedHours = 10;
+    const timeValue = timeSavedHours * 25; // Assume $25/hr value of time
+
+    const totalSavings = stockoutSavings + deadStockSavings + timeValue;
 
     return (
         <motion.div
@@ -47,7 +58,7 @@ export function RoiCounter({ metrics }: RoiCounterProps) {
                         Monthly Value Generated
                     </CardTitle>
                     <CardDescription>
-                        Estimated savings powered by InvoChat this month.
+                        Estimated savings powered by InvoChat's insights this month.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col items-center justify-center text-center">
@@ -62,8 +73,8 @@ export function RoiCounter({ metrics }: RoiCounterProps) {
                         <span className="font-medium text-success">{formatCurrency(stockoutSavings)}</span>
                     </div>
                      <div className="flex justify-between items-center">
-                        <span className="flex items-center gap-2 text-muted-foreground"><DollarSign className="h-4 w-4"/>Optimal Reordering</span>
-                        <span className="font-medium text-success">{formatCurrency(reorderSavings)}</span>
+                        <span className="flex items-center gap-2 text-muted-foreground"><DollarSign className="h-4 w-4"/>Dead Stock Recovery</span>
+                        <span className="font-medium text-success">{formatCurrency(deadStockSavings)}</span>
                     </div>
                      <div className="flex justify-between items-center">
                         <span className="flex items-center gap-2 text-muted-foreground"><Clock className="h-4 w-4"/>Time Saved</span>

@@ -7,8 +7,10 @@ import { useRef } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { DashboardMetrics } from '@/types';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle, ShieldQuestion, TrendingUp, Sparkles, AlertTriangle } from 'lucide-react';
+import { AlertCircle, CheckCircle, ShieldQuestion, TrendingUp, Sparkles, AlertTriangle, ArrowRight } from 'lucide-react';
 import { linearRegression } from '@/lib/utils';
+import { Button } from '../ui/button';
+import Link from 'next/link';
 
 type BusinessHealthScoreProps = {
   metrics: DashboardMetrics;
@@ -53,13 +55,20 @@ const calculateHealthScore = (metrics: DashboardMetrics) => {
     };
 };
 
-function ScoreIndicator({ Icon, score, label }: { Icon: React.ElementType, score: number, label: string }) {
+function ScoreIndicator({ Icon, score, label, actionLink, actionLabel }: { Icon: React.ElementType, score: number, label: string, actionLink: string, actionLabel: string }) {
     const colorClass = score > 18 ? "text-success" : score > 10 ? "text-amber-500" : "text-destructive";
     return (
-        <div className="flex items-center gap-2 text-sm">
-            <Icon className={cn("h-4 w-4", colorClass)} />
-            <span className="text-muted-foreground">{label}:</span>
-            <span className={cn("font-semibold", colorClass)}>{score.toFixed(0)}/25</span>
+        <div className="flex items-center justify-between gap-2 text-sm p-2 rounded-lg hover:bg-muted/50 transition-colors">
+            <div className="flex items-center gap-2">
+                <Icon className={cn("h-4 w-4", colorClass)} />
+                <span className="text-muted-foreground">{label}:</span>
+                <span className={cn("font-semibold", colorClass)}>{score.toFixed(0)}/25</span>
+            </div>
+            <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
+                <Link href={actionLink}>
+                    {actionLabel} <ArrowRight className="ml-1 h-3 w-3" />
+                </Link>
+            </Button>
         </div>
     )
 }
@@ -91,7 +100,7 @@ export function BusinessHealthScore({ metrics }: BusinessHealthScoreProps) {
             <Sparkles className="h-5 w-5 text-primary" />
             Business Health Score
           </CardTitle>
-          <CardDescription>An AI-powered overview of your key metrics.</CardDescription>
+          <CardDescription>An AI-powered overview of your key metrics with actionable links.</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow flex flex-col md:flex-row items-center justify-center gap-6">
           <div className="relative h-48 w-48">
@@ -124,11 +133,11 @@ export function BusinessHealthScore({ metrics }: BusinessHealthScoreProps) {
               <span className="text-sm font-medium" style={{ color: scoreColor }}>{scoreLabel}</span>
             </div>
           </div>
-          <div className="space-y-3">
-              <ScoreIndicator Icon={CheckCircle} score={breakdown.profitability} label="Profitability" />
-              <ScoreIndicator Icon={TrendingUp} score={breakdown.salesGrowth} label="Sales Growth" />
-              <ScoreIndicator Icon={AlertTriangle} score={breakdown.stockAvailability} label="Stock Availability" />
-              <ScoreIndicator Icon={ShieldQuestion} score={breakdown.inventory} label="Inventory Health" />
+          <div className="space-y-1 self-stretch flex-1">
+              <ScoreIndicator Icon={CheckCircle} score={breakdown.profitability} label="Profitability" actionLink="/analytics" actionLabel="View Reports" />
+              <ScoreIndicator Icon={TrendingUp} score={breakdown.salesGrowth} label="Sales Growth" actionLink="/dashboard" actionLabel="View Trend" />
+              <ScoreIndicator Icon={AlertTriangle} score={breakdown.stockAvailability} label="Stock Availability" actionLink="/reordering" actionLabel="Get Suggestions" />
+              <ScoreIndicator Icon={ShieldQuestion} score={breakdown.inventory} label="Inventory Health" actionLink="/dead-stock" actionLabel="View Dead Stock" />
           </div>
         </CardContent>
       </Card>

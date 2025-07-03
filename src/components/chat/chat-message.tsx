@@ -53,11 +53,22 @@ function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | 
 
     const confidencePercentage = (confidence * 100).toFixed(0);
     let confidenceColor = 'text-success';
-    if (confidence < 0.8) confidenceColor = 'text-warning';
-    if (confidence < 0.5) confidenceColor = 'text-destructive';
+    let confidenceText = "High";
+    let confidenceExplanation = "I found exact matches in your data and the query was unambiguous.";
+
+    if (confidence < 0.8) {
+        confidenceColor = 'text-warning';
+        confidenceText = "Medium";
+        confidenceExplanation = "I found relevant data but had to make some assumptions to form an answer.";
+    }
+    if (confidence < 0.5) {
+        confidenceColor = 'text-destructive';
+        confidenceText = "Low";
+        confidenceExplanation = "I was not very confident and had to make significant assumptions. Please verify this answer.";
+    }
 
     const tooltipText = assumptions && assumptions.length > 0 
-        ? `Assumptions: ${assumptions.join(', ')}` 
+        ? `Assumptions made: ${assumptions.join(', ')}` 
         : 'No specific assumptions were made.';
 
     return (
@@ -69,8 +80,10 @@ function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | 
                         <span className={cn('font-semibold', confidenceColor)}>{confidencePercentage}% confident</span>
                     </div>
                 </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                    <p>{tooltipText}</p>
+                <TooltipContent className="max-w-xs space-y-1">
+                    <p className="font-bold">Confidence: <span className={confidenceColor}>{confidenceText}</span></p>
+                    <p>{confidenceExplanation}</p>
+                    <p className="italic pt-1">{tooltipText}</p>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
@@ -182,5 +195,3 @@ export function ChatMessage({
     </motion.div>
   );
 }
-
-    
