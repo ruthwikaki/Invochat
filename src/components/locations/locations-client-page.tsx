@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { deleteLocation } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 export function LocationsClientPage({ initialLocations }: { initialLocations: Location[] }) {
   const [locations, setLocations] = useState(initialLocations);
@@ -34,7 +35,13 @@ export function LocationsClientPage({ initialLocations }: { initialLocations: Lo
   const { toast } = useToast();
 
   const handleDelete = async (id: string) => {
-    const result = await deleteLocation(id);
+    const formData = new FormData();
+    formData.append('id', id);
+    const csrfToken = getCookie('csrf_token');
+    if (csrfToken) {
+        formData.append(CSRF_FORM_NAME, csrfToken);
+    }
+    const result = await deleteLocation(formData);
     if (result.success) {
       setLocations(prev => prev.filter(loc => loc.id !== id));
       toast({ title: 'Location Deleted' });

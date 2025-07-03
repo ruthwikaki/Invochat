@@ -24,6 +24,7 @@ import { InventoryEditDialog } from './inventory-edit-dialog';
 import { Package } from 'lucide-react';
 import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 
 interface InventoryClientPageProps {
@@ -182,7 +183,14 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const handleDelete = () => {
     if (!itemToDelete) return;
     startDeleteTransition(async () => {
-      const result = await deleteInventoryItems(itemToDelete);
+      const formData = new FormData();
+      formData.append('skus', JSON.stringify(itemToDelete));
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken) {
+        formData.append(CSRF_FORM_NAME, csrfToken);
+      }
+
+      const result = await deleteInventoryItems(formData);
       if (result.success) {
         toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
         refresh(); // Refresh from server to ensure consistency and reflect pagination changes

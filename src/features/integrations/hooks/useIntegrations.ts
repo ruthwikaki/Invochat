@@ -2,13 +2,13 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { getIntegrations, disconnectIntegration as disconnectAction } from '@/app/data-actions';
+import { getIntegrations, disconnectIntegration } from '@/app/data-actions';
 import { Integration } from '../types';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
 
-export function useIntegrations() {
+export function useIntegrations(onDisconnectAction: (integrationId: string) => Promise<void>) {
     const { user } = useAuth();
     const { toast } = useToast();
     const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -67,13 +67,7 @@ export function useIntegrations() {
     };
 
     const disconnect = async (integrationId: string) => {
-        const result = await disconnectAction(integrationId);
-         if (result.success) {
-            toast({ title: 'Integration Disconnected' });
-            setIntegrations(prev => prev.filter(i => i.id !== integrationId));
-        } else {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-        }
+        await onDisconnectAction(integrationId);
     };
 
     return { integrations, loading, error, triggerSync, disconnect };

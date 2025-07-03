@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 async function fetchPO(id: string): Promise<PurchaseOrder | null> {
     return getPurchaseOrderById(id);
@@ -66,7 +67,13 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
   const handleDelete = () => {
     if (!purchaseOrder) return;
     startDeleteTransition(async () => {
-      const result = await deletePurchaseOrder(purchaseOrder.id);
+      const formData = new FormData();
+      formData.append('poId', purchaseOrder.id);
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken) {
+          formData.append(CSRF_FORM_NAME, csrfToken);
+      }
+      const result = await deletePurchaseOrder(formData);
       if (result.success) {
         toast({ title: "Purchase Order Deleted", description: `PO #${purchaseOrder.po_number} has been removed.` });
         router.push('/purchase-orders');
@@ -80,7 +87,13 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
   const handleEmail = () => {
     if (!purchaseOrder) return;
     startEmailTransition(async () => {
-      const result = await emailPurchaseOrder(purchaseOrder.id);
+       const formData = new FormData();
+       formData.append('poId', purchaseOrder.id);
+       const csrfToken = getCookie('csrf_token');
+       if (csrfToken) {
+           formData.append(CSRF_FORM_NAME, csrfToken);
+       }
+      const result = await emailPurchaseOrder(formData);
        if (result.success) {
         toast({ title: "Email Sent (Simulated)", description: `PO #${purchaseOrder.po_number} was emailed to ${purchaseOrder.supplier_name}.` });
       } else {

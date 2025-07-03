@@ -424,12 +424,15 @@ export async function testRedisConnection(): Promise<{
     }
 }
 
-export async function removeTeamMember(memberIdToRemove: string): Promise<{ success: boolean; error?: string }> {
+export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCSRF(formData);
+        const memberIdToRemove = formData.get('memberId') as string;
+        if (!memberIdToRemove) throw new Error('Member ID is missing.');
+
         const { userId: currentUserId, userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
 
-        // Security check: You cannot remove yourself.
         if (memberIdToRemove === currentUserId) {
             return { success: false, error: "You cannot remove yourself from the team." };
         }
@@ -451,9 +454,15 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
     }
 }
 
-export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
-     if (!db.isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
-     return db.withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
+export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
+     try {
+        validateCSRF(formData);
+        const memberIdToUpdate = formData.get('memberId') as string;
+        const newRole = formData.get('newRole') as TeamMember['role'];
+        if (!memberIdToUpdate || !newRole) throw new Error('Member ID or role is missing.');
+
+        if (!db.isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
+        
         const { userId, userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
         
@@ -467,7 +476,10 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         }
        
         return result;
-    });
+    } catch(e) {
+        logError(e, { context: 'updateTeamMemberRole' });
+        return { success: false, error: getErrorMessage(e) };
+    }
 }
 
 
@@ -516,8 +528,12 @@ export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdat
   }
 }
 
-export async function deletePurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
+export async function deletePurchaseOrder(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
+        validateCSRF(formData);
+        const poId = formData.get('poId') as string;
+        if (!poId) throw new Error('PO ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deletePurchaseOrderFromDb(poId, companyId);
@@ -529,8 +545,12 @@ export async function deletePurchaseOrder(poId: string): Promise<{ success: bool
     }
 }
 
-export async function emailPurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
+export async function emailPurchaseOrder(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
+        validateCSRF(formData);
+        const poId = formData.get('poId') as string;
+        if (!poId) throw new Error('PO ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const purchaseOrder = await db.getPurchaseOrderByIdFromDB(poId, companyId);
@@ -698,8 +718,12 @@ export async function updateLocation(id: string, data: LocationFormData): Promis
     }
 }
 
-export async function deleteLocation(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteLocation(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCSRF(formData);
+        const id = formData.get('id') as string;
+        if (!id) throw new Error('Location ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deleteLocationFromDB(id, companyId);
@@ -744,8 +768,12 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
     }
 }
 
-export async function deleteSupplier(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteSupplier(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCSRF(formData);
+        const id = formData.get('id') as string;
+        if (!id) throw new Error('Supplier ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deleteSupplierFromDb(id, companyId);
@@ -757,8 +785,14 @@ export async function deleteSupplier(id: string): Promise<{ success: boolean; er
     }
 }
 
-export async function deleteInventoryItems(skus: string[]): Promise<{ success: boolean; error?: string }> {
+export async function deleteInventoryItems(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCSRF(formData);
+        const skusStr = formData.get('skus') as string;
+        if (!skusStr) throw new Error('SKUs are missing.');
+        const skus = JSON.parse(skusStr);
+        if (!Array.isArray(skus) || skus.length === 0) throw new Error('Invalid SKUs format.');
+
         const { companyId, userRole, userId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.softDeleteInventoryItemsFromDb(companyId, skus, userId);
@@ -798,8 +832,12 @@ export async function getIntegrations(): Promise<Integration[]> {
     return db.getIntegrationsByCompanyId(companyId);
 }
 
-export async function disconnectIntegration(integrationId: string): Promise<{ success: boolean; error?: string }> {
+export async function disconnectIntegration(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCSRF(formData);
+        const integrationId = formData.get('integrationId') as string;
+        if (!integrationId) throw new Error('Integration ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const integration = await db.getIntegrationsByCompanyId(companyId).then(integrations => integrations.find(i => i.id === integrationId));
@@ -821,8 +859,12 @@ export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEn
     return db.getInventoryLedgerForSkuFromDB(companyId, sku);
 }
 
-export async function deleteCustomer(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        validateCSRF(formData);
+        const id = formData.get('id') as string;
+        if (!id) throw new Error('Customer ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deleteCustomerFromDb(id, companyId);

@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import { deletePurchaseOrder } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 interface PurchaseOrderClientPageProps {
   initialPurchaseOrders: PurchaseOrder[];
@@ -153,7 +154,13 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders, totalCount, ite
   const handleDelete = () => {
     if (!poToDelete) return;
     startDeleteTransition(async () => {
-      const result = await deletePurchaseOrder(poToDelete.id);
+      const formData = new FormData();
+      formData.append('poId', poToDelete.id);
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken) {
+          formData.append(CSRF_FORM_NAME, csrfToken);
+      }
+      const result = await deletePurchaseOrder(formData);
       if (result.success) {
         toast({ title: "Purchase Order Deleted", description: `PO #${poToDelete.po_number} has been removed.` });
         router.refresh();

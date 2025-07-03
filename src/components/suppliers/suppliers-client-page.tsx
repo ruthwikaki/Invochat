@@ -34,6 +34,7 @@ import { Input } from '../ui/input';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Mail, Briefcase, FileText, Truck, MoreHorizontal, Edit, Trash2, Search, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 function SupplierCard({
   supplier,
@@ -50,7 +51,13 @@ function SupplierCard({
 
   const handleDelete = () => {
     startDeleteTransition(async () => {
-      const result = await deleteSupplier(supplier.id);
+      const formData = new FormData();
+      formData.append('id', supplier.id);
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken) {
+          formData.append(CSRF_FORM_NAME, csrfToken);
+      }
+      const result = await deleteSupplier(formData);
       if (result.success) {
         toast({ title: 'Supplier Deleted' });
         onDelete(); // Notify parent to update state

@@ -26,6 +26,7 @@ import {
 import { deleteCustomer } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '../ui/avatar';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
@@ -119,7 +120,14 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   const handleDelete = () => {
     if (!customerToDelete) return;
     startDeleteTransition(async () => {
-      const result = await deleteCustomer(customerToDelete.id);
+      const formData = new FormData();
+      formData.append('id', customerToDelete.id);
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken) {
+          formData.append(CSRF_FORM_NAME, csrfToken);
+      }
+
+      const result = await deleteCustomer(formData);
       if (result.success) {
         toast({ title: "Customer Deleted", description: `Customer ${customerToDelete.customer_name} has been removed.` });
         router.refresh();

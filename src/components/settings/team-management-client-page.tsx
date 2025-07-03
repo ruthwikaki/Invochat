@@ -26,18 +26,23 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-
-const CSRF_FORM_NAME = 'csrf_token';
-const CSRF_COOKIE_NAME = 'csrf_token';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 
-function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending }: { member: TeamMember | null, onRoleChange: (newRole: TeamMember['role']) => void, open: boolean, onOpenChange: (open: boolean) => void, isPending: boolean }) {
+function ChangeRoleDialog({ member, onRoleChange, open, onOpenChange, isPending }: { member: TeamMember | null, onRoleChange: (formData: FormData) => void, open: boolean, onOpenChange: (open: boolean) => void, isPending: boolean }) {
     if (!member) return null;
 
     const [selectedRole, setSelectedRole] = useState<TeamMember['role']>(member.role);
 
     const handleSave = () => {
-        onRoleChange(selectedRole);
+        const formData = new FormData();
+        formData.append('memberId', member.id);
+        formData.append('newRole', selectedRole);
+        const csrfToken = getCookie('csrf_token');
+        if (csrfToken) {
+            formData.append(CSRF_FORM_NAME, csrfToken);
+        }
+        onRoleChange(formData);
     };
 
     return (
@@ -92,11 +97,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
     useEffect(() => {
-        const token = document.cookie
-          .split('; ')
-          .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-          ?.split('=')[1];
-        setCsrfToken(token || null);
+        setCsrfToken(getCookie('csrf_token'));
     }, []);
     
     const currentUserRole = members.find(m => m.id === user?.id)?.role;
@@ -119,7 +120,12 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
 
     const handleRemoveMember = (memberId: string) => {
         startRemoveTransition(async () => {
-            const result = await removeTeamMember(memberId);
+            const formData = new FormData();
+            formData.append('memberId', memberId);
+            if (csrfToken) {
+                formData.append(CSRF_FORM_NAME, csrfToken);
+            }
+            const result = await removeTeamMember(formData);
             if (result.success) {
                 toast({
                     title: 'Member Removed',
@@ -141,11 +147,12 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
         setIsRoleDialogOpen(true);
     };
 
-    const handleRoleChange = (newRole: TeamMember['role']) => {
+    const handleRoleChange = (formData: FormData) => {
         if (!memberToEdit) return;
+        const newRole = formData.get('newRole') as TeamMember['role'];
 
         startRoleChangeTransition(async () => {
-            const result = await updateTeamMemberRole(memberToEdit.id, newRole as 'Admin' | 'Member');
+            const result = await updateTeamMemberRole(formData);
             if (result.success) {
                 setMembers(prev => prev.map(m => m.id === memberToEdit.id ? { ...m, role: newRole } : m));
                 toast({

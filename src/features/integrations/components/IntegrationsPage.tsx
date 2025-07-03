@@ -13,6 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { PlatformLogo } from './platform-logos';
 import type { Platform } from '../types';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { disconnectIntegration } from '@/app/data-actions';
 
 function PlatformConnectCard({
     platform,
@@ -48,7 +50,18 @@ export function IntegrationsClientPage() {
     const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
     const [isWooCommerceModalOpen, setIsWooCommerceModalOpen] = useState(false);
     const [isAmazonModalOpen, setIsAmazonModalOpen] = useState(false);
-    const { integrations, loading, error, triggerSync, disconnect } = useIntegrations();
+    
+    const handleDisconnect = async (integrationId: string) => {
+        const formData = new FormData();
+        formData.append('integrationId', integrationId);
+        const csrfToken = getCookie('csrf_token');
+        if (csrfToken) {
+            formData.append(CSRF_FORM_NAME, csrfToken);
+        }
+        await disconnectIntegration(formData);
+    };
+
+    const { integrations, loading, error, triggerSync, disconnect } = useIntegrations(handleDisconnect);
 
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
     
