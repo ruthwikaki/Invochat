@@ -201,7 +201,7 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
                                 </div>
                                 {formError && <p className="text-sm text-destructive">{formError}</p>}
                                 <DialogFooter>
-                                    <Button type="submit" disabled={invitePending}>
+                                    <Button type="submit" disabled={invitePending || !csrfToken}>
                                         {invitePending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Send Invitation
                                     </Button>
@@ -295,3 +295,5 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
         </div>
     );
 }
+
+    

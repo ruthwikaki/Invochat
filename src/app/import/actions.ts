@@ -9,7 +9,7 @@ import { InventoryImportSchema, SupplierImportSchema, SupplierCatalogImportSchem
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
-import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from '@/lib/csrf';
+import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User } from '@/types';
 import { revalidatePath } from 'next/cache';
@@ -17,8 +17,10 @@ import { refreshMaterializedViews } from '@/services/database';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+// Lenient check as MIME types can be inconsistent across browsers/OS
 const ALLOWED_MIME_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
 
+// Define a type for the structure of our import results.
 export type ImportResult = {
   success: boolean;
   successCount?: number;
@@ -29,12 +31,15 @@ export type ImportResult = {
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
+// A helper function to get the current user's company ID.
 async function getAuthContextForImport(): Promise<{ user: User, companyId: string, userRole: UserRole }> {
   const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name: string) => cookieStore.get(name)?.value }, }
+    {
+      cookies: { get: (name: string) => cookieStore.get(name)?.value },
+    }
   );
   const { data: { user } } = await supabase.auth.getUser();
   const companyId = user?.app_metadata?.company_id;
@@ -45,6 +50,7 @@ async function getAuthContextForImport(): Promise<{ user: User, companyId: strin
   return { user, companyId, userRole };
 }
 
+// A generic function to process any CSV file with a given schema and table name.
 async function processCsv<T extends z.ZodType>(
     fileContent: string,
     schema: T,
@@ -71,13 +77,16 @@ async function processCsv<T extends z.ZodType>(
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
+        // Securely inject the company_id before validation.
         row.company_id = companyId;
+
         const result = schema.safeParse(row);
+
         if (result.success) {
             validRows.push(result.data);
         } else {
             const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
-            validationErrors.push({ row: i + 2, message: errorMessage });
+            validationErrors.push({ row: i + 2, message: errorMessage }); // +2 because of header and 0-indexing
         }
     }
 
@@ -85,6 +94,7 @@ async function processCsv<T extends z.ZodType>(
         const supabase = supabaseAdmin;
         if (!supabase) throw new Error('Supabase admin client not initialized.');
 
+        // Define what makes a row unique for upserting.
         let conflictTarget: string[] = [];
         if (tableName === 'inventory') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
@@ -92,6 +102,8 @@ async function processCsv<T extends z.ZodType>(
         if (tableName === 'reorder_rules') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'locations') conflictTarget = ['company_id', 'name'];
 
+
+        // Use a transactional RPC to ensure all-or-nothing import.
         const { error: dbError } = await supabase.rpc('batch_upsert_with_transaction', {
             p_table_name: tableName,
             p_records: validRows,
@@ -121,16 +133,8 @@ async function processCsv<T extends z.ZodType>(
     };
 }
 
-function validateCsrf() {
-    const tokenFromHeader = headers().get(CSRF_HEADER_NAME);
-    const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
 
-    if (!validateCSRFToken(tokenFromHeader, tokenFromCookie)) {
-        logger.warn(`[CSRF] Invalid token for data import. Action rejected.`);
-        throw new Error('Invalid form submission. Please refresh the page and try again.');
-    }
-}
-
+// The main server action that the client calls.
 export async function handleDataImport(formData: FormData): Promise<ImportResult> {
     try {
         const { user, companyId, userRole } = await getAuthContextForImport();
@@ -143,8 +147,15 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         if (limited) {
             return { success: false, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
         }
-        
-        validateCsrf();
+
+        const cookieStore = cookies();
+        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
+
+        if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+            logger.warn(`[CSRF] Invalid token for data import action.`);
+            return { success: false, summaryMessage: 'Invalid form submission. Please refresh the page and try again.' };
+        }
 
         const file = formData.get('file') as File | null;
         const dataType = formData.get('dataType') as string;
@@ -208,3 +219,5 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
     }
 }
+
+    

@@ -23,6 +23,17 @@ const EnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
   GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
   REDIS_URL: z.string().optional(),
+  ENCRYPTION_KEY: z.string().length(64, { message: "Must be a 64-character hex string (32 bytes)."}).optional(),
+  ENCRYPTION_IV: z.string().length(32, { message: "Must be a 32-character hex string (16 bytes)."}).optional(),
+}).refine(data => {
+    // If one encryption var is set, the other must be too.
+    if (data.ENCRYPTION_KEY || data.ENCRYPTION_IV) {
+        return !!data.ENCRYPTION_KEY && !!data.ENCRYPTION_IV;
+    }
+    return true;
+}, {
+    message: "Both ENCRYPTION_KEY and ENCRYPTION_IV must be provided if one is present.",
+    path: ["ENCRYPTION_KEY", "ENCRYPTION_IV"],
 });
 
 // Export the result of the validation to be checked in the root layout.
@@ -84,3 +95,5 @@ export const config = {
 
 // A type alias for convenience
 export type AppConfig = typeof config;
+
+    

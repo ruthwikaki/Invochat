@@ -269,21 +269,15 @@ AS $$
 DECLARE
   new_company_id UUID;
   user_role TEXT;
-  company_name_from_meta TEXT;
-  company_id_from_meta_text TEXT;
 BEGIN
-  -- Extract values from raw_user_meta_data, which is of type jsonb
-  company_name_from_meta := new.raw_user_meta_data->>'company_name';
-  company_id_from_meta_text := new.raw_user_meta_data->>'company_id';
-
-  -- If a company ID was passed during signup (e.g., from an invite), use it.
-  IF company_id_from_meta_text IS NOT NULL THEN
-    new_company_id := company_id_from_meta_text::UUID;
-    user_role := 'Member'; -- Invited users start as Members
+  -- Check if a company_id was passed in the metadata (from an invite)
+  IF new.raw_user_meta_data->>'company_id' IS NOT NULL THEN
+    new_company_id := (new.raw_user_meta_data->>'company_id')::UUID;
+    user_role := 'Member';
   ELSE
-    -- Otherwise, create a new company for the new user.
+    -- If no company_id, it's a new user creating their own company
     INSERT INTO public.companies (name)
-    VALUES (COALESCE(company_name_from_meta, 'My Company'))
+    VALUES (COALESCE(new.raw_user_meta_data->>'company_name', 'My Company'))
     RETURNING id INTO new_company_id;
     user_role := 'Owner';
   END IF;
@@ -299,6 +293,11 @@ BEGIN
   -- Insert a corresponding record into the public.users table
   INSERT INTO public.users (id, company_id, email, role)
   VALUES (new.id, new_company_id, new.email, user_role);
+  
+  -- Create default settings for the new company
+  INSERT INTO public.company_settings (company_id)
+  VALUES (new_company_id)
+  ON CONFLICT (company_id) DO NOTHING;
 
   RETURN new;
 END;
@@ -733,3 +732,6 @@ BEGIN
 END;
 $$;
 
+
+
+    
