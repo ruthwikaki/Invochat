@@ -3,15 +3,10 @@
 
 import type { Integration } from '../../types';
 import { logger } from '@/lib/logger';
-import { getSecret } from '../encryption';
 
 // Placeholder for Amazon FBA sync logic
-export async function runAmazonFbaFullSync(integration: Integration) {
-    const plaintextCredentials = await getSecret(integration.company_id, integration.platform);
-    if (!plaintextCredentials) {
-        throw new Error(`Could not retrieve credentials for Amazon FBA integration ${integration.id}`);
-    }
-    const credentials = JSON.parse(plaintextCredentials);
+export async function runAmazonFbaFullSync(integration: Integration, credentialsJson: string) {
+    const credentials = JSON.parse(credentialsJson);
     
     logger.info(`[Sync Placeholder] Starting Amazon FBA sync for Seller ID: ${credentials.sellerId}`);
 

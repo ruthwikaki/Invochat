@@ -1,3 +1,4 @@
+
 export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- This script is idempotent and can be safely re-run on an existing database.
 
@@ -151,6 +152,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     overstock_multiplier NUMERIC DEFAULT 3,
     high_value_threshold NUMERIC DEFAULT 1000,
     fast_moving_days INTEGER DEFAULT 30,
+    predictive_stock_days INTEGER DEFAULT 7,
     currency TEXT DEFAULT 'USD',
     timezone TEXT DEFAULT 'UTC',
     tax_rate NUMERIC DEFAULT 0,
@@ -555,15 +557,41 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION get_alerts(p_company_id uuid)
+CREATE OR REPLACE FUNCTION get_alerts(p_company_id uuid, p_dead_stock_days integer, p_fast_moving_days integer, p_predictive_stock_days integer)
 RETURNS json AS $$
 DECLARE result_json json;
 BEGIN
-    WITH settings AS (SELECT * FROM company_settings WHERE company_id = p_company_id LIMIT 1),
-    low_stock_alerts AS (SELECT 'low_stock' as type, sku, name as product_name, quantity as current_stock, reorder_point FROM inventory WHERE company_id = p_company_id AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point),
-    dead_stock_alerts AS (SELECT 'dead_stock' as type, sku, name as product_name, quantity as current_stock, last_sold_date, (quantity * cost) as value FROM inventory, settings WHERE inventory.company_id = p_company_id AND quantity > 0 AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - (settings.dead_stock_days || ' days')::interval)),
-    predictive_alerts AS (SELECT 'predictive' as type, i.sku, i.name as product_name, i.quantity as current_stock, i.quantity / sv.daily_sales_velocity as days_of_stock_remaining FROM inventory i JOIN (SELECT oi.sku, SUM(oi.quantity)::float / NULLIF((SELECT fast_moving_days FROM settings), 0) as daily_sales_velocity FROM order_items oi JOIN orders o ON oi.sale_id = o.id WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - ((SELECT fast_moving_days FROM settings) || ' days')::interval GROUP BY oi.sku) sv ON i.sku = sv.sku WHERE i.company_id = p_company_id AND i.quantity > 0 AND sv.daily_sales_velocity > 0 AND (i.quantity / sv.daily_sales_velocity) < 7)
-    SELECT coalesce(json_agg(t), '[]'::json) FROM (SELECT * FROM low_stock_alerts UNION ALL SELECT * FROM dead_stock_alerts UNION ALL SELECT null as reorder_point, * FROM predictive_alerts) t;
+    WITH low_stock_alerts AS (
+        SELECT 'low_stock' as type, sku, name as product_name, quantity as current_stock, reorder_point
+        FROM inventory
+        WHERE company_id = p_company_id AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
+    ),
+    dead_stock_alerts AS (
+        SELECT 'dead_stock' as type, sku, name as product_name, quantity as current_stock, last_sold_date, (quantity * cost) as value
+        FROM inventory
+        WHERE inventory.company_id = p_company_id AND quantity > 0 AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - (p_dead_stock_days || ' days')::interval)
+    ),
+    predictive_alerts AS (
+        SELECT 'predictive' as type, i.sku, i.name as product_name, i.quantity as current_stock, i.quantity / sv.daily_sales_velocity as days_of_stock_remaining
+        FROM inventory i
+        JOIN (
+            SELECT oi.sku, SUM(oi.quantity)::float / NULLIF(p_fast_moving_days, 0) as daily_sales_velocity
+            FROM order_items oi
+            JOIN orders o ON oi.sale_id = o.id
+            WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - (p_fast_moving_days || ' days')::interval
+            GROUP BY oi.sku
+        ) sv ON i.sku = sv.sku
+        WHERE i.company_id = p_company_id AND i.quantity > 0 AND sv.daily_sales_velocity > 0 AND (i.quantity / sv.daily_sales_velocity) < p_predictive_stock_days
+    )
+    SELECT coalesce(json_agg(t), '[]'::json)
+    INTO result_json
+    FROM (
+        SELECT * FROM low_stock_alerts
+        UNION ALL
+        SELECT *, null as reorder_point FROM dead_stock_alerts
+        UNION ALL
+        SELECT *, null as reorder_point, null as last_sold_date, null as value FROM predictive_alerts
+    ) t;
     RETURN result_json;
 END;
 $$ LANGUAGE plpgsql;

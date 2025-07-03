@@ -8,6 +8,7 @@ import { runWooCommerceFullSync } from './platforms/woocommerce';
 import { runAmazonFbaFullSync } from './platforms/amazon_fba';
 import { logger } from '@/lib/logger';
 import type { Integration } from '../types';
+import { getSecret } from './encryption';
 
 /**
  * The main dispatcher for running an integration sync.
@@ -42,17 +43,21 @@ export async function runSync(integrationId: string, companyId: string) {
     await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
 
     try {
+        const credentials = await getSecret(companyId, integration.platform);
+        if (!credentials) {
+            throw new Error(`Could not retrieve credentials for integration ${integration.id}. Please reconnect the integration.`);
+        }
+
         // 3. Dispatch to the correct platform-specific service.
-        // Each service is now responsible for fetching its own credentials.
         switch (integration.platform) {
             case 'shopify':
-                await runShopifyFullSync(integration);
+                await runShopifyFullSync(integration, credentials);
                 break;
             case 'woocommerce':
-                await runWooCommerceFullSync(integration);
+                await runWooCommerceFullSync(integration, credentials);
                 break;
             case 'amazon_fba':
-                await runAmazonFbaFullSync(integration);
+                await runAmazonFbaFullSync(integration, credentials);
                 break;
             default:
                 throw new Error(`Unsupported integration platform: ${integration.platform}`);

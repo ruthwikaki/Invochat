@@ -6,7 +6,6 @@ import { logError } from '@/lib/error-handler';
 import type { Integration } from '../../types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
-import { getSecret } from '../encryption';
 
 const SHOPIFY_API_VERSION = '2024-04';
 const RATE_LIMIT_DELAY = 500; // 500ms delay between requests (2 req/s)
@@ -230,14 +229,10 @@ export async function syncOrders(integration: Integration, accessToken: string) 
   }
 }
 
-export async function runShopifyFullSync(integration: Integration) {
+export async function runShopifyFullSync(integration: Integration, credentialsJson: string) {
     const supabase = getServiceRoleClient();
     try {
-        const plaintextCredentials = await getSecret(integration.company_id, integration.platform);
-        if (!plaintextCredentials) {
-            throw new Error(`Could not retrieve credentials for Shopify integration ${integration.id}`);
-        }
-        const { accessToken } = JSON.parse(plaintextCredentials);
+        const { accessToken } = JSON.parse(credentialsJson);
 
         // Run sequentially to provide better status updates
         logger.info(`[Sync] Starting product sync for ${integration.shop_name}`);

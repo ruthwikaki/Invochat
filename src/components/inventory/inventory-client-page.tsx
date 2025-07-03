@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useMemo, Fragment, useTransition } from 'react';
+import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
@@ -86,6 +87,12 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
   const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
+
+  // This effect ensures the component's state stays in sync with the server-provided data
+  // when filters are applied via URL changes.
+  useEffect(() => {
+    setInventory(initialInventory);
+  }, [initialInventory]);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);

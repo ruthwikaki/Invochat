@@ -101,4 +101,3 @@ export const config = {
 
 // A type alias for convenience
 export type AppConfig = typeof config;
-
