@@ -23,7 +23,8 @@ const ALLOWED_MIME_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain'
 // Define a type for the structure of our import results.
 export type ImportResult = {
   success: boolean;
-  successCount?: number;
+  isDryRun: boolean;
+  processedCount?: number;
   errorCount?: number;
   errors?: { row: number; message: string }[];
   summaryMessage: string;
@@ -55,8 +56,9 @@ async function processCsv<T extends z.ZodType>(
     fileContent: string,
     schema: T,
     tableName: string,
-    companyId: string
-): Promise<Omit<ImportResult, 'success'>> {
+    companyId: string,
+    isDryRun: boolean
+): Promise<Omit<ImportResult, 'success' | 'isDryRun'>> {
     const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(fileContent, {
         header: true,
         skipEmptyLines: true,
@@ -87,6 +89,19 @@ async function processCsv<T extends z.ZodType>(
         }
     }
 
+    if (isDryRun) {
+        return {
+            processedCount: validRows.length,
+            errorCount: validationErrors.length,
+            errors: validationErrors,
+            summaryMessage: validationErrors.length > 0
+              ? `[Dry Run] Found ${validationErrors.length} errors in ${rows.length} rows. No data was written.`
+              : `[Dry Run] This file is valid. Uncheck "Dry Run" to import ${validRows.length} rows.`
+        };
+    }
+
+    let processedCount = 0;
+
     if (validRows.length > 0) {
         const supabase = supabaseAdmin;
         if (!supabase) throw new Error('Supabase admin client not initialized.');
@@ -114,35 +129,42 @@ async function processCsv<T extends z.ZodType>(
               : `Database error: ${dbError.message}. The import was rolled back.`;
               
             return {
-                successCount: 0,
+                processedCount: 0,
                 errorCount: rows.length,
                 errors: [{ row: 0, message: errorMessage }],
                 summaryMessage: 'A database error occurred during import. No data was saved.'
             };
         }
+        processedCount = validRows.length;
     }
+    
+    const hadErrors = validationErrors.length > 0;
+    const summaryMessage = hadErrors
+        ? `Partial import complete. ${processedCount} rows imported, ${validationErrors.length} rows had errors.`
+        : `Import complete. ${processedCount} rows imported successfully.`;
 
     return {
-        successCount: validRows.length,
+        processedCount,
         errorCount: validationErrors.length,
         errors: validationErrors,
-        summaryMessage: `Import complete. ${validRows.length} rows imported successfully, ${validationErrors.length} rows had errors.`
+        summaryMessage: summaryMessage
     };
 }
 
 
 // The main server action that the client calls.
 export async function handleDataImport(formData: FormData): Promise<ImportResult> {
+    const isDryRun = formData.get('dryRun') === 'true';
     try {
         const { user, companyId, userRole } = await getAuthContextForImport();
         
         if (userRole !== 'Owner' && userRole !== 'Admin') {
-            return { success: false, summaryMessage: 'You do not have permission to import data.' };
+            return { success: false, isDryRun, summaryMessage: 'You do not have permission to import data.' };
         }
         
         const { limited } = await rateLimit(user.id, 'data_import', 10, 3600);
         if (limited) {
-            return { success: false, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
+            return { success: false, isDryRun, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
         }
 
         const cookieStore = cookies();
@@ -151,68 +173,68 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
 
         if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
             logger.warn(`[CSRF] Invalid token for data import action.`);
-            return { success: false, summaryMessage: 'Invalid form submission. Please refresh the page and try again.' };
+            return { success: false, isDryRun, summaryMessage: 'Invalid form submission. Please refresh the page and try again.' };
         }
 
         const file = formData.get('file') as File | null;
         const dataType = formData.get('dataType') as string;
         
         if (!file || file.size === 0) {
-            return { success: false, summaryMessage: 'No file was uploaded or the file is empty.' };
+            return { success: false, isDryRun, summaryMessage: 'No file was uploaded or the file is empty.' };
         }
 
         if (file.size > MAX_FILE_SIZE_BYTES) {
-            return { success: false, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
+            return { success: false, isDryRun, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
         }
         
         if (!ALLOWED_MIME_TYPES.includes(file.type)) {
             logger.warn(`[Data Import] Blocked invalid file type: ${file.type}`);
-            return { success: false, summaryMessage: `Invalid file type. Only CSV files are allowed.` };
+            return { success: false, isDryRun, summaryMessage: `Invalid file type. Only CSV files are allowed.` };
         }
         
         const fileContent = await file.text();
-        let result: Omit<ImportResult, 'success'>;
+        let result: Omit<ImportResult, 'success' | 'isDryRun'>;
         let requiresViewRefresh = false;
 
         switch (dataType) {
             case 'inventory':
-                result = await processCsv(fileContent, InventoryImportSchema, 'inventory', companyId);
-                if ((result.successCount || 0) > 0) {
+                result = await processCsv(fileContent, InventoryImportSchema, 'inventory', companyId, isDryRun);
+                if (!isDryRun && (result.processedCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
                     requiresViewRefresh = true;
                     revalidatePath('/inventory');
                 }
                 break;
             case 'suppliers':
-                result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId);
-                if ((result.successCount || 0) > 0) {
+                result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId, isDryRun);
+                if (!isDryRun && (result.processedCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['suppliers']);
                     revalidatePath('/suppliers');
                 }
                 break;
             case 'supplier_catalogs':
-                result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId);
+                result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId, isDryRun);
                 break;
             case 'reorder_rules':
-                result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId);
-                if ((result.successCount || 0) > 0) revalidatePath('/reordering');
+                result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId, isDryRun);
+                if (!isDryRun && (result.processedCount || 0) > 0) revalidatePath('/reordering');
                 break;
             case 'locations':
-                result = await processCsv(fileContent, LocationImportSchema, 'locations', companyId);
-                if ((result.successCount || 0) > 0) revalidatePath('/locations');
+                result = await processCsv(fileContent, LocationImportSchema, 'locations', companyId, isDryRun);
+                if (!isDryRun && (result.processedCount || 0) > 0) revalidatePath('/locations');
                 break;
             default:
                 throw new Error(`Unsupported data type: ${dataType}`);
         }
 
-        if (requiresViewRefresh) {
+        if (!isDryRun && requiresViewRefresh) {
             await refreshMaterializedViews(companyId);
         }
 
-        return { success: true, ...result };
+        return { success: true, isDryRun, ...result };
 
     } catch (error) {
         logError(error, { context: 'handleDataImport action' });
-        return { success: false, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
+        return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
     }
 }

@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, CheckCircle, Loader2, Table, UploadCloud, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, Loader2, Table, UploadCloud, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
+import { Checkbox } from '../ui/checkbox';
 
 const CSRF_FORM_NAME = 'csrf_token';
 const CSRF_COOKIE_NAME = 'csrf_token';
@@ -47,20 +48,27 @@ const importOptions = {
 
 type DataType = keyof typeof importOptions;
 
-function ImportResultsCard({ results }: { results: Omit<ImportResult, 'success'> }) {
+function ImportResultsCard({ results, onClear }: { results: Omit<ImportResult, 'success'>; onClear: () => void }) {
     const hasErrors = (results.errorCount || 0) > 0;
     const alertVariant = hasErrors ? 'destructive' : 'default';
-    const Icon = hasErrors ? AlertTriangle : CheckCircle;
+    const Icon = hasErrors ? XCircle : CheckCircle;
     
     return (
         <Card>
-            <CardHeader>
-                <CardTitle>Import Results</CardTitle>
+            <CardHeader className="flex flex-row items-start justify-between">
+                <div>
+                    <CardTitle>Import Results {results.isDryRun && <span className="text-sm font-normal text-muted-foreground">(Dry Run)</span>}</CardTitle>
+                    <CardDescription>Review the outcome of your file processing.</CardDescription>
+                </div>
+                <Button variant="ghost" size="sm" onClick={onClear}>Clear</Button>
             </CardHeader>
             <CardContent>
                 <Alert variant={alertVariant} className="mb-4">
                     <Icon className="h-4 w-4" />
                     <AlertTitle>{results.summaryMessage}</AlertTitle>
+                    {results.isDryRun && !hasErrors && (
+                        <AlertDescription className="mt-2">No errors found. Uncheck "Dry Run Mode" to import this data.</AlertDescription>
+                    )}
                 </Alert>
 
                 {hasErrors && results.errors && (
@@ -90,6 +98,7 @@ export function ImporterClientPage() {
     const { toast } = useToast();
     const [isDragging, setIsDragging] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
+    const [dryRun, setDryRun] = useState(true);
     const formRef = useRef<HTMLFormElement>(null);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
@@ -116,6 +125,7 @@ export function ImporterClientPage() {
             return;
         }
 
+        formData.append('dryRun', String(dryRun));
         setFileName(file.name);
         setResults(null);
 
@@ -123,8 +133,11 @@ export function ImporterClientPage() {
             const result = await handleDataImport(formData);
             if (result.success) {
                 setResults(result);
-                formRef.current?.reset();
-                setFileName(null);
+                // Don't reset the form if it was a dry run, so user can easily uncheck and resubmit
+                if (!result.isDryRun) {
+                    formRef.current?.reset();
+                    setFileName(null);
+                }
             } else {
                  toast({ variant: 'destructive', title: 'Import Failed', description: result.summaryMessage });
                 setResults(null);
@@ -231,6 +244,18 @@ export function ImporterClientPage() {
                                 </div>
                             </div>
 
+                            <div className="flex items-center space-x-2 rounded-lg border p-4 bg-muted/20">
+                                <Checkbox id="dryRun" checked={dryRun} onCheckedChange={(checked) => setDryRun(Boolean(checked))} />
+                                <div className="grid gap-1.5 leading-none">
+                                    <label htmlFor="dryRun" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                    Dry Run Mode
+                                    </label>
+                                    <p className="text-sm text-muted-foreground">
+                                    Validate the file without writing to the database.
+                                    </p>
+                                </div>
+                            </div>
+
                             <Alert>
                                 <Table className="h-4 w-4" />
                                 <AlertTitle>Required CSV Columns for '{importOptions[dataType].label}'</AlertTitle>
@@ -255,7 +280,7 @@ export function ImporterClientPage() {
                         </CardDescription>
                     </Card>
                 ) : results ? (
-                    <ImportResultsCard results={results} />
+                    <ImportResultsCard results={results} onClear={() => setResults(null)} />
                 ) : (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
                         <UploadCloud className="h-12 w-12 text-muted-foreground" />
