@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useTransition, DragEvent, useRef } from 'react';
-import { handleDataImport, type ImportResult } from '@/app/(app)/import/actions';
+import { handleDataImport, type ImportResult } from '@/app/import/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

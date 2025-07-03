@@ -2,7 +2,7 @@
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
 import { InventoryImportSchema, SupplierImportSchema, SupplierCatalogImportSchema, ReorderRuleImportSchema, LocationImportSchema } from './schemas';
@@ -219,5 +219,3 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
     }
 }
-
-    

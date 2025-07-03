@@ -295,5 +295,3 @@ export function TeamManagementClientPage({ initialMembers }: TeamManagementClien
         </div>
     );
 }
-
-    

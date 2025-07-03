@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 
 interface ShopifyConnectModalProps {
@@ -28,7 +27,6 @@ type FormData = z.infer<typeof formSchema>;
 
 export function ShopifyConnectModal({ isOpen, onClose }: ShopifyConnectModalProps) {
     const { toast } = useToast();
-    const { user } = useAuth();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
@@ -40,15 +38,10 @@ export function ShopifyConnectModal({ isOpen, onClose }: ShopifyConnectModalProp
     const onSubmit = (values: FormData) => {
         setError(null);
         startTransition(async () => {
-            const payload = {
-                ...values,
-                companyId: user?.app_metadata?.company_id,
-            };
-
             const response = await fetch('/api/shopify/connect', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(values),
             });
 
             const result = await response.json();

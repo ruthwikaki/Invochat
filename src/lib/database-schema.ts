@@ -270,20 +270,20 @@ AS $$
 DECLARE
   new_company_id UUID;
   user_role TEXT;
+  new_company_name TEXT;
 BEGIN
-  -- Check if a company_id was passed in the metadata (from an invite)
-  IF new.raw_user_meta_data->>'company_id' IS NOT NULL THEN
-    new_company_id := (new.raw_user_meta_data->>'company_id')::UUID;
-    user_role := 'Member';
-  ELSE
-    -- If no company_id, it's a new user creating their own company
-    INSERT INTO public.companies (name)
-    VALUES (COALESCE(new.raw_user_meta_data->>'company_name', 'My Company'))
-    RETURNING id INTO new_company_id;
-    user_role := 'Owner';
-  END IF;
+  -- Determine the company name. Use the metadata if present, otherwise default.
+  new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', 'My Company');
 
-  -- Update the user's app_metadata with the company ID and role
+  -- Create a new company record
+  INSERT INTO public.companies (name)
+  VALUES (new_company_name)
+  RETURNING id INTO new_company_id;
+
+  -- Set the user's role to 'Owner' since they are creating the company
+  user_role := 'Owner';
+
+  -- Update the user's app_metadata with the new company ID and their role
   UPDATE auth.users
   SET app_metadata = jsonb_set(
       jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', to_jsonb(new_company_id)),
@@ -291,11 +291,11 @@ BEGIN
   )
   WHERE id = new.id;
 
-  -- Insert a corresponding record into the public.users table
+  -- Insert a corresponding record into the public.users table for application use
   INSERT INTO public.users (id, company_id, email, role)
   VALUES (new.id, new_company_id, new.email, user_role);
 
-  -- Create default settings for the new company
+  -- Create default settings for the new company, ensuring it doesn't fail if one already exists for some reason
   INSERT INTO public.company_settings (company_id)
   VALUES (new_company_id)
   ON CONFLICT (company_id) DO NOTHING;

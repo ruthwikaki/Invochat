@@ -16,6 +16,10 @@ export function useIntegrations() {
     const [isSyncing, startSyncTransition] = useTransition();
     
     useEffect(() => {
+        if (!user) { // Don't fetch if no user
+            setLoading(false);
+            return;
+        }
         async function fetchIntegrations() {
             try {
                 const data = await getIntegrations();
@@ -27,13 +31,12 @@ export function useIntegrations() {
             }
         }
         fetchIntegrations();
-    }, []);
+    }, [user]);
     
     const triggerSync = (integrationId: string) => {
         startSyncTransition(async () => {
             const payload = {
                 integrationId,
-                companyId: user?.app_metadata?.company_id,
             };
 
             const response = await fetch('/api/shopify/sync', {
