@@ -28,10 +28,55 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
+  totalCount: number;
+  itemsPerPage: number;
   categories: string[];
   locations: Location[];
   suppliers: Supplier[];
 }
+
+const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const currentPage = Number(searchParams.get('page')) || 1;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    const createPageURL = (pageNumber: number | string) => {
+        const params = new URLSearchParams(searchParams);
+        params.set('page', pageNumber.toString());
+        return `${pathname}?${params.toString()}`;
+    };
+
+    if (totalPages <= 1) {
+        return null;
+    }
+
+    return (
+        <div className="flex items-center justify-between p-4 border-t">
+            <p className="text-sm text-muted-foreground">
+                Showing page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> ({totalCount} items)
+            </p>
+            <div className="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage - 1))}
+                    disabled={currentPage <= 1}
+                >
+                    Previous
+                </Button>
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage + 1))}
+                    disabled={currentPage >= totalPages}
+                >
+                    Next
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 
 const StatusBadge = ({ quantity, reorderPoint }: { quantity: number, reorderPoint: number | null }) => {
     if (quantity <= 0) {
@@ -74,7 +119,7 @@ function EmptyInventoryState() {
 }
 
 
-export function InventoryClientPage({ initialInventory, categories, locations, suppliers }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, locations, suppliers }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace, refresh } = useRouter();
@@ -96,6 +141,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
+    params.set('page', '1'); // Reset to first page on new search
     if (term) {
       params.set('query', term);
     } else {
@@ -106,6 +152,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
 
   const handleFilterChange = (type: 'category' | 'location' | 'supplier', value: string) => {
     const params = new URLSearchParams(searchParams);
+    params.set('page', '1'); // Reset to first page on filter change
     if (value && value !== 'all') {
       params.set(type, value);
     } else {
@@ -138,7 +185,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
       const result = await deleteInventoryItems(itemToDelete);
       if (result.success) {
         toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
-        setInventory(prev => prev.filter(item => !itemToDelete.includes(item.sku)));
+        refresh(); // Refresh from server to ensure consistency and reflect pagination changes
         setSelectedRows(new Set());
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -375,6 +422,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
                         </TableBody>
                     </Table>
                 </div>
+                <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
                 </CardContent>
             </Card>
         )}

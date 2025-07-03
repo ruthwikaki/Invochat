@@ -89,9 +89,13 @@ export async function getDashboardData(dateRange: string = '30d') {
     }
 }
 
-export async function getUnifiedInventory(params: { query?: string; category?: string, location?: string, supplier?: string }): Promise<UnifiedInventoryItem[]> {
+export async function getUnifiedInventory(params: { query?: string; category?: string, location?: string, supplier?: string, page?: number, limit?: number }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     const { companyId } = await getAuthContext();
-    return db.getUnifiedInventoryFromDB(companyId, params);
+    const limit = params.limit || 50;
+    const page = params.page || 1;
+    const offset = (page - 1) * limit;
+
+    return db.getUnifiedInventoryFromDB(companyId, { ...params, limit, offset });
 }
 
 export async function getInventoryCategories(): Promise<string[]> {

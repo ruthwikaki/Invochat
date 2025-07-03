@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -517,7 +518,14 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         }
         
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
+        const settings = await getSettings(companyId);
+        
+        const { data, error } = await supabase.rpc('get_alerts', { 
+            p_company_id: companyId,
+            p_dead_stock_days: settings.dead_stock_days,
+            p_fast_moving_days: settings.fast_moving_days,
+            p_predictive_stock_days: config.businessLogic.predictiveStockDays,
+        });
 
         if (error) {
             logError(error, { context: 'getAlerts RPC failed' });
@@ -1271,7 +1279,7 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
   });
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string, location?: string, supplier?: string }): Promise<UnifiedInventoryItem[]> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string; supplier?: string; limit?: number; offset?: number }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
@@ -1281,13 +1289,21 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             p_category: params.category || null,
             p_location_id: params.location ? (isValidUuid(params.location) ? params.location : null) : null,
             p_supplier_id: params.supplier ? (isValidUuid(params.supplier) ? params.supplier : null) : null,
+            p_limit: params.limit || 50,
+            p_offset: params.offset || 0,
         });
 
         if (error) {
             logError(error, { context: 'getUnifiedInventoryFromDB RPC failed' });
             throw new Error(`Could not load inventory data: ${error.message}`);
         }
-        return (data || []) as UnifiedInventoryItem[];
+        
+        const result = data as { items: UnifiedInventoryItem[], total_count: number };
+        
+        return {
+            items: result.items || [],
+            totalCount: result.total_count || 0,
+        };
     });
 }
 

@@ -1,7 +1,10 @@
+
 import { getUnifiedInventory, getInventoryCategories, getLocations, getSuppliersData } from '@/app/data-actions';
 import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
 import { Package } from 'lucide-react';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+
+const ITEMS_PER_PAGE = 50;
 
 export default async function InventoryPage({
   searchParams,
@@ -11,16 +14,18 @@ export default async function InventoryPage({
     category?: string;
     location?: string;
     supplier?: string;
+    page?: string;
   };
 }) {
   const query = searchParams?.query || '';
   const category = searchParams?.category || '';
   const location = searchParams?.location || '';
   const supplier = searchParams?.supplier || '';
+  const currentPage = parseInt(searchParams?.page || '1', 10);
 
   // Fetch data in parallel
-  const [inventory, categories, locations, suppliers] = await Promise.all([
-    getUnifiedInventory({ query, category, location, supplier }),
+  const [inventoryData, categories, locations, suppliers] = await Promise.all([
+    getUnifiedInventory({ query, category, location, supplier, page: currentPage, limit: ITEMS_PER_PAGE }),
     getInventoryCategories(),
     getLocations(),
     getSuppliersData()
@@ -33,7 +38,9 @@ export default async function InventoryPage({
         description="Search, filter, and view your entire inventory."
       />
       <InventoryClientPage 
-        initialInventory={inventory} 
+        initialInventory={inventoryData.items} 
+        totalCount={inventoryData.totalCount}
+        itemsPerPage={ITEMS_PER_PAGE}
         categories={categories} 
         locations={locations}
         suppliers={suppliers} 

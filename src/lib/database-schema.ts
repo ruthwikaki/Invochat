@@ -382,17 +382,35 @@ begin
 end;
 $$;
 
-CREATE OR REPLACE FUNCTION public.get_unified_inventory(p_company_id uuid, p_query text, p_category text, p_location_id uuid, p_supplier_id uuid)
+CREATE OR REPLACE FUNCTION public.get_unified_inventory(p_company_id uuid, p_query text, p_category text, p_location_id uuid, p_supplier_id uuid, p_limit integer, p_offset integer)
 RETURNS json LANGUAGE plpgsql AS $$
-DECLARE result_json json;
+DECLARE 
+    result_json json;
+    total_count integer;
+    filtered_skus TEXT[];
 BEGIN
-    WITH monthly_sales AS (
-        SELECT oi.sku, SUM(oi.quantity) as units_sold
-        FROM order_items oi JOIN orders o ON oi.sale_id = o.id
-        WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days'
-        GROUP BY oi.sku
+    -- Step 1: Get the SKUs that match the filter criteria
+    SELECT array_agg(i.sku) INTO filtered_skus
+    FROM inventory i
+    LEFT JOIN (
+        SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id
+        FROM supplier_catalogs sc
+        JOIN vendors v ON sc.supplier_id = v.id AND v.company_id = p_company_id
+    ) as primary_supplier ON i.sku = primary_supplier.sku
+    WHERE i.company_id = p_company_id
+    AND (p_query IS NULL OR p_query = '' OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
+    AND (p_category IS NULL OR p_category = '' OR i.category = p_category)
+    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+    AND (p_supplier_id IS NULL OR primary_supplier.supplier_id = p_supplier_id);
+    
+    total_count := COALESCE(array_length(filtered_skus, 1), 0);
+
+    -- Step 2: Fetch the full data for the paginated set of SKUs
+    SELECT json_build_object(
+        'items', COALESCE(json_agg(t), '[]'::json),
+        'total_count', total_count
     )
-    SELECT coalesce(json_agg(t), '[]'::json) INTO result_json
+    INTO result_json
     FROM (
         SELECT
             i.sku, i.name as product_name, i.category, i.quantity, i.cost, i.price,
@@ -403,18 +421,17 @@ BEGIN
         FROM inventory i
         LEFT JOIN locations l ON i.location_id = l.id AND l.company_id = i.company_id
         LEFT JOIN (
-            SELECT DISTINCT ON (sc.sku) sc.sku, sc.supplier_id
-            FROM supplier_catalogs sc
-            JOIN vendors v ON sc.supplier_id = v.id AND v.company_id = p_company_id
-        ) as primary_supplier ON i.sku = primary_supplier.sku
-        LEFT JOIN monthly_sales ms ON i.sku = ms.sku
-        WHERE i.company_id = p_company_id
-        AND (p_query IS NULL OR p_query = '' OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
-        AND (p_category IS NULL OR p_category = '' OR i.category = p_category)
-        AND (p_location_id IS NULL OR i.location_id = p_location_id)
-        AND (p_supplier_id IS NULL OR primary_supplier.supplier_id = p_supplier_id)
+             SELECT oi.sku, SUM(oi.quantity) as units_sold
+             FROM order_items oi JOIN orders o ON oi.sale_id = o.id
+             WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - INTERVAL '30 days'
+             GROUP BY oi.sku
+        ) ms ON i.sku = ms.sku
+        WHERE i.sku = ANY(filtered_skus)
         ORDER BY i.name
+        LIMIT p_limit
+        OFFSET p_offset
     ) t;
+
     RETURN result_json;
 END;
 $$;
