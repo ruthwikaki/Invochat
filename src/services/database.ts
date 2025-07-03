@@ -149,15 +149,24 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
     });
 }
 
-function getIntervalFromRange(dateRange: string): number {
-    const days = parseInt(dateRange.replace('d', ''), 10);
-    return isNaN(days) ? 30 : days;
-}
-
 export async function getDashboardMetrics(companyId: string, dateRange: string = '30d'): Promise<DashboardMetrics> {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   const cacheKey = `company:${companyId}:dashboard:${dateRange}`;
-  const days = getIntervalFromRange(dateRange);
+
+  if (isRedisEnabled) {
+    try {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+        await incrementCacheHit('dashboard');
+        return JSON.parse(cachedData);
+      }
+      logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+      await incrementCacheMiss('dashboard');
+    } catch (error) {
+        logError(error, { context: `Redis error getting cache for ${cacheKey}` });
+    }
+  }
 
   const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
     return withPerformanceTracking('getDashboardMetricsOptimized', async () => {
@@ -174,8 +183,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         }
         
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_dashboard_metrics', {
-            p_company_id: companyId,
-            p_days: days,
+            p_company_id: companyId
         });
         
         if (rpcError) {
@@ -218,23 +226,6 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
     });
   };
 
-  if (isRedisEnabled) {
-    try {
-      const cachedData = await redisClient.get(cacheKey);
-      if (cachedData) {
-        logger.info(`[Cache] HIT (Stale-While-Revalidate) for dashboard metrics: ${cacheKey}`);
-        await incrementCacheHit('dashboard');
-        fetchAndCacheMetrics().catch(err => {
-            logError(err, { context: `SWR Background Revalidation failed for ${cacheKey}` });
-        });
-        return JSON.parse(cachedData);
-      }
-      logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
-      await incrementCacheMiss('dashboard');
-    } catch (error) {
-        logError(error, { context: `Redis error getting cache for ${cacheKey}` });
-    }
-  }
   return fetchAndCacheMetrics();
 }
 
@@ -632,88 +623,6 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
     });
 }
 
-
-export async function getQueryPatternsForCompany(
-  companyId: string,
-  limit = 3
-): Promise<{ user_question: string; successful_sql_query: string }[]> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getQueryPatternsForCompany', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase
-            .from('query_patterns')
-            .select('user_question, successful_sql_query')
-            .eq('company_id', companyId)
-            .order('usage_count', { ascending: false })
-            .order('last_used_at', { ascending: false })
-            .limit(limit);
-
-        if (error) {
-            logError(error, { context: `Could not fetch query patterns for company ${companyId}` });
-            return [];
-        }
-
-        return data || [];
-    });
-}
-
-export async function saveSuccessfulQuery(
-  companyId: string,
-  userQuestion: string,
-  sqlQuery: string
-): Promise<void> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('saveSuccessfulQuery', async () => {
-        const supabase = getServiceRoleClient();
-
-        const { data: existingPattern, error: selectError } = await supabase
-            .from('query_patterns')
-            .select('id, usage_count')
-            .eq('company_id', companyId)
-            .eq('user_question', userQuestion)
-            .single();
-
-        if (selectError && selectError.code !== 'PGRST116') {
-            logError(selectError, { context: 'Could not check for existing query pattern' });
-            return;
-        }
-
-        if (existingPattern) {
-            const { error: updateError } = await supabase
-                .from('query_patterns')
-                .update({
-                    usage_count: (existingPattern.usage_count || 0) + 1,
-                    last_used_at: new Date().toISOString(),
-                    successful_sql_query: sqlQuery
-                })
-                .eq('id', existingPattern.id);
-
-            if (updateError) {
-                logError(updateError, { context: 'Could not update query pattern' });
-            } else {
-                logger.debug(`[DB Service] Updated query pattern for question: "${userQuestion}"`);
-            }
-        } else {
-            const { error: insertError } = await supabase
-                .from('query_patterns')
-                .insert({
-                    company_id: companyId,
-                    user_question: userQuestion,
-                    successful_sql_query: sqlQuery,
-                    usage_count: 1,
-                    last_used_at: new Date().toISOString()
-                });
-
-            if (insertError) {
-                logError(insertError, { context: 'Could not insert new query pattern' });
-            } else {
-                logger.info(`[DB Service] Inserted new query pattern for question: "${userQuestion}"`);
-            }
-        }
-    });
-}
-
-
 export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('generateAnomalyInsights', async () => {
@@ -798,7 +707,8 @@ export async function inviteUserToCompanyInDb(companyId: string, companyName: st
 
 export async function removeTeamMemberFromDb(
     userIdToRemove: string,
-    companyId: string
+    companyId: string,
+    performingUserId: string,
 ): Promise<{ success: boolean; error?: string }> {
     if (!isValidUuid(userIdToRemove) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('removeTeamMemberFromDb', async () => {
@@ -847,7 +757,7 @@ export async function updateTeamMemberRoleInDb(
         }
         
         // Also update the role in auth.users for the JWT
-        const { data, error: authUpdateError } = await supabase.auth.admin.updateUserById(memberIdToUpdate, {
+        const { error: authUpdateError } = await supabase.auth.admin.updateUserById(memberIdToUpdate, {
             app_metadata: { role: newRole }
         });
         
@@ -1171,50 +1081,53 @@ export async function updateInventoryItemInDb(companyId: string, sku: string, it
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('updateInventoryItemInDb', async () => {
         const supabase = getServiceRoleClient();
+        const maxRetries = 3;
+        let retries = 0;
+    
+        while (retries < maxRetries) {
+            const { data: current, error: fetchError } = await supabase
+                .from('inventory')
+                .select('quantity, version')
+                .eq('company_id', companyId)
+                .eq('sku', sku)
+                .single();
+                
+            if (fetchError) throw new Error('Item not found or could not be fetched.');
 
-        const { data, error } = await supabase
-            .from('inventory')
-            .update({
-                name: itemData.name,
-                category: itemData.category,
-                cost: itemData.cost,
-                reorder_point: itemData.reorder_point,
-                landed_cost: itemData.landed_cost,
-                barcode: itemData.barcode,
-                location_id: itemData.location_id,
-            })
-            .eq('company_id', companyId)
-            .eq('sku', sku)
-            .select(`
-                *,
-                location:locations ( name )
-            `)
-            .single();
+            const { data, error } = await supabase.rpc('update_inventory_with_lock', {
+                p_company_id: companyId,
+                p_sku: sku,
+                p_new_quantity: current.quantity, // Quantity doesn't change here, just metadata
+                p_expected_version: current.version,
+                p_new_name: itemData.name,
+                p_new_category: itemData.category,
+                p_new_cost: itemData.cost,
+                p_new_reorder_point: itemData.reorder_point,
+                p_new_landed_cost: itemData.landed_cost,
+                p_new_barcode: itemData.barcode,
+                p_new_location_id: itemData.location_id
+            });
+            
+            if (error) {
+                logError(error, {context: `Error in update_inventory_with_lock RPC for SKU: ${sku}`});
+                throw error;
+            }
 
-        if (error) {
-            logError(error, { context: `updateInventoryItemInDb: ${sku}` });
-            throw error;
+            const rpcResult = data as { success: boolean, error: string, updated_item: any };
+
+            if (rpcResult.success) {
+                return rpcResult.updated_item as UnifiedInventoryItem;
+            }
+            
+            if (rpcResult.error === 'Version mismatch') {
+                retries++;
+                await new Promise(resolve => setTimeout(resolve, 100 * retries)); // Exponential backoff
+            } else {
+                throw new Error(rpcResult.error || 'Failed to update inventory item.');
+            }
         }
-
-        // We need to fetch the stats for the unified view separately now.
-        const { data: stats } = await supabase.rpc('get_unified_inventory_item_stats', {
-            p_company_id: companyId,
-            p_sku: sku
-        }).single();
-
-
-        // Transform the result to match UnifiedInventoryItem structure
-        const transformedData: UnifiedInventoryItem = {
-            ...data,
-            product_name: data.name,
-            total_value: data.quantity * data.cost,
-            location_name: data.location?.name || null,
-            monthly_units_sold: (stats as any)?.monthly_units_sold || 0,
-            monthly_profit: (stats as any)?.monthly_profit || 0,
-        };
-        delete (transformedData as any).location;
         
-        return transformedData;
+        throw new Error('Could not update inventory after multiple attempts due to concurrent modifications.');
     });
 }
 
@@ -1267,7 +1180,6 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
         throw new Error(`Could not generate supplier performance report: ${error.message}`);
     }
 
-    // Since the query returns numbers as strings from json_agg, we need to parse them.
     const parsedData = z.array(z.object({
         supplier_name: z.string(),
         total_completed_orders: z.coerce.number(),
@@ -1303,11 +1215,11 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             throw new Error(`Could not load inventory data: ${error.message}`);
         }
         
-        const result = data as { items: UnifiedInventoryItem[], total_count: number };
+        const result = data as { items: UnifiedInventoryItem[], totalCount: number };
         
         return {
             items: result.items || [],
-            totalCount: result.total_count || 0,
+            totalCount: result.totalCount || 0,
         };
     });
 }

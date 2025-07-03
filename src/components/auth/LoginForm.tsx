@@ -12,6 +12,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 
+const CSRF_FORM_NAME = 'csrf_token';
+const CSRF_COOKIE_NAME = 'csrf_token';
+
+
 function LoginSubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
     return (
@@ -27,16 +31,25 @@ function LoginSubmitButton({ disabled }: { disabled: boolean }) {
 
 interface LoginFormProps {
     error: string | null;
-    csrfToken: string | null;
-    loadingToken: boolean;
 }
 
-export function LoginForm({ error: initialError, csrfToken, loadingToken }: LoginFormProps) {
+export function LoginForm({ error: initialError }: LoginFormProps) {
   const [error, setError] = useState(initialError);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
     setError(initialError);
   }, [initialError]);
+
+  useEffect(() => {
+    // Reading the cookie on the client side ensures we get the latest value
+    // after the middleware has run.
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+      ?.split('=')[1];
+    setCsrfToken(token || null);
+  }, []);
 
   const handleInteraction = () => {
     if (error) setError(null);
@@ -44,7 +57,7 @@ export function LoginForm({ error: initialError, csrfToken, loadingToken }: Logi
 
   return (
     <form action={login} className="space-y-4" onChange={handleInteraction}>
-        <input type="hidden" name="csrf_token" value={csrfToken || ''} />
+        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input
@@ -83,7 +96,7 @@ export function LoginForm({ error: initialError, csrfToken, loadingToken }: Logi
         )}
         
         <div className="pt-2">
-            <LoginSubmitButton disabled={loadingToken || !csrfToken} />
+            <LoginSubmitButton disabled={!csrfToken} />
         </div>
     </form>
   );

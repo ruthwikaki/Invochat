@@ -1,3 +1,5 @@
+
+
 'use server';
 
 import { cookies } from 'next/headers';
@@ -28,17 +30,4 @@ export function validateCSRF(formData: FormData): void {
     logger.warn(`[CSRF] Invalid token. Action rejected. Form: ${tokenFromForm}, Cookie: ${tokenFromCookie}`);
     throw new Error('Invalid form submission. Please refresh the page and try again.');
   }
-}
-
-/**
- * Legacy validation function for direct comparison.
- * @param tokenFromRequest The token from the form or a header.
- * @param tokenFromCookie The token from the csrf_token cookie.
- * @returns {boolean} True if the tokens are valid and match, false otherwise.
- */
-export function validateCSRFToken(tokenFromRequest: string | null, tokenFromCookie: string | undefined): boolean {
-  if (!tokenFromRequest || !tokenFromCookie || typeof tokenFromRequest !== 'string' || typeof tokenFromCookie !== 'string') {
-    return false;
-  }
-  return tokenFromRequest === tokenFromCookie;
 }

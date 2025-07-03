@@ -1,21 +1,12 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { SignupForm } from '@/components/auth/SignupForm';
-
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-  return null;
-}
 
 export default function SignupPage({
   searchParams,
@@ -24,13 +15,6 @@ export default function SignupPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-  const [loadingToken, setLoadingToken] = useState(true);
-
-  useEffect(() => {
-    setCsrfToken(getCookie('csrf_token'));
-    setLoadingToken(false);
-  }, []);
 
   if (success) {
     return (
@@ -79,8 +63,6 @@ export default function SignupPage({
         <CardContent className="p-0">
           <SignupForm 
             error={error} 
-            csrfToken={csrfToken}
-            loadingToken={loadingToken}
           />
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}

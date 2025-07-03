@@ -1,21 +1,12 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
-
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-  return null;
-}
 
 export default function ForgotPasswordPage({
   searchParams,
@@ -24,13 +15,6 @@ export default function ForgotPasswordPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-  const [loadingToken, setLoadingToken] = useState(true);
-
-  useEffect(() => {
-    setCsrfToken(getCookie('csrf_token'));
-    setLoadingToken(false);
-  }, []);
   
   if (success) {
     return (
@@ -75,8 +59,6 @@ export default function ForgotPasswordPage({
         <CardContent className="p-0">
           <ForgotPasswordForm 
             error={error}
-            csrfToken={csrfToken}
-            loadingToken={loadingToken}
           />
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}

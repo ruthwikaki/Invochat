@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition, DragEvent, useRef } from 'react';
+import { useState, useTransition, DragEvent, useRef, useEffect } from 'react';
 import { handleDataImport, type ImportResult } from '@/app/import/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,13 +13,8 @@ import { AlertTriangle, CheckCircle, Loader2, Table, UploadCloud } from 'lucide-
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-  return null;
-}
+const CSRF_FORM_NAME = 'csrf_token';
+const CSRF_COOKIE_NAME = 'csrf_token';
 
 const importOptions = {
     inventory: {
@@ -95,7 +90,15 @@ export function ImporterClientPage() {
     const [isDragging, setIsDragging] = useState(false);
     const [fileName, setFileName] = useState<string | null>(null);
     const formRef = useRef<HTMLFormElement>(null);
-    const csrfToken = getCookie('csrf_token');
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        const token = document.cookie
+          .split('; ')
+          .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
+          ?.split('=')[1];
+        setCsrfToken(token || null);
+    }, []);
 
     const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -104,6 +107,11 @@ export function ImporterClientPage() {
 
         if (!file || file.size === 0) {
             toast({ variant: 'destructive', title: 'No file selected', description: 'Please choose a file to upload.' });
+            return;
+        }
+
+        if (!csrfToken) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not verify form. Please refresh the page.' });
             return;
         }
 
@@ -168,7 +176,7 @@ export function ImporterClientPage() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <input type="hidden" name="dataType" value={dataType} />
-                            <input type="hidden" name="csrf_token" value={csrfToken || ''} />
+                            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
                             <div className="space-y-2">
                                 <Label htmlFor="data-type">1. Select Data Type</Label>
                                 <Select value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>

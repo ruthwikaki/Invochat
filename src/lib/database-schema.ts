@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS public.vendors (
 CREATE TABLE IF NOT EXISTS public.customers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    platform TEXT,
+    external_id TEXT,
     customer_name TEXT NOT NULL,
     email TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -105,9 +107,12 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    customer_id UUID,
     sale_date TIMESTAMP WITH TIME ZONE NOT NULL,
     total_amount NUMERIC(10, 2) NOT NULL,
     sales_channel TEXT,
+    platform TEXT,
+    external_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -143,17 +148,6 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     quantity_received INTEGER NOT NULL DEFAULT 0,
     unit_cost NUMERIC(10, 2) NOT NULL,
     tax_rate NUMERIC(5, 4) DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS public.query_patterns (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    user_question text NOT NULL,
-    successful_sql_query text NOT NULL,
-    usage_count integer DEFAULT 1,
-    last_used_at timestamp with time zone DEFAULT now(),
-    created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT unique_question_per_company UNIQUE (company_id, user_question)
 );
 
 CREATE TABLE IF NOT EXISTS public.integrations (
@@ -246,19 +240,24 @@ CREATE TABLE IF NOT EXISTS public.reorder_rules (
     CONSTRAINT unique_reorder_rule_sku UNIQUE (company_id, sku)
 );
 
-CREATE TABLE IF NOT EXISTS public.notification_preferences (
-  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
-  company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  email_daily_digest BOOLEAN DEFAULT TRUE,
-  email_low_stock BOOLEAN DEFAULT TRUE,
-  sms_critical_alerts BOOLEAN DEFAULT FALSE,
-  sms_phone_number TEXT,
-  digest_time TIME WITH TIME ZONE DEFAULT '07:00:00+00'
+CREATE TABLE IF NOT EXISTS public.audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  action text NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
+  table_name text NOT NULL,
+  record_id text,
+  old_data jsonb,
+  new_data jsonb,
+  query_text text,
+  ip_address inet,
+  created_at timestamptz DEFAULT now()
 );
 
 -- ========= Part 2: Schema Migrations & Alterations =========
 -- This section ensures older schemas are updated correctly by adding columns if they don't exist.
 
+-- Alterations for integration fields
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS source_platform TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_product_id TEXT;
 ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS external_variant_id TEXT;
@@ -266,6 +265,9 @@ ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS platform TEXT;
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS external_id TEXT;
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS platform TEXT;
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS external_id TEXT;
+ALTER TABLE public.customers ADD CONSTRAINT unique_customer_per_platform UNIQUE (company_id, platform, external_id);
+ALTER TABLE public.orders ADD CONSTRAINT unique_order_per_platform UNIQUE (company_id, platform, external_id);
+
 
 -- Add foreign key constraint from inventory to locations
 DO $$
@@ -328,8 +330,16 @@ BEGIN
   UPDATE auth.users
   SET app_metadata = jsonb_set(
       COALESCE(app_metadata, '{}'::jsonb),
-      '{company_id,role}',
-      jsonb_build_array(to_jsonb(new_company_id), to_jsonb(user_role))
+      '{role}',
+      to_jsonb(user_role)
+  )
+  WHERE id = new.id;
+  
+   UPDATE auth.users
+  SET app_metadata = jsonb_set(
+      COALESCE(app_metadata, '{}'::jsonb),
+      '{company_id}',
+      to_jsonb(new_company_id)
   )
   WHERE id = new.id;
 
@@ -346,37 +356,53 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 
-create or replace function public.batch_upsert_with_transaction(
+-- Secure batch upsert function
+CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
   p_table_name text,
   p_records jsonb,
   p_conflict_columns text[]
 )
-returns void
-language plpgsql
-security definer
-as $$
-declare
-  update_set_clause text := (
-    select string_agg(format('%I = excluded.%I', key, key), ', ')
-    from jsonb_object_keys(p_records -> 0) as key
-    where not (key = any(p_conflict_columns))
-  );
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  company_id_from_jwt uuid;
+  sanitized_records jsonb;
+  update_set_clause text;
   query text;
-begin
-  if p_table_name not in ('inventory', 'vendors', 'supplier_catalogs', 'reorder_rules', 'locations', 'customers', 'orders', 'order_items') then
-    raise exception 'Invalid table name provided for batch upsert: %', p_table_name;
-  end if;
+BEGIN
+  -- Whitelist allowed tables for safety
+  IF p_table_name NOT IN ('inventory', 'vendors', 'supplier_catalogs', 'reorder_rules', 'locations', 'customers', 'orders', 'order_items') THEN
+    RAISE EXCEPTION 'Invalid table name provided for batch upsert: %', p_table_name;
+  END IF;
+
+  -- Get the company_id from the authenticated user's JWT
+  company_id_from_jwt := (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid;
+  
+  -- Rebuild the entire JSONB array, forcing the correct company_id on every record
+  SELECT jsonb_agg(jsonb_set(elem, '{company_id}', to_jsonb(company_id_from_jwt)))
+  INTO sanitized_records
+  FROM jsonb_array_elements(p_records) AS elem;
+
+  -- Dynamically build the UPDATE SET clause for the ON CONFLICT action
+  update_set_clause := (
+    SELECT string_agg(format('%I = excluded.%I', key, key), ', ')
+    FROM jsonb_object_keys(sanitized_records -> 0) AS key
+    WHERE NOT (key = ANY(p_conflict_columns))
+  );
+
+  -- Build the final query
   query := format(
     'INSERT INTO %I SELECT * FROM jsonb_populate_recordset(null::%I, $1) ON CONFLICT (%s) DO UPDATE SET %s;',
     p_table_name, p_table_name, array_to_string(p_conflict_columns, ', '), update_set_clause
   );
-  execute query using p_records;
-exception
-    when unique_violation then
-        raise notice 'A unique constraint violation occurred during batch upsert on table %. Details: %', p_table_name, SQLERRM;
-        raise exception 'Duplicate entry found in CSV. %', SQLERRM;
-end;
+  
+  -- Execute the query with the sanitized records
+  EXECUTE query USING sanitized_records;
+END;
 $$;
+
 
 -- Changed from Materialized View to a regular table for per-company refreshes
 CREATE TABLE IF NOT EXISTS public.company_dashboard_metrics (
@@ -407,17 +433,26 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+
+-- Function to securely delete a location and unassign inventory
 create or replace function public.delete_location_and_unassign_inventory(p_location_id uuid, p_company_id uuid)
 returns void language plpgsql security definer as $$
 begin
+  if (p_company_id != (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid) then
+    raise exception 'Unauthorized';
+  end if;
   update public.inventory set location_id = null where location_id = p_location_id and company_id = p_company_id;
   delete from public.locations where id = p_location_id and company_id = p_company_id;
 end;
 $$;
 
+-- Function to securely delete a supplier and their catalog items
 create or replace function public.delete_supplier_and_catalogs(p_supplier_id uuid, p_company_id uuid)
 returns void language plpgsql security definer as $$
 begin
+  if (p_company_id != (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid) then
+    raise exception 'Unauthorized';
+  end if;
   if exists (select 1 from public.purchase_orders where supplier_id = p_supplier_id and company_id = p_company_id) then
     raise exception 'Cannot delete supplier with active purchase orders.';
   end if;
@@ -452,7 +487,7 @@ BEGIN
     -- Step 2: Fetch the full data for the paginated set of SKUs
     SELECT json_build_object(
         'items', COALESCE(json_agg(t), '[]'::json),
-        'total_count', total_count
+        'totalCount', total_count
     )
     INTO result_json
     FROM (
@@ -520,6 +555,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+
+-- Hardened receive_purchase_order_items function
 CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE 
@@ -531,12 +568,13 @@ DECLARE
     v_ordered_quantity INTEGER;
     v_can_receive INTEGER;
 BEGIN
-    -- This entire function now runs as a single transaction
+    -- Validate PO belongs to company
     IF NOT EXISTS (SELECT 1 FROM purchase_orders WHERE id = p_po_id AND company_id = p_company_id) THEN
         RAISE EXCEPTION 'Purchase order not found or access denied';
     END IF;
 
     FOR item IN SELECT * FROM jsonb_to_recordset(p_items_to_receive) AS x(sku TEXT, quantity_to_receive INTEGER) LOOP
+        -- Get ordered and already received quantities
         SELECT poi.quantity_ordered, COALESCE(poi.quantity_received, 0)
         INTO v_ordered_quantity, v_already_received
         FROM purchase_order_items poi
@@ -548,10 +586,11 @@ BEGIN
 
         v_can_receive := v_ordered_quantity - v_already_received;
         
+        -- Add validation to prevent over-receiving
         IF item.quantity_to_receive > v_can_receive THEN
             RAISE EXCEPTION 'Cannot receive % units of SKU %. Only % are remaining to be received.', item.quantity_to_receive, item.sku, v_can_receive;
         END IF;
-
+        
         IF item.quantity_to_receive > 0 THEN
             UPDATE public.purchase_order_items SET quantity_received = quantity_received + item.quantity_to_receive WHERE po_id = p_po_id AND sku = item.sku;
             UPDATE public.inventory SET quantity = quantity + item.quantity_to_receive, on_order_quantity = on_order_quantity - item.quantity_to_receive, updated_at = NOW() WHERE company_id = p_company_id AND sku = item.sku;
@@ -559,6 +598,7 @@ BEGIN
         END IF;
     END LOOP;
 
+    -- Update overall PO status
     SELECT SUM(quantity_ordered), SUM(quantity_received) INTO total_ordered, total_received FROM public.purchase_order_items WHERE po_id = p_po_id;
     
     IF total_received >= total_ordered THEN current_po_status := 'received';
@@ -580,113 +620,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION get_dashboard_metrics(p_company_id uuid, p_days integer)
-RETURNS json LANGUAGE plpgsql SECURITY INVOKER AS $$
-DECLARE
-    result_json json;
-BEGIN
-    WITH date_range AS (
-        SELECT (CURRENT_DATE - (p_days || ' days')::interval)::date as start_date,
-               CURRENT_DATE as end_date
-    ),
-    orders_in_range AS (
-        SELECT id, total_amount, sale_date, customer_id
-        FROM public.orders
-        WHERE company_id = p_company_id AND sale_date::date BETWEEN (SELECT start_date FROM date_range) AND (SELECT end_date FROM date_range)
-    ),
-    sales_details_in_range AS (
-        SELECT
-            oi.quantity,
-            oi.unit_price as sales_price,
-            COALESCE(i.landed_cost, i.cost) as cost
-        FROM public.order_items oi
-        JOIN public.inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
-        WHERE oi.sale_id IN (SELECT id FROM orders_in_range)
-    )
-    SELECT json_build_object(
-        'totalSalesValue', (SELECT COALESCE(SUM(total_amount), 0) FROM orders_in_range),
-        'totalProfit', (SELECT COALESCE(SUM((sales_price - cost) * quantity), 0) FROM sales_details_in_range),
-        'totalOrders', (SELECT COUNT(*) FROM orders_in_range),
-        'averageOrderValue', (SELECT COALESCE(AVG(total_amount), 0) FROM orders_in_range),
-        'salesTrendData', COALESCE((
-            SELECT json_agg(t)
-            FROM (
-                SELECT TO_CHAR(sale_date, 'YYYY-MM-DD') as date, SUM(total_amount) as "Sales"
-                FROM orders_in_range
-                GROUP BY 1 ORDER BY 1
-            ) t
-        ), '[]'::json),
-        'topCustomersData', COALESCE((
-            SELECT json_agg(t)
-            FROM (
-                SELECT c.customer_name as name, SUM(s.total_amount) as value
-                FROM orders_in_range s
-                JOIN public.customers c ON s.customer_id = c.id
-                WHERE s.customer_id IS NOT NULL
-                GROUP BY c.customer_name ORDER BY value DESC LIMIT 5
-            ) t
-        ), '[]'::json),
-        'inventoryByCategoryData', COALESCE((
-            SELECT json_agg(t)
-            FROM (
-                SELECT COALESCE(category, 'Uncategorized') as name, sum(quantity * cost) as value
-                FROM public.inventory
-                WHERE company_id = p_company_id
-                GROUP BY category
-            ) t
-        ), '[]'::json),
-        'deadStockItemsCount', (
-            SELECT COUNT(*)::int
-            FROM public.inventory i
-            JOIN public.company_settings s ON i.company_id = s.company_id
-            WHERE i.company_id = p_company_id
-              AND i.quantity > 0
-              AND (i.last_sold_date IS NULL OR i.last_sold_date < CURRENT_DATE - (s.dead_stock_days || ' days')::interval)
-        )
-    ) INTO result_json;
-    RETURN result_json;
-END;
-$$;
-
-
-CREATE OR REPLACE FUNCTION get_alerts(p_company_id uuid, p_dead_stock_days integer, p_fast_moving_days integer, p_predictive_stock_days integer)
-RETURNS json LANGUAGE plpgsql SECURITY INVOKER AS $$
-DECLARE result_json json;
-BEGIN
-    WITH low_stock_alerts AS (
-        SELECT 'low_stock' as type, sku, name as product_name, quantity as current_stock, reorder_point
-        FROM inventory
-        WHERE company_id = p_company_id AND quantity > 0 AND reorder_point > 0 AND quantity < reorder_point
-    ),
-    dead_stock_alerts AS (
-        SELECT 'dead_stock' as type, sku, name as product_name, quantity as current_stock, last_sold_date, (quantity * cost) as value
-        FROM inventory
-        WHERE inventory.company_id = p_company_id AND quantity > 0 AND (last_sold_date IS NULL OR last_sold_date < CURRENT_DATE - (p_dead_stock_days || ' days')::interval)
-    ),
-    predictive_alerts AS (
-        SELECT 'predictive' as type, i.sku, i.name as product_name, i.quantity as current_stock, i.quantity / sv.daily_sales_velocity as days_of_stock_remaining
-        FROM inventory i
-        JOIN (
-            SELECT oi.sku, SUM(oi.quantity)::float / NULLIF(p_fast_moving_days, 0) as daily_sales_velocity
-            FROM order_items oi
-            JOIN orders o ON oi.sale_id = o.id
-            WHERE o.company_id = p_company_id AND o.sale_date >= CURRENT_DATE - (p_fast_moving_days || ' days')::interval
-            GROUP BY oi.sku
-        ) sv ON i.sku = sv.sku
-        WHERE i.company_id = p_company_id AND i.quantity > 0 AND sv.daily_sales_velocity > 0 AND (i.quantity / sv.daily_sales_velocity) < p_predictive_stock_days
-    )
-    SELECT coalesce(json_agg(t), '[]'::json)
-    INTO result_json
-    FROM (
-        SELECT * FROM low_stock_alerts
-        UNION ALL
-        SELECT *, null as reorder_point FROM dead_stock_alerts
-        UNION ALL
-        SELECT *, null as reorder_point, null as last_sold_date, null as value FROM predictive_alerts
-    ) t;
-    RETURN result_json;
-END;
-$$;
 
 CREATE OR REPLACE FUNCTION public.create_purchase_order_and_update_inventory(p_company_id uuid, p_supplier_id uuid, p_po_number text, p_order_date date, p_total_amount numeric, p_items jsonb, p_expected_date date DEFAULT NULL, p_notes text DEFAULT NULL)
 RETURNS public.purchase_orders LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -762,44 +695,65 @@ BEGIN
 END;
 $$;
 
-
-CREATE OR REPLACE FUNCTION public.get_inventory_turnover_report(p_company_id uuid, p_days integer)
-RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER AS $$
+-- Secure function to prevent cross-tenant references
+CREATE OR REPLACE FUNCTION validate_same_company_reference()
+RETURNS TRIGGER AS $$
 DECLARE
-    result jsonb;
+  ref_company_id uuid;
+  current_company_id uuid;
 BEGIN
-    WITH cogs_calc AS (
-        SELECT SUM(oi.quantity * COALESCE(i.landed_cost, i.cost)) as total_cogs
-        FROM order_items oi
-        JOIN orders o ON oi.sale_id = o.id
-        JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
-        WHERE o.company_id = p_company_id
-          AND o.sale_date >= CURRENT_DATE - (p_days || ' days')::interval
-    ),
-    inventory_value AS (
-        SELECT SUM(quantity * COALESCE(landed_cost, cost)) as total_inventory_value
-        FROM inventory
-        WHERE company_id = p_company_id
-    )
-    SELECT jsonb_build_object(
-        'total_cogs', COALESCE(c.total_cogs, 0),
-        'average_inventory_value', COALESCE(iv.total_inventory_value, 0),
-        'turnover_rate',
-            CASE
-                WHEN iv.total_inventory_value > 0 THEN COALESCE(c.total_cogs, 0) / iv.total_inventory_value
-                ELSE 0
-            END,
-        'period_days', p_days
-    )
-    INTO result
-    FROM cogs_calc c, inventory_value iv;
-    RETURN result;
-END;
-$$;
+  current_company_id := NEW.company_id;
+  
+  -- Check vendor reference (for purchase_orders)
+  IF TG_TABLE_NAME = 'purchase_orders' AND NEW.supplier_id IS NOT NULL THEN
+    SELECT company_id INTO ref_company_id FROM vendors WHERE id = NEW.supplier_id;
+    IF ref_company_id != current_company_id THEN
+      RAISE EXCEPTION 'Cannot reference a vendor from a different company.';
+    END IF;
+  END IF;
 
+  -- Check inventory location reference
+  IF TG_TABLE_NAME = 'inventory' AND NEW.location_id IS NOT NULL THEN
+    SELECT company_id INTO ref_company_id FROM locations WHERE id = NEW.location_id;
+    IF ref_company_id != current_company_id THEN
+        RAISE EXCEPTION 'Cannot assign to a location from a different company.';
+    END IF;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger for audit logging
+CREATE OR REPLACE FUNCTION audit_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO audit_log (
+    company_id,
+    user_id,
+    action,
+    table_name,
+    record_id,
+    old_data,
+    new_data,
+    ip_address
+  ) VALUES (
+    COALESCE(NEW.company_id, OLD.company_id),
+    auth.uid(),
+    TG_OP,
+    TG_TABLE_NAME,
+    COALESCE((NEW.id)::text, (OLD.id)::text),
+    CASE WHEN TG_OP IN ('UPDATE', 'DELETE') THEN row_to_json(OLD) ELSE NULL END,
+    CASE WHEN TG_OP IN ('INSERT', 'UPDATE') THEN row_to_json(NEW) ELSE NULL END,
+    inet_client_addr()
+  );
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
 
 -- ========= Part 4: Row-Level Security (RLS) Policies =========
 
+-- This function is a helper for RLS policies
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
 RETURNS uuid LANGUAGE sql STABLE AS $$
   SELECT (auth.jwt()->'app_metadata'->>'company_id')::uuid;
@@ -813,14 +767,14 @@ BEGIN
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public'
           AND table_name IN (
-            'users', 'company_settings', 'query_patterns', 'inventory', 'customers',
+            'users', 'company_settings', 'inventory', 'customers',
             'orders', 'vendors', 'reorder_rules', 'purchase_orders', 'integrations',
-            'notification_preferences', 'channel_fees', 'locations', 'inventory_ledger'
+            'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 'sync_logs'
           )
     LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
         EXECUTE format('DROP POLICY IF EXISTS "Users can manage data for their own company" ON public.%I;', t_name);
-        EXECUTE format('CREATE POLICY "Users can manage data for their own company" ON public.%I FOR ALL USING (company_id = public.current_user_company_id() AND deleted_at IS NULL);', t_name);
+        EXECUTE format('CREATE POLICY "Users can manage data for their own company" ON public.%I FOR ALL USING (company_id = public.current_user_company_id());', t_name);
     END LOOP;
 END;
 $$;
@@ -837,33 +791,33 @@ ALTER TABLE public.supplier_catalogs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can manage supplier catalogs for their own company" ON public.supplier_catalogs;
 CREATE POLICY "Users can manage supplier catalogs for their own company" ON public.supplier_catalogs FOR ALL USING ((SELECT company_id FROM public.vendors WHERE id = supplier_id) = public.current_user_company_id());
 
-ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Users can view sync logs for their own company" ON public.sync_logs;
-CREATE POLICY "Users can view sync logs for their own company" ON public.sync_logs FOR SELECT USING ((SELECT company_id FROM public.integrations WHERE id = integration_id) = public.current_user_company_id());
-
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
 CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id = public.current_user_company_id());
 
--- ========= Part 5: Secure Unused Future Tables =========
-DO $$
-DECLARE
-    t_name TEXT;
-    unused_tables TEXT[] := ARRAY[
-        'returns', 'return_items', 'daily_stats', 'sales_detail', 'inventory_valuation',
-        'warehouse_locations', 'product_attributes', 'price_lists', 'fba_inventory',
-        'sync_queue', 'platform_events', 'refunds', 'order_tax_lines', 'order_notes',
-        'order_shipping_lines', 'inventory_adjustments', 'platform_connections'
-    ];
-BEGIN
-    FOREACH t_name IN ARRAY unused_tables
-    LOOP
-        -- Check if the table exists before trying to modify it
-        IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = t_name) THEN
-            EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
-            EXECUTE format('DROP POLICY IF EXISTS "Deny all access by default" ON public.%I;', t_name);
-            EXECUTE format('CREATE POLICY "Deny all access by default" ON public.%I FOR ALL USING (false);', t_name);
-        END IF;
-    END LOOP;
-END;
-$$;
+
+-- ========= Part 5: Apply Triggers =========
+DROP TRIGGER IF EXISTS validate_purchase_order_refs ON public.purchase_orders;
+CREATE TRIGGER validate_purchase_order_refs
+  BEFORE INSERT OR UPDATE ON public.purchase_orders
+  FOR EACH ROW EXECUTE FUNCTION validate_same_company_reference();
+
+DROP TRIGGER IF EXISTS validate_inventory_location_ref ON public.inventory;
+CREATE TRIGGER validate_inventory_location_ref
+  BEFORE INSERT OR UPDATE ON public.inventory
+  FOR EACH ROW EXECUTE FUNCTION validate_same_company_reference();
+
+-- Apply Audit Triggers
+DROP TRIGGER IF EXISTS audit_inventory_changes ON public.inventory;
+CREATE TRIGGER audit_inventory_changes AFTER INSERT OR UPDATE OR DELETE ON public.inventory
+  FOR EACH ROW EXECUTE FUNCTION audit_trigger();
+
+DROP TRIGGER IF EXISTS audit_po_changes ON public.purchase_orders;
+CREATE TRIGGER audit_po_changes AFTER INSERT OR UPDATE OR DELETE ON public.purchase_orders
+  FOR EACH ROW EXECUTE FUNCTION audit_trigger();
+  
+DROP TRIGGER IF EXISTS audit_settings_changes ON public.company_settings;
+CREATE TRIGGER audit_settings_changes AFTER UPDATE ON public.company_settings
+  FOR EACH ROW EXECUTE FUNCTION audit_trigger();
+
+`;

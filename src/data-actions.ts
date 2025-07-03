@@ -1,56 +1,13 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { 
-    getDashboardMetrics, 
-    getDeadStockPageData,
-    getSuppliersFromDB,
-    getAlertsFromDB,
-    getDbSchemaAndData,
-    getSettings,
-    updateSettingsInDb,
-    getAnomalyInsightsFromDB,
-    getUnifiedInventoryFromDB,
-    getInventoryCategoriesFromDB,
-    getTeamMembersFromDB,
-    inviteUserToCompanyInDb,
-    removeTeamMemberFromDb,
-    updateTeamMemberRoleInDb,
-    getPurchaseOrdersFromDB,
-    createPurchaseOrderInDb,
-    updatePurchaseOrderInDb,
-    deletePurchaseOrderFromDb,
-    getPurchaseOrderByIdFromDB,
-    receivePurchaseOrderItemsInDB,
-    getReorderSuggestionsFromDB,
-    getChannelFeesFromDB,
-    upsertChannelFeeInDB,
-    getLocationsFromDB,
-    createLocationInDB,
-    updateLocationInDB,
-    deleteLocationFromDB,
-    getLocationByIdFromDB,
-    getSupplierByIdFromDB,
-    createSupplierInDb,
-    updateSupplierInDb,
-    deleteSupplierFromDb,
-    deleteInventoryItemsFromDb,
-    updateInventoryItemInDb,
-    refreshMaterializedViews,
-    getIntegrationsByCompanyId,
-    deleteIntegrationFromDb,
-    getInventoryLedgerForSkuFromDB,
-} from '@/services/database';
-import { getServiceRoleClient } from '@/lib/supabase/admin';
+import * as db from '@/services/database';
 import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem } from '@/types';
-import { ai } from '@/ai/genkit';
-import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
-import { invalidateCompanyCache, isRedisEnabled, redisClient } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
-import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
 import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
@@ -58,6 +15,11 @@ import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import { deleteSecret } from '@/features/integrations/services/encryption';
+import { ai } from '@/ai/genkit';
+import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
+import { validateCSRF } from '@/lib/csrf';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -119,7 +81,7 @@ function requireRole(currentUserRole: UserRole, allowedRoles: UserRole[]) {
 export async function getDashboardData(dateRange: string = '30d') {
     try {
         const { companyId } = await getAuthContext();
-        return getDashboardMetrics(companyId, dateRange);
+        return db.getDashboardMetrics(companyId, dateRange);
     } catch (error) {
         logError(error, { context: 'getDashboardData' });
         // Re-throw the error so the calling page's error boundary can catch it.
@@ -127,39 +89,43 @@ export async function getDashboardData(dateRange: string = '30d') {
     }
 }
 
-export async function getUnifiedInventory(params: { query?: string; category?: string, location?: string, supplier?: string }): Promise<UnifiedInventoryItem[]> {
+export async function getUnifiedInventory(params: { query?: string; category?: string, location?: string, supplier?: string, page?: number, limit?: number }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     const { companyId } = await getAuthContext();
-    return getUnifiedInventoryFromDB(companyId, params);
+    const limit = params.limit || 50;
+    const page = params.page || 1;
+    const offset = (page - 1) * limit;
+
+    return db.getUnifiedInventoryFromDB(companyId, { ...params, limit, offset });
 }
 
 export async function getInventoryCategories(): Promise<string[]> {
     const { companyId } = await getAuthContext();
-    return getInventoryCategoriesFromDB(companyId);
+    return db.getInventoryCategoriesFromDB(companyId);
 }
 
 export async function getDeadStockData() {
     const { companyId } = await getAuthContext();
-    return getDeadStockPageData(companyId);
+    return db.getDeadStockPageData(companyId);
 }
 
 export async function getSuppliersData() {
     const { companyId } = await getAuthContext();
-    return getSuppliersFromDB(companyId);
+    return db.getSuppliersFromDB(companyId);
 }
 
 export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
     const { companyId } = await getAuthContext();
-    return getPurchaseOrdersFromDB(companyId);
+    return db.getPurchaseOrdersFromDB(companyId);
 }
 
 export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
     const { companyId } = await getAuthContext();
-    return getPurchaseOrderByIdFromDB(id, companyId);
+    return db.getPurchaseOrderByIdFromDB(id, companyId);
 }
 
 export async function getAlertsData() {
     const { companyId } = await getAuthContext();
-    const alerts = await getAlertsFromDB(companyId);
+    const alerts = await db.getAlertsFromDB(companyId);
 
     // Simulate sending email alerts for any low stock items found
     const lowStockAlerts = alerts.filter(alert => alert.type === 'low_stock');
@@ -180,12 +146,12 @@ export async function getAlertsData() {
 
 export async function getDatabaseSchemaAndData() {
     const { companyId } = await getAuthContext();
-    return getDbSchemaAndData(companyId);
+    return db.getDbSchemaAndData(companyId);
 }
 
 export async function getCompanySettings(): Promise<CompanySettings> {
     const { companyId } = await getAuthContext();
-    return getSettings(companyId);
+    return db.getSettings(companyId);
 }
 
 export async function getInsightsPageData(): Promise<{ summary: string; anomalies: Anomaly[]; topDeadStock: DeadStockItem[]; topLowStock: Alert[]; }> {
@@ -194,8 +160,8 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
 
     // Fetch all data points in parallel
     const [anomalies, deadStockData, alerts] = await Promise.all([
-      getAnomalyInsightsFromDB(companyId),
-      getDeadStockPageData(companyId),
+      db.getAnomalyInsightsFromDB(companyId),
+      db.getDeadStockPageData(companyId),
       getAlertsData(),
     ]);
 
@@ -226,15 +192,21 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
   }
 }
 
-export async function updateCompanySettings(settings: Partial<CompanySettings>): Promise<CompanySettings> {
+export async function updateCompanySettings(formData: FormData): Promise<CompanySettings> {
     const { companyId, userRole } = await getAuthContext();
     requireRole(userRole, ['Owner', 'Admin']);
-    return updateSettingsInDb(companyId, settings);
+    validateCSRF(formData);
+
+    const settings = Object.fromEntries(formData.entries());
+    // remove csrf_token from settings object
+    delete settings.csrf_token;
+    
+    return db.updateSettingsInDb(companyId, settings as Partial<CompanySettings>);
 }
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();
-    const members = await getTeamMembersFromDB(companyId);
+    const members = await db.getTeamMembersFromDB(companyId);
 
     return members.map(member => ({
         id: member.id,
@@ -251,15 +223,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
     try {
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-
-        const cookieStore = cookies();
-        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
-        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-        if (!csrfTokenFromCookie || !csrfTokenFromForm || !validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
-            logger.warn(`[CSRF] Invalid token for invite team member action.`);
-            return { success: false, error: 'Invalid form submission. Please try again.' };
-        }
+        validateCSRF(formData);
 
         const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
         if (!parsed.success) {
@@ -279,7 +243,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
             throw new Error('Could not retrieve company information to send invite.');
         }
 
-        await inviteUserToCompanyInDb(companyId, companyData.name, email);
+        await db.inviteUserToCompanyInDb(companyId, companyData.name, email);
         revalidatePath('/settings/team');
         return { success: true };
     } catch (e) {
@@ -373,22 +337,23 @@ export async function testMaterializedView(): Promise<{ success: boolean; error:
     try {
         const serviceSupabase = getServiceRoleClient();
 
+        // This now checks for a regular table instead of a materialized view
         const { data, error } = await serviceSupabase
-            .from('pg_matviews')
-            .select('matviewname')
-            .eq('matviewname', 'company_dashboard_metrics')
-            .single();
+            .from('company_dashboard_metrics')
+            .select('company_id')
+            .limit(1);
 
         if (error) {
-            // If it's a 'no rows returned' error, it means the view doesn't exist.
-            if (error.code === 'PGRST116') {
-                return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
+            // Check if the error indicates the table doesn't exist
+            if (error.code === '42P01') {
+                 return { success: false, error: 'The `company_dashboard_metrics` table is missing. Run the setup SQL for better performance.' };
             }
-            throw error; // For other unexpected errors
+            throw error;
         }
 
-        return { success: !!data, error: null };
+        return { success: true, error: null };
     } catch(e) {
+        logError(e, { context: 'testMaterializedView check' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -464,7 +429,7 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
             return { success: false, error: "You cannot remove yourself from the team." };
         }
 
-        const result = await removeTeamMemberFromDb(memberIdToRemove, companyId);
+        const result = await db.removeTeamMemberFromDb(memberIdToRemove, companyId, currentUserId);
         
         if (result.success) {
             logger.info(`[Remove Action] Successfully removed user ${memberIdToRemove} by user ${currentUserId}`);
@@ -482,11 +447,12 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
 }
 
 export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
-    try {
-        const { userRole, companyId } = await getAuthContext();
+     if (!db.isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
+     return db.withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
+        const { userId, userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
         
-        const result = await updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
+        const result = await db.updateTeamMemberRoleInDb(memberIdToUpdate, companyId, newRole);
 
         if (result.success) {
              logger.info(`[Role Update] User role updated for ${memberIdToUpdate} to ${newRole}`);
@@ -496,11 +462,7 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         }
        
         return result;
-
-    } catch (e) {
-        logError(e, { context: 'updateTeamMemberRole' });
-        return { success: false, error: getErrorMessage(e) };
-    }
+    });
 }
 
 
@@ -513,7 +475,7 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput): Promi
   }
   
   try {
-    const newPo = await createPurchaseOrderInDb(companyId, parsedData.data);
+    const newPo = await db.createPurchaseOrderInDb(companyId, parsedData.data);
     revalidatePath('/purchase-orders', 'layout');
     return { success: true, data: newPo };
   } catch (e) {
@@ -535,7 +497,7 @@ export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdat
   }
 
   try {
-    await updatePurchaseOrderInDb(poId, companyId, parsedData.data);
+    await db.updatePurchaseOrderInDb(poId, companyId, parsedData.data);
     revalidatePath('/purchase-orders', 'layout');
     revalidatePath(`/purchase-orders/${poId}`);
     return { success: true };
@@ -553,7 +515,7 @@ export async function deletePurchaseOrder(poId: string): Promise<{ success: bool
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await deletePurchaseOrderFromDb(poId, companyId);
+        await db.deletePurchaseOrderFromDb(poId, companyId);
         revalidatePath('/purchase-orders', 'layout');
         return { success: true };
     } catch (e) {
@@ -566,7 +528,7 @@ export async function emailPurchaseOrder(poId: string): Promise<{ success: boole
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        const purchaseOrder = await getPurchaseOrderByIdFromDB(poId, companyId);
+        const purchaseOrder = await db.getPurchaseOrderByIdFromDB(poId, companyId);
         if (!purchaseOrder) {
             return { success: false, error: "Purchase Order not found." };
         }
@@ -588,8 +550,8 @@ export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Pr
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await receivePurchaseOrderItemsInDB(data.poId, companyId, data.items);
-        await refreshMaterializedViews(companyId);
+        await db.receivePurchaseOrderItemsInDB(data.poId, companyId, data.items);
+        await db.refreshMaterializedViews(companyId);
         revalidatePath(`/purchase-orders/${data.poId}`);
         revalidatePath('/inventory');
         return { success: true };
@@ -601,7 +563,7 @@ export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Pr
 
 export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    return getReorderSuggestionsFromDB(companyId);
+    return db.getReorderSuggestionsFromDB(companyId);
 }
 
 export async function createPurchaseOrdersFromSuggestions(
@@ -644,7 +606,7 @@ export async function createPurchaseOrdersFromSuggestions(
                 })),
             };
 
-            await createPurchaseOrderInDb(companyId, poInput);
+            await db.createPurchaseOrderInDb(companyId, poInput);
             createdPoCount++;
         }
 
@@ -660,7 +622,7 @@ export async function createPurchaseOrdersFromSuggestions(
 
 export async function getChannelFees(): Promise<ChannelFee[]> {
     const { companyId } = await getAuthContext();
-    return getChannelFeesFromDB(companyId);
+    return db.getChannelFeesFromDB(companyId);
 }
 
 const UpsertChannelFeeSchema = z.object({
@@ -673,6 +635,8 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
+        validateCSRF(formData);
+
         const parsed = UpsertChannelFeeSchema.safeParse({
             channel_name: formData.get('channel_name'),
             percentage_fee: formData.get('percentage_fee'),
@@ -683,7 +647,7 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
             return { success: false, error: parsed.error.issues[0].message };
         }
         
-        await upsertChannelFeeInDB(companyId, parsed.data);
+        await db.upsertChannelFeeInDB(companyId, parsed.data);
         revalidatePath('/settings');
         return { success: true };
     } catch(e) {
@@ -695,19 +659,19 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
 // Location Data Actions
 export async function getLocations(): Promise<Location[]> {
     const { companyId } = await getAuthContext();
-    return getLocationsFromDB(companyId);
+    return db.getLocationsFromDB(companyId);
 }
 
 export async function getLocationById(id: string): Promise<Location | null> {
     const { companyId } = await getAuthContext();
-    return getLocationByIdFromDB(id, companyId);
+    return db.getLocationByIdFromDB(id, companyId);
 }
 
 export async function createLocation(data: LocationFormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await createLocationInDB(companyId, data);
+        await db.createLocationInDB(companyId, data);
         revalidatePath('/locations');
         return { success: true };
     } catch (e) {
@@ -720,7 +684,7 @@ export async function updateLocation(id: string, data: LocationFormData): Promis
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await updateLocationInDB(id, companyId, data);
+        await db.updateLocationInDB(id, companyId, data);
         revalidatePath('/locations');
         return { success: true };
     } catch (e) {
@@ -733,7 +697,7 @@ export async function deleteLocation(id: string): Promise<{ success: boolean; er
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await deleteLocationFromDB(id, companyId);
+        await db.deleteLocationFromDB(id, companyId);
         revalidatePath('/locations');
         revalidatePath('/inventory');
         return { success: true };
@@ -746,14 +710,14 @@ export async function deleteLocation(id: string): Promise<{ success: boolean; er
 // Supplier Data Actions
 export async function getSupplierById(id: string): Promise<Supplier | null> {
     const { companyId } = await getAuthContext();
-    return getSupplierByIdFromDB(id, companyId);
+    return db.getSupplierByIdFromDB(id, companyId);
 }
 
 export async function createSupplier(data: SupplierFormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await createSupplierInDb(companyId, data);
+        await db.createSupplierInDb(companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
@@ -766,7 +730,7 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await updateSupplierInDb(id, companyId, data);
+        await db.updateSupplierInDb(id, companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
@@ -779,7 +743,7 @@ export async function deleteSupplier(id: string): Promise<{ success: boolean; er
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await deleteSupplierFromDb(id, companyId);
+        await db.deleteSupplierFromDb(id, companyId);
         revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
@@ -792,10 +756,9 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        await deleteInventoryItemsFromDb(companyId, skus);
+        await db.deleteInventoryItemsFromDb(companyId, skus);
         revalidatePath('/inventory');
-        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
-        await refreshMaterializedViews(companyId);
+        await db.refreshMaterializedViews(companyId);
         return { success: true };
     } catch (e) {
         logError(e, { context: 'deleteInventoryItems action' });
@@ -812,10 +775,9 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
             return { success: false, error: "Invalid form data provided." };
         }
         
-        const updatedItem = await updateInventoryItemInDb(companyId, sku, parsedData.data);
+        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data);
         
-        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
-        await refreshMaterializedViews(companyId);
+        await db.refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
         
         return { success: true, updatedItem };
@@ -828,19 +790,19 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
 // Integrations
 export async function getIntegrations(): Promise<Integration[]> {
     const { companyId } = await getAuthContext();
-    return getIntegrationsByCompanyId(companyId);
+    return db.getIntegrationsByCompanyId(companyId);
 }
 
 export async function disconnectIntegration(integrationId: string): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        const integration = await getIntegrationsByCompanyId(companyId).then(integrations => integrations.find(i => i.id === integrationId));
+        const integration = await db.getIntegrationsByCompanyId(companyId).then(integrations => integrations.find(i => i.id === integrationId));
         if (!integration) {
             return { success: false, error: "Integration not found or you do not have permission to access it." };
         }
         await deleteSecret(companyId, integration.platform);
-        await deleteIntegrationFromDb(integrationId, companyId);
+        await db.deleteIntegrationFromDb(integrationId, companyId);
         revalidatePath('/settings/integrations');
         return { success: true };
     } catch (e) {
@@ -851,5 +813,212 @@ export async function disconnectIntegration(integrationId: string): Promise<{ su
 
 export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEntry[]> {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerForSkuFromDB(companyId, sku);
+    return db.getInventoryLedgerForSkuFromDB(companyId, sku);
+}
+
+export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
+    try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60);
+        if (limited) {
+            return { error: 'You have reached the request limit. Please try again in a minute.' };
+        }
+
+        const companyId = await getAuthContext().then(ctx => ctx.companyId);
+        
+        let currentConversationId = conversationId;
+        if (!currentConversationId) {
+            const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
+            currentConversationId = await saveConversation(companyId, newTitle);
+        }
+
+        const userMessageToSave = {
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'user' as const,
+            content: content,
+        };
+        await saveMessage(userMessageToSave);
+
+        // Fetch recent messages for history
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: historyData, error: historyError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', currentConversationId)
+            .order('created_at', { ascending: false })
+            .limit(config.ai.historyLimit);
+
+        if (historyError) {
+            logError(historyError, { context: 'Failed to fetch conversation history' });
+        }
+        const conversationHistory = (historyData || []).map(m => ({
+            role: m.role as 'user' | 'assistant' | 'tool',
+            content: [{ text: m.content }]
+        })).reverse();
+
+
+        const response = await universalChatFlow({ companyId, conversationHistory });
+        
+        let component = null;
+        let componentProps = {};
+
+        if (response.toolName === 'getDeadStockReport') {
+            component = 'deadStockTable';
+            componentProps = { data: response.data };
+        }
+        if (response.toolName === 'getReorderSuggestions') {
+            component = 'reorderList';
+            componentProps = { items: response.data };
+        }
+        if (response.toolName === 'getSupplierPerformanceReport') {
+            component = 'supplierPerformanceTable';
+            componentProps = { data: response.data };
+        }
+         if (response.toolName === 'createPurchaseOrdersFromSuggestions') {
+            component = 'confirmation';
+            componentProps = { ...response.data };
+        }
+
+        const newMessage: Message = {
+            id: `ai_${Date.now()}`,
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'assistant',
+            content: response.response,
+            visualization: response.visualization,
+            confidence: response.confidence,
+            assumptions: response.assumptions,
+            created_at: new Date().toISOString(),
+            component,
+            componentProps
+        };
+
+        await saveMessage({ ...newMessage, id: undefined, created_at: undefined });
+        
+        return { newMessage, conversationId: currentConversationId };
+
+    } catch(e) {
+        logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
+        return { error: getErrorMessage(e) };
+    }
+}
+
+async function saveConversation(companyId: string, title: string) {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: { get: (name: string) => cookieStore.get(name)?.value },
+        }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User not authenticated.');
+    
+    const { data, error } = await supabase
+        .from('conversations')
+        .insert({
+            user_id: user.id,
+            company_id: companyId,
+            title: title
+        })
+        .select('id')
+        .single();
+
+    if (error) {
+        logError(error, { context: 'Failed to save new conversation' });
+        throw new Error('Could not save conversation to the database.');
+    }
+    return data.id;
+}
+
+
+async function saveMessage(message: Omit<Message, 'id' | 'created_at'>) {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: { get: (name: string) => cookieStore.get(name)?.value },
+        }
+    );
+    const { error } = await supabase.from('messages').insert(message);
+    if (error) {
+        logError(error, { context: 'Failed to save message' });
+    }
+}
+
+export async function getConversations() {
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+            cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        const { data, error } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('last_accessed_at', { ascending: false });
+
+        if (error) {
+            logError(error, { context: 'Failed to get conversations' });
+            return [];
+        }
+        return data || [];
+    } catch(e) {
+        logError(e, { context: 'getConversations action' });
+        return [];
+    }
+}
+
+export async function getMessages(conversationId: string) {
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+            cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return [];
+
+        // Update last accessed time
+        await supabase
+            .from('conversations')
+            .update({ last_accessed_at: new Date().toISOString() })
+            .eq('id', conversationId);
+
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true });
+        
+        if (error) {
+            logError(error, { context: `Failed to get messages for conversation ${conversationId}` });
+            return [];
+        }
+        return data || [];
+    } catch (e) {
+        logError(e, { context: `getMessages action for conversation ${conversationId}` });
+        return [];
+    }
 }
