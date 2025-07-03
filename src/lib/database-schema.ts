@@ -46,7 +46,9 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_product_id TEXT,
     external_variant_id TEXT,
     external_quantity INTEGER,
-    last_sync TIMESTAMPTZ
+    last_sync TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
+    deleted_by UUID
 );
 
 -- This table tracks manual changes to inventory for audit purposes.
@@ -239,11 +241,12 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
 
 -- Table for resumable syncs
 CREATE TABLE IF NOT EXISTS public.sync_state (
-    integration_id UUID PRIMARY KEY REFERENCES public.integrations(id) ON DELETE CASCADE,
+    integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
     sync_type TEXT NOT NULL,
     last_processed_cursor TEXT,
     processed_count INTEGER DEFAULT 0,
-    last_update TIMESTAMPTZ DEFAULT NOW()
+    last_update TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY(integration_id, sync_type)
 );
 
 -- Table for logging permanent sync errors
@@ -255,6 +258,16 @@ CREATE TABLE IF NOT EXISTS public.sync_errors (
     stack_trace TEXT,
     attempt_number INTEGER,
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.export_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    requested_by_user_id UUID NOT NULL REFERENCES public.users(id),
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
+    download_url TEXT,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now()
 );
 
 
@@ -304,6 +317,10 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_customer') THEN
         ALTER TABLE public.orders ADD CONSTRAINT fk_orders_customer
         FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_deleted_by') THEN
+        ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_deleted_by
+        FOREIGN KEY (deleted_by) REFERENCES public.users(id);
     END IF;
 END;
 $$;
@@ -439,7 +456,7 @@ BEGIN
     
     RETURN json_build_object('success', true);
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 
 -- Purchase Order Over-Receiving Prevention
@@ -537,6 +554,55 @@ BEGIN
 END;
 $$;
 
+-- Function to get paginated customers with stats
+CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
+    p_company_id uuid,
+    p_query text,
+    p_limit integer,
+    p_offset integer
+)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN (
+        WITH customer_stats AS (
+            SELECT
+                c.id,
+                c.company_id,
+                c.platform,
+                c.external_id,
+                c.customer_name,
+                c.email,
+                c.status,
+                c.deleted_at,
+                c.created_at,
+                COUNT(o.id) as total_orders,
+                COALESCE(SUM(o.total_amount), 0) as total_spend
+            FROM public.customers c
+            LEFT JOIN public.orders o ON c.id = o.customer_id
+            WHERE c.company_id = p_company_id
+              AND c.deleted_at IS NULL
+              AND (
+                p_query IS NULL OR
+                c.customer_name ILIKE '%' || p_query || '%' OR
+                c.email ILIKE '%' || p_query || '%'
+              )
+            GROUP BY c.id
+        ),
+        count_query AS (
+            SELECT count(*) as total FROM customer_stats
+        )
+        SELECT json_build_object(
+            'items', (SELECT json_agg(cs) FROM (
+                SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
+            ) cs),
+            'totalCount', (SELECT total FROM count_query)
+        )
+    );
+END;
+$$;
+
 
 -- ========= Part 4: Row-Level Security (RLS) Policies =========
 
@@ -560,7 +626,7 @@ BEGIN
     FOR t_name IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (
         'users', 'company_settings', 'inventory', 'customers', 'orders', 'vendors', 'reorder_rules', 
         'purchase_orders', 'integrations', 'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 
-        'sync_logs', 'sync_state', 'sync_errors'
+        'sync_logs', 'sync_state', 'sync_errors', 'export_jobs'
     ) LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
         EXECUTE format('DROP POLICY IF EXISTS "Enable all access for own company" ON public.%I;', t_name);

@@ -4,7 +4,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob, Customer } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -826,8 +826,7 @@ export async function deleteCustomer(id: string): Promise<{ success: boolean; er
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deleteCustomerFromDb(id, companyId);
-        // Note: We don't revalidate paths here because customers are not directly viewed in a list.
-        // The effect will be visible in reports and analytics.
+        revalidatePath('/customers');
         return { success: true };
     } catch (e) {
         logError(e, { context: 'deleteCustomer action' });
@@ -1065,4 +1064,14 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean; er
         logError(e, { context: 'requestCompanyDataExport action' });
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+const CUSTOMERS_PER_PAGE = 25;
+export async function getCustomersData(params: { query?: string, page?: number }): Promise<{ items: Customer[], totalCount: number }> {
+    const { companyId } = await getAuthContext();
+    const limit = CUSTOMERS_PER_PAGE;
+    const page = params.page || 1;
+    const offset = (page - 1) * limit;
+    
+    return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
 }

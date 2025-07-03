@@ -339,3 +339,18 @@ export const ExportJobSchema = z.object({
     created_at: z.string().datetime({ offset: true }),
 });
 export type ExportJob = z.infer<typeof ExportJobSchema>;
+
+export const CustomerSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  platform: z.string().nullable(),
+  external_id: z.string().nullable(),
+  customer_name: z.string(),
+  email: z.string().email().nullable(),
+  total_orders: z.coerce.number().int(),
+  total_spend: z.coerce.number(),
+  status: z.string().nullable(),
+  deleted_at: z.string().nullable(),
+  created_at: z.string(),
+});
+export type Customer = z.infer<typeof CustomerSchema>;

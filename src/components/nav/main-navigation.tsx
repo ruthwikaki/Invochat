@@ -17,6 +17,7 @@ import {
   Warehouse,
   Plug,
   Settings,
+  Users,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -31,6 +32,7 @@ const menuItems = [
   { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
+  { href: '/customers', label: 'Customers', icon: Users },
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
 ];
