@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -348,19 +347,23 @@ export async function testMaterializedView(): Promise<{ success: boolean; error:
     try {
         const serviceSupabase = getServiceRoleClient();
 
-        const { data, error } = await serviceSupabase.rpc('execute_dynamic_query', {
-          query_text: "SELECT 'company_dashboard_metrics'::regclass"
-        });
-        
+        const { data, error } = await serviceSupabase
+            .from('pg_matviews')
+            .select('matviewname')
+            .eq('matviewname', 'company_dashboard_metrics')
+            .maybeSingle();
+
         if (error) {
-            if (error.message.includes('does not exist')) {
-                 return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
-            }
             throw error;
         }
 
-        return { success: !!data, error: null };
+        if (!data) {
+             return { success: false, error: 'The `company_dashboard_metrics` materialized view is missing. Run the setup SQL for better performance.' };
+        }
+
+        return { success: true, error: null };
     } catch(e) {
+        logError(e, { context: 'testMaterializedView check' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -454,8 +457,8 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
 }
 
 export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
-     if (!isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
-     return withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
+     if (!db.isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
+     return db.withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
         
@@ -642,6 +645,16 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
+
+        const cookieStore = cookies();
+        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
+
+        if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
+            logger.warn(`[CSRF] Invalid token for channel fee action.`);
+            return { success: false, error: 'Invalid form submission. Please try again.' };
+        }
+
         const parsed = UpsertChannelFeeSchema.safeParse({
             channel_name: formData.get('channel_name'),
             percentage_fee: formData.get('percentage_fee'),

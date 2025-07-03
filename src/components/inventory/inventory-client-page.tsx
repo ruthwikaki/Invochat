@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState, Fragment, useTransition } from 'react';
+import { useState, useMemo, Fragment, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
@@ -87,7 +86,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
   const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
-  
+
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
     if (term) {
@@ -235,7 +234,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action will attempt to permanently delete the selected {itemToDelete?.length} item(s). If an item has associated orders, deletion will fail to protect data integrity.
+                    This action will attempt to permanently delete the selected {itemToDelete?.length} item(s). This will fail if an item is part of any past sales or purchase orders, to protect your data integrity.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

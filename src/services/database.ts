@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -23,10 +22,9 @@ import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 
 // Simple regex to validate a string is in UUID format.
-const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-const isValidUuid = (uuid: string) => UUID_REGEX.test(uuid);
+export const isValidUuid = (uuid: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
 
-async function withPerformanceTracking<T>(
+export async function withPerformanceTracking<T>(
     functionName: string,
     fn: () => Promise<T>
 ): Promise<T> {

@@ -1,4 +1,3 @@
-
 export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- This script is idempotent and can be safely re-run on an existing database.
 
