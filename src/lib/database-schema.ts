@@ -845,4 +845,5 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-now update the code
+`;
+fix this by updating the code please
