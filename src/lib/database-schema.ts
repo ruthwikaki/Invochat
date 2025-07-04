@@ -7,6 +7,10 @@ export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- Alterations and constraints will be applied in a later section.
 
 create extension if not exists "uuid-ossp" with schema extensions;
+
+-- Grant pgsodium access for encryption functions, which is required for the Vault.
+grant usage on schema pgsodium to service_role;
+
 grant usage on schema vault to supabase_storage_admin;
 grant all on all tables in schema vault to supabase_storage_admin;
 grant all on all routines in schema vault to supabase_storage_admin;
@@ -483,7 +487,7 @@ BEGIN
         RETURN json_build_object('success', false, 'error', 'Version mismatch');
     END IF;
     
-    INSERT INTO inventory_adjustments (company_id, sku, old_quantity, new_quantity, change_reason, adjusted_by, adjusted_at)
+    INSERT INTO inventory_adjustments (company_id, sku, old_quantity, new_quantity, change_reason, adjusted_by, p_user_id, adjusted_at)
     VALUES (p_company_id, p_sku, v_old_quantity, p_new_quantity, p_change_reason, p_user_id, NOW());
     
     RETURN json_build_object('success', true);
@@ -727,3 +731,4 @@ BEGIN
 END;
 $$;
 `;
+
