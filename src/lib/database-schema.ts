@@ -773,7 +773,7 @@ BEGIN
         FOR t_name IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (
             'users', 'company_settings', 'inventory', 'customers', 'orders', 'vendors', 'reorder_rules', 
             'purchase_orders', 'integrations', 'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 
-            'sync_logs', 'sync_state', 'sync_errors', 'export_jobs', 'inventory_adjustments'
+            'sync_errors', 'export_jobs', 'inventory_adjustments'
         ) LOOP
             EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
             EXECUTE format('DROP POLICY IF EXISTS "Enable all access for own company" ON public.%I;', t_name);
@@ -795,6 +795,17 @@ BEGIN
         DROP POLICY IF EXISTS "Enable all access for own company" ON public.supplier_catalogs;
         CREATE POLICY "Enable all access for own company" ON public.supplier_catalogs FOR ALL
             USING ((SELECT company_id FROM public.vendors WHERE id = supplier_id) = public.current_user_company_id());
+
+        ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Enable all access for own company" ON public.sync_logs;
+        CREATE POLICY "Enable all access for own company" ON public.sync_logs FOR ALL
+            USING ((SELECT company_id FROM public.integrations WHERE id = integration_id) = public.current_user_company_id());
+        
+        ALTER TABLE public.sync_state ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Enable all access for own company" ON public.sync_state;
+        CREATE POLICY "Enable all access for own company" ON public.sync_state FOR ALL
+            USING ((SELECT company_id FROM public.integrations WHERE id = integration_id) = public.current_user_company_id())
+            WITH CHECK ((SELECT company_id FROM public.integrations WHERE id = integration_id) = public.current_user_company_id());
 
         -- Policy for companies table
         ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
