@@ -32,6 +32,9 @@ BEGIN
         EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium.crypto_kdf_keygen TO service_role';
         EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium._crypto_aead_det_encrypt TO service_role';
         EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium._crypto_aead_det_decrypt TO service_role';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium.crypto_sign_detached TO service_role';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium.crypto_sign_final_verify TO service_role';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium.crypto_sign_verify_detached TO service_role';
     END IF;
 EXCEPTION
     WHEN insufficient_privilege THEN
@@ -666,7 +669,7 @@ END;
 $$;
 
 
--- ========= Part 4: Row-Level Security (RLS) Policies =========
+-- ========= Part 5: Row-Level Security (RLS) Policies =========
 
 -- Helper function for RLS policies
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
@@ -719,7 +722,7 @@ DROP POLICY IF EXISTS "Users can see their own company" ON public.companies;
 CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT
   USING (id = public.current_user_company_id());
 
--- ========= Part 5: Apply Triggers =========
+-- ========= Part 6: Apply Triggers =========
 DROP TRIGGER IF EXISTS validate_purchase_order_refs ON public.purchase_orders;
 CREATE TRIGGER validate_purchase_order_refs BEFORE INSERT OR UPDATE ON public.purchase_orders
   FOR EACH ROW EXECUTE FUNCTION validate_same_company_reference();
@@ -750,3 +753,4 @@ END;
 $$;
 `
     
+```
