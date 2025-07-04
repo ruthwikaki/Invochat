@@ -770,7 +770,7 @@ BEGIN
     SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'jwt' AND pronamespace = 'auth'::regnamespace) INTO has_auth;
     
     IF has_auth THEN
-        -- Enable RLS on all tables with company_id
+        -- Enable RLS on all tables with a direct company_id
         FOR t_name IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (
             'users', 'company_settings', 'inventory', 'customers', 'orders', 'vendors', 'reorder_rules', 
             'purchase_orders', 'integrations', 'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 
@@ -781,27 +781,32 @@ BEGIN
             EXECUTE format('CREATE POLICY "Enable all access for own company" ON public.%I FOR ALL USING (company_id = public.current_user_company_id()) WITH CHECK (company_id = public.current_user_company_id());', t_name);
         END LOOP;
 
-        -- Specific policies for tables without direct company_id column
+        -- Specific policies for tables without a direct company_id column
+        -- order_items
         ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all access for own company" ON public.order_items;
         CREATE POLICY "Enable all access for own company" ON public.order_items FOR ALL
             USING ((SELECT company_id FROM public.orders WHERE id = sale_id) = public.current_user_company_id());
 
+        -- purchase_order_items
         ALTER TABLE public.purchase_order_items ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all access for own company" ON public.purchase_order_items;
         CREATE POLICY "Enable all access for own company" ON public.purchase_order_items FOR ALL
             USING ((SELECT company_id FROM public.purchase_orders WHERE id = po_id) = public.current_user_company_id());
 
+        -- supplier_catalogs
         ALTER TABLE public.supplier_catalogs ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all access for own company" ON public.supplier_catalogs;
         CREATE POLICY "Enable all access for own company" ON public.supplier_catalogs FOR ALL
             USING ((SELECT company_id FROM public.vendors WHERE id = supplier_id) = public.current_user_company_id());
-
+            
+        -- sync_logs
         ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all access for own company" ON public.sync_logs;
         CREATE POLICY "Enable all access for own company" ON public.sync_logs FOR ALL
             USING ((SELECT company_id FROM public.integrations WHERE id = integration_id) = public.current_user_company_id());
-        
+            
+        -- sync_state
         ALTER TABLE public.sync_state ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all access for own company" ON public.sync_state;
         CREATE POLICY "Enable all access for own company" ON public.sync_state FOR ALL
