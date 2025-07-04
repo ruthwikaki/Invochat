@@ -12,6 +12,10 @@ grant all on all tables in schema vault to supabase_storage_admin;
 grant all on all routines in schema vault to supabase_storage_admin;
 grant all on all sequences in schema vault to supabase_storage_admin;
 
+-- Grant vault access to the roles that will be performing operations.
+grant supabase_storage_admin to service_role;
+grant supabase_storage_admin to authenticator;
+
 
 CREATE TABLE IF NOT EXISTS public.companies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -721,4 +725,5 @@ BEGIN
     END LOOP;
 END;
 $$;
-`
+
+    
