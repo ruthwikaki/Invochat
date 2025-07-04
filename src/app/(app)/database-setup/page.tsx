@@ -10,6 +10,7 @@ import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { SETUP_SQL_SCRIPT } from '@/lib/database-schema';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const sqlCode = SETUP_SQL_SCRIPT;
 
@@ -89,18 +90,24 @@ export default function DatabaseSetupPage() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Shield className="h-6 w-6 text-primary"/>
-                        2. Generate Encryption Keys
+                        2. Generate & Add Encryption Keys
                     </CardTitle>
                     <CardDescription>
-                       If you don't have OpenSSL, you can use this to generate the secure keys required for your `.env` file. These keys are generated only in your browser.
+                       The app needs two secret keys in your `.env` file to securely handle API credentials. Since `openssl` is not available on your system, you can use this secure, in-browser generator.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <Button onClick={generateKeys} type="button">
-                        <Wand2 className="mr-2 h-4 w-4"/>
-                        Generate Secure Keys
-                    </Button>
+                    <div className="space-y-2">
+                        <h4 className="font-semibold">Step 1: Generate the Keys</h4>
+                        <p className="text-sm text-muted-foreground">Click the button below. The keys are generated only in your browser and are never sent to a server.</p>
+                        <Button onClick={generateKeys} type="button">
+                            <Wand2 className="mr-2 h-4 w-4"/>
+                            Generate Secure Keys
+                        </Button>
+                    </div>
+
                     <div className="space-y-4">
+                        <h4 className="font-semibold">Step 2: Copy the Keys</h4>
                         <div className="space-y-2">
                             <Label htmlFor="encryptionKey">ENCRYPTION_KEY (64 characters)</Label>
                              <div className="flex w-full items-center space-x-2">
@@ -120,10 +127,21 @@ export default function DatabaseSetupPage() {
                              </div>
                         </div>
                     </div>
+
+                    <div className="space-y-2">
+                        <h4 className="font-semibold">Step 3: Add Keys to your `.env` file</h4>
+                        <p className="text-sm text-muted-foreground">Open the `.env` file in the root of your project and paste the keys in this format:</p>
+                        <Alert className="font-mono text-xs">
+                           <AlertDescription>
+                            ENCRYPTION_KEY={encryptionKey || 'your_generated_64_character_key_here'}<br/>
+                            ENCRYPTION_IV={encryptionIv || 'your_generated_32_character_key_here'}
+                           </AlertDescription>
+                        </Alert>
+                    </div>
                 </CardContent>
                  <CardFooter>
-                    <p className="text-xs text-muted-foreground">
-                        After generating, copy these values into your `.env` file and restart the application.
+                    <p className="text-sm text-muted-foreground font-semibold">
+                        After adding the keys, restart the application for the changes to take effect.
                     </p>
                 </CardFooter>
             </Card>
@@ -131,4 +149,3 @@ export default function DatabaseSetupPage() {
     </AppPage>
   );
 }
-
