@@ -337,36 +337,24 @@ END;
 $$;
 
 -- Add all unique constraints to enforce data integrity at the DB level.
-ALTER TABLE public.inventory ADD CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku);
-ALTER TABLE public.inventory ADD CONSTRAINT unique_variant_per_company UNIQUE (company_id, source_platform, external_variant_id);
-ALTER TABLE public.locations ADD CONSTRAINT unique_location_name_per_company UNIQUE (company_id, name);
-ALTER TABLE public.vendors ADD CONSTRAINT unique_vendor_name_per_company UNIQUE (company_id, vendor_name);
-ALTER TABLE public.customers ADD CONSTRAINT unique_customer_per_platform UNIQUE (company_id, platform, external_id);
-ALTER TABLE public.orders ADD CONSTRAINT unique_order_per_platform UNIQUE (company_id, platform, external_id);
-ALTER TABLE public.purchase_orders ADD CONSTRAINT unique_po_number_per_company UNIQUE (company_id, po_number);
-ALTER TABLE public.integrations ADD CONSTRAINT unique_platform_per_company UNIQUE (company_id, platform);
-ALTER TABLE public.channel_fees ADD CONSTRAINT unique_channel_per_company UNIQUE (company_id, channel_name);
-ALTER TABLE public.supplier_catalogs ADD CONSTRAINT unique_supplier_sku UNIQUE (supplier_id, sku);
-ALTER TABLE public.reorder_rules ADD CONSTRAINT unique_reorder_rule_sku UNIQUE (company_id, sku);
+-- These are wrapped in DO blocks to prevent errors on re-runs.
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_sku_per_company') THEN ALTER TABLE public.inventory ADD CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_variant_per_company') THEN ALTER TABLE public.inventory ADD CONSTRAINT unique_variant_per_company UNIQUE (company_id, source_platform, external_variant_id); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_location_name_per_company') THEN ALTER TABLE public.locations ADD CONSTRAINT unique_location_name_per_company UNIQUE (company_id, name); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_vendor_name_per_company') THEN ALTER TABLE public.vendors ADD CONSTRAINT unique_vendor_name_per_company UNIQUE (vendor_name, company_id); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_customer_per_platform') THEN ALTER TABLE public.customers ADD CONSTRAINT unique_customer_per_platform UNIQUE (company_id, platform, external_id); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_order_per_platform') THEN ALTER TABLE public.orders ADD CONSTRAINT unique_order_per_platform UNIQUE (company_id, platform, external_id); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_po_number_per_company') THEN ALTER TABLE public.purchase_orders ADD CONSTRAINT unique_po_number_per_company UNIQUE (company_id, po_number); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_platform_per_company') THEN ALTER TABLE public.integrations ADD CONSTRAINT unique_platform_per_company UNIQUE (company_id, platform); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_channel_per_company') THEN ALTER TABLE public.channel_fees ADD CONSTRAINT unique_channel_per_company UNIQUE (company_id, channel_name); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_supplier_sku') THEN ALTER TABLE public.supplier_catalogs ADD CONSTRAINT unique_supplier_sku UNIQUE (supplier_id, sku); END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_reorder_rule_sku') THEN ALTER TABLE public.reorder_rules ADD CONSTRAINT unique_reorder_rule_sku UNIQUE (company_id, sku); END IF; END; $$;
 
 
 -- Add foreign key constraints where they might be missing.
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_location') THEN
-        ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_location
-        FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_customer') THEN
-        ALTER TABLE public.orders ADD CONSTRAINT fk_orders_customer
-        FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_deleted_by') THEN
-        ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_deleted_by
-        FOREIGN KEY (deleted_by) REFERENCES public.users(id);
-    END IF;
-END;
-$$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_location') THEN ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_location FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL; END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_customer') THEN ALTER TABLE public.orders ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL; END IF; END; $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_deleted_by') THEN ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_deleted_by FOREIGN KEY (deleted_by) REFERENCES public.users(id); END IF; END; $$;
 
 
 -- ========= Part 3: Functions & Triggers =========
@@ -517,7 +505,7 @@ BEGIN
         RETURN json_build_object('success', false, 'error', 'Version mismatch');
     END IF;
     
-    INSERT INTO inventory_adjustments (company_id, sku, old_quantity, new_quantity, change_reason, adjusted_by, p_user_id, adjusted_at)
+    INSERT INTO inventory_adjustments (company_id, sku, old_quantity, new_quantity, change_reason, adjusted_by, adjusted_at)
     VALUES (p_company_id, p_sku, v_old_quantity, p_new_quantity, p_change_reason, p_user_id, NOW());
     
     RETURN json_build_object('success', true);
@@ -700,7 +688,7 @@ BEGIN
     FOR t_name IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (
         'users', 'company_settings', 'inventory', 'customers', 'orders', 'vendors', 'reorder_rules', 
         'purchase_orders', 'integrations', 'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 
-        'sync_logs', 'sync_state', 'sync_errors', 'export_jobs'
+        'sync_logs', 'sync_state', 'sync_errors', 'export_jobs', 'inventory_adjustments'
     ) LOOP
         EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
         EXECUTE format('DROP POLICY IF EXISTS "Enable all access for own company" ON public.%I;', t_name);
