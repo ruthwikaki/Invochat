@@ -494,7 +494,12 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE 
-    item RECORD; v_already_received INTEGER; v_ordered_quantity INTEGER; v_can_receive INTEGER;
+    item RECORD;
+    v_already_received INTEGER;
+    v_ordered_quantity INTEGER;
+    v_can_receive INTEGER;
+    total_ordered INTEGER;
+    total_received INTEGER;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM purchase_orders WHERE id = p_po_id AND company_id = p_company_id) THEN
         RAISE EXCEPTION 'Purchase order not found or access denied';
@@ -520,13 +525,12 @@ BEGIN
     END LOOP;
     
     -- Update PO status after receiving
-    DECLARE total_ordered INTEGER; total_received INTEGER;
-    BEGIN
-        SELECT SUM(quantity_ordered), SUM(quantity_received) INTO total_ordered, total_received FROM public.purchase_order_items WHERE po_id = p_po_id;
-        IF total_received >= total_ordered THEN UPDATE public.purchase_orders SET status = 'received' WHERE id = p_po_id;
-        ELSIF total_received > 0 THEN UPDATE public.purchase_orders SET status = 'partial' WHERE id = p_po_id;
-        END IF;
-    END;
+    SELECT SUM(quantity_ordered), SUM(quantity_received) INTO total_ordered, total_received FROM public.purchase_order_items WHERE po_id = p_po_id;
+    IF total_received >= total_ordered THEN 
+        UPDATE public.purchase_orders SET status = 'received' WHERE id = p_po_id;
+    ELSIF total_received > 0 THEN 
+        UPDATE public.purchase_orders SET status = 'partial' WHERE id = p_po_id;
+    END IF;
 END;
 $$;
 
@@ -717,3 +721,4 @@ BEGIN
     END LOOP;
 END;
 $$;
+`
