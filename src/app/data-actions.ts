@@ -19,14 +19,9 @@ import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { validateCSRF as validateCSRFUtil, CSRF_COOKIE_NAME } from '@/lib/csrf';
+import { validateCSRF, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
-
-function validateCSRF(formData: FormData) {
-    const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
-    validateCSRFUtil(formData, tokenFromCookie);
-}
 
 // This function provides a robust way to get the company ID and role for the current user.
 // It throws an error if any issue occurs, which is caught by error boundaries.
@@ -52,8 +47,9 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string, us
             throw new Error(`Authentication error: ${error.message}`);
         }
 
-        const companyId = user?.app_metadata?.company_id;
-        const userRole = user?.app_metadata?.role;
+        // Check app_metadata first, then fall back to user_metadata for invited users on older system versions
+        const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
+        const userRole = user?.app_metadata?.role || user?.user_metadata?.role;
         
         if (!user || !companyId || typeof companyId !== 'string' || !userRole) {
             logger.warn('[getAuthContext] Could not determine Company ID or Role. User may not be fully signed up or session is invalid.');
@@ -205,7 +201,8 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
 export async function updateCompanySettings(formData: FormData): Promise<CompanySettings> {
     const { companyId, userRole } = await getAuthContext();
     requireRole(userRole, ['Owner', 'Admin']);
-    validateCSRF(formData);
+    const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+    validateCSRF(formData, csrfTokenFromCookie);
 
     const settings = Object.fromEntries(formData.entries());
     // remove csrf_token from settings object
@@ -233,7 +230,8 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
     try {
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
 
         const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
         if (!parsed.success) {
@@ -431,7 +429,8 @@ export async function testRedisConnection(): Promise<{
 
 export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const memberIdToRemove = formData.get('memberId') as string;
         if (!memberIdToRemove) throw new Error('Member ID is missing.');
 
@@ -461,7 +460,8 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
 
 export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
      try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const memberIdToUpdate = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as TeamMember['role'];
         if (!memberIdToUpdate || !newRole) throw new Error('Member ID or role is missing.');
@@ -535,7 +535,8 @@ export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdat
 
 export async function deletePurchaseOrder(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const poId = formData.get('poId') as string;
         if (!poId) throw new Error('PO ID is missing.');
 
@@ -552,7 +553,8 @@ export async function deletePurchaseOrder(formData: FormData): Promise<{ success
 
 export async function emailPurchaseOrder(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const poId = formData.get('poId') as string;
         if (!poId) throw new Error('PO ID is missing.');
 
@@ -665,7 +667,8 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
 
         const parsed = UpsertChannelFeeSchema.safeParse({
             channel_name: formData.get('channel_name'),
@@ -725,7 +728,8 @@ export async function updateLocation(id: string, data: LocationFormData): Promis
 
 export async function deleteLocation(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const id = formData.get('id') as string;
         if (!id) throw new Error('Location ID is missing.');
 
@@ -775,7 +779,8 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
 
 export async function deleteSupplier(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const id = formData.get('id') as string;
         if (!id) throw new Error('Supplier ID is missing.');
 
@@ -792,7 +797,8 @@ export async function deleteSupplier(formData: FormData): Promise<{ success: boo
 
 export async function deleteInventoryItems(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const skusStr = formData.get('skus') as string;
         if (!skusStr) throw new Error('SKUs are missing.');
         const skus = JSON.parse(skusStr);
@@ -839,7 +845,8 @@ export async function getIntegrations(): Promise<Integration[]> {
 
 export async function disconnectIntegration(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const integrationId = formData.get('integrationId') as string;
         if (!integrationId) throw new Error('Integration ID is missing.');
 
@@ -866,7 +873,8 @@ export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEn
 
 export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
         const id = formData.get('id') as string;
         if (!id) throw new Error('Customer ID is missing.');
 
@@ -1122,3 +1130,5 @@ export async function getCustomersData(params: { query?: string, page?: number }
     
     return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
 }
+
+    
