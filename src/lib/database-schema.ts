@@ -24,7 +24,6 @@ grant execute on all functions in schema pgsodium to service_role;
 grant execute on all functions in schema pgsodium to postgres;
 
 -- Specifically grant access to the crypto functions if needed
--- Note: This might require superuser privileges
 DO $$
 BEGIN
     -- Only run if you have the necessary privileges
@@ -751,5 +750,4 @@ BEGIN
     END LOOP;
 END;
 $$;
-
-    
+`;
