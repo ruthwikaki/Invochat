@@ -846,4 +846,3 @@ BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
 `;
-fix teh code I am seeing a syntax error again I am not happy
