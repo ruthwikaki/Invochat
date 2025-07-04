@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -72,8 +73,8 @@ export default function DatabaseSetupPage() {
   return (
     <AppPage>
         <AppPageHeader
-            title="Initial Setup"
-            description="Run the database script and generate your encryption keys to complete setup."
+            title="Initial Deployment Setup"
+            description="This page is for the initial deployment administrator. The script below configures the database for multi-tenancy. Your clients will have their companies created automatically upon signup and will never see this page."
         />
         <div className="space-y-8">
             <Card>
