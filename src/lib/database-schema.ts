@@ -340,8 +340,12 @@ BEGIN
   INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
   INSERT INTO public.users (id, company_id, email, role) VALUES (new.id, new_company_id, new.email, user_role);
   INSERT INTO public.company_settings (company_id) VALUES (new_company_id) ON CONFLICT (company_id) DO NOTHING;
-  UPDATE auth.users SET app_metadata = jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{role}', to_jsonb(user_role)) WHERE id = new.id;
-  UPDATE auth.users SET app_metadata = jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', to_jsonb(new_company_id)) WHERE id = new.id;
+  
+  -- This single update correctly merges both role and company_id into app_metadata
+  UPDATE auth.users
+  SET app_metadata = COALESCE(app_metadata, '{}'::jsonb) || jsonb_build_object('role', user_role, 'company_id', new_company_id)
+  WHERE id = new.id;
+  
   RETURN new;
 END;
 $$;
@@ -686,3 +690,5 @@ BEGIN
     END LOOP;
 END;
 $$;
+
+    
