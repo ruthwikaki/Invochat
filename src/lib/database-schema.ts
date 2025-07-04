@@ -15,6 +15,27 @@ create extension if not exists "pgsodium" with schema pgsodium;
 
 -- Grant pgsodium access for encryption functions, which is required for the Vault.
 grant usage on schema pgsodium to service_role;
+grant usage on schema pgsodium to postgres;
+grant usage on schema pgsodium to authenticated;
+grant usage on schema pgsodium to anon;
+
+-- Grant execute on all functions in pgsodium schema
+grant execute on all functions in schema pgsodium to service_role;
+grant execute on all functions in schema pgsodium to postgres;
+
+-- Specifically grant access to the crypto functions if needed
+-- Note: This might require superuser privileges
+DO $$
+BEGIN
+    -- Only run if you have the necessary privileges
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND rolsuper) THEN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium._crypto_aead_det_encrypt TO service_role';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium._crypto_aead_det_decrypt TO service_role';
+    END IF;
+EXCEPTION
+    WHEN insufficient_privilege THEN
+        RAISE NOTICE 'Skipping pgsodium function grants - insufficient privileges';
+END $$;
 
 -- The vault schema should already exist in Supabase, but create it if needed
 CREATE SCHEMA IF NOT EXISTS vault;
