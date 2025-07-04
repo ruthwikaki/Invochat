@@ -6,11 +6,18 @@ export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- All tables are created here with their essential columns.
 -- Alterations and constraints will be applied in a later section.
 
+-- Create the pgsodium schema if it doesn't exist
+CREATE SCHEMA IF NOT EXISTS pgsodium;
+
+-- Install extensions in their proper schemas
 create extension if not exists "uuid-ossp" with schema extensions;
-create extension if not exists "pgsodium" with schema extensions;
+create extension if not exists "pgsodium" with schema pgsodium;
 
 -- Grant pgsodium access for encryption functions, which is required for the Vault.
 grant usage on schema pgsodium to service_role;
+
+-- The vault schema should already exist in Supabase, but create it if needed
+CREATE SCHEMA IF NOT EXISTS vault;
 
 grant usage on schema vault to supabase_storage_admin;
 grant all on all tables in schema vault to supabase_storage_admin;
@@ -732,3 +739,4 @@ BEGIN
 END;
 $$;
 `
+    
