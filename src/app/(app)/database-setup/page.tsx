@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -21,6 +20,14 @@ export default function DatabaseSetupPage() {
 
     const copyToClipboard = (text: string, successMessage: string) => {
         if (!text) return;
+        if (typeof navigator === 'undefined' || !navigator.clipboard) {
+            toast({
+                variant: 'destructive',
+                title: 'Clipboard API Not Available',
+                description: 'Could not copy to clipboard. Please copy the text manually.',
+            });
+            return;
+        }
         navigator.clipboard.writeText(text).then(() => {
             toast({
                 title: 'Copied to Clipboard!',
@@ -37,10 +44,18 @@ export default function DatabaseSetupPage() {
     };
     
     const generateKeys = () => {
+        if (typeof window === 'undefined' || !window.crypto || !window.crypto.getRandomValues) {
+            toast({
+                variant: 'destructive',
+                title: 'Crypto API Not Available',
+                description: 'Could not generate keys in this browser. Please use a modern browser or a secure connection (HTTPS).',
+            });
+            return;
+        }
         const key = new Uint8Array(32);
         const iv = new Uint8Array(16);
-        crypto.getRandomValues(key);
-        crypto.getRandomValues(iv);
+        window.crypto.getRandomValues(key);
+        window.crypto.getRandomValues(iv);
 
         const keyHex = Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('');
         const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
