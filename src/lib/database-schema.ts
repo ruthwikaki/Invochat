@@ -344,8 +344,6 @@ DECLARE
   new_company_id UUID;
   user_role TEXT := 'Owner';
   new_company_name TEXT;
-  user_full_name TEXT;
-  user_avatar_url TEXT;
 BEGIN
   -- Determine if this is an invite or a fresh sign-up
   IF new.invited_at IS NOT NULL THEN
@@ -416,17 +414,16 @@ $$;
 
 -- Secure function to prevent cross-tenant references
 CREATE OR REPLACE FUNCTION validate_same_company_reference()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
   ref_company_id uuid;
   current_company_id uuid;
 BEGIN
-  current_company_id := NEW.company_id;
   
   -- Check vendor reference for purchase_orders
   IF TG_TABLE_NAME = 'purchase_orders' AND NEW.supplier_id IS NOT NULL THEN
     SELECT company_id INTO ref_company_id FROM vendors WHERE id = NEW.supplier_id;
-    IF ref_company_id != current_company_id THEN
+    IF ref_company_id != NEW.company_id THEN
       RAISE EXCEPTION 'Security violation: Cannot reference a vendor from a different company.';
     END IF;
   END IF;
@@ -434,13 +431,13 @@ BEGIN
   -- Check inventory location reference
   IF TG_TABLE_NAME = 'inventory' AND NEW.location_id IS NOT NULL THEN
     SELECT company_id INTO ref_company_id FROM locations WHERE id = NEW.location_id;
-    IF ref_company_id != current_company_id THEN
+    IF ref_company_id != NEW.company_id THEN
       RAISE EXCEPTION 'Security violation: Cannot assign to a location from a different company.';
     END IF;
   END IF;
 
   -- Check order items reference inventory
-   IF TG_TABLE_NAME = 'order_items' AND NEW.sku IS NOT NULL THEN
+   IF TG_TABLE_NAME = 'order_items' THEN
     SELECT company_id INTO ref_company_id FROM orders WHERE id = NEW.sale_id;
     IF NOT EXISTS (SELECT 1 FROM inventory WHERE sku = NEW.sku and company_id = ref_company_id) THEN
       RAISE EXCEPTION 'Security violation: SKU does not exist for this company.';
@@ -449,12 +446,12 @@ BEGIN
   
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 
 -- Audit Trigger: Logs all changes to sensitive tables
 CREATE OR REPLACE FUNCTION audit_trigger()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO audit_log (company_id, user_id, action, table_name, record_id, old_data, new_data, ip_address)
   VALUES (COALESCE(NEW.company_id, OLD.company_id), auth.uid(), TG_OP, TG_TABLE_NAME, COALESCE((NEW.id)::text, (OLD.id)::text),
@@ -464,7 +461,7 @@ BEGIN
   );
   RETURN COALESCE(NEW, OLD);
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Optimistic Locking for Inventory Updates
 CREATE OR REPLACE FUNCTION update_inventory_with_lock(
@@ -563,33 +560,35 @@ CREATE OR REPLACE FUNCTION public.get_purchase_orders(
 RETURNS json
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    result_json json;
 BEGIN
-    RETURN (
-        WITH filtered_pos AS (
-            SELECT
-                po.id, po.company_id, po.supplier_id, po.po_number, po.status, po.order_date::text,
-                po.expected_date::text, po.total_amount, po.notes, po.created_at::text, po.updated_at::text,
-                v.vendor_name,
-                v.contact_info as supplier_email
-            FROM public.purchase_orders po
-            LEFT JOIN public.vendors v ON po.supplier_id = v.id
-            WHERE po.company_id = p_company_id
-              AND (
-                p_query IS NULL OR
-                po.po_number ILIKE '%' || p_query || '%' OR
-                v.vendor_name ILIKE '%' || p_query || '%'
-              )
-        ),
-        count_query AS (
-            SELECT count(*) as total FROM filtered_pos
-        )
-        SELECT json_build_object(
-            'items', (SELECT json_agg(t) FROM (
-                SELECT * FROM filtered_pos ORDER BY order_date DESC LIMIT p_limit OFFSET p_offset
-            ) t),
-            'totalCount', (SELECT total FROM count_query)
-        )
-    );
+    WITH filtered_pos AS (
+        SELECT
+            po.id, po.company_id, po.supplier_id, po.po_number, po.status, po.order_date::text,
+            po.expected_date::text, po.total_amount, po.notes, po.created_at::text, po.updated_at::text,
+            v.vendor_name,
+            v.contact_info as supplier_email
+        FROM public.purchase_orders po
+        LEFT JOIN public.vendors v ON po.supplier_id = v.id
+        WHERE po.company_id = p_company_id
+          AND (
+            p_query IS NULL OR
+            po.po_number ILIKE '%' || p_query || '%' OR
+            v.vendor_name ILIKE '%' || p_query || '%'
+          )
+    ),
+    count_query AS (
+        SELECT count(*) as total FROM filtered_pos
+    )
+    SELECT json_build_object(
+        'items', (SELECT json_agg(t) FROM (
+            SELECT * FROM filtered_pos ORDER BY order_date DESC LIMIT p_limit OFFSET p_offset
+        ) t),
+        'totalCount', (SELECT total FROM count_query)
+    ) INTO result_json;
+    
+    RETURN result_json;
 END;
 $$;
 
@@ -603,42 +602,44 @@ CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
 RETURNS json
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    result_json json;
 BEGIN
-    RETURN (
-        WITH customer_stats AS (
-            SELECT
-                c.id,
-                c.company_id,
-                c.platform,
-                c.external_id,
-                c.customer_name,
-                c.email,
-                c.status,
-                c.deleted_at,
-                c.created_at,
-                COUNT(o.id) as total_orders,
-                COALESCE(SUM(o.total_amount), 0) as total_spend
-            FROM public.customers c
-            LEFT JOIN public.orders o ON c.id = o.customer_id
-            WHERE c.company_id = p_company_id
-              AND c.deleted_at IS NULL
-              AND (
-                p_query IS NULL OR
-                c.customer_name ILIKE '%' || p_query || '%' OR
-                c.email ILIKE '%' || p_query || '%'
-              )
-            GROUP BY c.id
-        ),
-        count_query AS (
-            SELECT count(*) as total FROM customer_stats
-        )
-        SELECT json_build_object(
-            'items', (SELECT json_agg(cs) FROM (
-                SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
-            ) cs),
-            'totalCount', (SELECT total FROM count_query)
-        )
-    );
+    WITH customer_stats AS (
+        SELECT
+            c.id,
+            c.company_id,
+            c.platform,
+            c.external_id,
+            c.customer_name,
+            c.email,
+            c.status,
+            c.deleted_at,
+            c.created_at,
+            COUNT(o.id) as total_orders,
+            COALESCE(SUM(o.total_amount), 0) as total_spend
+        FROM public.customers c
+        LEFT JOIN public.orders o ON c.id = o.customer_id
+        WHERE c.company_id = p_company_id
+          AND c.deleted_at IS NULL
+          AND (
+            p_query IS NULL OR
+            c.customer_name ILIKE '%' || p_query || '%' OR
+            c.email ILIKE '%' || p_query || '%'
+          )
+        GROUP BY c.id
+    ),
+    count_query AS (
+        SELECT count(*) as total FROM customer_stats
+    )
+    SELECT json_build_object(
+        'items', (SELECT json_agg(cs) FROM (
+            SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
+        ) cs),
+        'totalCount', (SELECT total FROM count_query)
+    ) INTO result_json;
+    
+    RETURN result_json;
 END;
 $$;
 
@@ -725,5 +726,4 @@ BEGIN
     END LOOP;
 END;
 $$;
-
-    
+`;
