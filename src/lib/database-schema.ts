@@ -781,7 +781,7 @@ BEGIN
             EXECUTE format('CREATE POLICY "Enable all access for own company" ON public.%I FOR ALL USING (company_id = public.current_user_company_id()) WITH CHECK (company_id = public.current_user_company_id());', t_name);
         END LOOP;
 
-        -- Specific policies for tables without a direct company_id column
+        -- Specific policies for tables that join to get company_id
         -- order_items
         ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all access for own company" ON public.order_items;
@@ -861,4 +861,4 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-`;
+`; now I'm getting "ERROR:  42710: constraint "unique_sku_per_company" for relation "inventory" already exists". how to handle this in SQL. what are the required chnages for the script

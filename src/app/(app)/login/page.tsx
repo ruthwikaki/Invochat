@@ -1,3 +1,6 @@
-// This file is intentionally left blank to resolve a routing conflict.
-// The active login page is located at /src/app/(auth)/login/page.tsx.
-// This file must not export any components.
+// This file must not export a default component to avoid a route conflict.
+// The canonical login page is at /src/app/(auth)/login/page.tsx.
+
+// Intentionally exporting a non-component value to prevent Next.js from creating a route.
+const Workaround = null;
+export default Workaround;
