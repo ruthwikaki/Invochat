@@ -9,7 +9,7 @@ import { InventoryImportSchema, SupplierImportSchema, SupplierCatalogImportSchem
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
-import { validateCSRFToken, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { validateCSRF, CSRF_COOKIE_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User } from '@/types';
 import { revalidatePath } from 'next/cache';
@@ -169,12 +169,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
 
         const cookieStore = cookies();
         const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
-        const csrfTokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-        if (!validateCSRFToken(csrfTokenFromForm, csrfTokenFromCookie)) {
-            logger.warn(`[CSRF] Invalid token for data import action.`);
-            return { success: false, isDryRun, summaryMessage: 'Invalid form submission. Please refresh the page and try again.' };
-        }
+        validateCSRF(formData, csrfTokenFromCookie);
 
         const file = formData.get('file') as File | null;
         const dataType = formData.get('dataType') as string;

@@ -19,9 +19,14 @@ import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { validateCSRF } from '@/lib/csrf';
+import { validateCSRF as validateCSRFUtil, CSRF_COOKIE_NAME } from '@/lib/csrf';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
+
+function validateCSRF(formData: FormData) {
+    const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+    validateCSRFUtil(formData, tokenFromCookie);
+}
 
 // This function provides a robust way to get the company ID and role for the current user.
 // It throws an error if any issue occurs, which is caught by error boundaries.

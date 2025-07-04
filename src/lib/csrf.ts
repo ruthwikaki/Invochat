@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { logger } from './logger';
 
 export const CSRF_COOKIE_NAME = 'csrf_token';
@@ -16,11 +15,11 @@ export function generateCSRFToken(): string {
  * Validates a CSRF token from a FormData object against the one stored in a cookie.
  * This function is designed to be called at the beginning of a server action.
  * @param formData The FormData object from the form submission.
+ * @param tokenFromCookie The value of the CSRF token from the user's cookie.
  * @throws {Error} If the tokens are missing or do not match.
  */
-export function validateCSRF(formData: FormData): void {
+export function validateCSRF(formData: FormData, tokenFromCookie: string | undefined): void {
   const tokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-  const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
 
   if (!tokenFromForm || !tokenFromCookie || tokenFromForm !== tokenFromCookie) {
     logger.warn(`[CSRF] Invalid token. Action rejected. Form: ${tokenFromForm}, Cookie: ${tokenFromCookie}`);

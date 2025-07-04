@@ -1356,3 +1356,80 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
         };
     });
 }
+
+// Analytics Tools DB Functions
+export async function getDemandForecastFromDB(companyId: string): Promise<any> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getDemandForecastFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_demand_forecast', {
+            p_company_id: companyId
+        });
+        if (error) {
+            logError(error, { context: `Error fetching demand forecast for company ${companyId}` });
+            throw error;
+        }
+        return data;
+    });
+}
+
+export async function getAbcAnalysisFromDB(companyId: string): Promise<any> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getAbcAnalysisFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_abc_analysis', {
+            p_company_id: companyId
+        });
+        if (error) {
+            logError(error, { context: `Error fetching ABC analysis for company ${companyId}` });
+            throw error;
+        }
+        return data;
+    });
+}
+
+export async function getGrossMarginAnalysisFromDB(companyId: string): Promise<any> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getGrossMarginAnalysisFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_gross_margin_analysis', {
+            p_company_id: companyId
+        });
+        if (error) {
+            logError(error, { context: `Error fetching gross margin analysis for company ${companyId}` });
+            throw error;
+        }
+        return data;
+    });
+}
+
+export async function getNetMarginByChannelFromDB(companyId: string, channelName: string): Promise<any> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getNetMarginByChannelFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_net_margin_by_channel', {
+            p_company_id: companyId,
+            p_channel_name: channelName,
+        });
+        if (error) {
+            logError(error, { context: `Error fetching net margin for company ${companyId}, channel ${channelName}` });
+            throw error;
+        }
+        return data;
+    });
+}
+
+export async function getMarginTrendsFromDB(companyId: string): Promise<any> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getMarginTrendsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_margin_trends', {
+            p_company_id: companyId,
+        });
+        if (error) {
+            logError(error, { context: `Error fetching margin trends for company ${companyId}` });
+            throw error;
+        }
+        return data;
+    });
+}

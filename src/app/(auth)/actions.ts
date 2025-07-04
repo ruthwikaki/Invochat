@@ -10,7 +10,7 @@ import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRFToken } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 
 const AUTH_TIMEOUT = 15000; // 15 seconds
 
@@ -37,12 +37,7 @@ function getSupabaseClient() {
 
 function validateCsrf(formData: FormData) {
     const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
-    const tokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
-
-    if (!validateCSRFToken(tokenFromForm, tokenFromCookie)) {
-        logger.warn(`[CSRF] Invalid token. Action rejected.`);
-        throw new Error('Invalid form submission. Please refresh the page and try again.');
-    }
+    validateCSRF(formData, tokenFromCookie);
 }
 
 const loginSchema = z.object({
