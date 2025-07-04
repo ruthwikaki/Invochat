@@ -29,6 +29,7 @@ DO $$
 BEGIN
     -- Only run if you have the necessary privileges
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND rolsuper) THEN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium.crypto_kdf_keygen TO service_role';
         EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium._crypto_aead_det_encrypt TO service_role';
         EXECUTE 'GRANT EXECUTE ON FUNCTION pgsodium._crypto_aead_det_decrypt TO service_role';
     END IF;
