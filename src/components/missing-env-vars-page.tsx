@@ -1,4 +1,3 @@
-
 import { AlertTriangle, Terminal } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 
