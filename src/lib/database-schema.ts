@@ -7,6 +7,11 @@ export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- Alterations and constraints will be applied in a later section.
 
 create extension if not exists "uuid-ossp" with schema extensions;
+grant usage on schema vault to supabase_storage_admin;
+grant all on all tables in schema vault to supabase_storage_admin;
+grant all on all routines in schema vault to supabase_storage_admin;
+grant all on all sequences in schema vault to supabase_storage_admin;
+
 
 CREATE TABLE IF NOT EXISTS public.companies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -335,11 +340,33 @@ DECLARE
   new_company_id UUID;
   user_role TEXT := 'Owner';
   new_company_name TEXT;
+  user_full_name TEXT;
+  user_avatar_url TEXT;
 BEGIN
-  new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', 'My Company');
-  INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
-  INSERT INTO public.users (id, company_id, email, role) VALUES (new.id, new_company_id, new.email, user_role);
-  INSERT INTO public.company_settings (company_id) VALUES (new_company_id) ON CONFLICT (company_id) DO NOTHING;
+  -- Determine if this is an invite or a fresh sign-up
+  IF new.invited_at IS NOT NULL THEN
+      -- It's an invited user. The company_id should be in the user_metadata.
+      new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
+      user_role := 'Member';
+
+      IF new_company_id IS NULL THEN
+          RAISE EXCEPTION 'Invited user must have a company_id in metadata.';
+      END IF;
+  ELSE
+      -- It's a new user signing up. Create a new company for them.
+      user_role := 'Owner';
+      new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
+      INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
+  END IF;
+
+  -- Insert into our public.users table
+  INSERT INTO public.users (id, company_id, email, role)
+  VALUES (new.id, new_company_id, new.email, user_role);
+
+  -- For new owners, create default settings
+  IF user_role = 'Owner' THEN
+      INSERT INTO public.company_settings (company_id) VALUES (new_company_id) ON CONFLICT (company_id) DO NOTHING;
+  END IF;
   
   -- This single update correctly merges both role and company_id into app_metadata
   UPDATE auth.users
@@ -690,5 +717,3 @@ BEGIN
     END LOOP;
 END;
 $$;
-
-    

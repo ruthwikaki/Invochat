@@ -10,7 +10,7 @@ import type { Platform } from '@/features/integrations/types';
 
 const connectSchema = z.object({
   storeUrl: z.string().url({ message: 'Please enter a valid store URL (e.g., https://your-store.myshopify.com).' }),
-  accessToken: z.string().min(1, { message: 'Access token cannot be empty.' }),
+  accessToken: z.string().startsWith('shpat_', { message: 'Token must start with "shpat_"' }),
 });
 
 async function shopifyFetch(shopDomain: string, accessToken: string, endpoint: string) {

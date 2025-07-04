@@ -25,8 +25,3 @@ export type SyncLog = {
   started_at: string;
   completed_at: string | null;
 };
-
-export type ShopifyConnectPayload = {
-    storeUrl: string;
-    accessToken: string;
-};
