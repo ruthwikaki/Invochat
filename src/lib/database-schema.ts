@@ -7,6 +7,7 @@ export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- Alterations and constraints will be applied in a later section.
 
 create extension if not exists "uuid-ossp" with schema extensions;
+create extension if not exists "pgsodium" with schema extensions;
 
 -- Grant pgsodium access for encryption functions, which is required for the Vault.
 grant usage on schema pgsodium to service_role;
@@ -730,5 +731,4 @@ BEGIN
     END LOOP;
 END;
 $$;
-`;
-
+`
