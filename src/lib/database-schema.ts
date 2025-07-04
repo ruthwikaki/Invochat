@@ -386,7 +386,14 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_r
 -- Add foreign key constraints
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_location') THEN ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_location FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_customer') THEN ALTER TABLE public.orders ADD CONSTRAINT fk_orders_customer FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_deleted_by') THEN ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_deleted_by FOREIGN KEY (deleted_by) REFERENCES public.users(id); END IF; END $$;
+DO $$ 
+BEGIN 
+    -- Only add the foreign key if the column exists
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'inventory' AND column_name = 'deleted_by') 
+       AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inventory_deleted_by') THEN 
+        ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_deleted_by FOREIGN KEY (deleted_by) REFERENCES public.users(id); 
+    END IF; 
+END $$;
 
 -- ========= Part 4: Functions & Triggers =========
 
@@ -838,4 +845,4 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-`;
+now update the code
