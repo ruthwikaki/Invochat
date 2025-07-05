@@ -861,4 +861,3 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-`; and I see this error "ERROR:  42P01: relation "public.inventory" does not exist" what next
