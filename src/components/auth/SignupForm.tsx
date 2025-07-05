@@ -73,7 +73,7 @@ export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) 
                     minLength={8}
                 />
                 <p className="text-xs text-slate-400 px-1">
-                    Must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.
+                    Must be at least 8 characters.
                 </p>
             </div>
             {error && (
