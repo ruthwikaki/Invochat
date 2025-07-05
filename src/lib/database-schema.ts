@@ -421,8 +421,19 @@ BEGIN
     ELSE
         user_role := 'Owner';
         new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
-        new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
-        INSERT INTO public.companies (id, name) VALUES (new_company_id, new_company_name);
+        new_company_name := new.raw_user_meta_data->>'company_name';
+        
+        IF new_company_id IS NULL THEN
+            RAISE EXCEPTION 'Signup failed: company_id was not provided in user metadata.';
+        END IF;
+        
+        IF new_company_name IS NULL OR new_company_name = '' THEN
+            new_company_name := new.email || '''s Company';
+        END IF;
+
+        INSERT INTO public.companies (id, name) 
+        VALUES (new_company_id, new_company_name)
+        ON CONFLICT (id) DO NOTHING;
     END IF;
 
     -- Insert into our public.users table
@@ -875,4 +886,3 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-`;
