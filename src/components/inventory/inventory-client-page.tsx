@@ -134,15 +134,13 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
 
-  // This effect ensures the component's state stays in sync with the server-provided data
-  // when filters are applied via URL changes.
   useEffect(() => {
     setInventory(initialInventory);
   }, [initialInventory]);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
-    params.set('page', '1'); // Reset to first page on new search
+    params.set('page', '1'); 
     if (term) {
       params.set('query', term);
     } else {
@@ -153,7 +151,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const handleFilterChange = (type: 'category' | 'location' | 'supplier', value: string) => {
     const params = new URLSearchParams(searchParams);
-    params.set('page', '1'); // Reset to first page on filter change
+    params.set('page', '1'); 
     if (value && value !== 'all') {
       params.set(type, value);
     } else {
@@ -193,7 +191,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
       const result = await deleteInventoryItems(formData);
       if (result.success) {
         toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
-        refresh(); // Refresh from server to ensure consistency and reflect pagination changes
+        refresh(); 
         setSelectedRows(new Set());
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -214,7 +212,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const handleSaveItem = (updatedItem: UnifiedInventoryItem) => {
     setInventory(prev => prev.map(item => item.sku === updatedItem.sku ? updatedItem : item));
-    refresh(); // Refresh from server to ensure consistency
+    refresh(); 
   };
 
 

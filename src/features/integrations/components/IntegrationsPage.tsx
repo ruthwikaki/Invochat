@@ -61,7 +61,7 @@ export function IntegrationsClientPage() {
         await disconnectIntegration(formData);
     };
 
-    const { integrations, loading, error, triggerSync, disconnect } = useIntegrations(handleDisconnect);
+    const { integrations, loading, error, triggerSync } = useIntegrations();
 
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
     
@@ -102,7 +102,7 @@ export function IntegrationsClientPage() {
                                 key={integration.id}
                                 integration={integration}
                                 onSync={triggerSync}
-                                onDisconnect={disconnect}
+                                onDisconnect={handleDisconnect}
                             />
                         ))
                     ) : (

@@ -13,10 +13,10 @@ import { PasswordInput } from './PasswordInput';
 
 const CSRF_FORM_NAME = 'csrf_token';
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
+      <Button type="submit" className="w-full h-12 text-base" disabled={disabled || pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
@@ -79,7 +79,7 @@ export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) 
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton />
+            <SubmitButton disabled={!csrfToken} />
         </form>
     );
 }

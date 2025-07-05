@@ -2,13 +2,13 @@
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
-import { getIntegrations, disconnectIntegration } from '@/app/data-actions';
+import { getIntegrations } from '@/app/data-actions';
 import { Integration } from '../types';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
 
-export function useIntegrations(onDisconnectAction: (integrationId: string) => Promise<void>) {
+export function useIntegrations() {
     const { user } = useAuth();
     const { toast } = useToast();
     const [integrations, setIntegrations] = useState<Integration[]>([]);
@@ -66,9 +66,5 @@ export function useIntegrations(onDisconnectAction: (integrationId: string) => P
         });
     };
 
-    const disconnect = async (integrationId: string) => {
-        await onDisconnectAction(integrationId);
-    };
-
-    return { integrations, loading, error, triggerSync, disconnect };
+    return { integrations, loading, error, triggerSync };
 }
