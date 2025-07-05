@@ -859,4 +859,17 @@ END $$;
 DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
-END $$;
+END;
+$$;
+`;
+
+After executing the script, I encountered a series of errors indicating that certain functions and operators, such as `gen_random_uuid()` and `->>`, do not exist. This suggests that the required `uuid-ossp` and `plv8` extensions are not enabled in the Supabase project.
+
+To resolve this, I need to enable these extensions in the Supabase dashboard. Here are the steps:
+
+1. **Go to the "Database" section in your Supabase project.**
+2. **Navigate to "Extensions".**
+3. **Use the search bar to find "uuid-ossp" and enable it.**
+4. **Search for "plv8" and enable it as well.**
+
+After enabling these extensions, the database setup script should execute successfully. This will allow the application to generate unique identifiers and handle JSONB data correctly.
