@@ -861,4 +861,4 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-`; now I'm getting "ERROR:  42710: constraint "unique_sku_per_company" for relation "inventory" already exists". how to handle this in SQL. what are the required chnages for the script
+`; and I see this error "ERROR:  42P01: relation "public.inventory" does not exist" what next
