@@ -13,8 +13,6 @@ import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 
 const CSRF_FORM_NAME = 'csrf_token';
-const CSRF_COOKIE_NAME = 'csrf_token';
-
 
 function LoginSubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
@@ -31,25 +29,15 @@ function LoginSubmitButton({ disabled }: { disabled: boolean }) {
 
 interface LoginFormProps {
     error: string | null;
+    csrfToken: string | null;
 }
 
-export function LoginForm({ error: initialError }: LoginFormProps) {
+export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
   const [error, setError] = useState(initialError);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
     setError(initialError);
   }, [initialError]);
-
-  useEffect(() => {
-    // Reading the cookie on the client side ensures we get the latest value
-    // after the middleware has run.
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(token || null);
-  }, []);
 
   const handleInteraction = () => {
     if (error) setError(null);

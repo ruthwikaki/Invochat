@@ -11,7 +11,6 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
 
 const CSRF_FORM_NAME = 'csrf_token';
-const CSRF_COOKIE_NAME = 'csrf_token';
 
 function SubmitButton({ disabled }: { disabled: boolean }) {
     const { pending } = useFormStatus();
@@ -24,23 +23,15 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 
 interface ForgotPasswordFormProps {
     error: string | null;
+    csrfToken: string | null;
 }
 
-export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormProps) {
+export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPasswordFormProps) {
   const [error, setError] = useState(initialError);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
     setError(initialError);
   }, [initialError]);
-  
-  useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-      ?.split('=')[1];
-    setCsrfToken(token || null);
-  }, []);
 
   const handleInteraction = () => {
     if (error) setError(null);

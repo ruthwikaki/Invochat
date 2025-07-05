@@ -1,12 +1,14 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { SignupForm } from '@/components/auth/SignupForm';
+import { getCookie } from '@/lib/csrf';
 
 export default function SignupPage({
   searchParams,
@@ -15,6 +17,11 @@ export default function SignupPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCsrfToken(getCookie('csrf_token'));
+  }, []);
 
   if (success) {
     return (
@@ -62,7 +69,8 @@ export default function SignupPage({
         </CardHeader>
         <CardContent className="p-0">
           <SignupForm 
-            error={error} 
+            error={error}
+            csrfToken={csrfToken}
           />
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}

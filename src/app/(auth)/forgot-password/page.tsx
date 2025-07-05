@@ -1,12 +1,14 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
+import { getCookie } from '@/lib/csrf';
 
 export default function ForgotPasswordPage({
   searchParams,
@@ -15,6 +17,11 @@ export default function ForgotPasswordPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCsrfToken(getCookie('csrf_token'));
+  }, []);
   
   if (success) {
     return (
@@ -59,6 +66,7 @@ export default function ForgotPasswordPage({
         <CardContent className="p-0">
           <ForgotPasswordForm 
             error={error}
+            csrfToken={csrfToken}
           />
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}
