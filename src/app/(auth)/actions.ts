@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
+import { logSuccessfulLogin } from '@/services/database';
 
 const AUTH_TIMEOUT = 15000; // 15 seconds
 
@@ -73,6 +74,9 @@ export async function login(formData: FormData) {
       throw new Error(error?.message || 'Login failed. Check credentials or confirm your email.');
     }
 
+    // Log successful login for auditing purposes
+    await logSuccessfulLogin(data.user.id, ip);
+
     const companyId = data.user.app_metadata?.company_id;
     if (!companyId) {
       revalidatePath('/setup-incomplete', 'page');
@@ -95,7 +99,12 @@ export async function login(formData: FormData) {
 
 const signupSchema = z.object({
   email: z.string().email("Invalid email format."),
-  password: z.string().min(6, "Password must be at least 6 characters."),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters.")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter.")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter.")
+    .regex(/[0-9]/, "Password must contain at least one number.")
+    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character."),
   companyName: z.string().min(1, "Company name is required."),
 });
 
@@ -199,7 +208,7 @@ export async function requestPasswordReset(formData: FormData) {
 }
 
 const updatePasswordSchema = z.object({
-    password: z.string().min(6, "Password must be at least 6 characters long."),
+    password: z.string().min(8, "Password must be at least 8 characters long."),
 });
 
 export async function updatePassword(formData: FormData) {

@@ -70,8 +70,11 @@ export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) 
                     name="password"
                     placeholder="••••••••"
                     required
-                    minLength={6}
+                    minLength={8}
                 />
+                <p className="text-xs text-slate-400 px-1">
+                    Must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.
+                </p>
             </div>
             {error && (
               <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">

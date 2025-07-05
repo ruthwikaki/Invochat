@@ -1433,3 +1433,29 @@ export async function getMarginTrendsFromDB(companyId: string): Promise<any> {
         return data;
     });
 }
+
+export async function logSuccessfulLogin(userId: string, ipAddress: string | null): Promise<void> {
+    if (!isValidUuid(userId)) return; // Basic validation
+    return withPerformanceTracking('logSuccessfulLogin', async () => {
+        const supabase = getServiceRoleClient();
+        const { data: user } = await supabase.from('users').select('company_id').eq('id', userId).single();
+        
+        if (!user) {
+            logger.warn(`[Audit] Could not log successful login for non-existent user ID: ${userId}`);
+            return;
+        }
+
+        const { error } = await supabase.from('audit_log').insert({
+            company_id: user.company_id,
+            user_id: userId,
+            action: 'LOGIN_SUCCESS',
+            table_name: 'auth.users',
+            record_id: userId,
+            ip_address: ipAddress,
+            new_data: { event: 'User successfully authenticated.' }
+        });
+        if (error) {
+            logError(error, { context: `Failed to log successful login for user ${userId}` });
+        }
+    });
+}
