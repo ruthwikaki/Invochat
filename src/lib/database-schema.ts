@@ -1,3 +1,4 @@
+
 export const SETUP_SQL_SCRIPT = `-- InvoChat Database Setup Script
 -- This script is idempotent and can be safely re-run on an existing database.
 -- It works in both standard PostgreSQL and Supabase environments.
@@ -410,14 +411,17 @@ DECLARE
     user_role TEXT := 'Owner';
     new_company_name TEXT;
 BEGIN
+    RAISE NOTICE '[handle_new_user] Trigger started for user %', new.email;
+    
     -- Check if auth schema exists (Supabase environment)
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth') THEN
-        RAISE NOTICE 'Auth schema not found - skipping user creation trigger';
+        RAISE NOTICE '[handle_new_user] Auth schema not found - skipping user creation trigger';
         RETURN new;
     END IF;
 
     -- Determine if this is an invite or a fresh sign-up
     IF new.invited_at IS NOT NULL THEN
+        RAISE NOTICE '[handle_new_user] Invited user detected.';
         new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
         user_role := 'Member';
 
@@ -425,26 +429,34 @@ BEGIN
             RAISE EXCEPTION 'Invited user must have a company_id in metadata.';
         END IF;
     ELSE
-        -- This is the key change: Let the database generate the company ID
+        RAISE NOTICE '[handle_new_user] New signup detected.';
         user_role := 'Owner';
         new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
+        RAISE NOTICE '[handle_new_user] Company name: %', new_company_name;
+
         INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
+        RAISE NOTICE '[handle_new_user] Created company with id: %', new_company_id;
     END IF;
 
     -- Insert into our public.users table
     INSERT INTO public.users (id, company_id, email, role)
     VALUES (new.id, new_company_id, new.email, user_role);
+    RAISE NOTICE '[handle_new_user] Inserted into public.users for user id: %', new.id;
+
 
     -- For new owners, create default settings
     IF user_role = 'Owner' THEN
         INSERT INTO public.company_settings (company_id) VALUES (new_company_id) ON CONFLICT (company_id) DO NOTHING;
+        RAISE NOTICE '[handle_new_user] Inserted into company_settings for company id: %', new_company_id;
     END IF;
     
     -- Update app_metadata
     UPDATE auth.users
     SET app_metadata = COALESCE(app_metadata, '{}'::jsonb) || jsonb_build_object('role', user_role, 'company_id', new_company_id)
     WHERE id = new.id;
-    
+    RAISE NOTICE '[handle_new_user] Updated app_metadata for user id: %', new.id;
+
+    RAISE NOTICE '[handle_new_user] Trigger finished successfully.';
     RETURN new;
 END;
 $$;
@@ -882,4 +894,5 @@ BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
 
+    
     
