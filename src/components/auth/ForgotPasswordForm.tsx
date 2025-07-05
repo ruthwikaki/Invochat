@@ -12,10 +12,10 @@ import { requestPasswordReset } from '@/app/(auth)/actions';
 
 const CSRF_FORM_NAME = 'csrf_token';
 
-function SubmitButton({ disabled }: { disabled: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full" disabled={disabled || pending}>
+      <Button type="submit" className="w-full" disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
       </Button>
     );
@@ -57,7 +57,7 @@ export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPas
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <SubmitButton disabled={!csrfToken} />
+      <SubmitButton />
     </form>
   );
 }
