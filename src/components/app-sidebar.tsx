@@ -147,14 +147,6 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/database-setup'}>
-              <Link href="/database-setup" prefetch={false}>
-                <DatabaseZap />
-                <span>Database Setup</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname === '/test-supabase'}>
               <Link href="/test-supabase" prefetch={false}>
                 <ShieldCheck />
