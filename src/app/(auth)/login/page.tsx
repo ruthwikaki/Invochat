@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -19,7 +18,21 @@ export default function LoginPage({
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setCsrfToken(getCookie('csrf_token'));
+    // Try to get the CSRF token immediately
+    const token = getCookie('csrf_token');
+    if (token) {
+      setCsrfToken(token);
+    } else {
+      // If not found, try again after a short delay
+      const timeout = setTimeout(() => {
+        const retryToken = getCookie('csrf_token');
+        if (retryToken) {
+          setCsrfToken(retryToken);
+        }
+      }, 100);
+      
+      return () => clearTimeout(timeout);
+    }
   }, []);
 
   return (
