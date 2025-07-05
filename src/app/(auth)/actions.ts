@@ -131,7 +131,7 @@ export async function signup(formData: FormData) {
               emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
               data: {
                   company_name: companyName,
-                  company_id: companyId, // Add this line
+                  company_id: companyId,
               }
           }
       }),
