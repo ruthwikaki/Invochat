@@ -333,7 +333,7 @@ CREATE TABLE IF NOT EXISTS public.sync_errors (
 CREATE TABLE IF NOT EXISTS public.export_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    requested_by_user_id UUID NOT NULL REFERENCES public.users(id),
+    requested_by_user_id UUID NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     download_url TEXT,
     expires_at TIMESTAMPTZ,
@@ -393,6 +393,12 @@ BEGIN
         ALTER TABLE public.inventory ADD CONSTRAINT fk_inventory_deleted_by FOREIGN KEY (deleted_by) REFERENCES public.users(id); 
     END IF; 
 END $$;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_export_jobs_requested_by') THEN
+        ALTER TABLE public.export_jobs ADD CONSTRAINT fk_export_jobs_requested_by FOREIGN KEY (requested_by_user_id) REFERENCES public.users(id);
+    END IF;
+END $$;
 
 -- ========= Part 4: Functions & Triggers =========
 
@@ -419,21 +425,10 @@ BEGIN
             RAISE EXCEPTION 'Invited user must have a company_id in metadata.';
         END IF;
     ELSE
+        -- This is the key change: Let the database generate the company ID
         user_role := 'Owner';
-        new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
-        new_company_name := new.raw_user_meta_data->>'company_name';
-        
-        IF new_company_id IS NULL THEN
-            RAISE EXCEPTION 'Signup failed: company_id was not provided in user metadata.';
-        END IF;
-        
-        IF new_company_name IS NULL OR new_company_name = '' THEN
-            new_company_name := new.email || '''s Company';
-        END IF;
-
-        INSERT INTO public.companies (id, name) 
-        VALUES (new_company_id, new_company_name)
-        ON CONFLICT (id) DO NOTHING;
+        new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
+        INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
     END IF;
 
     -- Insert into our public.users table
@@ -886,3 +881,5 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
+
+    
