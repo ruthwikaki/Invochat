@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -45,29 +44,38 @@ export default function DatabaseSetupPage() {
     };
     
     const generateKeys = () => {
-        if (typeof window === 'undefined' || !window.crypto || !window.crypto.getRandomValues) {
+        try {
+            if (typeof window === 'undefined' || !window.crypto || !window.crypto.getRandomValues) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Crypto API Not Available',
+                    description: 'Could not generate keys in this browser. Please use a modern browser or a secure connection (HTTPS).',
+                });
+                return;
+            }
+            const key = new Uint8Array(32);
+            const iv = new Uint8Array(16);
+            window.crypto.getRandomValues(key);
+            window.crypto.getRandomValues(iv);
+
+            const keyHex = Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('');
+            const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
+            
+            setEncryptionKey(keyHex);
+            setEncryptionIv(ivHex);
+
+            toast({
+                title: 'Keys Generated!',
+                description: 'You can now copy these keys to your .env file.'
+            });
+        } catch (e) {
+            console.error("Key generation failed:", e);
             toast({
                 variant: 'destructive',
-                title: 'Crypto API Not Available',
-                description: 'Could not generate keys in this browser. Please use a modern browser or a secure connection (HTTPS).',
+                title: 'Key Generation Failed',
+                description: 'An unexpected error occurred while trying to generate keys. Check the console for details.',
             });
-            return;
         }
-        const key = new Uint8Array(32);
-        const iv = new Uint8Array(16);
-        window.crypto.getRandomValues(key);
-        window.crypto.getRandomValues(iv);
-
-        const keyHex = Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('');
-        const ivHex = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
-        
-        setEncryptionKey(keyHex);
-        setEncryptionIv(ivHex);
-
-        toast({
-            title: 'Keys Generated!',
-            description: 'You can now copy these keys to your .env file.'
-        });
     };
 
   return (
@@ -109,7 +117,7 @@ export default function DatabaseSetupPage() {
                         2. Generate & Add Encryption Keys
                     </CardTitle>
                     <CardDescription>
-                       The app needs two secret keys in your `.env` file to securely handle API credentials. Since `openssl` is not available on your system, you can use this secure, in-browser generator.
+                       The app needs two secret keys in your `.env` file to securely handle API credentials. You can use this secure, in-browser generator, which is useful if you do not have 'openssl' installed on your system.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
