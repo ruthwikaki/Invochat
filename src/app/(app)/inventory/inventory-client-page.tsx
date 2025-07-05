@@ -24,14 +24,60 @@ import { InventoryEditDialog } from './inventory-edit-dialog';
 import { Package } from 'lucide-react';
 import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
+  totalCount: number;
+  itemsPerPage: number;
   categories: string[];
   locations: Location[];
   suppliers: Supplier[];
 }
+
+const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const currentPage = Number(searchParams.get('page')) || 1;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    const createPageURL = (pageNumber: number | string) => {
+        const params = new URLSearchParams(searchParams);
+        params.set('page', pageNumber.toString());
+        return `${pathname}?${params.toString()}`;
+    };
+
+    if (totalPages <= 1) {
+        return null;
+    }
+
+    return (
+        <div className="flex items-center justify-between p-4 border-t">
+            <p className="text-sm text-muted-foreground">
+                Showing page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> ({totalCount} items)
+            </p>
+            <div className="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage - 1))}
+                    disabled={currentPage <= 1}
+                >
+                    Previous
+                </Button>
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage + 1))}
+                    disabled={currentPage >= totalPages}
+                >
+                    Next
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 
 const StatusBadge = ({ quantity, reorderPoint }: { quantity: number, reorderPoint: number | null }) => {
     if (quantity <= 0) {
@@ -74,7 +120,7 @@ function EmptyInventoryState() {
 }
 
 
-export function InventoryClientPage({ initialInventory, categories, locations, suppliers }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, locations, suppliers }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace, refresh } = useRouter();
@@ -88,14 +134,13 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
 
-  // This effect ensures the component's state stays in sync with the server-provided data
-  // when filters are applied via URL changes.
   useEffect(() => {
     setInventory(initialInventory);
   }, [initialInventory]);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
+    params.set('page', '1'); 
     if (term) {
       params.set('query', term);
     } else {
@@ -106,6 +151,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
 
   const handleFilterChange = (type: 'category' | 'location' | 'supplier', value: string) => {
     const params = new URLSearchParams(searchParams);
+    params.set('page', '1'); 
     if (value && value !== 'all') {
       params.set(type, value);
     } else {
@@ -135,10 +181,17 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
   const handleDelete = () => {
     if (!itemToDelete) return;
     startDeleteTransition(async () => {
-      const result = await deleteInventoryItems(itemToDelete);
+      const formData = new FormData();
+      formData.append('skus', JSON.stringify(itemToDelete));
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken) {
+        formData.append(CSRF_FORM_NAME, csrfToken);
+      }
+
+      const result = await deleteInventoryItems(formData);
       if (result.success) {
         toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
-        refresh(); // Refresh from server to ensure consistency
+        refresh(); 
         setSelectedRows(new Set());
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
@@ -159,7 +212,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
 
   const handleSaveItem = (updatedItem: UnifiedInventoryItem) => {
     setInventory(prev => prev.map(item => item.sku === updatedItem.sku ? updatedItem : item));
-    refresh(); // Refresh from server to ensure consistency
+    refresh(); 
   };
 
 
@@ -169,8 +222,8 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
   const isSomeSelected = numSelected > 0 && numSelected < numInventory;
   
   const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('location') || !!searchParams.get('supplier');
-  const showEmptyState = inventory.length === 0 && !isFiltered;
-  const showNoResultsState = inventory.length === 0 && isFiltered;
+  const showEmptyState = totalCount === 0 && !isFiltered;
+  const showNoResultsState = totalCount === 0 && isFiltered;
   
   return (
     <div className="space-y-4">
@@ -375,6 +428,7 @@ export function InventoryClientPage({ initialInventory, categories, locations, s
                         </TableBody>
                     </Table>
                 </div>
+                <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
                 </CardContent>
             </Card>
         )}
