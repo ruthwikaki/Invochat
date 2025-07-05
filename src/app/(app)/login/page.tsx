@@ -1,6 +1,5 @@
-// This file must not export a default component to avoid a route conflict.
-// The canonical login page is at /src/app/(auth)/login/page.tsx.
-
-// Intentionally exporting a non-component value to prevent Next.js from creating a route.
-const Workaround = null;
-export default Workaround;
+// This file is intentionally left without a default export to resolve a routing conflict
+// with the canonical login page at /src/app/(auth)/login/page.tsx.
+// A file in the app directory must not have a default export of a React component
+// to avoid being treated as a page by the Next.js router.
+export {};
