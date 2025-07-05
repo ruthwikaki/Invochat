@@ -8,6 +8,8 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AppInitializer } from '@/components/app-initializer';
 import { envValidation } from '@/config/app-config';
 import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
+import { AuthProvider } from '@/context/auth-context';
+import { DynamicThemeProvider } from '@/components/dynamic-theme-provider';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -45,10 +47,13 @@ export default async function RootLayout({
             enableSystem={false}
             disableTransitionOnChange
         >
-            <AppInitializer>
-                {children}
-            </AppInitializer>
-            <Toaster />
+            <AuthProvider>
+                <DynamicThemeProvider />
+                <AppInitializer>
+                    {children}
+                </AppInitializer>
+                <Toaster />
+            </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
