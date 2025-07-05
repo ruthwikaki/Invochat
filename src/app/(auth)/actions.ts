@@ -124,9 +124,6 @@ export async function signup(formData: FormData) {
 
     const supabase = getSupabaseClient();
     
-    // Generate a company ID before signup
-    const companyId = crypto.randomUUID();
-    
     const { data, error } = await withTimeout(
       supabase.auth.signUp({
           email,
@@ -135,7 +132,6 @@ export async function signup(formData: FormData) {
               emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
               data: {
                   company_name: companyName,
-                  company_id: companyId,
               }
           }
       }),
