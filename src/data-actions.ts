@@ -1,10 +1,11 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob, Customer } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -19,7 +20,7 @@ import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { validateCSRF } from '@/lib/csrf';
+import { validateCSRF, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -47,8 +48,9 @@ async function getAuthContext(): Promise<{ userId: string, companyId: string, us
             throw new Error(`Authentication error: ${error.message}`);
         }
 
-        const companyId = user?.app_metadata?.company_id;
-        const userRole = user?.app_metadata?.role;
+        // Check app_metadata first, then fall back to user_metadata for invited users on older system versions
+        const companyId = user?.app_metadata?.company_id || user?.user_metadata?.company_id;
+        const userRole = user?.app_metadata?.role || user?.user_metadata?.role;
         
         if (!user || !companyId || typeof companyId !== 'string' || !userRole) {
             logger.warn('[getAuthContext] Could not determine Company ID or Role. User may not be fully signed up or session is invalid.');
@@ -95,7 +97,7 @@ export async function getUnifiedInventory(params: { query?: string; category?: s
     const page = params.page || 1;
     const offset = (page - 1) * limit;
 
-    return db.getUnifiedInventoryFromDB(companyId, { ...params, limit, offset });
+    return db.getUnifiedInventoryFromDB(companyId, { ...params, limit, offset, sku: null });
 }
 
 export async function getInventoryCategories(): Promise<string[]> {
@@ -113,9 +115,14 @@ export async function getSuppliersData() {
     return db.getSuppliersFromDB(companyId);
 }
 
-export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
+const PO_ITEMS_PER_PAGE = 25;
+export async function getPurchaseOrders(params: { query?: string, page?: number }): Promise<{ items: PurchaseOrder[], totalCount: number }> {
     const { companyId } = await getAuthContext();
-    return db.getPurchaseOrdersFromDB(companyId);
+    const limit = PO_ITEMS_PER_PAGE;
+    const page = params.page || 1;
+    const offset = (page - 1) * limit;
+    
+    return db.getPurchaseOrdersFromDB(companyId, { query: params.query, limit, offset });
 }
 
 export async function getPurchaseOrderById(id: string): Promise<PurchaseOrder | null> {
@@ -195,7 +202,8 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
 export async function updateCompanySettings(formData: FormData): Promise<CompanySettings> {
     const { companyId, userRole } = await getAuthContext();
     requireRole(userRole, ['Owner', 'Admin']);
-    validateCSRF(formData);
+    const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+    validateCSRF(formData, csrfTokenFromCookie);
 
     const settings = Object.fromEntries(formData.entries());
     // remove csrf_token from settings object
@@ -223,7 +231,8 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
     try {
         const { userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
 
         const parsed = InviteTeamMemberSchema.safeParse({ email: formData.get('email') });
         if (!parsed.success) {
@@ -419,12 +428,16 @@ export async function testRedisConnection(): Promise<{
     }
 }
 
-export async function removeTeamMember(memberIdToRemove: string): Promise<{ success: boolean; error?: string }> {
+export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const memberIdToRemove = formData.get('memberId') as string;
+        if (!memberIdToRemove) throw new Error('Member ID is missing.');
+
         const { userId: currentUserId, userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
 
-        // Security check: You cannot remove yourself.
         if (memberIdToRemove === currentUserId) {
             return { success: false, error: "You cannot remove yourself from the team." };
         }
@@ -446,9 +459,16 @@ export async function removeTeamMember(memberIdToRemove: string): Promise<{ succ
     }
 }
 
-export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'Admin' | 'Member'): Promise<{ success: boolean; error?: string }> {
-     if (!db.isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
-     return db.withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
+export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
+     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const memberIdToUpdate = formData.get('memberId') as string;
+        const newRole = formData.get('newRole') as TeamMember['role'];
+        if (!memberIdToUpdate || !newRole) throw new Error('Member ID or role is missing.');
+
+        if (!db.isValidUuid(memberIdToUpdate)) throw new Error('Invalid ID format.');
+        
         const { userId, userRole, companyId } = await getAuthContext();
         requireRole(userRole, ['Owner']);
         
@@ -462,7 +482,10 @@ export async function updateTeamMemberRole(memberIdToUpdate: string, newRole: 'A
         }
        
         return result;
-    });
+    } catch(e) {
+        logError(e, { context: 'updateTeamMemberRole' });
+        return { success: false, error: getErrorMessage(e) };
+    }
 }
 
 
@@ -511,8 +534,13 @@ export async function updatePurchaseOrder(poId: string, data: PurchaseOrderUpdat
   }
 }
 
-export async function deletePurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
+export async function deletePurchaseOrder(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const poId = formData.get('poId') as string;
+        if (!poId) throw new Error('PO ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deletePurchaseOrderFromDb(poId, companyId);
@@ -524,8 +552,13 @@ export async function deletePurchaseOrder(poId: string): Promise<{ success: bool
     }
 }
 
-export async function emailPurchaseOrder(poId: string): Promise<{ success: boolean, error?: string }> {
+export async function emailPurchaseOrder(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const poId = formData.get('poId') as string;
+        if (!poId) throw new Error('PO ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const purchaseOrder = await db.getPurchaseOrderByIdFromDB(poId, companyId);
@@ -635,7 +668,8 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
-        validateCSRF(formData);
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
 
         const parsed = UpsertChannelFeeSchema.safeParse({
             channel_name: formData.get('channel_name'),
@@ -693,8 +727,13 @@ export async function updateLocation(id: string, data: LocationFormData): Promis
     }
 }
 
-export async function deleteLocation(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteLocation(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const id = formData.get('id') as string;
+        if (!id) throw new Error('Location ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deleteLocationFromDB(id, companyId);
@@ -739,8 +778,13 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
     }
 }
 
-export async function deleteSupplier(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteSupplier(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const id = formData.get('id') as string;
+        if (!id) throw new Error('Supplier ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deleteSupplierFromDb(id, companyId);
@@ -752,8 +796,15 @@ export async function deleteSupplier(id: string): Promise<{ success: boolean; er
     }
 }
 
-export async function deleteInventoryItems(skus: string[]): Promise<{ success: boolean; error?: string }> {
+export async function deleteInventoryItems(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const skusStr = formData.get('skus') as string;
+        if (!skusStr) throw new Error('SKUs are missing.');
+        const skus = JSON.parse(skusStr);
+        if (!Array.isArray(skus) || skus.length === 0) throw new Error('Invalid SKUs format.');
+
         const { companyId, userRole, userId } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.softDeleteInventoryItemsFromDb(companyId, skus, userId);
@@ -768,14 +819,14 @@ export async function deleteInventoryItems(skus: string[]): Promise<{ success: b
 
 export async function updateInventoryItem(sku: string, data: InventoryUpdateData): Promise<{ success: boolean; error?: string; updatedItem?: UnifiedInventoryItem }> {
     try {
-        const { userId, companyId, userRole } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const parsedData = InventoryUpdateSchema.safeParse(data);
         if (!parsedData.success) {
             return { success: false, error: "Invalid form data provided." };
         }
         
-        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data, userId);
+        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data);
         
         await db.refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
@@ -793,8 +844,13 @@ export async function getIntegrations(): Promise<Integration[]> {
     return db.getIntegrationsByCompanyId(companyId);
 }
 
-export async function disconnectIntegration(integrationId: string): Promise<{ success: boolean; error?: string }> {
+export async function disconnectIntegration(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const integrationId = formData.get('integrationId') as string;
+        if (!integrationId) throw new Error('Integration ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const integration = await db.getIntegrationsByCompanyId(companyId).then(integrations => integrations.find(i => i.id === integrationId));
@@ -816,224 +872,21 @@ export async function getInventoryLedger(sku: string): Promise<InventoryLedgerEn
     return db.getInventoryLedgerForSkuFromDB(companyId, sku);
 }
 
-export async function deleteCustomer(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        const id = formData.get('id') as string;
+        if (!id) throw new Error('Customer ID is missing.');
+
         const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         await db.deleteCustomerFromDb(id, companyId);
-        // Note: We don't revalidate paths here because customers are not directly viewed in a list.
-        // The effect will be visible in reports and analytics.
+        revalidatePath('/customers');
         return { success: true };
     } catch (e) {
         logError(e, { context: 'deleteCustomer action' });
         return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
-    try {
-        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60);
-        if (limited) {
-            return { error: 'You have reached the request limit. Please try again in a minute.' };
-        }
-
-        const companyId = await getAuthContext().then(ctx => ctx.companyId);
-        
-        let currentConversationId = conversationId;
-        if (!currentConversationId) {
-            const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
-            currentConversationId = await saveConversation(companyId, newTitle);
-        }
-
-        const userMessageToSave = {
-            conversation_id: currentConversationId,
-            company_id: companyId,
-            role: 'user' as const,
-            content: content,
-        };
-        await saveMessage(userMessageToSave);
-
-        // Fetch recent messages for history
-        const cookieStore = cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-              cookies: { get: (name: string) => cookieStore.get(name)?.value },
-            }
-        );
-        const { data: historyData, error: historyError } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', currentConversationId)
-            .order('created_at', { ascending: false })
-            .limit(config.ai.historyLimit);
-
-        if (historyError) {
-            logError(historyError, { context: 'Failed to fetch conversation history' });
-        }
-        const conversationHistory = (historyData || []).map(m => ({
-            role: m.role as 'user' | 'assistant' | 'tool',
-            content: [{ text: m.content }]
-        })).reverse();
-
-
-        const response = await universalChatFlow({ companyId, conversationHistory });
-        
-        let component = null;
-        let componentProps = {};
-
-        if (response.toolName === 'getDeadStockReport') {
-            component = 'deadStockTable';
-            componentProps = { data: response.data };
-        }
-        if (response.toolName === 'getReorderSuggestions') {
-            component = 'reorderList';
-            componentProps = { items: response.data };
-        }
-        if (response.toolName === 'getSupplierPerformanceReport') {
-            component = 'supplierPerformanceTable';
-            componentProps = { data: response.data };
-        }
-         if (response.toolName === 'createPurchaseOrdersFromSuggestions') {
-            component = 'confirmation';
-            componentProps = { ...response.data };
-        }
-
-        const newMessage: Message = {
-            id: `ai_${Date.now()}`,
-            conversation_id: currentConversationId,
-            company_id: companyId,
-            role: 'assistant',
-            content: response.response,
-            visualization: response.visualization,
-            confidence: response.confidence,
-            assumptions: response.assumptions,
-            created_at: new Date().toISOString(),
-            component,
-            componentProps
-        };
-
-        await saveMessage({ ...newMessage, id: undefined, created_at: undefined });
-        
-        return { newMessage, conversationId: currentConversationId };
-
-    } catch(e) {
-        logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
-        return { error: getErrorMessage(e) };
-    }
-}
-
-async function saveConversation(companyId: string, title: string) {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: { get: (name: string) => cookieStore.get(name)?.value },
-        }
-    );
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated.');
-    
-    const { data, error } = await supabase
-        .from('conversations')
-        .insert({
-            user_id: user.id,
-            company_id: companyId,
-            title: title
-        })
-        .select('id')
-        .single();
-
-    if (error) {
-        logError(error, { context: 'Failed to save new conversation' });
-        throw new Error('Could not save conversation to the database.');
-    }
-    return data.id;
-}
-
-
-async function saveMessage(message: Omit<Message, 'id' | 'created_at'>) {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: { get: (name: string) => cookieStore.get(name)?.value },
-        }
-    );
-    const { error } = await supabase.from('messages').insert(message);
-    if (error) {
-        logError(error, { context: 'Failed to save message' });
-    }
-}
-
-export async function getConversations() {
-    try {
-        const cookieStore = cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-            cookies: { get: (name: string) => cookieStore.get(name)?.value },
-            }
-        );
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return [];
-
-        const { data, error } = await supabase
-            .from('conversations')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('last_accessed_at', { ascending: false });
-
-        if (error) {
-            logError(error, { context: 'Failed to get conversations' });
-            return [];
-        }
-        return data || [];
-    } catch(e) {
-        logError(e, { context: 'getConversations action' });
-        return [];
-    }
-}
-
-export async function getMessages(conversationId: string) {
-    try {
-        const cookieStore = cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-            cookies: { get: (name: string) => cookieStore.get(name)?.value },
-            }
-        );
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return [];
-
-        // Update last accessed time
-        await supabase
-            .from('conversations')
-            .update({ last_accessed_at: new Date().toISOString() })
-            .eq('id', conversationId);
-
-        const { data, error } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: true });
-        
-        if (error) {
-            logError(error, { context: `Failed to get messages for conversation ${conversationId}` });
-            return [];
-        }
-        return data || [];
-    } catch (e) {
-        logError(e, { context: `getMessages action for conversation ${conversationId}` });
-        return [];
     }
 }
 
@@ -1060,4 +913,14 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean; er
         logError(e, { context: 'requestCompanyDataExport action' });
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+const CUSTOMERS_PER_PAGE = 25;
+export async function getCustomersData(params: { query?: string, page?: number }): Promise<{ items: Customer[], totalCount: number }> {
+    const { companyId } = await getAuthContext();
+    const limit = CUSTOMERS_PER_PAGE;
+    const page = params.page || 1;
+    const offset = (page - 1) * limit;
+    
+    return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
 }

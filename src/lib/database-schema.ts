@@ -420,8 +420,9 @@ BEGIN
         END IF;
     ELSE
         user_role := 'Owner';
+        new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
         new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
-        INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
+        INSERT INTO public.companies (id, name) VALUES (new_company_id, new_company_name);
     END IF;
 
     -- Insert into our public.users table
@@ -441,6 +442,7 @@ BEGIN
     RETURN new;
 END;
 $$;
+
 
 -- Create auth user trigger only in Supabase environments
 DO $$
@@ -561,30 +563,43 @@ BEGIN
 END;
 $$;
 
--- Optimistic locking function
-CREATE OR REPLACE FUNCTION update_inventory_with_lock(
-    p_company_id UUID, p_sku TEXT, p_new_quantity INTEGER, p_expected_version INTEGER,
-    p_change_reason TEXT, p_user_id UUID
-) RETURNS JSON AS $$
+-- Function to update an inventory item's metadata with optimistic locking
+CREATE OR REPLACE FUNCTION public.update_inventory_item_with_lock(
+    p_company_id UUID, 
+    p_sku TEXT, 
+    p_expected_version INTEGER,
+    p_name TEXT,
+    p_category TEXT,
+    p_cost NUMERIC,
+    p_reorder_point INTEGER,
+    p_landed_cost NUMERIC,
+    p_barcode TEXT,
+    p_location_id UUID
+) 
+RETURNS SETOF public.inventory AS $$
 DECLARE
     v_rows_updated INTEGER;
-    v_old_quantity INTEGER;
 BEGIN
-    SELECT quantity INTO v_old_quantity FROM inventory WHERE company_id = p_company_id AND sku = p_sku;
-    
-    UPDATE inventory SET quantity = p_new_quantity, version = version + 1
-    WHERE company_id = p_company_id AND sku = p_sku AND version = p_expected_version;
+    UPDATE public.inventory i
+    SET 
+        name = p_name,
+        category = p_category,
+        cost = p_cost,
+        reorder_point = p_reorder_point,
+        landed_cost = p_landed_cost,
+        barcode = p_barcode,
+        location_id = p_location_id,
+        version = version + 1
+    WHERE i.company_id = p_company_id AND i.sku = p_sku AND i.version = p_expected_version;
         
     GET DIAGNOSTICS v_rows_updated = ROW_COUNT;
     
     IF v_rows_updated = 0 THEN
-        RETURN json_build_object('success', false, 'error', 'Version mismatch');
+        RAISE EXCEPTION 'Update failed. The item may have been modified by someone else. Please refresh and try again.';
     END IF;
     
-    INSERT INTO inventory_adjustments (company_id, sku, old_quantity, new_quantity, change_reason, adjusted_by, adjusted_at)
-    VALUES (p_company_id, p_sku, v_old_quantity, p_new_quantity, p_change_reason, p_user_id, NOW());
-    
-    RETURN json_build_object('success', true);
+    -- Return the updated row
+    RETURN QUERY SELECT * FROM public.inventory WHERE company_id = p_company_id AND sku = p_sku;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -860,6 +875,4 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-`;I will add the semicolon to fix the script.
-
-Here is the corrected file:
+`;

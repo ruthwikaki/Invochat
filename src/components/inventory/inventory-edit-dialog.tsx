@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useForm, Controller } from 'react-hook-form';
@@ -34,7 +35,8 @@ export function InventoryEditDialog({ item, onClose, onSave, locations }: Invent
       reorder_point: item.reorder_point,
       landed_cost: item.landed_cost,
       barcode: item.barcode,
-      location_id: item.location_id
+      location_id: item.location_id,
+      version: item.version,
     } : undefined,
   });
 
@@ -62,10 +64,11 @@ export function InventoryEditDialog({ item, onClose, onSave, locations }: Invent
         reorder_point: item.reorder_point,
         landed_cost: item.landed_cost,
         barcode: item.barcode,
-        location_id: item.location_id
+        location_id: item.location_id,
+        version: item.version,
       });
     }
-  }, [item]);
+  }, [item, form]);
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
@@ -77,6 +80,7 @@ export function InventoryEditDialog({ item, onClose, onSave, locations }: Invent
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+          <input type="hidden" {...form.register('version')} />
           <div className="space-y-2">
             <Label htmlFor="name">Product Name</Label>
             <Input id="name" {...form.register('name')} />

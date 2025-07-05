@@ -1,4 +1,5 @@
 
+
 'use server';
 
 /**
@@ -1084,74 +1085,38 @@ export async function softDeleteInventoryItemsFromDb(companyId: string, skus: st
     });
 }
 
-export async function updateInventoryItemInDb(companyId: string, sku: string, itemData: InventoryUpdateData, userId: string): Promise<UnifiedInventoryItem> {
+export async function updateInventoryItemInDb(companyId: string, sku: string, itemData: InventoryUpdateData): Promise<UnifiedInventoryItem> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('updateInventoryItemInDb', async () => {
         const supabase = getServiceRoleClient();
-        const maxRetries = 3;
-        let retries = 0;
-    
-        while (retries < maxRetries) {
-            const { data: current, error: fetchError } = await supabase
-                .from('inventory')
-                .select('quantity, version')
-                .eq('company_id', companyId)
-                .eq('sku', sku)
-                .single();
-                
-            if (fetchError) throw new Error('Item not found or could not be fetched.');
-
-            const { data, error } = await supabase.rpc('update_inventory_with_lock', {
-                p_company_id: companyId,
-                p_sku: sku,
-                p_new_quantity: current.quantity, // Optimistic lock is for metadata changes here
-                p_expected_version: current.version,
-                p_change_reason: `Metadata update by user`,
-                p_user_id: userId,
-                // These are not in the provided RPC, would need to add them to a new one
-                // p_new_name: itemData.name, ...
-            });
-            
-            // This needs a new RPC that can update metadata fields with locking
-            const { error: updateError } = await supabase
-                .from('inventory')
-                .update({ 
-                    name: itemData.name, 
-                    category: itemData.category, 
-                    cost: itemData.cost,
-                    reorder_point: itemData.reorder_point,
-                    landed_cost: itemData.landed_cost,
-                    barcode: itemData.barcode,
-                    location_id: itemData.location_id
-                })
-                .eq('company_id', companyId)
-                .eq('sku', sku);
-
-            if (updateError) {
-                logError(updateError, {context: `Error in metadata update for SKU: ${sku}`});
-                throw updateError;
-            }
-
-            // This part of the logic is complex and needs a dedicated RPC to be truly safe.
-            // For now, returning a simulated updated item.
-            const { data: updatedItem } = await supabase
-                .from('inventory')
-                .select('*, location:locations(name)')
-                .eq('company_id', companyId)
-                .eq('sku', sku)
-                .single();
-            
-            return {
-                ...updatedItem,
-                product_name: updatedItem.name,
-                location_name: updatedItem.location?.name,
-                total_value: updatedItem.quantity * updatedItem.cost,
-                monthly_units_sold: 0, // Placeholder
-                monthly_profit: 0, // Placeholder
-            } as UnifiedInventoryItem;
-        }
         
-        throw new Error('Could not update inventory after multiple attempts due to concurrent modifications.');
+        const { data, error } = await supabase.rpc('update_inventory_item_with_lock', {
+            p_company_id: companyId,
+            p_sku: sku,
+            p_expected_version: itemData.version,
+            p_name: itemData.name,
+            p_category: itemData.category,
+            p_cost: itemData.cost,
+            p_reorder_point: itemData.reorder_point,
+            p_landed_cost: itemData.landed_cost,
+            p_barcode: itemData.barcode,
+            p_location_id: itemData.location_id
+        }).single();
+
+        if (error) {
+            logError(error, { context: `Optimistic lock failed or error updating SKU ${sku}` });
+            if (error.message.includes('Update failed. The item may have been modified by someone else.')) {
+                throw new Error('Update failed. This item was modified by someone else. Please refresh and try again.');
+            }
+            throw error;
+        }
+
+        const { data: fullData } = await getUnifiedInventoryFromDB(companyId, { sku: data.sku, limit: 1 });
+        if (!fullData || fullData.items.length === 0) {
+            throw new Error('Failed to retrieve updated item details.');
+        }
+
+        return fullData.items[0];
     });
 }
 
@@ -1221,7 +1186,7 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
   });
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string; supplier?: string; limit?: number; offset?: number }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string; supplier?: string; limit?: number; offset?: number; sku?: string }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
@@ -1231,6 +1196,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             p_category: params.category || null,
             p_location_id: params.location ? (isValidUuid(params.location) ? params.location : null) : null,
             p_supplier_id: params.supplier ? (isValidUuid(params.supplier) ? params.supplier : null) : null,
+            p_sku_filter: params.sku || null,
             p_limit: params.limit || 50,
             p_offset: params.offset || 0,
         });

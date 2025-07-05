@@ -117,9 +117,9 @@ export const CompanySettingsSchema = z.object({
   currency: z.string().nullable().optional().default('USD'),
   timezone: z.string().nullable().optional().default('UTC'),
   tax_rate: z.number().nullable().optional().default(0),
-  theme_primary_color: z.string().nullable().optional().default('256 47% 52%'),
-  theme_background_color: z.string().nullable().optional().default('0 0% 98%'),
-  theme_accent_color: z.string().nullable().optional().default('256 47% 52% / 0.1'),
+  theme_primary_color: z.string().nullable().optional().default('256 75% 61%'),
+  theme_background_color: z.string().nullable().optional().default('222 83% 4%'),
+  theme_accent_color: z.string().nullable().optional().default('217 33% 17%'),
   custom_rules: z.record(z.unknown()).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
@@ -143,6 +143,7 @@ export type UnifiedInventoryItem = {
   location_name: string | null;
   monthly_units_sold: number;
   monthly_profit: number;
+  version: number;
 };
 
 export const InventoryUpdateSchema = z.object({
@@ -153,6 +154,7 @@ export const InventoryUpdateSchema = z.object({
   landed_cost: z.coerce.number().nonnegative('Landed cost must be a non-negative number.').optional().nullable(),
   barcode: z.string().optional().nullable(),
   location_id: z.string().uuid().optional().nullable(),
+  version: z.number().int('Version must be an integer.'),
 });
 export type InventoryUpdateData = z.infer<typeof InventoryUpdateSchema>;
 
