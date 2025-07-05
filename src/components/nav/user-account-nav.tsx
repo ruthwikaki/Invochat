@@ -1,24 +1,13 @@
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { signOut } from '@/app/(auth)/actions';
 
 export function UserAccountNav() {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-        <div className="flex items-center gap-2 p-2">
-            <Skeleton className="h-8 w-8 rounded-full" />
-            <Skeleton className="h-4 w-32" />
-        </div>
-    )
-  }
+  const { user } = useAuth();
 
   return (
     <div className="flex items-center gap-2 p-2">
