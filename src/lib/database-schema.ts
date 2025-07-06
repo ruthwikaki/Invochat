@@ -796,6 +796,65 @@ BEGIN
 END;
 $$;
 
+-- Dashboard Metrics Function
+CREATE OR REPLACE FUNCTION public.get_dashboard_metrics(p_company_id uuid, p_days integer)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    result_json json;
+    start_date timestamptz := now() - (p_days || ' days')::interval;
+BEGIN
+    WITH date_series AS (
+        SELECT generate_series(start_date::date, now()::date, '1 day'::interval) as date
+    ),
+    sales_data AS (
+        SELECT
+            date_trunc('day', o.sale_date)::date as sale_day,
+            SUM(oi.quantity * oi.unit_price) as daily_revenue,
+            SUM(oi.quantity * (oi.unit_price - i.cost)) as daily_profit,
+            COUNT(DISTINCT o.id) as daily_orders
+        FROM orders o
+        JOIN order_items oi ON o.id = oi.sale_id
+        JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
+        WHERE o.company_id = p_company_id AND o.sale_date >= start_date
+        GROUP BY 1
+    )
+    SELECT json_build_object(
+        'totalSalesValue', (SELECT COALESCE(SUM(daily_revenue), 0) FROM sales_data),
+        'totalProfit', (SELECT COALESCE(SUM(daily_profit), 0) FROM sales_data),
+        'totalOrders', (SELECT COALESCE(SUM(daily_orders), 0) FROM sales_data),
+        'averageOrderValue', (SELECT COALESCE(SUM(daily_revenue) / NULLIF(SUM(daily_orders), 0), 0) FROM sales_data),
+        'deadStockItemsCount', (SELECT COUNT(*) FROM inventory WHERE company_id = p_company_id AND last_sold_date < now() - '90 days'::interval),
+        'salesTrendData', (
+            SELECT json_agg(json_build_object('date', ds.date, 'Sales', COALESCE(sd.daily_revenue, 0)))
+            FROM date_series ds
+            LEFT JOIN sales_data sd ON ds.date = sd.sale_day
+        ),
+        'inventoryByCategoryData', (
+            SELECT json_agg(json_build_object('name', COALESCE(category, 'Uncategorized'), 'value', SUM(quantity * cost)))
+            FROM inventory
+            WHERE company_id = p_company_id AND deleted_at IS NULL
+            GROUP BY category
+            ORDER BY SUM(quantity * cost) DESC
+            LIMIT 5
+        ),
+        'topCustomersData', (
+            SELECT json_agg(json_build_object('name', c.customer_name, 'value', SUM(o.total_amount)))
+            FROM orders o
+            JOIN customers c ON o.customer_id = c.id
+            WHERE o.company_id = p_company_id AND o.sale_date >= start_date AND c.deleted_at IS NULL
+            GROUP BY c.customer_name
+            ORDER BY SUM(o.total_amount) DESC
+            LIMIT 5
+        )
+    ) INTO result_json;
+
+    RETURN result_json;
+END;
+$$;
+
+
 -- ========= Part 5: Row-Level Security (RLS) Policies =========
 
 -- RLS helper functions (safe for non-Supabase environments)
@@ -920,20 +979,3 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
-
-    
-    
-
-
-
-
-    
-
-    
-
-  
-
-
-    
-
-    

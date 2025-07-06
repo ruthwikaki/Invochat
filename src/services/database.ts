@@ -172,6 +172,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
   const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
     return withPerformanceTracking('getDashboardMetricsOptimized', async () => {
         const supabase = getServiceRoleClient();
+        const days = parseInt(dateRange.replace('d', ''), 10) || 30; // Parse days from string
         
         const { data: mvData, error: mvError } = await supabase
             .from('company_dashboard_metrics')
@@ -184,7 +185,8 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         }
         
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_dashboard_metrics', {
-            p_company_id: companyId
+            p_company_id: companyId,
+            p_days: days,
         });
         
         if (rpcError) {
