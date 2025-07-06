@@ -403,7 +403,7 @@ END $$;
 
 -- ========= Part 4: Functions & Triggers =========
 
--- Function to handle new user creation (Supabase-specific)
+-- Function to handle new user creation with enhanced error handling
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -412,49 +412,73 @@ DECLARE
     new_company_name TEXT;
 BEGIN
     RAISE NOTICE '[handle_new_user] Trigger started for user %', new.email;
-    
-    -- Check if auth schema exists (Supabase environment)
+
+    -- Check for Supabase environment
     IF NOT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'auth') THEN
-        RAISE NOTICE '[handle_new_user] Auth schema not found - skipping user creation trigger';
+        RAISE WARNING '[handle_new_user] Auth schema not found. Skipping trigger logic.';
         RETURN new;
     END IF;
 
-    -- Determine if this is an invite or a fresh sign-up
+    -- Handle invited users vs. new sign-ups
     IF new.invited_at IS NOT NULL THEN
-        RAISE NOTICE '[handle_new_user] Invited user detected.';
-        new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
+        RAISE NOTICE '[handle_new_user] Processing invited user.';
         user_role := 'Member';
-
+        -- Extract company_id from metadata; this is crucial for invites.
+        new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
         IF new_company_id IS NULL THEN
-            RAISE EXCEPTION 'Invited user must have a company_id in metadata.';
+            RAISE EXCEPTION 'Invited user sign-up failed: company_id was missing from user metadata.';
         END IF;
     ELSE
-        RAISE NOTICE '[handle_new_user] New signup detected.';
+        RAISE NOTICE '[handle_new_user] Processing new direct sign-up.';
         user_role := 'Owner';
         new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
-        RAISE NOTICE '[handle_new_user] Company name: %', new_company_name;
-
-        INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
-        RAISE NOTICE '[handle_new_user] Created company with id: %', new_company_id;
+        
+        -- Create the new company record
+        BEGIN
+            RAISE NOTICE '[handle_new_user] Attempting to insert into public.companies with name: %', new_company_name;
+            INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
+            RAISE NOTICE '[handle_new_user] Successfully created company with ID: %', new_company_id;
+        EXCEPTION
+            WHEN OTHERS THEN
+                RAISE EXCEPTION 'Failed to insert into public.companies: %', SQLERRM;
+        END;
     END IF;
 
-    -- Insert into our public.users table
-    INSERT INTO public.users (id, company_id, email, role)
-    VALUES (new.id, new_company_id, new.email, user_role);
-    RAISE NOTICE '[handle_new_user] Inserted into public.users for user id: %', new.id;
+    -- Insert into our public users table, which links auth.users to our application data.
+    BEGIN
+        RAISE NOTICE '[handle_new_user] Attempting to insert into public.users with user_id: %, company_id: %', new.id, new_company_id;
+        INSERT INTO public.users (id, company_id, email, role)
+        VALUES (new.id, new_company_id, new.email, user_role);
+        RAISE NOTICE '[handle_new_user] Successfully inserted into public.users.';
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE EXCEPTION 'Failed to insert into public.users: %', SQLERRM;
+    END;
 
-
-    -- For new owners, create default settings
+    -- For new Owners, create default settings entry.
     IF user_role = 'Owner' THEN
-        INSERT INTO public.company_settings (company_id) VALUES (new_company_id) ON CONFLICT (company_id) DO NOTHING;
-        RAISE NOTICE '[handle_new_user] Inserted into company_settings for company id: %', new_company_id;
+        BEGIN
+            RAISE NOTICE '[handle_new_user] Attempting to insert default settings for company_id: %', new_company_id;
+            INSERT INTO public.company_settings (company_id) VALUES (new_company_id) ON CONFLICT (company_id) DO NOTHING;
+            RAISE NOTICE '[handle_new_user] Successfully inserted into company_settings.';
+        EXCEPTION
+            WHEN OTHERS THEN
+                RAISE EXCEPTION 'Failed to insert into public.company_settings: %', SQLERRM;
+        END;
     END IF;
     
-    -- Update app_metadata
-    UPDATE auth.users
-    SET app_metadata = COALESCE(app_metadata, '{}'::jsonb) || jsonb_build_object('role', user_role, 'company_id', new_company_id)
-    WHERE id = new.id;
-    RAISE NOTICE '[handle_new_user] Updated app_metadata for user id: %', new.id;
+    -- Update the app_metadata in auth.users to store company_id and role.
+    -- This makes it available in the JWT for RLS policies.
+    BEGIN
+        RAISE NOTICE '[handle_new_user] Attempting to update auth.users metadata for user_id: %', new.id;
+        UPDATE auth.users
+        SET app_metadata = COALESCE(app_metadata, '{}'::jsonb) || jsonb_build_object('role', user_role, 'company_id', new_company_id)
+        WHERE id = new.id;
+        RAISE NOTICE '[handle_new_user] Successfully updated auth.users metadata.';
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE EXCEPTION 'Failed to update auth.users metadata: %', SQLERRM;
+    END;
 
     RAISE NOTICE '[handle_new_user] Trigger finished successfully.';
     RETURN new;
