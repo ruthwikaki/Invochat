@@ -9,7 +9,7 @@ import { InventoryImportSchema, SupplierImportSchema, SupplierCatalogImportSchem
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
-import { validateCSRF, CSRF_COOKIE_NAME } from '@/lib/csrf';
+import { validateCSRF, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User } from '@/types';
 import { revalidatePath } from 'next/cache';
