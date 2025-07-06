@@ -423,7 +423,6 @@ BEGIN
     IF new.invited_at IS NOT NULL THEN
         RAISE NOTICE '[handle_new_user] Processing invited user.';
         user_role := 'Member';
-        -- **FIX**: Use raw_app_meta_data for client-side signups/invites
         new_company_id := (new.raw_app_meta_data->>'company_id')::uuid;
         IF new_company_id IS NULL THEN
             RAISE EXCEPTION 'Invited user sign-up failed: company_id was missing from user metadata.';
@@ -431,8 +430,11 @@ BEGIN
     ELSE
         RAISE NOTICE '[handle_new_user] Processing new direct sign-up.';
         user_role := 'Owner';
-        -- **FIX**: Use raw_user_meta_data for client-side signups
-        new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
+        new_company_name := COALESCE(
+            new.raw_user_meta_data->>'company_name',
+            new.raw_app_meta_data->>'company_name',
+            new.email || '''s Company'
+        );
         
         -- Create the new company record
         BEGIN
