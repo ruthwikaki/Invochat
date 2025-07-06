@@ -37,6 +37,11 @@ export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
 
   useEffect(() => {
     setError(initialError);
+    if (initialError) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('error');
+        window.history.replaceState({}, '', url.toString());
+    }
   }, [initialError]);
 
   const handleInteraction = () => {

@@ -31,6 +31,11 @@ export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePas
 
     useEffect(() => {
         setError(initialError);
+        if (initialError) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('error');
+            window.history.replaceState({}, '', url.toString());
+        }
     }, [initialError]);
     
     const handleSubmit = async (formData: FormData) => {

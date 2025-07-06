@@ -31,6 +31,11 @@ export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPas
 
   useEffect(() => {
     setError(initialError);
+    if (initialError) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('error');
+        window.history.replaceState({}, '', url.toString());
+    }
   }, [initialError]);
 
   const handleInteraction = () => {
