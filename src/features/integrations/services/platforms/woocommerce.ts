@@ -9,9 +9,12 @@ export async function runWooCommerceFullSync(integration: Integration) {
     if (!integration.access_token) {
         throw new Error('Could not retrieve WooCommerce credentials.');
     }
+    
+    // Credentials are now stored as a JSON string in the access_token field
     const credentials = JSON.parse(integration.access_token);
     
     logger.info(`[Sync Placeholder] Starting WooCommerce sync for store: ${integration.shop_domain}`);
+    logger.info(`[Sync Placeholder] Using Consumer Key: ${credentials.consumerKey}`);
     
     // In a real implementation, you would:
     // 1. Use a WooCommerce REST API client library.

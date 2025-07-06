@@ -9,12 +9,14 @@ export async function runAmazonFbaFullSync(integration: Integration) {
     if (!integration.access_token) {
         throw new Error('Could not retrieve Amazon FBA credentials.');
     }
+    
+    // Credentials are now stored as a JSON string in the access_token field
     const credentials = JSON.parse(integration.access_token);
     
     logger.info(`[Sync Placeholder] Starting Amazon FBA sync for Seller ID: ${credentials.sellerId}`);
 
     // In a real implementation, you would:
-    // 1. Use an Amazon SP-API client library.
+    // 1. Use an Amazon SP-API client library with the retrieved credentials.
     // 2. Fetch inventory reports (e.g., FBA inventory reports).
     // 3. Fetch order reports.
     // 4. Map the Amazon data structures to your internal database schema.

@@ -15,7 +15,6 @@ import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import { deleteSecret } from '@/features/integrations/services/encryption';
 import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
@@ -857,7 +856,6 @@ export async function disconnectIntegration(formData: FormData): Promise<{ succe
         if (!integration) {
             return { success: false, error: "Integration not found or you do not have permission to access it." };
         }
-        await deleteSecret(companyId, integration.platform);
         await db.deleteIntegrationFromDb(integrationId, companyId);
         revalidatePath('/settings/integrations');
         return { success: true };
@@ -924,3 +922,4 @@ export async function getCustomersData(params: { query?: string, page?: number }
     
     return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
 }
+

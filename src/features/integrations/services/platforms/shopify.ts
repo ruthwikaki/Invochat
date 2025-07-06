@@ -68,53 +68,31 @@ export async function syncProducts(integration: Integration, accessToken: string
             if (!response.ok) throw new Error(`Shopify API product fetch error (${response.status}): ${await response.text()}`);
 
             const pageData = await response.json();
-            const externalVariantIds = pageData.products.flatMap((p: any) => p.variants.map((v: any) => String(v.id)));
+            const recordsToUpsert: any[] = [];
 
-            if (externalVariantIds.length > 0) {
-                const { data: localInventory, error: localInvError } = await supabase
-                    .from('inventory')
-                    .select('external_variant_id, updated_at, last_sync, quantity, external_quantity')
-                    .eq('company_id', integration.company_id)
-                    .in('external_variant_id', externalVariantIds);
-                if (localInvError) throw localInvError;
-
-                const localInventoryMap = new Map(localInventory.map(item => [item.external_variant_id, item]));
-                const recordsToUpsert: any[] = [];
-
-                for (const product of pageData.products) {
-                    for (const variant of product.variants) {
-                        const localProduct = localInventoryMap.get(String(variant.id));
-                        if (localProduct) {
-                            const localModified = new Date(localProduct.updated_at).getTime();
-                            const lastSync = localProduct.last_sync ? new Date(localProduct.last_sync).getTime() : 0;
-                            if (localModified > lastSync) {
-                                logger.warn(`[Sync Conflict] Skipping SKU ${variant.sku}. Local changes are newer.`);
-                                continue;
-                            }
-                        }
-
-                        recordsToUpsert.push({
-                            company_id: integration.company_id,
-                            sku: variant.sku || `SHOPIFY-${variant.id}`,
-                            name: variant.title === 'Default Title' ? product.title : `${product.title} - ${variant.title}`,
-                            quantity: localProduct ? (localProduct.quantity + (variant.inventory_quantity - (localProduct.external_quantity || 0))) : variant.inventory_quantity,
-                            cost: parseFloat(variant.price),
-                            category: product.product_type,
-                            barcode: variant.barcode,
-                            source_platform: 'shopify',
-                            external_product_id: String(product.id),
-                            external_variant_id: String(variant.id),
-                            external_quantity: variant.inventory_quantity,
-                            last_sync: new Date().toISOString(),
-                        });
-                    }
+            for (const product of pageData.products) {
+                for (const variant of product.variants) {
+                    recordsToUpsert.push({
+                        company_id: integration.company_id,
+                        sku: variant.sku || `SHOPIFY-${variant.id}`,
+                        name: variant.title === 'Default Title' ? product.title : `${product.title} - ${variant.title}`,
+                        quantity: variant.inventory_quantity, // Direct sync from Shopify
+                        cost: parseFloat(variant.price),
+                        category: product.product_type,
+                        barcode: variant.barcode,
+                        source_platform: 'shopify',
+                        external_product_id: String(product.id),
+                        external_variant_id: String(variant.id),
+                        external_quantity: variant.inventory_quantity, // Keep track of what Shopify says
+                        last_sync_at: new Date().toISOString(),
+                    });
                 }
+            }
 
-                if (recordsToUpsert.length > 0) {
-                     const { error: upsertError } = await supabase.from('inventory').upsert(recordsToUpsert, { onConflict: 'company_id,source_platform,external_variant_id' });
-                     if (upsertError) throw new Error(`Database upsert error for products: ${upsertError.message}`);
-                     totalRecordsSynced += recordsToUpsert.length;
-                }
+            if (recordsToUpsert.length > 0) {
+                 const { error: upsertError } = await supabase.from('inventory').upsert(recordsToUpsert, { onConflict: 'company_id,source_platform,external_variant_id' });
+                 if (upsertError) throw new Error(`Database upsert error for products: ${upsertError.message}`);
+                 totalRecordsSynced += recordsToUpsert.length;
             }
             
             nextUrl = parseLinkHeader(response.headers.get('Link'));

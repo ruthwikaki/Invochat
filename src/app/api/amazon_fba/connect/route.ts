@@ -40,6 +40,7 @@ export async function POST(request: Request) {
         
         const { sellerId, authToken } = parsed.data;
 
+        // Store credentials as a JSON string directly in the access_token column.
         const credentialsToStore = JSON.stringify({ sellerId, authToken });
         
         const supabase = getServiceRoleClient();
