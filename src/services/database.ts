@@ -83,6 +83,7 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
             overstock_multiplier: config.businessLogic.overstockMultiplier,
             high_value_threshold: config.businessLogic.highValueThreshold,
             fast_moving_days: config.businessLogic.fastMovingDays,
+            predictive_stock_days: config.businessLogic.predictiveStockDays,
             currency: 'USD',
             timezone: 'UTC',
             tax_rate: 0,
@@ -112,6 +113,7 @@ const CompanySettingsUpdateSchema = z.object({
     fast_moving_days: z.coerce.number().int().positive('Fast-moving days must be a positive number.').optional(),
     overstock_multiplier: z.coerce.number().positive('Overstock multiplier must be a positive number.').optional(),
     high_value_threshold: z.coerce.number().int().positive('High-value threshold must be a positive number.').optional(),
+    predictive_stock_days: z.coerce.number().int().positive('Predictive stock days must be a positive number.').optional(),
     theme_primary_color: z.string().nullable().optional(),
     theme_background_color: z.string().nullable().optional(),
     theme_accent_color: z.string().nullable().optional(),
@@ -1427,3 +1429,4 @@ export async function logSuccessfulLogin(userId: string, ipAddress: string | nul
         }
     });
 }
+

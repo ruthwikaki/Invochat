@@ -114,6 +114,7 @@ export const CompanySettingsSchema = z.object({
   overstock_multiplier: z.number().default(3),
   high_value_threshold: z.number().default(1000),
   fast_moving_days: z.number().default(30),
+  predictive_stock_days: z.number().default(7),
   currency: z.string().nullable().optional().default('USD'),
   timezone: z.string().nullable().optional().default('UTC'),
   tax_rate: z.number().nullable().optional().default(0),

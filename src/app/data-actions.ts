@@ -1,10 +1,11 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob, Customer } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -14,7 +15,6 @@ import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import { deleteSecret } from '@/features/integrations/services/encryption';
 import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
@@ -96,7 +96,7 @@ export async function getUnifiedInventory(params: { query?: string; category?: s
     const page = params.page || 1;
     const offset = (page - 1) * limit;
 
-    return db.getUnifiedInventoryFromDB(companyId, { ...params, limit, offset });
+    return db.getUnifiedInventoryFromDB(companyId, { ...params, limit, offset, sku: null });
 }
 
 export async function getInventoryCategories(): Promise<string[]> {
@@ -818,14 +818,14 @@ export async function deleteInventoryItems(formData: FormData): Promise<{ succes
 
 export async function updateInventoryItem(sku: string, data: InventoryUpdateData): Promise<{ success: boolean; error?: string; updatedItem?: UnifiedInventoryItem }> {
     try {
-        const { userId, companyId, userRole } = await getAuthContext();
+        const { companyId, userRole } = await getAuthContext();
         requireRole(userRole, ['Owner', 'Admin']);
         const parsedData = InventoryUpdateSchema.safeParse(data);
         if (!parsedData.success) {
             return { success: false, error: "Invalid form data provided." };
         }
         
-        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data, userId);
+        const updatedItem = await db.updateInventoryItemInDb(companyId, sku, parsedData.data);
         
         await db.refreshMaterializedViews(companyId);
         revalidatePath('/inventory');
@@ -856,7 +856,6 @@ export async function disconnectIntegration(formData: FormData): Promise<{ succe
         if (!integration) {
             return { success: false, error: "Integration not found or you do not have permission to access it." };
         }
-        await deleteSecret(companyId, integration.platform);
         await db.deleteIntegrationFromDb(integrationId, companyId);
         revalidatePath('/settings/integrations');
         return { success: true };
@@ -923,3 +922,4 @@ export async function getCustomersData(params: { query?: string, page?: number }
     
     return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
 }
+

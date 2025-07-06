@@ -6,7 +6,6 @@ import { logError } from '@/lib/error-handler';
 import type { Integration } from '../../types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
-import { getSecret } from '../encryption';
 
 const SHOPIFY_API_VERSION = '2024-04';
 const RATE_LIMIT_DELAY = 500; // 500ms delay between requests (2 req/s)
@@ -241,17 +240,17 @@ export async function syncOrders(integration: Integration, accessToken: string) 
 export async function runShopifyFullSync(integration: Integration) {
     const supabase = getServiceRoleClient();
     try {
-        const credentialsJson = await getSecret(integration.company_id, 'shopify');
-        if (!credentialsJson) throw new Error('Could not retrieve Shopify credentials from Vault.');
-        const { accessToken } = JSON.parse(credentialsJson);
+        if (!integration.access_token) {
+            throw new Error('Shopify access token is missing for this integration.');
+        }
 
         logger.info(`[Sync] Starting product sync for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_products' }).eq('id', integration.id);
-        await syncProducts(integration, accessToken);
+        await syncProducts(integration, integration.access_token);
         
         logger.info(`[Sync] Starting order sync for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_orders' }).eq('id', integration.id);
-        await syncOrders(integration, accessToken);
+        await syncOrders(integration, integration.access_token);
 
         logger.info(`[Sync] Full sync completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);

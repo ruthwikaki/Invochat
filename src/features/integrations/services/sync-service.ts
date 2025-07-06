@@ -8,7 +8,6 @@ import { runWooCommerceFullSync } from './platforms/woocommerce';
 import { runAmazonFbaFullSync } from './platforms/amazon_fba';
 import { logger } from '@/lib/logger';
 import type { Integration } from '../types';
-import { getSecret } from './encryption';
 
 /**
  * The main dispatcher for running an integration sync.
@@ -70,14 +69,6 @@ export async function runSync(integrationId: string, companyId: string, attempt 
         } else {
             logger.error(`[Sync Service] Max retries reached for integration ${integration.id}. Marking as failed.`);
             await supabase.from('integrations').update({ sync_status: 'failed' }).eq('id', integration.id);
-            // Log the permanent failure for later analysis
-            await supabase.from('sync_errors').insert({
-                integration_id: integrationId,
-                company_id: companyId,
-                error_message: e.message,
-                stack_trace: e.stack,
-                attempt_number: attempt,
-            });
             // Re-throw the error to be caught by the original caller if needed
             throw new Error(`Sync failed after ${MAX_ATTEMPTS} attempts. Please check the logs.`);
         }
