@@ -19,6 +19,7 @@ import type { DashboardMetrics } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BusinessHealthScore } from '@/components/dashboard/business-health-score';
 import { RoiCounter } from '@/components/dashboard/roi-counter';
+import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state';
 
 
 // --- Data Formatting Utilities ---
@@ -141,14 +142,20 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
     const [data, setData] = useState<DashboardMetrics | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
+    const [isEmpty, setIsEmpty] = useState(false);
     const dateRange = searchParams?.range || '30d';
     
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             setError(null);
+            setIsEmpty(false);
             try {
                 const result = await getDashboardData(dateRange);
+                // If there are no products and no sales, it's a new account.
+                if (result.totalSkus === 0 && result.totalOrders === 0) {
+                    setIsEmpty(true);
+                }
                 setData(result);
             } catch (e) {
                 setError(e as Error);
@@ -172,6 +179,8 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
                 <DashboardSkeleton />
             ) : error ? (
                 <ErrorDisplay error={error} />
+            ) : isEmpty ? (
+                <DashboardEmptyState />
             ) : data ? (
                 <div className="space-y-8">
                     {/* Top Row: Value-add Widgets */}
