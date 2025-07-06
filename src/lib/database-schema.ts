@@ -69,8 +69,7 @@ BEGIN
         'deadStockItemsCount', (
             SELECT COUNT(*) 
             FROM inventory 
-            WHERE company_id = p_company_id 
-            AND deleted_at IS NULL
+            WHERE company_id = p_company_id AND deleted_at IS NULL
             AND last_sold_date < now() - (dead_stock_days || ' days')::interval
         ),
         'salesTrendData', (
@@ -572,7 +571,7 @@ BEGIN
         'new_customers_last_30_days', (SELECT new_customers_last_30_days FROM customer_stats),
         'average_lifetime_value', (SELECT average_lifetime_value FROM customer_stats),
         'repeat_customer_rate', (SELECT repeat_customer_rate / 100.0 FROM customer_stats),
-        'top_customers_by_spend', (
+        'top_customers_by_spend', COALESCE((
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_spent))
             FROM (
                 SELECT customer_name, total_spent
@@ -581,8 +580,8 @@ BEGIN
                 ORDER BY total_spent DESC
                 LIMIT 5
             ) top_spend
-        ),
-        'top_customers_by_orders', (
+        ), '[]'::json),
+        'top_customers_by_orders', COALESCE((
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_orders))
             FROM (
                 SELECT customer_name, total_orders
@@ -591,7 +590,7 @@ BEGIN
                 ORDER BY total_orders DESC
                 LIMIT 5
             ) top_orders
-        )
+        ), '[]'::json)
     ) INTO result_json;
 
     RETURN result_json;
