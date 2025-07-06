@@ -218,7 +218,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                         <TableRow>
                             <TableHead>Customer</TableHead>
                             <TableHead className="text-right">Total Orders</TableHead>
-                            <TableHead className="text-right">Total Spend</TableHead>
+                            <TableHead className="text-right">Total Spent</TableHead>
                             <TableHead className="w-16 text-center">Actions</TableHead>
                         </TableRow>
                         </TableHeader>
@@ -243,7 +243,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                                 </div>
                             </TableCell>
                             <TableCell className="text-right">{customer.total_orders}</TableCell>
-                            <TableCell className="text-right font-medium">${customer.total_spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-medium">${customer.total_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             <TableCell className="text-center">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

@@ -351,7 +351,7 @@ export const CustomerSchema = z.object({
   customer_name: z.string(),
   email: z.string().email().nullable(),
   total_orders: z.coerce.number().int(),
-  total_spend: z.coerce.number(),
+  total_spent: z.coerce.number(),
   status: z.string().nullable(),
   deleted_at: z.string().nullable(),
   created_at: z.string(),

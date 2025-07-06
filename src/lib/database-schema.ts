@@ -560,7 +560,7 @@ BEGIN
         SELECT
             COUNT(*) as total_customers,
             COUNT(*) FILTER (WHERE c.first_order_date >= NOW() - INTERVAL '30 days') as new_customers_last_30_days,
-            COALESCE(AVG(c.total_spend), 0) as average_lifetime_value,
+            COALESCE(AVG(c.total_spent), 0) as average_lifetime_value,
             CASE WHEN COUNT(*) > 0 THEN
                 (COUNT(*) FILTER (WHERE c.total_orders > 1))::numeric * 100 / COUNT(*)::numeric
             ELSE 0 END as repeat_customer_rate
@@ -573,12 +573,12 @@ BEGIN
         'average_lifetime_value', (SELECT average_lifetime_value FROM customer_stats),
         'repeat_customer_rate', (SELECT repeat_customer_rate / 100.0 FROM customer_stats),
         'top_customers_by_spend', (
-            SELECT json_agg(json_build_object('name', customer_name, 'value', total_spend))
+            SELECT json_agg(json_build_object('name', customer_name, 'value', total_spent))
             FROM (
-                SELECT customer_name, total_spend
+                SELECT customer_name, total_spent
                 FROM customers
                 WHERE company_id = p_company_id AND deleted_at IS NULL
-                ORDER BY total_spend DESC
+                ORDER BY total_spent DESC
                 LIMIT 5
             ) top_spend
         ),
