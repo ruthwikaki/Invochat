@@ -296,8 +296,8 @@ BEGIN
     IF new.invited_at IS NOT NULL THEN
         RAISE NOTICE '[handle_new_user] Processing invited user.';
         user_role := 'Member';
-        -- **FIX**: Use raw_app_meta_data for client-side signups/invites
-        new_company_id := (new.raw_app_meta_data->>'company_id')::uuid;
+        -- **FIX**: Use raw_user_meta_data for invites, which is set by supabase.auth.admin.inviteUserByEmail
+        new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
         IF new_company_id IS NULL THEN
             RAISE EXCEPTION 'Invited user sign-up failed: company_id was missing from user metadata.';
         END IF;
@@ -431,26 +431,26 @@ BEGIN
         SELECT
             date_trunc('day', o.sale_date)::date as sale_day,
             SUM(oi.quantity * oi.unit_price) as daily_revenue,
-            SUM(oi.quantity * (oi.unit_price - i.cost)) as daily_profit,
+            SUM(oi.quantity * (oi.unit_price - COALESCE(i.cost, 0))) as daily_profit,
             COUNT(DISTINCT o.id) as daily_orders
         FROM orders o
         JOIN order_items oi ON o.id = oi.sale_id
-        JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
-        WHERE o.company_id = p_company_id AND o.sale_date >= start_date AND i.deleted_at IS NULL
+        LEFT JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
+        WHERE o.company_id = p_company_id AND o.sale_date >= start_date
         GROUP BY 1
     ),
-    total_aggregates AS (
-      SELECT
-        SUM(daily_revenue) as total_sales,
-        SUM(daily_profit) as total_profit,
-        SUM(daily_orders) as total_orders
-      FROM sales_data
+    totals AS (
+        SELECT 
+            COALESCE(SUM(daily_revenue), 0) as total_revenue,
+            COALESCE(SUM(daily_profit), 0) as total_profit,
+            COALESCE(SUM(daily_orders), 0) as total_orders
+        FROM sales_data
     )
     SELECT json_build_object(
-        'totalSalesValue', (SELECT COALESCE(total_sales, 0) FROM total_aggregates),
-        'totalProfit', (SELECT COALESCE(total_profit, 0) FROM total_aggregates),
-        'totalOrders', (SELECT COALESCE(total_orders, 0) FROM total_aggregates),
-        'averageOrderValue', (SELECT COALESCE(total_sales / NULLIF(total_orders, 0), 0) FROM total_aggregates),
+        'totalSalesValue', (SELECT total_revenue FROM totals),
+        'totalProfit', (SELECT total_profit FROM totals),
+        'totalOrders', (SELECT total_orders FROM totals),
+        'averageOrderValue', (SELECT CASE WHEN total_orders > 0 THEN total_revenue / total_orders ELSE 0 END FROM totals),
         'deadStockItemsCount', (SELECT COUNT(*) FROM inventory WHERE company_id = p_company_id AND last_sold_date < now() - '90 days'::interval AND deleted_at IS NULL),
         'salesTrendData', (
             SELECT json_agg(json_build_object('date', ds.date, 'Sales', COALESCE(sd.daily_revenue, 0)))
@@ -458,21 +458,29 @@ BEGIN
             LEFT JOIN sales_data sd ON ds.date = sd.sale_day
         ),
         'inventoryByCategoryData', (
-            SELECT json_agg(json_build_object('name', COALESCE(category, 'Uncategorized'), 'value', SUM(quantity * cost)))
-            FROM inventory
-            WHERE company_id = p_company_id AND deleted_at IS NULL
-            GROUP BY category
-            ORDER BY SUM(quantity * cost) DESC
-            LIMIT 5
+            SELECT json_agg(json_build_object('name', COALESCE(category, 'Uncategorized'), 'value', category_value))
+            FROM (
+                SELECT category, SUM(quantity * cost) as category_value
+                FROM inventory
+                WHERE company_id = p_company_id AND deleted_at IS NULL
+                GROUP BY category
+                ORDER BY category_value DESC
+                LIMIT 5
+            ) cat_data
         ),
         'topCustomersData', (
-            SELECT json_agg(json_build_object('name', c.customer_name, 'value', SUM(o.total_amount)))
-            FROM orders o
-            JOIN customers c ON o.customer_id = c.id
-            WHERE o.company_id = p_company_id AND o.sale_date >= start_date AND c.deleted_at IS NULL
-            GROUP BY c.customer_name
-            ORDER BY SUM(o.total_amount) DESC
-            LIMIT 5
+            SELECT json_agg(json_build_object('name', customer_name, 'value', customer_total))
+            FROM (
+                SELECT c.customer_name, SUM(o.total_amount) as customer_total
+                FROM orders o
+                JOIN customers c ON o.customer_id = c.id
+                WHERE o.company_id = p_company_id 
+                    AND o.sale_date >= start_date 
+                    AND c.deleted_at IS NULL
+                GROUP BY c.customer_name
+                ORDER BY customer_total DESC
+                LIMIT 5
+            ) cust_data
         )
     ) INTO result_json;
 
@@ -631,4 +639,3 @@ BEGIN
 END $$;
 
 
-```
