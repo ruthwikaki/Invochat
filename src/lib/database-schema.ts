@@ -1,4 +1,5 @@
 
+
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
@@ -423,7 +424,13 @@ AS $$
 DECLARE
     result_json json;
     start_date timestamptz := now() - (p_days || ' days')::interval;
+    dead_stock_days integer;
 BEGIN
+    -- Get company settings
+    SELECT COALESCE(cs.dead_stock_days, 90) INTO dead_stock_days
+    FROM company_settings cs
+    WHERE cs.company_id = p_company_id;
+
     WITH date_series AS (
         SELECT generate_series(start_date::date, now()::date, '1 day'::interval) as date
     ),
@@ -451,7 +458,12 @@ BEGIN
         'totalProfit', (SELECT total_profit FROM totals),
         'totalOrders', (SELECT total_orders FROM totals),
         'averageOrderValue', (SELECT CASE WHEN total_orders > 0 THEN total_revenue / total_orders ELSE 0 END FROM totals),
-        'deadStockItemsCount', (SELECT COUNT(*) FROM inventory WHERE company_id = p_company_id AND last_sold_date < now() - '90 days'::interval AND deleted_at IS NULL),
+        'deadStockItemsCount', (
+            SELECT COUNT(*) 
+            FROM inventory 
+            WHERE company_id = p_company_id 
+            AND last_sold_date < now() - (dead_stock_days || ' days')::interval AND deleted_at IS NULL
+        ),
         'salesTrendData', (
             SELECT json_agg(json_build_object('date', ds.date, 'Sales', COALESCE(sd.daily_revenue, 0)))
             FROM date_series ds
@@ -637,5 +649,6 @@ DO $$
 BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
+
 
 
