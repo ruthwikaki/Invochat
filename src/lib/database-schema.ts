@@ -403,7 +403,7 @@ END $$;
 
 -- ========= Part 4: Functions & Triggers =========
 
--- Function to handle new user creation
+-- Function to handle new user creation with proper metadata handling
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -423,20 +423,16 @@ BEGIN
     IF new.invited_at IS NOT NULL THEN
         RAISE NOTICE '[handle_new_user] Processing invited user.';
         user_role := 'Member';
-        -- Use raw_user_meta_data for invited users
-        new_company_id := (new.raw_user_meta_data->>'company_id')::uuid;
+        -- **FIX**: Use raw_app_meta_data for client-side signups/invites
+        new_company_id := (new.raw_app_meta_data->>'company_id')::uuid;
         IF new_company_id IS NULL THEN
             RAISE EXCEPTION 'Invited user sign-up failed: company_id was missing from user metadata.';
         END IF;
     ELSE
         RAISE NOTICE '[handle_new_user] Processing new direct sign-up.';
         user_role := 'Owner';
-        -- For new signups, check both raw_user_meta_data and raw_app_meta_data
-        new_company_name := COALESCE(
-            new.raw_user_meta_data->>'company_name',
-            new.raw_app_meta_data->>'company_name',
-            new.email || '''s Company'
-        );
+        -- **FIX**: Use raw_app_meta_data for client-side signups
+        new_company_name := COALESCE(new.raw_app_meta_data->>'company_name', new.email || '''s Company');
         
         -- Create the new company record
         BEGIN
@@ -449,7 +445,7 @@ BEGIN
         END;
     END IF;
 
-    -- Insert into our public users table
+    -- Insert into our public users table, which links auth.users to our application data.
     BEGIN
         RAISE NOTICE '[handle_new_user] Attempting to insert into public.users with user_id: %, company_id: %', new.id, new_company_id;
         INSERT INTO public.users (id, company_id, email, role)
@@ -460,7 +456,7 @@ BEGIN
             RAISE EXCEPTION 'Failed to insert into public.users: %', SQLERRM;
     END;
 
-    -- For new Owners, create default settings entry
+    -- For new Owners, create default settings entry.
     IF user_role = 'Owner' THEN
         BEGIN
             RAISE NOTICE '[handle_new_user] Attempting to insert default settings for company_id: %', new_company_id;
@@ -472,11 +468,12 @@ BEGIN
         END;
     END IF;
     
-    -- Update the app_metadata in auth.users
+    -- Update the app_metadata in auth.users to store company_id and role.
+    -- This makes it available in the JWT for RLS policies.
     BEGIN
         RAISE NOTICE '[handle_new_user] Attempting to update auth.users metadata for user_id: %', new.id;
         UPDATE auth.users
-        SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', user_role, 'company_id', new_company_id)
+        SET app_metadata = COALESCE(app_metadata, '{}'::jsonb) || jsonb_build_object('role', user_role, 'company_id', new_company_id)
         WHERE id = new.id;
         RAISE NOTICE '[handle_new_user] Successfully updated auth.users metadata.';
     EXCEPTION
@@ -931,3 +928,5 @@ END $$;
     
 
     
+
+  
