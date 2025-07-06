@@ -39,6 +39,40 @@ import { Separator } from './ui/separator';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
+function ConversationLink({ convo, activeConversationId }: { convo: Conversation; activeConversationId: string | null }) {
+    const [formattedDate, setFormattedDate] = useState('');
+
+    useEffect(() => {
+        // This will only run on the client, preventing hydration mismatch
+        setFormattedDate(formatDistanceToNow(new Date(convo.last_accessed_at), { addSuffix: true }));
+    }, [convo.last_accessed_at]);
+
+    return (
+        <Link
+            key={convo.id}
+            href={`/chat?id=${convo.id}`}
+            className={cn(
+                'group flex flex-col p-2 rounded-md transition-colors w-full text-left',
+                activeConversationId === convo.id
+                ? 'bg-primary/10 text-primary'
+                : 'hover:bg-muted'
+            )}
+            >
+            <div className="flex justify-between items-center">
+                <span className="text-sm font-medium truncate flex items-center gap-2">
+                    <MessageSquareText className="h-4 w-4 shrink-0" />
+                    {convo.title}
+                </span>
+                {convo.is_starred && <Star className="h-4 w-4 text-yellow-500 fill-yellow-400" />}
+            </div>
+            <span className="text-xs text-muted-foreground mt-1 ml-6 h-4">
+                {/* Render the client-side calculated date, or a placeholder */}
+                {formattedDate} 
+            </span>
+        </Link>
+    );
+}
+
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -99,27 +133,7 @@ export function AppSidebar() {
                 <p className="p-2 text-xs text-muted-foreground">Loading chats...</p>
             ) : conversations.length > 0 ? (
                 conversations.map((convo) => (
-                    <Link
-                        key={convo.id}
-                        href={`/chat?id=${convo.id}`}
-                        className={cn(
-                            'group flex flex-col p-2 rounded-md transition-colors w-full text-left',
-                            activeConversationId === convo.id
-                            ? 'bg-primary/10 text-primary'
-                            : 'hover:bg-muted'
-                        )}
-                        >
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium truncate flex items-center gap-2">
-                                <MessageSquareText className="h-4 w-4 shrink-0" />
-                                {convo.title}
-                            </span>
-                            {convo.is_starred && <Star className="h-4 w-4 text-yellow-500 fill-yellow-400" />}
-                        </div>
-                        <span className="text-xs text-muted-foreground mt-1 ml-6">
-                            {formatDistanceToNow(new Date(convo.last_accessed_at), { addSuffix: true })}
-                        </span>
-                    </Link>
+                    <ConversationLink key={convo.id} convo={convo} activeConversationId={activeConversationId} />
                 ))
             ) : (
                 <p className="p-2 text-xs text-muted-foreground">No recent chats.</p>

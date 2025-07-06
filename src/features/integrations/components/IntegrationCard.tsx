@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PlatformLogo } from './platform-logos';
+import { useState, useEffect } from 'react';
 
 interface IntegrationCardProps {
     integration: Integration;
@@ -27,6 +28,13 @@ interface IntegrationCardProps {
 
 export function IntegrationCard({ integration, onSync, onDisconnect }: IntegrationCardProps) {
     const isSyncing = integration.sync_status?.startsWith('syncing');
+    const [formattedDate, setFormattedDate] = useState('');
+
+    useEffect(() => {
+        if (integration.last_sync_at) {
+            setFormattedDate(formatDistanceToNow(new Date(integration.last_sync_at), { addSuffix: true }));
+        }
+    }, [integration.last_sync_at]);
     
     const renderStatus = () => {
         switch (integration.sync_status) {
@@ -37,7 +45,7 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
             case 'syncing_orders':
                 return <span className="flex items-center gap-2 text-sm text-blue-500"><Loader2 className="h-4 w-4 animate-spin" /> Syncing orders...</span>;
             case 'success':
-                return <span className="flex items-center gap-2 text-sm text-success"><CheckCircle className="h-4 w-4" /> Last synced {integration.last_sync_at ? formatDistanceToNow(new Date(integration.last_sync_at), { addSuffix: true }) : 'never'}</span>;
+                return <span className="flex items-center gap-2 text-sm text-success"><CheckCircle className="h-4 w-4" /> Last synced {formattedDate || 'never'}</span>;
             case 'failed':
                 return <span className="flex items-center gap-2 text-sm text-destructive"><AlertTriangle className="h-4 w-4" /> Sync failed</span>;
             default:

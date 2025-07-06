@@ -33,6 +33,35 @@ function ChangeTypeBadge({ changeType }: { changeType: string }) {
     );
 }
 
+function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
+    const [formattedDate, setFormattedDate] = useState('');
+
+    useEffect(() => {
+        setFormattedDate(formatDistanceToNow(new Date(entry.created_at), { addSuffix: true }));
+    }, [entry.created_at]);
+
+    return (
+        <TableRow key={entry.id}>
+            <TableCell>
+                <div className="font-medium" title={format(new Date(entry.created_at), 'PPP p')}>
+                    {formattedDate}
+                </div>
+            </TableCell>
+            <TableCell>
+                <ChangeTypeBadge changeType={entry.change_type} />
+            </TableCell>
+            <TableCell className={cn("text-right font-bold", entry.quantity_change > 0 ? 'text-success' : 'text-destructive')}>
+                <span className="flex items-center justify-end gap-1">
+                    {entry.quantity_change > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                    {entry.quantity_change}
+                </span>
+            </TableCell>
+            <TableCell className="text-right">{entry.new_quantity}</TableCell>
+            <TableCell>{entry.related_id || entry.notes || 'N/A'}</TableCell>
+        </TableRow>
+    )
+}
+
 export function InventoryHistoryDialog({ sku, onClose }: InventoryHistoryDialogProps) {
   const [history, setHistory] = useState<InventoryLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -97,24 +126,7 @@ export function InventoryHistoryDialog({ sku, onClose }: InventoryHistoryDialogP
               </TableHeader>
               <TableBody>
                 {history.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell>
-                      <div className="font-medium" title={format(new Date(entry.created_at), 'PPP p')}>
-                        {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <ChangeTypeBadge changeType={entry.change_type} />
-                    </TableCell>
-                    <TableCell className={cn("text-right font-bold", entry.quantity_change > 0 ? 'text-success' : 'text-destructive')}>
-                      <span className="flex items-center justify-end gap-1">
-                        {entry.quantity_change > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-                        {entry.quantity_change}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">{entry.new_quantity}</TableCell>
-                    <TableCell>{entry.related_id || entry.notes || 'N/A'}</TableCell>
-                  </TableRow>
+                  <HistoryTableRow key={entry.id} entry={entry} />
                 ))}
               </TableBody>
             </Table>
