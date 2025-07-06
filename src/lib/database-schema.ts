@@ -296,6 +296,7 @@ BEGIN
     IF new.invited_at IS NOT NULL THEN
         RAISE NOTICE '[handle_new_user] Processing invited user.';
         user_role := 'Member';
+        -- **FIX**: Use raw_app_meta_data for client-side signups/invites
         new_company_id := (new.raw_app_meta_data->>'company_id')::uuid;
         IF new_company_id IS NULL THEN
             RAISE EXCEPTION 'Invited user sign-up failed: company_id was missing from user metadata.';
@@ -303,37 +304,51 @@ BEGIN
     ELSE
         RAISE NOTICE '[handle_new_user] Processing new direct sign-up.';
         user_role := 'Owner';
+        -- **FIX**: Use raw_app_meta_data for client-side signups
         new_company_name := COALESCE(new.raw_app_meta_data->>'company_name', new.email || '''s Company');
         
+        -- Create the new company record
         BEGIN
+            RAISE NOTICE '[handle_new_user] Attempting to insert into public.companies with name: %', new_company_name;
             INSERT INTO public.companies (name) VALUES (new_company_name) RETURNING id INTO new_company_id;
+            RAISE NOTICE '[handle_new_user] Successfully created company with ID: %', new_company_id;
         EXCEPTION
             WHEN OTHERS THEN
                 RAISE EXCEPTION 'Failed to insert into public.companies: %', SQLERRM;
         END;
     END IF;
 
+    -- Insert into our public users table, which links auth.users to our application data.
     BEGIN
+        RAISE NOTICE '[handle_new_user] Attempting to insert into public.users with user_id: %, company_id: %', new.id, new_company_id;
         INSERT INTO public.users (id, company_id, email, role)
         VALUES (new.id, new_company_id, new.email, user_role);
+        RAISE NOTICE '[handle_new_user] Successfully inserted into public.users.';
     EXCEPTION
         WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to insert into public.users: %', SQLERRM;
     END;
 
+    -- For new Owners, create default settings entry.
     IF user_role = 'Owner' THEN
         BEGIN
+            RAISE NOTICE '[handle_new_user] Attempting to insert default settings for company_id: %', new_company_id;
             INSERT INTO public.company_settings (company_id) VALUES (new_company_id) ON CONFLICT (company_id) DO NOTHING;
+            RAISE NOTICE '[handle_new_user] Successfully inserted into company_settings.';
         EXCEPTION
             WHEN OTHERS THEN
                 RAISE EXCEPTION 'Failed to insert into public.company_settings: %', SQLERRM;
         END;
     END IF;
     
+    -- Update the app_metadata in auth.users to store company_id and role.
+    -- This makes it available in the JWT for RLS policies.
     BEGIN
+        RAISE NOTICE '[handle_new_user] Attempting to update auth.users metadata for user_id: %', new.id;
         UPDATE auth.users
         SET app_metadata = COALESCE(app_metadata, '{}'::jsonb) || jsonb_build_object('role', user_role, 'company_id', new_company_id)
         WHERE id = new.id;
+        RAISE NOTICE '[handle_new_user] Successfully updated auth.users metadata.';
     EXCEPTION
         WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to update auth.users metadata: %', SQLERRM;
@@ -421,15 +436,22 @@ BEGIN
         FROM orders o
         JOIN order_items oi ON o.id = oi.sale_id
         JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
-        WHERE o.company_id = p_company_id AND o.sale_date >= start_date
+        WHERE o.company_id = p_company_id AND o.sale_date >= start_date AND i.deleted_at IS NULL
         GROUP BY 1
+    ),
+    total_aggregates AS (
+      SELECT
+        SUM(daily_revenue) as total_sales,
+        SUM(daily_profit) as total_profit,
+        SUM(daily_orders) as total_orders
+      FROM sales_data
     )
     SELECT json_build_object(
-        'totalSalesValue', (SELECT COALESCE(SUM(daily_revenue), 0) FROM sales_data),
-        'totalProfit', (SELECT COALESCE(SUM(daily_profit), 0) FROM sales_data),
-        'totalOrders', (SELECT COALESCE(SUM(daily_orders), 0) FROM sales_data),
-        'averageOrderValue', (SELECT COALESCE(SUM(daily_revenue) / NULLIF(SUM(daily_orders), 0), 0) FROM sales_data),
-        'deadStockItemsCount', (SELECT COUNT(*) FROM inventory WHERE company_id = p_company_id AND last_sold_date < now() - '90 days'::interval),
+        'totalSalesValue', (SELECT COALESCE(total_sales, 0) FROM total_aggregates),
+        'totalProfit', (SELECT COALESCE(total_profit, 0) FROM total_aggregates),
+        'totalOrders', (SELECT COALESCE(total_orders, 0) FROM total_aggregates),
+        'averageOrderValue', (SELECT COALESCE(total_sales / NULLIF(total_orders, 0), 0) FROM total_aggregates),
+        'deadStockItemsCount', (SELECT COUNT(*) FROM inventory WHERE company_id = p_company_id AND last_sold_date < now() - '90 days'::interval AND deleted_at IS NULL),
         'salesTrendData', (
             SELECT json_agg(json_build_object('date', ds.date, 'Sales', COALESCE(sd.daily_revenue, 0)))
             FROM date_series ds
@@ -608,3 +630,5 @@ BEGIN
     RAISE NOTICE 'InvoChat database setup completed successfully!';
 END $$;
 
+
+```
