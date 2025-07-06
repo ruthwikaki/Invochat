@@ -83,7 +83,18 @@ END $$;
 -- Install standard extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 
--- ========= Part 2: Core Table Definitions =========
+
+-- ========= Part 2: Custom Types =========
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'po_status') THEN
+        CREATE TYPE public.po_status AS ENUM ('draft', 'sent', 'partial', 'received', 'cancelled');
+    END IF;
+END$$;
+
+
+-- ========= Part 3: Core Table Definitions =========
 -- All tables are created with IF NOT EXISTS for idempotency
 
 CREATE TABLE IF NOT EXISTS public.companies (
@@ -193,7 +204,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     supplier_id UUID REFERENCES public.vendors(id) ON DELETE SET NULL,
     po_number TEXT NOT NULL,
-    status TEXT DEFAULT 'draft',
+    status public.po_status DEFAULT 'draft',
     order_date DATE NOT NULL,
     expected_date DATE,
     total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
@@ -349,7 +360,31 @@ CREATE TABLE IF NOT EXISTS public.company_dashboard_metrics (
     last_refreshed TIMESTAMPTZ
 );
 
--- ========= Part 3: Schema Migrations & Constraints =========
+CREATE TABLE IF NOT EXISTS public.conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    company_id UUID NOT NULL,
+    title TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_accessed_at TIMESTAMPTZ DEFAULT NOW(),
+    is_starred BOOLEAN DEFAULT false
+);
+
+CREATE TABLE IF NOT EXISTS public.messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    company_id UUID NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool')),
+    content TEXT NOT NULL,
+    visualization JSONB,
+    confidence NUMERIC,
+    assumptions TEXT[],
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    component TEXT,
+    component_props JSONB
+);
+
+-- ========= Part 4: Schema Migrations & Constraints =========
 
 -- Fix existing duplicate SKUs before adding constraints
 DO $$
@@ -400,8 +435,11 @@ BEGIN
         ALTER TABLE public.export_jobs ADD CONSTRAINT fk_export_jobs_requested_by FOREIGN KEY (requested_by_user_id) REFERENCES public.users(id);
     END IF;
 END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_conversations_user_id') THEN ALTER TABLE public.conversations ADD CONSTRAINT fk_conversations_user_id FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_conversations_company_id') THEN ALTER TABLE public.conversations ADD CONSTRAINT fk_conversations_company_id FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE; END IF; END $$;
 
--- ========= Part 4: Functions & Triggers =========
+
+-- ========= Part 5: Functions & Triggers =========
 
 -- Function to handle new user creation with proper metadata handling
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -423,6 +461,7 @@ BEGIN
     IF new.invited_at IS NOT NULL THEN
         RAISE NOTICE '[handle_new_user] Processing invited user.';
         user_role := 'Member';
+        -- **FIX**: Use raw_app_meta_data for client-side signups/invites
         new_company_id := (new.raw_app_meta_data->>'company_id')::uuid;
         IF new_company_id IS NULL THEN
             RAISE EXCEPTION 'Invited user sign-up failed: company_id was missing from user metadata.';
@@ -430,11 +469,8 @@ BEGIN
     ELSE
         RAISE NOTICE '[handle_new_user] Processing new direct sign-up.';
         user_role := 'Owner';
-        new_company_name := COALESCE(
-            new.raw_user_meta_data->>'company_name',
-            new.raw_app_meta_data->>'company_name',
-            new.email || '''s Company'
-        );
+        -- **FIX**: Use raw_app_meta_data for client-side signups
+        new_company_name := COALESCE(new.raw_app_meta_data->>'company_name', new.email || '''s Company');
         
         -- Create the new company record
         BEGIN
@@ -855,7 +891,7 @@ END;
 $$;
 
 
--- ========= Part 5: Row-Level Security (RLS) Policies =========
+-- ========= Part 6: Row-Level Security (RLS) Policies =========
 
 -- RLS helper functions (safe for non-Supabase environments)
 CREATE OR REPLACE FUNCTION public.current_user_company_id()
@@ -892,7 +928,7 @@ BEGIN
         FOR t_name IN SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN (
             'users', 'company_settings', 'inventory', 'customers', 'orders', 'vendors', 'reorder_rules', 
             'purchase_orders', 'integrations', 'channel_fees', 'locations', 'inventory_ledger', 'audit_log', 
-            'sync_errors', 'export_jobs', 'inventory_adjustments'
+            'sync_errors', 'export_jobs', 'inventory_adjustments', 'conversations', 'messages'
         ) LOOP
             EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t_name);
             EXECUTE format('DROP POLICY IF EXISTS "Enable all access for own company" ON public.%I;', t_name);
@@ -941,7 +977,7 @@ BEGIN
     END IF;
 END $$;
 
--- ========= Part 6: Apply Triggers =========
+-- ========= Part 7: Apply Triggers =========
 
 -- Validation triggers
 DROP TRIGGER IF EXISTS validate_purchase_order_refs ON public.purchase_orders;
