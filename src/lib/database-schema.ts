@@ -431,8 +431,8 @@ BEGIN
     ELSE
         RAISE NOTICE '[handle_new_user] Processing new direct sign-up.';
         user_role := 'Owner';
-        -- **FIX**: Use raw_app_meta_data for client-side signups
-        new_company_name := COALESCE(new.raw_app_meta_data->>'company_name', new.email || '''s Company');
+        -- **FIX**: Use raw_user_meta_data for client-side signups
+        new_company_name := COALESCE(new.raw_user_meta_data->>'company_name', new.email || '''s Company');
         
         -- Create the new company record
         BEGIN
@@ -931,5 +931,7 @@ END $$;
 
   
 
+
+    
 
     
