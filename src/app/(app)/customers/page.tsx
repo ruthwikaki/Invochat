@@ -1,5 +1,5 @@
 
-import { getCustomersData } from '@/app/data-actions';
+import { getCustomersData, getCustomerAnalytics } from '@/app/data-actions';
 import { CustomersClientPage } from '@/components/customers/customers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
@@ -15,18 +15,23 @@ export default async function CustomersPage({
 }) {
   const query = searchParams?.query || '';
   const currentPage = Number(searchParams?.page) || 1;
-  const customerData = await getCustomersData({ query, page: currentPage });
+
+  const [customerData, analyticsData] = await Promise.all([
+    getCustomersData({ query, page: currentPage }),
+    getCustomerAnalytics(),
+  ]);
 
   return (
     <AppPage className="flex flex-col h-full">
       <AppPageHeader
-        title="Customers"
-        description="View and manage your customer list."
+        title="Customer Analytics"
+        description="Analyze your customer base to find key insights and trends."
       />
-      <CustomersClientPage 
+      <CustomersClientPage
         initialCustomers={customerData.items}
         totalCount={customerData.totalCount}
         itemsPerPage={ITEMS_PER_PAGE}
+        analyticsData={analyticsData}
       />
     </AppPage>
   );

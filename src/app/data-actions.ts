@@ -5,7 +5,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob, Customer, CustomerAnalytics } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
@@ -913,6 +913,11 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean; er
     }
 }
 
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
+    const { companyId } = await getAuthContext();
+    return db.getCustomerAnalyticsFromDB(companyId);
+}
+
 const CUSTOMERS_PER_PAGE = 25;
 export async function getCustomersData(params: { query?: string, page?: number }): Promise<{ items: Customer[], totalCount: number }> {
     const { companyId } = await getAuthContext();
@@ -922,4 +927,3 @@ export async function getCustomersData(params: { query?: string, page?: number }
     
     return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
 }
-

@@ -357,3 +357,13 @@ export const CustomerSchema = z.object({
   created_at: z.string(),
 });
 export type Customer = z.infer<typeof CustomerSchema>;
+
+export const CustomerAnalyticsSchema = z.object({
+    total_customers: z.number(),
+    new_customers_last_30_days: z.number(),
+    average_lifetime_value: z.number(),
+    repeat_customer_rate: z.number(),
+    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })),
+    top_customers_by_orders: z.array(z.object({ name: z.string(), value: z.number() })),
+});
+export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;

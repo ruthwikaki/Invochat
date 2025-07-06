@@ -70,6 +70,7 @@ BEGIN
             SELECT COUNT(*) 
             FROM inventory 
             WHERE company_id = p_company_id 
+            AND deleted_at IS NULL
             AND last_sold_date < now() - (dead_stock_days || ' days')::interval
         ),
         'salesTrendData', (
@@ -547,7 +548,58 @@ GRANT EXECUTE ON FUNCTION public.cleanup_old_sync_logs TO service_role;
 -- SELECT cron.schedule('cleanup-sync-logs', '0 2 * * *', 'SELECT public.cleanup_old_sync_logs()');
 -- SELECT cron.schedule('refresh-dashboard-metrics', '*/5 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics');
 
+-- 14. Add Customer Analytics Function
+CREATE OR REPLACE FUNCTION public.get_customer_analytics(p_company_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    result_json json;
+BEGIN
+    WITH customer_stats AS (
+        SELECT
+            COUNT(*) as total_customers,
+            COUNT(*) FILTER (WHERE c.first_order_date >= NOW() - INTERVAL '30 days') as new_customers_last_30_days,
+            COALESCE(AVG(c.total_spend), 0) as average_lifetime_value,
+            CASE WHEN COUNT(*) > 0 THEN
+                (COUNT(*) FILTER (WHERE c.total_orders > 1))::numeric * 100 / COUNT(*)::numeric
+            ELSE 0 END as repeat_customer_rate
+        FROM customers c
+        WHERE c.company_id = p_company_id AND c.deleted_at IS NULL
+    )
+    SELECT json_build_object(
+        'total_customers', (SELECT total_customers FROM customer_stats),
+        'new_customers_last_30_days', (SELECT new_customers_last_30_days FROM customer_stats),
+        'average_lifetime_value', (SELECT average_lifetime_value FROM customer_stats),
+        'repeat_customer_rate', (SELECT repeat_customer_rate / 100.0 FROM customer_stats),
+        'top_customers_by_spend', (
+            SELECT json_agg(json_build_object('name', customer_name, 'value', total_spend))
+            FROM (
+                SELECT customer_name, total_spend
+                FROM customers
+                WHERE company_id = p_company_id AND deleted_at IS NULL
+                ORDER BY total_spend DESC
+                LIMIT 5
+            ) top_spend
+        ),
+        'top_customers_by_orders', (
+            SELECT json_agg(json_build_object('name', customer_name, 'value', total_orders))
+            FROM (
+                SELECT customer_name, total_orders
+                FROM customers
+                WHERE company_id = p_company_id AND deleted_at IS NULL
+                ORDER BY total_orders DESC
+                LIMIT 5
+            ) top_orders
+        )
+    ) INTO result_json;
+
+    RETURN result_json;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_customer_analytics TO anon, authenticated;
+
 -- =====================================================
 -- Script completed successfully!
 -- Your database is now fixed and ready to use.
--- ====================================================="
+-- =====================================================

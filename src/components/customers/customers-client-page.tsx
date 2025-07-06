@@ -5,9 +5,9 @@ import { useState, useTransition } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
-import type { Customer } from '@/types';
-import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, Trash2, Loader2, Users } from 'lucide-react';
+import type { Customer, CustomerAnalytics } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Star } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -31,7 +31,51 @@ interface CustomersClientPageProps {
   initialCustomers: Customer[];
   totalCount: number;
   itemsPerPage: number;
+  analyticsData: CustomerAnalytics;
 }
+
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+    }).format(value);
+};
+
+const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: string, icon: React.ElementType }) => (
+    <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+            <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{value}</div>
+        </CardContent>
+    </Card>
+);
+
+const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: string, data: { name: string, value: number }[], icon: React.ElementType, valueLabel: string }) => (
+    <Card className="flex-1">
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+                <Icon className="h-5 w-5 text-primary" />
+                {title}
+            </CardTitle>
+        </CardHeader>
+        <CardContent>
+            <ul className="space-y-3">
+                {data.map((customer, index) => (
+                    <li key={index} className="flex items-center justify-between text-sm">
+                        <span className="font-medium truncate pr-4">{customer.name}</span>
+                        <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCurrency(customer.value)}</span>
+                    </li>
+                ))}
+            </ul>
+        </CardContent>
+    </Card>
+);
+
 
 const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
     const router = useRouter();
@@ -94,7 +138,7 @@ function EmptyCustomerState() {
   );
 }
 
-export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage }: CustomersClientPageProps) {
+export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage, analyticsData }: CustomersClientPageProps) {
   const [isDeleting, startDeleteTransition] = useTransition();
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const router = useRouter();
@@ -138,18 +182,90 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by customer name or email..."
-            onChange={(e) => handleSearch(e.target.value)}
-            defaultValue={searchParams.get('query')?.toString()}
-            className="pl-10"
-          />
+    <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <AnalyticsCard title="Total Customers" value={analyticsData.total_customers.toLocaleString()} icon={Users} />
+            <AnalyticsCard title="Avg. Lifetime Value" value={formatCurrency(analyticsData.average_lifetime_value)} icon={DollarSign} />
+            <AnalyticsCard title="New Customers (30d)" value={analyticsData.new_customers_last_30_days.toLocaleString()} icon={UserPlus} />
+            <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.repeat_customer_rate * 100).toFixed(1)}%`} icon={Repeat} />
         </div>
-      </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers_by_spend} icon={Trophy} valueLabel="spend" />
+            <TopCustomerList title="Top Customers by Orders" data={analyticsData.top_customers_by_orders} icon={ShoppingBag} valueLabel="orders" />
+        </div>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>All Customers</CardTitle>
+                <CardDescription>Search and manage your complete customer list.</CardDescription>
+                <div className="relative pt-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by customer name or email..."
+                        onChange={(e) => handleSearch(e.target.value)}
+                        defaultValue={searchParams.get('query')?.toString()}
+                        className="pl-10"
+                    />
+                </div>
+            </CardHeader>
+            <CardContent className="p-0">
+                {showEmptyState ? <EmptyCustomerState /> : (
+                    <>
+                    <div className="max-h-[65vh] overflow-auto">
+                    <Table>
+                        <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+                        <TableRow>
+                            <TableHead>Customer</TableHead>
+                            <TableHead className="text-right">Total Orders</TableHead>
+                            <TableHead className="text-right">Total Spend</TableHead>
+                            <TableHead className="w-16 text-center">Actions</TableHead>
+                        </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {showNoResultsState ? (
+                            <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center">
+                                No customers found matching your search.
+                            </TableCell>
+                            </TableRow>
+                        ) : initialCustomers.map(customer => (
+                            <TableRow key={customer.id} className="hover:shadow-md transition-shadow">
+                            <TableCell>
+                                <div className="flex items-center gap-3">
+                                    <Avatar className="h-9 w-9">
+                                        <AvatarFallback>{customer.customer_name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <div className="font-medium">{customer.customer_name}</div>
+                                        <div className="text-xs text-muted-foreground">{customer.email}</div>
+                                    </div>
+                                </div>
+                            </TableCell>
+                            <TableCell className="text-right">{customer.total_orders}</TableCell>
+                            <TableCell className="text-right font-medium">${customer.total_spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-center">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onSelect={(e) => {e.preventDefault(); setCustomerToDelete(customer);}} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete Customer</DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                    </div>
+                    <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
+                </>
+                )}
+            </CardContent>
+        </Card>
 
       <AlertDialog open={!!customerToDelete} onOpenChange={(open) => !open && setCustomerToDelete(null)}>
         <AlertDialogContent>
@@ -168,63 +284,6 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {showEmptyState ? <EmptyCustomerState /> : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="max-h-[65vh] overflow-auto">
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="text-right">Total Orders</TableHead>
-                    <TableHead className="text-right">Total Spend</TableHead>
-                    <TableHead className="w-16 text-center">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {showNoResultsState ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-24 text-center">
-                        No customers found matching your search.
-                      </TableCell>
-                    </TableRow>
-                  ) : initialCustomers.map(customer => (
-                    <TableRow key={customer.id} className="hover:shadow-md transition-shadow">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                            <Avatar className="h-9 w-9">
-                                <AvatarFallback>{customer.customer_name.charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <div className="font-medium">{customer.customer_name}</div>
-                                <div className="text-xs text-muted-foreground">{customer.email}</div>
-                            </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">{customer.total_orders}</TableCell>
-                      <TableCell className="text-right font-medium">${customer.total_spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                      <TableCell className="text-center">
-                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onSelect={(e) => {e.preventDefault(); setCustomerToDelete(customer);}} className="text-destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete Customer</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
