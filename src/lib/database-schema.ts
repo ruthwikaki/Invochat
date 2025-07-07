@@ -9,6 +9,7 @@
 -- =====================================================
 
 -- 1. Fix get_unified_inventory
+DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -144,6 +145,7 @@ $$;
 
 
 -- 3. Fix get_distinct_categories
+DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
 RETURNS TABLE(category text)
 LANGUAGE plpgsql
@@ -161,6 +163,7 @@ $$;
 
 
 -- 4. Fix get_alerts to use the `sales` table
+DROP FUNCTION IF EXISTS public.get_alerts(uuid, integer, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_alerts(
     p_company_id uuid,
     p_dead_stock_days integer,
@@ -238,6 +241,7 @@ $$;
 
 
 -- 5. Fix `get_anomaly_insights` to use sales table
+DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid);
 CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
 RETURNS TABLE(date text, daily_revenue numeric, daily_customers bigint, avg_revenue numeric, avg_customers numeric, anomaly_type text, deviation_percentage numeric)
 LANGUAGE plpgsql
