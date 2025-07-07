@@ -589,6 +589,7 @@ GRANT EXECUTE ON FUNCTION public.get_customer_analytics TO anon, authenticated;
 
 
 -- New Function for Reorder Tool
+DROP FUNCTION IF EXISTS public.get_historical_sales(uuid,text[]);
 CREATE OR REPLACE FUNCTION public.get_historical_sales(p_company_id uuid, p_skus text[])
 RETURNS TABLE(sku text, monthly_sales jsonb)
 LANGUAGE plpgsql
