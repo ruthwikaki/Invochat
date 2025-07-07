@@ -1,5 +1,4 @@
-
--- =====================================================
+export const SETUP_SQL_SCRIPT = `-- =====================================================
 -- INVOCHAT DATABASE SCHEMA
 -- Run this script in your Supabase SQL Editor
 -- =====================================================
@@ -699,3 +698,4 @@ GRANT USAGE, SELECT ON SEQUENCE sale_items_id_seq TO authenticated;
 -- =====================================================
 -- Script completed successfully!
 -- =====================================================
+`;
