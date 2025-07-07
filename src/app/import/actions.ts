@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -8,7 +9,7 @@ import { InventoryImportSchema, SupplierImportSchema, SupplierCatalogImportSchem
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
-import { validateCSRF, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User } from '@/types';
 import { revalidatePath } from 'next/cache';
@@ -57,9 +58,24 @@ async function processCsv<T extends z.ZodType>(
     schema: T,
     tableName: string,
     companyId: string,
-    isDryRun: boolean
+    isDryRun: boolean,
+    mappings: Record<string, string>
 ): Promise<Omit<ImportResult, 'success' | 'isDryRun'>> {
-    const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(fileContent, {
+    
+    // Remap headers before parsing
+    const transformedContent = Papa.unparse(
+        Papa.parse(fileContent, { header: true, skipEmptyLines: true }).data.map((row: any) => {
+            const newRow: Record<string, any> = {};
+            for (const key in row) {
+                if (mappings[key]) {
+                    newRow[mappings[key]] = row[key];
+                }
+            }
+            return newRow;
+        })
+    );
+
+    const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(transformedContent, {
         header: true,
         skipEmptyLines: true,
         transformHeader: header => header.trim(),
@@ -182,6 +198,9 @@ export async function getMappingSuggestions(formData: FormData): Promise<CsvMapp
 // The main server action that the client calls.
 export async function handleDataImport(formData: FormData): Promise<ImportResult> {
     const isDryRun = formData.get('dryRun') === 'true';
+    const mappingsStr = formData.get('mappings') as string | null;
+    const mappings = mappingsStr ? JSON.parse(mappingsStr) : {};
+
     try {
         const { user, companyId, userRole } = await getAuthContextForImport();
         
@@ -220,7 +239,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
 
         switch (dataType) {
             case 'inventory':
-                result = await processCsv(fileContent, InventoryImportSchema, 'inventory', companyId, isDryRun);
+                result = await processCsv(fileContent, InventoryImportSchema, 'inventory', companyId, isDryRun, mappings);
                 if (!isDryRun && (result.processedCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
                     requiresViewRefresh = true;
@@ -228,21 +247,21 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
                 }
                 break;
             case 'suppliers':
-                result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId, isDryRun);
+                result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId, isDryRun, mappings);
                 if (!isDryRun && (result.processedCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['suppliers']);
                     revalidatePath('/suppliers');
                 }
                 break;
             case 'supplier_catalogs':
-                result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId, isDryRun);
+                result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId, isDryRun, mappings);
                 break;
             case 'reorder_rules':
-                result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId, isDryRun);
+                result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId, isDryRun, mappings);
                 if (!isDryRun && (result.processedCount || 0) > 0) revalidatePath('/reordering');
                 break;
             case 'locations':
-                result = await processCsv(fileContent, LocationImportSchema, 'locations', companyId, isDryRun);
+                result = await processCsv(fileContent, LocationImportSchema, 'locations', companyId, isDryRun, mappings);
                 if (!isDryRun && (result.processedCount || 0) > 0) revalidatePath('/locations');
                 break;
             default:

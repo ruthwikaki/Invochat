@@ -10,14 +10,52 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { cn } from '@/lib/utils';
+import { Badge } from '../ui/badge';
+
+function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
+    if (!suggestion.adjustment_reason) {
+        return <span className="text-muted-foreground">—</span>;
+    }
+
+    const confidenceColor = suggestion.confidence && suggestion.confidence > 0.7 
+        ? 'text-success' 
+        : suggestion.confidence && suggestion.confidence > 0.4 
+        ? 'text-amber-500' 
+        : 'text-destructive';
+
+    return (
+         <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="flex items-center gap-1 cursor-help text-primary">
+                        <BrainCircuit className="h-4 w-4" />
+                        AI Adjusted
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-sm">
+                    <p className="font-semibold">AI Analysis:</p>
+                    <p className="mb-2">{suggestion.adjustment_reason}</p>
+                    {suggestion.confidence && (
+                         <p className="text-xs"><strong className={cn(confidenceColor)}>Confidence:</strong> {(suggestion.confidence * 100).toFixed(0)}%</p>
+                    )}
+                    {suggestion.seasonality_factor && (
+                         <p className="text-xs"><strong>Seasonality Factor:</strong> {suggestion.seasonality_factor.toFixed(2)}x</p>
+                    )}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+}
 
 export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: ReorderSuggestion[] }) {
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [selectedSuggestions, setSelectedSuggestions] = useState<ReorderSuggestion[]>([]);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<ReorderSuggestion[]>(initialSuggestions);
 
   const handleSelect = (suggestion: ReorderSuggestion, checked: boolean) => {
     setSelectedSuggestions(prev => 
@@ -74,8 +112,8 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Suggested Items to Reorder</CardTitle>
-          <CardDescription>Select items to automatically generate purchase orders grouped by supplier.</CardDescription>
+          <CardTitle>AI-Enhanced Reorder Suggestions</CardTitle>
+          <CardDescription>Select items to automatically generate purchase orders. The AI has adjusted quantities based on historical sales data and seasonality.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[65vh] overflow-auto">
@@ -91,10 +129,9 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                   <TableHead>Product</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead className="text-right">Current Qty</TableHead>
-                  <TableHead className="text-right">Reorder Point</TableHead>
-                  <TableHead className="text-right">Suggested Qty</TableHead>
-                  <TableHead className="text-right">Unit Cost</TableHead>
-                  <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-right">Base Qty</TableHead>
+                  <TableHead className="text-right">AI Adjusted Qty</TableHead>
+                  <TableHead>Reasoning</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -112,10 +149,11 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                     </TableCell>
                     <TableCell>{suggestion.supplier_name}</TableCell>
                     <TableCell className="text-right">{suggestion.current_quantity}</TableCell>
-                    <TableCell className="text-right text-warning font-semibold">{suggestion.reorder_point}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{suggestion.base_quantity}</TableCell>
                     <TableCell className="text-right font-bold text-primary">{suggestion.suggested_reorder_quantity}</TableCell>
-                    <TableCell className="text-right">${suggestion.unit_cost.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-medium">${(suggestion.suggested_reorder_quantity * suggestion.unit_cost).toFixed(2)}</TableCell>
+                    <TableCell>
+                        <AiReasoning suggestion={suggestion} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -146,5 +184,3 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
     </div>
   );
 }
-
-    

@@ -1,19 +1,21 @@
 
 'use client';
 
-import { useState, useTransition, DragEvent, useRef, useEffect } from 'react';
-import { handleDataImport, type ImportResult } from '@/app/import/actions';
+import { useState, useTransition, DragEvent, useRef, useEffect, ChangeEvent } from 'react';
+import { handleDataImport, getMappingSuggestions, type ImportResult } from '@/app/import/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, CheckCircle, Info, Loader2, Table, UploadCloud, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, Loader2, Table as TableIcon, UploadCloud, XCircle, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
+import type { CsvMappingOutput } from '@/ai/flows/csv-mapping-flow';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 const CSRF_FORM_NAME = 'csrf_token';
 const CSRF_COOKIE_NAME = 'csrf_token';
@@ -47,6 +49,53 @@ const importOptions = {
 };
 
 type DataType = keyof typeof importOptions;
+
+function MappingSuggestions({ suggestions, onConfirm }: { suggestions: CsvMappingOutput, onConfirm: (mappings: Record<string, string>) => void }) {
+    const confirmedMappings = suggestions.mappings.reduce((acc, m) => {
+        acc[m.csvColumn] = m.dbField;
+        return acc;
+    }, {} as Record<string, string>);
+
+    return (
+        <Card className="mt-6">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> AI Mapping Suggestions</CardTitle>
+                <CardDescription>The AI has suggested the following column mappings. Unmapped columns will be ignored.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <ScrollArea className="h-48">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Your CSV Column</TableHead>
+                                <TableHead>Maps to DB Field</TableHead>
+                                <TableHead className="text-right">Confidence</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {suggestions.mappings.map(m => (
+                                <TableRow key={m.csvColumn}>
+                                    <TableCell className="font-medium">{m.csvColumn}</TableCell>
+                                    <TableCell className="font-semibold text-primary">{m.dbField}</TableCell>
+                                    <TableCell className="text-right">{(m.confidence * 100).toFixed(0)}%</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+                {suggestions.unmappedColumns.length > 0 && (
+                    <div className="mt-4 text-sm">
+                        <p className="font-semibold">Unmapped columns (will be ignored):</p>
+                        <p className="text-muted-foreground text-xs">{suggestions.unmappedColumns.join(', ')}</p>
+                    </div>
+                )}
+            </CardContent>
+            <CardFooter>
+                <Button onClick={() => onConfirm(confirmedMappings)}>Confirm Mappings &amp; Start Import</Button>
+            </CardFooter>
+        </Card>
+    );
+}
 
 function ImportResultsCard({ results, onClear }: { results: Omit<ImportResult, 'success'>; onClear: () => void }) {
     const hasErrors = (results.errorCount || 0) > 0;
@@ -97,10 +146,10 @@ export function ImporterClientPage() {
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
     const [isDragging, setIsDragging] = useState(false);
-    const [fileName, setFileName] = useState<string | null>(null);
+    const [file, setFile] = useState<File | null>(null);
     const [dryRun, setDryRun] = useState(true);
-    const formRef = useRef<HTMLFormElement>(null);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
+    const [mappingSuggestions, setMappingSuggestions] = useState<CsvMappingOutput | null>(null);
 
     useEffect(() => {
         const token = document.cookie
@@ -110,12 +159,8 @@ export function ImporterClientPage() {
         setCsrfToken(token || null);
     }, []);
 
-    const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        const file = formData.get('file') as File;
-
-        if (!file || file.size === 0) {
+    const handleFormSubmit = (mappings: Record<string, string>) => {
+        if (!file) {
             toast({ variant: 'destructive', title: 'No file selected', description: 'Please choose a file to upload.' });
             return;
         }
@@ -125,18 +170,22 @@ export function ImporterClientPage() {
             return;
         }
 
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('dataType', dataType);
         formData.append('dryRun', String(dryRun));
-        setFileName(file.name);
+        formData.append(CSRF_COOKIE_NAME, csrfToken);
+        formData.append('mappings', JSON.stringify(mappings));
+
         setResults(null);
 
         startTransition(async () => {
             const result = await handleDataImport(formData);
             if (result.success) {
                 setResults(result);
-                // Don't reset the form if it was a dry run, so user can easily uncheck and resubmit
                 if (!result.isDryRun) {
-                    formRef.current?.reset();
-                    setFileName(null);
+                    setFile(null);
+                    setMappingSuggestions(null);
                 }
             } else {
                  toast({ variant: 'destructive', title: 'Import Failed', description: result.summaryMessage });
@@ -144,26 +193,40 @@ export function ImporterClientPage() {
             }
         });
     };
-
-    const processDroppedFile = (file: File | null) => {
-        if (!file || !formRef.current) return;
+    
+    const handleGetMappingSuggestions = () => {
+        if (!file || !csrfToken) return;
         
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append(CSRF_COOKIE_NAME, csrfToken);
 
-        const fileInput = formRef.current.querySelector<HTMLInputElement>('input[name="file"]');
-        if (fileInput) {
-            fileInput.files = dataTransfer.files;
+        startTransition(async () => {
+            const suggestions = await getMappingSuggestions(formData);
+            setMappingSuggestions(suggestions);
+        });
+    };
+    
+    const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            setFile(selectedFile);
+            setResults(null);
+            setMappingSuggestions(null);
         }
-        
-        // Trigger form submission
-        formRef.current.requestSubmit();
+    }
+    
+    const processDroppedFile = (droppedFile: File | null) => {
+        if (!droppedFile) return;
+        setFile(droppedFile);
+        setResults(null);
+        setMappingSuggestions(null);
     };
 
-    const handleDragEnter = (e: DragEvent<HTMLFormElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-    const handleDragLeave = (e: DragEvent<HTMLFormElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-    const handleDragOver = (e: DragEvent<HTMLFormElement>) => { e.preventDefault(); e.stopPropagation(); };
-    const handleDrop = (e: DragEvent<HTMLFormElement>) => {
+    const handleDragEnter = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+    const handleDragLeave = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
+    const handleDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
+    const handleDrop = (e: DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
@@ -174,113 +237,88 @@ export function ImporterClientPage() {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <form ref={formRef} onSubmit={handleFormSubmit}
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-            >
-                <Card className="lg:col-span-1">
-                        <CardHeader>
-                            <CardTitle>Upload Your Data</CardTitle>
-                            <CardDescription>
-                                Select the data type, then drag and drop your CSV file or click to browse.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <input type="hidden" name="dataType" value={dataType} />
-                            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
-                            <div className="space-y-2">
-                                <Label htmlFor="data-type">1. Select Data Type</Label>
-                                <Select value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>
-                                    <SelectTrigger id="data-type">
-                                        <SelectValue placeholder="Select a data type to import" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {Object.entries(importOptions).map(([key, { label }]) => (
-                                            <SelectItem key={key} value={key}>{label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            <Card className="lg:col-span-1">
+                <CardHeader>
+                    <CardTitle>Upload Your Data</CardTitle>
+                    <CardDescription>
+                        Select the data type, then drag and drop your CSV file or click to browse.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                        <Label>1. Select Data Type</Label>
+                        <Select value={dataType} onValueChange={(value) => setDataType(value as DataType)} required>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a data type to import" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(importOptions).map(([key, { label }]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <Label>2. Upload File</Label>
+                        <div 
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            className={cn(
+                                "relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition-colors",
+                                isDragging && "border-primary bg-primary/10"
+                            )}
+                        >
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
+                                <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragging && "text-primary")} />
+                                {file?.name ? (
+                                    <>
+                                        <p className="font-semibold text-primary">{file.name}</p>
+                                        <p className="text-xs text-muted-foreground">Drop another file to replace</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="mb-2 text-sm text-foreground">
+                                            <span className="font-semibold">Click to upload</span> or drag and drop
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">CSV files supported (up to 10MB)</p>
+                                    </>
+                                )}
                             </div>
-                            
-                            <div className="space-y-2">
-                                <Label>2. Upload File</Label>
-                                <div 
-                                    className={cn(
-                                        "relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted transition-colors",
-                                        isDragging && "border-primary bg-primary/10"
-                                    )}
-                                >
-                                    <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
-                                        <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragging && "text-primary")} />
-                                        {fileName ? (
-                                            <>
-                                                <p className="font-semibold text-primary">{fileName}</p>
-                                                <p className="text-xs text-muted-foreground">Drop another file to replace</p>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <p className="mb-2 text-sm text-foreground">
-                                                    <span className="font-semibold">Click to upload</span> or drag and drop
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">CSV files supported (up to 10MB)</p>
-                                            </>
-                                        )}
-                                    </div>
-                                    <Input 
-                                        id="file" 
-                                        name="file" 
-                                        type="file" 
-                                        accept=".csv" 
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        onChange={(e) => {
-                                            if (e.target.files && e.target.files.length > 0) {
-                                                formRef.current?.requestSubmit();
-                                            }
-                                        }}
-                                    />
-                                </div>
-                            </div>
+                            <Input 
+                                type="file" 
+                                accept=".csv" 
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                onChange={handleFileChange}
+                            />
+                        </div>
+                    </div>
+                    {file && !mappingSuggestions && (
+                         <Button onClick={handleGetMappingSuggestions} disabled={isPending} className="w-full">
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                            Suggest Mappings with AI
+                        </Button>
+                    )}
+                    
+                    {mappingSuggestions && <MappingSuggestions suggestions={mappingSuggestions} onConfirm={handleFormSubmit} />}
 
-                            <div className="flex items-center space-x-2 rounded-lg border p-4 bg-muted/20">
-                                <Checkbox id="dryRun" checked={dryRun} onCheckedChange={(checked) => setDryRun(Boolean(checked))} />
-                                <div className="grid gap-1.5 leading-none">
-                                    <label htmlFor="dryRun" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    Dry Run Mode
-                                    </label>
-                                    <p className="text-sm text-muted-foreground">
-                                    Validate the file without writing to the database.
-                                    </p>
-                                </div>
-                            </div>
+                </CardContent>
+            </Card>
 
-                            <Alert>
-                                <Table className="h-4 w-4" />
-                                <AlertTitle>Required CSV Columns for '{importOptions[dataType].label}'</AlertTitle>
-                                <AlertDescription>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                        {importOptions[dataType].columns.map(col => (
-                                            <code key={col} className="text-xs font-mono bg-muted text-muted-foreground px-2 py-1 rounded-md">{col}</code>
-                                        ))}
-                                    </div>
-                                </AlertDescription>
-                            </Alert>
-                        </CardContent>
-                </Card>
-            </form>
             <div className="lg:col-span-1">
                 {isPending ? (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
                         <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
-                        <CardTitle className="mt-4">Processing File...</CardTitle>
+                        <CardTitle className="mt-4">Processing...</CardTitle>
                         <CardDescription className="mt-2 max-w-xs">
-                            Validating rows and importing data. This may take a moment.
+                            The AI is analyzing your file. This may take a moment.
                         </CardDescription>
                     </Card>
                 ) : results ? (
-                    <ImportResultsCard results={results} onClear={() => setResults(null)} />
+                    <ImportResultsCard results={results} onClear={() => { setResults(null); setFile(null); setMappingSuggestions(null); }} />
                 ) : (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
                         <UploadCloud className="h-12 w-12 text-muted-foreground" />
