@@ -132,7 +132,7 @@ const universalChatOrchestrator = ai.defineFlow(
             return {
                 response: `I tried to use a tool to answer your question, but it failed with the following error: ${getErrorMessage(e)}`,
                 data: [],
-                visualization: { type: 'none' },
+                visualization: { type: 'none', title: '' },
                 confidence: 0.1,
                 assumptions: ['The tool needed to answer your question failed to execute.'],
             }
@@ -150,7 +150,7 @@ const universalChatOrchestrator = ai.defineFlow(
     return {
         response: text,
         data: [],
-        visualization: { type: 'none' },
+        visualization: { type: 'none', title: '' },
         confidence: 0.5,
         assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
     };
