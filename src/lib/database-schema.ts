@@ -1,7 +1,7 @@
+
 -- =====================================================
--- INVOCHAT DATABASE FIXES
+-- INVOCHAT DATABASE SCHEMA
 -- Run this script in your Supabase SQL Editor
--- This fixes all missing columns, functions, and constraints
 -- =====================================================
 
 -- 1. Fix Messages Table - Add missing columns and update role constraint
@@ -43,14 +43,14 @@ BEGIN
     ),
     sales_data AS (
         SELECT
-            date_trunc('day', o.sale_date)::date as sale_day,
-            SUM(oi.quantity * oi.unit_price) as daily_revenue,
-            SUM(oi.quantity * (oi.unit_price - COALESCE(i.cost, 0))) as daily_profit,
-            COUNT(DISTINCT o.id) as daily_orders
-        FROM orders o
-        JOIN order_items oi ON o.id = oi.sale_id
-        LEFT JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
-        WHERE o.company_id = p_company_id AND o.sale_date >= start_date
+            date_trunc('day', s.created_at)::date as sale_day,
+            SUM(s.total_amount) as daily_revenue,
+            SUM(si.quantity * (si.unit_price - COALESCE(i.cost, 0))) as daily_profit,
+            COUNT(DISTINCT s.id) as daily_orders
+        FROM sales s
+        JOIN sale_items si ON s.id = si.sale_id
+        LEFT JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+        WHERE s.company_id = p_company_id AND s.created_at >= start_date
         GROUP BY 1
     ),
     totals AS (
@@ -90,11 +90,11 @@ BEGIN
         'topCustomersData', (
             SELECT json_agg(json_build_object('name', customer_name, 'value', customer_total))
             FROM (
-                SELECT c.customer_name, SUM(o.total_amount) as customer_total
-                FROM orders o
-                JOIN customers c ON o.customer_id = c.id
-                WHERE o.company_id = p_company_id 
-                    AND o.sale_date >= start_date 
+                SELECT c.customer_name, SUM(s.total_amount) as customer_total
+                FROM sales s
+                JOIN customers c ON s.customer_email = c.email AND s.company_id = c.company_id
+                WHERE s.company_id = p_company_id 
+                    AND s.created_at >= start_date 
                     AND c.deleted_at IS NULL
                 GROUP BY c.customer_name
                 ORDER BY customer_total DESC
@@ -118,12 +118,12 @@ BEGIN
     RETURN QUERY
     WITH cogs_calc AS (
         SELECT 
-            COALESCE(SUM(oi.quantity * i.cost), 0) as total_cogs
-        FROM orders o
-        JOIN order_items oi ON o.id = oi.sale_id
-        JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
-        WHERE o.company_id = p_company_id 
-        AND o.sale_date >= CURRENT_DATE - (p_days || ' days')::interval
+            COALESCE(SUM(si.quantity * i.cost), 0) as total_cogs
+        FROM sales s
+        JOIN sale_items si ON s.id = si.sale_id
+        JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+        WHERE s.company_id = p_company_id 
+        AND s.created_at >= CURRENT_DATE - (p_days || ' days')::interval
     ),
     inventory_value AS (
         SELECT COALESCE(SUM(quantity * cost), 0) as current_value
@@ -151,14 +151,14 @@ BEGIN
     RETURN QUERY
     WITH monthly_sales AS (
         SELECT 
-            oi.sku,
-            DATE_TRUNC('month', o.sale_date) as month,
-            SUM(oi.quantity) as monthly_quantity
-        FROM orders o
-        JOIN order_items oi ON o.id = oi.sale_id
-        WHERE o.company_id = p_company_id 
-        AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
-        GROUP BY oi.sku, DATE_TRUNC('month', o.sale_date)
+            si.sku,
+            DATE_TRUNC('month', s.created_at) as month,
+            SUM(si.quantity) as monthly_quantity
+        FROM sales s
+        JOIN sale_items si ON s.id = si.sale_id
+        WHERE s.company_id = p_company_id 
+        AND s.created_at >= CURRENT_DATE - INTERVAL '12 months'
+        GROUP BY si.sku, DATE_TRUNC('month', s.created_at)
     ),
     avg_sales AS (
         SELECT 
@@ -196,10 +196,10 @@ BEGIN
         SELECT 
             i.sku,
             i.name as product_name,
-            COALESCE(SUM(oi.quantity * oi.unit_price), 0) as revenue
+            COALESCE(SUM(si.quantity * si.unit_price), 0) as revenue
         FROM inventory i
-        LEFT JOIN order_items oi ON i.sku = oi.sku
-        LEFT JOIN orders o ON oi.sale_id = o.id AND o.company_id = p_company_id
+        LEFT JOIN sale_items si ON i.sku = si.sku
+        LEFT JOIN sales s ON si.sale_id = s.id AND s.company_id = p_company_id
         WHERE i.company_id = p_company_id 
         AND i.deleted_at IS NULL
         GROUP BY i.sku, i.name
@@ -243,23 +243,23 @@ BEGIN
     SELECT 
         i.sku,
         i.name as product_name,
-        COALESCE(o.sales_channel, 'Unknown') as sales_channel,
-        COUNT(oi.id) as units_sold,
-        SUM(oi.quantity * oi.unit_price) as revenue,
-        SUM(oi.quantity * COALESCE(i.cost, 0)) as cost,
-        SUM(oi.quantity * oi.unit_price) - SUM(oi.quantity * COALESCE(i.cost, 0)) as gross_profit,
+        COALESCE(s.payment_method, 'Unknown') as sales_channel,
+        COUNT(si.id) as units_sold,
+        SUM(si.quantity * si.unit_price) as revenue,
+        SUM(si.quantity * COALESCE(i.cost, 0)) as cost,
+        SUM(si.quantity * si.unit_price) - SUM(si.quantity * COALESCE(i.cost, 0)) as gross_profit,
         CASE 
-            WHEN SUM(oi.quantity * oi.unit_price) > 0 
-            THEN ((SUM(oi.quantity * oi.unit_price) - SUM(oi.quantity * COALESCE(i.cost, 0))) / SUM(oi.quantity * oi.unit_price)) * 100
+            WHEN SUM(si.quantity * si.unit_price) > 0 
+            THEN ((SUM(si.quantity * si.unit_price) - SUM(si.quantity * COALESCE(i.cost, 0))) / SUM(si.quantity * si.unit_price)) * 100
             ELSE 0
         END as gross_margin_percentage
     FROM inventory i
-    JOIN order_items oi ON i.sku = oi.sku
-    JOIN orders o ON oi.sale_id = o.id
-    WHERE o.company_id = p_company_id 
-    AND o.sale_date >= CURRENT_DATE - INTERVAL '90 days'
+    JOIN sale_items si ON i.sku = si.sku
+    JOIN sales s ON si.sale_id = s.id
+    WHERE s.company_id = p_company_id 
+    AND s.created_at >= CURRENT_DATE - INTERVAL '90 days'
     AND i.deleted_at IS NULL
-    GROUP BY i.sku, i.name, o.sales_channel
+    GROUP BY i.sku, i.name, s.payment_method
     ORDER BY revenue DESC;
 END;
 $$;
@@ -273,16 +273,16 @@ BEGIN
     RETURN QUERY
     WITH channel_data AS (
         SELECT 
-            o.sales_channel,
-            SUM(oi.quantity * oi.unit_price) as revenue,
-            SUM(oi.quantity * COALESCE(i.cost, 0)) as cost
-        FROM orders o
-        JOIN order_items oi ON o.id = oi.sale_id
-        JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
-        WHERE o.company_id = p_company_id 
-        AND o.sales_channel = p_channel_name
-        AND o.sale_date >= CURRENT_DATE - INTERVAL '90 days'
-        GROUP BY o.sales_channel
+            s.payment_method as sales_channel,
+            SUM(si.quantity * si.unit_price) as revenue,
+            SUM(si.quantity * COALESCE(i.cost, 0)) as cost
+        FROM sales s
+        JOIN sale_items si ON s.id = si.sale_id
+        JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+        WHERE s.company_id = p_company_id 
+        AND s.payment_method = p_channel_name
+        AND s.created_at >= CURRENT_DATE - INTERVAL '90 days'
+        GROUP BY s.payment_method
     ),
     fees AS (
         SELECT 
@@ -315,22 +315,22 @@ AS $$
 BEGIN
     RETURN QUERY
     SELECT 
-        TO_CHAR(DATE_TRUNC('month', o.sale_date), 'YYYY-MM') as month,
-        SUM(oi.quantity * oi.unit_price) as revenue,
-        SUM(oi.quantity * COALESCE(i.cost, 0)) as cost,
-        SUM(oi.quantity * oi.unit_price) - SUM(oi.quantity * COALESCE(i.cost, 0)) as gross_profit,
+        TO_CHAR(DATE_TRUNC('month', s.created_at), 'YYYY-MM') as month,
+        SUM(si.quantity * si.unit_price) as revenue,
+        SUM(si.quantity * COALESCE(i.cost, 0)) as cost,
+        SUM(si.quantity * si.unit_price) - SUM(si.quantity * COALESCE(i.cost, 0)) as gross_profit,
         CASE 
-            WHEN SUM(oi.quantity * oi.unit_price) > 0 
-            THEN ((SUM(oi.quantity * oi.unit_price) - SUM(oi.quantity * COALESCE(i.cost, 0))) / SUM(oi.quantity * oi.unit_price)) * 100
+            WHEN SUM(si.quantity * si.unit_price) > 0 
+            THEN ((SUM(si.quantity * si.unit_price) - SUM(si.quantity * COALESCE(i.cost, 0))) / SUM(si.quantity * si.unit_price)) * 100
             ELSE 0
         END as gross_margin_percentage
-    FROM orders o
-    JOIN order_items oi ON o.id = oi.sale_id
-    JOIN inventory i ON oi.sku = i.sku AND o.company_id = i.company_id
-    WHERE o.company_id = p_company_id 
-    AND o.sale_date >= CURRENT_DATE - INTERVAL '12 months'
-    GROUP BY DATE_TRUNC('month', o.sale_date)
-    ORDER BY DATE_TRUNC('month', o.sale_date);
+    FROM sales s
+    JOIN sale_items si ON s.id = si.sale_id
+    JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+    WHERE s.company_id = p_company_id 
+    AND s.created_at >= CURRENT_DATE - INTERVAL '12 months'
+    GROUP BY DATE_TRUNC('month', s.created_at)
+    ORDER BY DATE_TRUNC('month', s.created_at);
 END;
 $$;
 
@@ -347,9 +347,9 @@ BEGIN
     AND i.sku = ANY(p_skus)
     AND (
         EXISTS (
-            SELECT 1 FROM order_items oi 
-            JOIN orders o ON oi.sale_id = o.id 
-            WHERE oi.sku = i.sku AND o.company_id = p_company_id
+            SELECT 1 FROM sale_items si 
+            JOIN sales s ON si.sale_id = s.id 
+            WHERE si.sku = i.sku AND s.company_id = p_company_id
         )
         OR EXISTS (
             SELECT 1 FROM purchase_order_items poi 
@@ -357,43 +357,6 @@ BEGIN
             WHERE poi.sku = i.sku AND po.company_id = p_company_id
         )
     );
-END;
-$$;
-
--- Process Sales Order Inventory
-CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_order_id uuid, p_company_id uuid)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    -- Update inventory quantities based on order items
-    UPDATE inventory i
-    SET quantity = i.quantity - oi.quantity,
-        last_sold_date = CURRENT_DATE,
-        updated_at = NOW()
-    FROM order_items oi
-    JOIN orders o ON oi.sale_id = o.id
-    WHERE o.id = p_order_id
-    AND o.company_id = p_company_id
-    AND i.sku = oi.sku
-    AND i.company_id = p_company_id;
-
-    -- Create inventory ledger entries
-    INSERT INTO inventory_ledger (company_id, sku, created_at, change_type, quantity_change, new_quantity, related_id, notes)
-    SELECT 
-        p_company_id,
-        oi.sku,
-        NOW(),
-        'sale',
-        -oi.quantity,
-        i.quantity,
-        p_order_id,
-        'Order fulfillment'
-    FROM order_items oi
-    JOIN orders o ON oi.sale_id = o.id
-    JOIN inventory i ON oi.sku = i.sku AND i.company_id = p_company_id
-    WHERE o.id = p_order_id
-    AND o.company_id = p_company_id;
 END;
 $$;
 
@@ -469,8 +432,6 @@ BEGIN
 END;
 $$;
 
--- 6. REMOVED execute_dynamic_query function for security.
-
 -- 7. Create the company_dashboard_metrics table properly (not as materialized view)
 -- It already exists as a table, so we just need to ensure it has the right structure
 CREATE TABLE IF NOT EXISTS public.company_dashboard_metrics (
@@ -506,12 +467,6 @@ BEGIN
 END;
 $$;
 
--- 9. Add RLS policies for new columns
--- Already handled by existing policies
-
--- 10. Create index for performance on order_items
-CREATE INDEX IF NOT EXISTS idx_order_items_sale_id ON public.order_items(sale_id);
-
 -- 11. Add missing constraint for inventory quantity check
 ALTER TABLE inventory 
 DROP CONSTRAINT IF EXISTS inventory_quantity_check;
@@ -528,13 +483,7 @@ GRANT EXECUTE ON FUNCTION public.get_gross_margin_analysis TO anon, authenticate
 GRANT EXECUTE ON FUNCTION public.get_net_margin_by_channel TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_margin_trends TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.check_inventory_references TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.process_sales_order_inventory TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_old_sync_logs TO service_role;
-
--- 13. Schedule cleanup job (requires pg_cron extension)
--- Uncomment these lines if you have pg_cron enabled:
--- SELECT cron.schedule('cleanup-sync-logs', '0 2 * * *', 'SELECT public.cleanup_old_sync_logs()');
--- SELECT cron.schedule('refresh-dashboard-metrics', '*/5 * * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics');
 
 -- 14. Add Customer Analytics Function
 CREATE OR REPLACE FUNCTION public.get_customer_analytics(p_company_id uuid)
@@ -598,15 +547,15 @@ BEGIN
     RETURN QUERY
     WITH monthly_sales_data AS (
         SELECT 
-            oi.sku,
-            to_char(date_trunc('month', o.sale_date), 'YYYY-MM') as month,
-            SUM(oi.quantity)::integer as total_quantity
-        FROM order_items oi
-        JOIN orders o ON oi.sale_id = o.id
-        WHERE o.company_id = p_company_id
-          AND oi.sku = ANY(p_skus)
-          AND o.sale_date >= now() - interval '24 months'
-        GROUP BY oi.sku, to_char(date_trunc('month', o.sale_date), 'YYYY-MM')
+            si.sku,
+            to_char(date_trunc('month', s.created_at), 'YYYY-MM') as month,
+            SUM(si.quantity)::integer as total_quantity
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE s.company_id = p_company_id
+          AND si.sku = ANY(p_skus)
+          AND s.created_at >= now() - interval '24 months'
+        GROUP BY si.sku, to_char(date_trunc('month', s.created_at), 'YYYY-MM')
     )
     SELECT 
         s.sku,
@@ -618,9 +567,9 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_historical_sales TO anon, authenticated;
 
--- ========================================================
--- == NEW FOR SALES & EXPORTS
--- ========================================================
+-- Drop old orders tables
+DROP TABLE IF EXISTS public.order_items;
+DROP TABLE IF EXISTS public.orders;
 
 -- Sales Tables
 CREATE TABLE IF NOT EXISTS public.sales (
@@ -634,6 +583,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   created_by UUID REFERENCES auth.users(id),
+  external_id TEXT,
   CONSTRAINT unique_sale_number_per_company UNIQUE (company_id, sale_number)
 );
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
@@ -672,7 +622,8 @@ CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_customer_name text,
     p_customer_email text,
     p_payment_method text,
-    p_notes text
+    p_notes text,
+    p_external_id text DEFAULT NULL
 ) RETURNS public.sales
 LANGUAGE plpgsql
 AS $$
@@ -688,15 +639,26 @@ BEGIN
         total_sale_amount := total_sale_amount + (item.quantity * item.unit_price);
     END LOOP;
 
-    -- Generate a unique sale number
-    new_sale_number := 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '-' || (
-        SELECT COALESCE(MAX(SUBSTRING(sale_number, -3)::int), 0) + 1 FROM sales WHERE company_id = p_company_id AND sale_number LIKE 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '%'
-    )::text;
+    -- Generate a unique sale number if not an external sale
+    IF p_external_id IS NULL THEN
+        new_sale_number := 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '-' || (
+            SELECT COALESCE(MAX(SUBSTRING(sale_number, -3)::int), 0) + 1 FROM sales WHERE company_id = p_company_id AND sale_number LIKE 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '%'
+        )::text;
+    ELSE
+        new_sale_number := 'EXT-' || p_external_id;
+    END IF;
 
     -- Create the main sale record
-    INSERT INTO public.sales (company_id, created_by, sale_number, customer_name, customer_email, total_amount, payment_method, notes)
-    VALUES (p_company_id, p_user_id, new_sale_number, p_customer_name, p_customer_email, total_sale_amount, p_payment_method, p_notes)
+    INSERT INTO public.sales (company_id, created_by, sale_number, customer_name, customer_email, total_amount, payment_method, notes, external_id)
+    VALUES (p_company_id, p_user_id, new_sale_number, p_customer_name, p_customer_email, total_sale_amount, p_payment_method, p_notes, p_external_id)
+    ON CONFLICT (company_id, external_id) WHERE p_external_id IS NOT NULL
+    DO UPDATE SET
+        customer_name = EXCLUDED.customer_name,
+        total_amount = EXCLUDED.total_amount,
+        notes = EXCLUDED.notes,
+        created_at = EXCLUDED.created_at
     RETURNING * INTO new_sale;
+
 
     -- Create sale items and update inventory
     FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric)

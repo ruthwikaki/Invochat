@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -212,9 +213,9 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             totalOrders: metrics.totalOrders || 0,
             totalCustomers: customerCount || 0,
             averageOrderValue: metrics.averageOrderValue || 0,
-            salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[] | null) || [],
-            inventoryByCategoryData: (metrics.inventoryByCategoryData as { name: string; value: number }[] | null) || [],
-            topCustomersData: (metrics.topCustomersData as { name: string; value: number }[] | null) || [],
+            salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[] | null) ?? [],
+            inventoryByCategoryData: (metrics.inventoryByCategoryData as { name: string; value: number }[] | null) ?? [],
+            topCustomersData: (metrics.topCustomersData as { name: string; value: number }[] | null) ?? [],
         };
         
         if (isRedisEnabled) {
@@ -356,7 +357,7 @@ export async function getPurchaseOrdersFromDB(companyId: string, params: { query
         const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });
 
         return {
-            items: parsedData.items,
+            items: parsedData.items as PurchaseOrder[],
             totalCount: parsedData.totalCount,
         };
      });
@@ -416,7 +417,7 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
         logger.info(`[DB Service] Successfully created PO ${newPo.po_number} and updated on-order quantities.`);
 
         await invalidateCompanyCache(companyId, ['dashboard']);
-        return { ...newPo, items: poData.items };
+        return { ...newPo, items: poData.items as any };
     });
 }
 
@@ -576,8 +577,9 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 }
 
 const USER_FACING_TABLES = [
-    'vendors', 
-    'orders', 
+    'vendors',
+    'sales',
+    'sale_items', 
     'customers', 
     'inventory',
     'purchase_orders',
@@ -592,7 +594,7 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
 
         // Fetch data for all main tables in parallel
         const tablePromises = USER_FACING_TABLES
-            .filter(tableName => tableName !== 'purchase_order_items') // Handle this one separately
+            .filter(tableName => tableName !== 'purchase_order_items' && tableName !== 'sale_items') // Handle these one separately
             .map(async (tableName) => {
                 const { data, error } = await supabase
                     .from(tableName)
@@ -611,25 +613,30 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
 
         const allTableData = await Promise.all(tablePromises);
 
-        // Now that we have the purchase orders, fetch their related items
+        // Fetch PO Items
         const purchaseOrders = allTableData.find(d => d.tableName === 'purchase_orders')?.rows as PurchaseOrder[] ?? [];
         const poIds = purchaseOrders.map(po => po.id).filter(Boolean);
 
         let poItems: unknown[] = [];
         if (poIds.length > 0) {
-            const { data, error } = await supabase
-                .from('purchase_order_items')
-                .select('*')
-                .in('po_id', poIds)
-                .limit(10);
-
-            if (error) {
-                logError(error, { context: `Could not fetch data for table 'purchase_order_items'` });
-            } else {
-                poItems = data ?? [];
-            }
+            const { data, error } = await supabase.from('purchase_order_items').select('*').in('po_id', poIds).limit(10);
+            if (error) { logError(error, { context: `Could not fetch data for table 'purchase_order_items'` }); } 
+            else { poItems = data ?? []; }
         }
         allTableData.push({ tableName: 'purchase_order_items', rows: poItems });
+
+        // Fetch Sale Items
+        const sales = allTableData.find(d => d.tableName === 'sales')?.rows as Sale[] ?? [];
+        const saleIds = sales.map(s => s.id).filter(Boolean);
+
+        let saleItems: unknown[] = [];
+        if (saleIds.length > 0) {
+            const { data, error } = await supabase.from('sale_items').select('*').in('sale_id', saleIds).limit(10);
+             if (error) { logError(error, { context: `Could not fetch data for table 'sale_items'` }); }
+             else { saleItems = data ?? []; }
+        }
+        allTableData.push({ tableName: 'sale_items', rows: saleItems });
+
 
         // Ensure the final array is in the original, intended order
         return USER_FACING_TABLES.map(tableName => 
@@ -1070,7 +1077,7 @@ export async function softDeleteInventoryItemsFromDb(companyId: string, skus: st
 
         if (activeReferences && activeReferences.length > 0) {
             const activeSkus = activeReferences.map((ref: {sku: string}) => ref.sku).join(', ');
-            throw new Error(`Cannot delete items with active references in orders or POs: ${activeSkus}`);
+            throw new Error(`Cannot delete items with active references in sales or POs: ${activeSkus}`);
         }
 
         const { error } = await supabase
@@ -1269,15 +1276,15 @@ export async function deleteCustomerFromDb(id: string, companyId: string): Promi
     return withPerformanceTracking('deleteCustomerFromDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // Check for existing orders
+        // Check for existing sales
         const { count, error: countError } = await supabase
-            .from('orders')
+            .from('sales')
             .select('id', { count: 'exact', head: true })
             .eq('company_id', companyId)
-            .eq('customer_id', id);
+            .eq('customer_email', (await supabase.from('customers').select('email').eq('id', id).single()).data?.email);
             
         if (countError) {
-            logError(countError, { context: `Error checking orders for customer ${id}` });
+            logError(countError, { context: `Error checking sales for customer ${id}` });
             throw countError;
         }
 

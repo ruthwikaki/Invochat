@@ -58,7 +58,8 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 sku: product.sku || `WOO-${product.id}`,
                 name: product.name,
                 quantity: product.stock_quantity ?? 0,
-                cost: parseFloat(product.price || 0),
+                cost: parseFloat(product.regular_price || 0),
+                price: parseFloat(product.price || 0),
                 category: product.categories?.[0]?.name,
                 source_platform: 'woocommerce',
                 external_product_id: String(product.id),
@@ -85,7 +86,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
 }
 
 
-async function syncOrders(integration: Integration, credentials: { consumerKey: string, consumerSecret: string }) {
+async function syncSales(integration: Integration, credentials: { consumerKey: string, consumerSecret: string }) {
     const supabase = getServiceRoleClient();
     let totalRecordsSynced = 0;
     let page = 1;
@@ -103,64 +104,39 @@ async function syncOrders(integration: Integration, credentials: { consumerKey: 
             totalPages = pages;
 
             if (orders.length === 0) break;
-
-            const customersToUpsert = orders.map((order: any) => ({
-                company_id: integration.company_id,
-                platform: 'woocommerce',
-                external_id: String(order.customer_id),
-                customer_name: `${order.billing.first_name || ''} ${order.billing.last_name || ''}`.trim() || 'Guest Customer',
-                email: order.billing.email,
-            }));
             
-            if (customersToUpsert.length > 0) {
-                 const { data: upsertedCustomers, error: customerError } = await supabase
-                    .from('customers').upsert(customersToUpsert, { onConflict: 'company_id, platform, external_id' }).select('id, external_id');
-                if (customerError) throw new Error(`Database upsert error for customers: ${customerError.message}`);
-
-                const customerIdMap = new Map(upsertedCustomers.map(c => [c.external_id, c.id]));
-                const ordersToInsert = orders.map((order: any) => ({
-                    company_id: integration.company_id,
-                    customer_id: customerIdMap.get(String(order.customer_id)),
-                    sale_date: order.date_created_gmt,
-                    total_amount: order.total,
-                    sales_channel: 'woocommerce',
-                    platform: 'woocommerce',
-                    external_id: String(order.id),
-                }));
-
-                const { data: createdOrders, error: orderError } = await supabase
-                    .from('orders').upsert(ordersToInsert, { onConflict: 'company_id, platform, external_id' }).select('id, external_id');
-                if (orderError) throw new Error(`Database upsert error for orders: ${orderError.message}`);
-
-                const orderIdMap = new Map(createdOrders.map(o => [o.external_id, o.id]));
-                const orderItemsToInsert = orders.flatMap((order: any) => 
-                    order.line_items.map((item: any) => ({
-                        sale_id: orderIdMap.get(String(order.id)),
+            for (const order of orders) {
+                const { error } = await supabase.rpc('record_sale_transaction', {
+                    p_company_id: integration.company_id,
+                    p_user_id: null,
+                    p_customer_name: `${order.billing.first_name || ''} ${order.billing.last_name || ''}`.trim() || 'WooCommerce Customer',
+                    p_customer_email: order.billing.email,
+                    p_payment_method: order.payment_method_title || 'woocommerce',
+                    p_notes: `WooCommerce Order #${order.id}`,
+                    p_sale_items: order.line_items.map((item: any) => ({
                         sku: item.sku || `WOO-${item.product_id}`,
+                        product_name: item.name,
                         quantity: item.quantity,
-                        unit_price: item.price,
-                    }))
-                ).filter((item: any) => item.sale_id);
-
-                if (orderItemsToInsert.length > 0) {
-                    const { error: itemError } = await supabase.from('order_items').insert(orderItemsToInsert);
-                    if (itemError) throw new Error(`Database insert error for order items: ${itemError.message}`);
-                }
-
-                for (const order of createdOrders) {
-                    const { error: processError } = await supabase.rpc('process_sales_order_inventory', { p_order_id: order.id, p_company_id: integration.company_id });
-                    if (processError) logError(processError, { context: `Failed to process inventory for synced order ${order.external_id}` });
+                        unit_price: parseFloat(item.price),
+                        cost_at_time: null,
+                    })),
+                    p_external_id: String(order.id)
+                });
+                if (error) {
+                    logError(error, { context: `Failed to record synced WooCommerce sale ${order.id}` });
+                } else {
+                    totalRecordsSynced++;
                 }
             }
-            totalRecordsSynced += orders.length;
+
             page++;
             await delay(RATE_LIMIT_DELAY);
         } while (page <= totalPages);
         
-        logger.info(`Successfully synced ${totalRecordsSynced} orders for ${integration.shop_name}`);
+        logger.info(`Successfully synced ${totalRecordsSynced} sales for ${integration.shop_name}`);
 
     } catch (e: any) {
-        logError(e, { context: `WooCommerce order sync failed for integration ${integration.id}` });
+        logError(e, { context: `WooCommerce sales sync failed for integration ${integration.id}` });
         throw e;
     }
 }
@@ -181,9 +157,9 @@ export async function runWooCommerceFullSync(integration: Integration) {
         await supabase.from('integrations').update({ sync_status: 'syncing_products' }).eq('id', integration.id);
         await syncProducts(integration, credentials);
         
-        logger.info(`[Sync] Starting order sync for ${integration.shop_name}`);
-        await supabase.from('integrations').update({ sync_status: 'syncing_orders' }).eq('id', integration.id);
-        await syncOrders(integration, credentials);
+        logger.info(`[Sync] Starting sales sync for ${integration.shop_name}`);
+        await supabase.from('integrations').update({ sync_status: 'syncing_sales' }).eq('id', integration.id);
+        await syncSales(integration, credentials);
 
         logger.info(`[Sync] Full sync completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
