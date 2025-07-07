@@ -121,20 +121,61 @@ function ErrorDisplay({ error }: { error: Error }) {
 
 function DashboardSkeleton() {
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                <Skeleton className="h-40 rounded-xl" />
-                <Skeleton className="h-40 rounded-xl" />
-                <Skeleton className="h-40 rounded-xl" />
-                <Skeleton className="h-40 rounded-xl" />
+        <div className="space-y-8">
+            {/* Top Row: Value-add Widgets */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="h-[230px]">
+                    <CardHeader>
+                        <Skeleton className="h-5 w-1/2" />
+                        <Skeleton className="h-4 w-3/4 mt-1" />
+                    </CardHeader>
+                    <CardContent className="flex items-center justify-center h-full -mt-12">
+                        <Skeleton className="h-24 w-24 rounded-full" />
+                    </CardContent>
+                </Card>
+                <Card className="h-[230px]">
+                    <CardHeader>
+                        <Skeleton className="h-5 w-1/2" />
+                        <Skeleton className="h-4 w-3/4 mt-1" />
+                    </CardHeader>
+                    <CardContent className="flex items-center justify-center h-full -mt-12">
+                        <Skeleton className="h-24 w-24 rounded-full" />
+                    </CardContent>
+                </Card>
             </div>
+
+            {/* Second Row: Core Metric Cards */}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <Card key={i} className="h-[160px]">
+                        <CardHeader>
+                            <Skeleton className="h-4 w-2/3" />
+                        </CardHeader>
+                        <CardContent>
+                            <Skeleton className="h-10 w-1/2 mb-4" />
+                            <Skeleton className="h-3 w-1/3" />
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Bottom Row: Main Charts */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-                <Skeleton className="h-96 rounded-xl lg:col-span-4" />
-                <Skeleton className="h-96 rounded-xl lg:col-span-3" />
-                <Skeleton className="h-96 rounded-xl lg:col-span-1" />
+                <Card className="lg:col-span-4 h-96">
+                    <CardHeader><Skeleton className="h-5 w-1/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                    <CardContent><Skeleton className="h-64 w-full" /></CardContent>
+                </Card>
+                <Card className="lg:col-span-3 h-96">
+                    <CardHeader><Skeleton className="h-5 w-1/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                    <CardContent><Skeleton className="h-64 w-full" /></CardContent>
+                </Card>
+                <Card className="lg:col-span-1 h-96">
+                    <CardHeader><Skeleton className="h-5 w-1/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                    <CardContent><Skeleton className="h-64 w-full" /></CardContent>
+                </Card>
             </div>
         </div>
-    )
+    );
 }
 
 // --- Main Page Component ---
