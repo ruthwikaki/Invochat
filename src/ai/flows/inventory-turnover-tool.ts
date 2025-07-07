@@ -30,7 +30,7 @@ export const getInventoryTurnoverReport = ai.defineTool(
   async (input) => {
     logger.info(`[Inventory Turnover Tool] Getting report for company: ${input.companyId}`);
     try {
-        const supabase = getServiceRole_client();
+        const supabase = getServiceRoleClient();
 
         const { data, error } = await supabase.rpc('get_inventory_turnover_report', {
             p_company_id: input.companyId,
@@ -41,7 +41,18 @@ export const getInventoryTurnoverReport = ai.defineTool(
             throw error;
         }
 
-        return InventoryTurnoverReportSchema.parse(data);
+        if (!data || (Array.isArray(data) && data.length === 0)) {
+            logger.warn(`[Inventory Turnover Tool] No data returned from RPC for company ${input.companyId}`);
+            return {
+                turnover_rate: 0,
+                total_cogs: 0,
+                average_inventory_value: 0,
+                period_days: input.days
+            };
+        }
+        
+        const result = Array.isArray(data) ? data[0] : data;
+        return InventoryTurnoverReportSchema.parse(result);
 
     } catch (e) {
         logError(e, { context: `[Inventory Turnover Tool] Failed to run RPC for company ${input.companyId}` });

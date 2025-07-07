@@ -22,6 +22,9 @@ import { getErrorMessage, logError } from '@/lib/error-handler';
 import { PurchaseOrderCreateSchema } from '@/types';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
+import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
+import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
+
 
 // Simple regex to validate a string is in UUID format.
 export const isValidUuid = (uuid: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
@@ -205,7 +208,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             lowStockItemsCount: mvData?.low_stock_count || 0,
             deadStockItemsCount: metrics.deadStockItemsCount || 0,
             totalSkus: mvData?.total_skus || 0,
-            totalSales: metrics.totalSales || 0,
+            totalOrders: metrics.totalOrders || 0,
             totalCustomers: customerCount || 0,
             averageOrderValue: metrics.averageOrderValue || 0,
             salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[] | null) ?? [],
@@ -333,7 +336,7 @@ export async function getPurchaseOrdersFromDB(companyId: string, params: { query
      return withPerformanceTracking('getPurchaseOrdersFromDB', async () => {
         const supabase = getServiceRoleClient();
         
-        const { data, error } = await supabase.rpc('get_purchase_orders', {
+        const { data: rpcData, error } = await supabase.rpc('get_purchase_orders', {
             p_company_id: companyId,
             p_query: params.query || null,
             p_limit: params.limit,
@@ -347,9 +350,9 @@ export async function getPurchaseOrdersFromDB(companyId: string, params: { query
         
         const RpcResponseSchema = z.object({
             items: z.array(PurchaseOrderSchema.partial()),
-            totalCount: z.number().int(),
+            totalCount: z.coerce.number().default(0),
         });
-        const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });
+        const parsedData = RpcResponseSchema.parse(rpcData ?? { items: [], totalCount: 0 });
 
         return {
             items: parsedData.items as PurchaseOrder[],
@@ -1310,8 +1313,8 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         });
 
         const RpcResponseSchema = z.object({
-            items: z.array(UnifiedInventoryItemSchema),
-            total_count: z.bigint().transform(Number),
+            items: z.array(UnifiedInventoryItemSchema).default([]),
+            total_count: z.coerce.number().default(0),
         });
         
         const responseData = data && data.length > 0 ? data[0] : { items: [], total_count: 0 };
@@ -1411,7 +1414,7 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getCustomersFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_customers_with_stats', {
+        const { data: rpcData, error } = await supabase.rpc('get_customers_with_stats', {
             p_company_id: companyId,
             p_query: params.query || null,
             p_limit: params.limit,
@@ -1423,12 +1426,12 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
             throw new Error(`Could not load customer data: ${error.message}`);
         }
         
-        const CustomerWithStatsSchema = CustomerSchema.extend({ total_sales: z.number().int() });
+        const CustomerWithStatsSchema = CustomerSchema.extend({ total_orders: z.number().int(), total_spent: z.number() });
         const RpcResponseSchema = z.object({
             items: z.array(CustomerWithStatsSchema),
-            totalCount: z.number().int(),
+            totalCount: z.coerce.number(),
         });
-        const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });
+        const parsedData = RpcResponseSchema.parse(rpcData ?? { items: [], totalCount: 0 });
         
         return {
             items: parsedData.items,

@@ -64,7 +64,7 @@ export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 
 export const DeadStockItemSchema = z.object({
     sku: z.string(),
-    product_name: z.string(),
+    product_name: z.string().nullable(),
     quantity: z.coerce.number(),
     cost: z.coerce.number(),
     total_value: z.coerce.number(),
