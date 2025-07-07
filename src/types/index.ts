@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -65,9 +66,9 @@ export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 export const DeadStockItemSchema = z.object({
     sku: z.string(),
     product_name: z.string().nullable(),
-    quantity: z.coerce.number(),
-    cost: z.coerce.number(),
-    total_value: z.coerce.number(),
+    quantity: z.coerce.number().default(0),
+    cost: z.coerce.number().default(0),
+    total_value: z.coerce.number().default(0),
     last_sale_date: z.string().nullable().optional(),
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
