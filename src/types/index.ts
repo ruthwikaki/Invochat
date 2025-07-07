@@ -265,7 +265,7 @@ export const ReorderRuleSchema = z.object({
 });
 export type ReorderRule = z.infer<typeof ReorderRuleSchema>;
 
-// Base schema without transform for extension
+// FIX: Separate base schema from transformed schema
 export const ReorderSuggestionBaseSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
@@ -275,6 +275,10 @@ export const ReorderSuggestionBaseSchema = z.object({
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
     unit_cost: z.number().nullable(),
+    base_quantity: z.number().int().optional(),
+    adjustment_reason: z.string().optional(),
+    seasonality_factor: z.number().optional(),
+    confidence: z.number().optional(),
 });
 
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.transform((data) => ({

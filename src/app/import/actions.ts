@@ -11,10 +11,10 @@ import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import type { User } from '@/types';
+import type { User, CsvMappingInput, CsvMappingOutput } from '@/types';
 import { revalidatePath } from 'next/cache';
 import { refreshMaterializedViews } from '@/services/database';
-import { suggestCsvMappings, type CsvMappingOutput } from '@/ai/flows/csv-mapping-flow';
+import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -288,5 +288,3 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
     }
 }
-
-    

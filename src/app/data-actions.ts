@@ -4,7 +4,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, Sale, SaleCreateInput, CsvMappingInput, CsvMappingOutput } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, Sale, SaleCreateInput, CustomerAnalytics, CsvMappingInput, CsvMappingOutput } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';

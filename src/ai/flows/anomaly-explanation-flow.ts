@@ -5,7 +5,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import type { Anomaly, AnomalyExplanationInput, AnomalyExplanationOutput } from '@/types';
+import type { AnomalyExplanationInput, AnomalyExplanationOutput } from '@/types';
 import { AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from '@/types';
 
 
@@ -52,6 +52,7 @@ export async function generateAnomalyExplanation(input: AnomalyExplanationInput)
         return {
             explanation: "Could not determine a cause for this anomaly.",
             confidence: 'low',
+            suggestedAction: "Manually review sales and inventory data for this date."
         };
     }
     return output;
