@@ -1310,14 +1310,15 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
 
         const RpcResponseSchema = z.object({
             items: z.array(UnifiedInventoryItemSchema),
-            totalCount: z.number().int(),
+            total_count: z.number().int(),
         });
         
-        const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });
+        const responseData = data && data.length > 0 ? data[0] : { items: [], total_count: 0 };
+        const parsedData = RpcResponseSchema.parse(responseData);
         
         return {
             items: parsedData.items,
-            totalCount: parsedData.totalCount,
+            totalCount: parsedData.total_count,
         };
     });
 }

@@ -1,14 +1,28 @@
 -- =====================================================
--- INVOCHAT DATABASE SCHEMA - V3 (FINAL)
--- This script fixes all remaining references to the old 'orders' table.
+-- INVOCHAT DATABASE SCHEMA - V4 (FINAL FIXES)
+-- This script fixes all remaining function issues.
 -- Run this script in your Supabase SQL Editor.
 -- =====================================================
 
--- =====================================================
--- SECTION 1: FIX ALL FUNCTIONS REFERENCING 'orders'
--- =====================================================
+-- 1. Fix get_distinct_categories
+DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
+CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
+RETURNS TABLE(category text)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT i.category::text
+    FROM inventory i
+    WHERE i.company_id = p_company_id
+    AND i.category IS NOT NULL
+    AND i.category <> ''
+    ORDER BY i.category::text;
+END;
+$$;
 
--- 1. Fix get_unified_inventory
+
+-- 2. Fix get_unified_inventory
 DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
     p_company_id uuid,
@@ -25,7 +39,7 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     result_items json;
-    total_count bigint;
+    total_count_result bigint;
 BEGIN
     WITH filtered_inventory AS (
         SELECT 
@@ -82,16 +96,16 @@ BEGIN
         SELECT count(*) as total FROM filtered_inventory
     )
     SELECT 
-        (SELECT COALESCE(json_agg(fi.*), '[]'::json) FROM (SELECT * FROM filtered_inventory ORDER BY product_name LIMIT p_limit OFFSET p_offset) fi) as items,
-        (SELECT total FROM count_query) as total_count
-    INTO result_items, total_count;
+        (SELECT COALESCE(json_agg(fi.*), '[]'::json) FROM (SELECT * FROM filtered_inventory ORDER BY product_name LIMIT p_limit OFFSET p_offset) fi),
+        (SELECT total FROM count_query)
+    INTO result_items, total_count_result;
 
-    RETURN QUERY SELECT result_items, total_count;
+    RETURN QUERY SELECT result_items, total_count_result;
 END;
 $$;
 
 
--- 2. Fix get_customers_with_stats
+-- 3. Fix get_customers_with_stats
 DROP FUNCTION IF EXISTS public.get_customers_with_stats(uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
     p_company_id uuid,
@@ -144,25 +158,7 @@ END;
 $$;
 
 
--- 3. Fix get_distinct_categories
-DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
-CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
-RETURNS TABLE(category text)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    RETURN QUERY
-    SELECT DISTINCT i.category::text
-    FROM inventory i
-    WHERE i.company_id = p_company_id
-    AND i.category IS NOT NULL
-    AND i.category <> ''
-    ORDER BY i.category;
-END;
-$$;
-
-
--- 4. Fix get_alerts to use the `sales` table
+-- 4. Fix get_alerts
 DROP FUNCTION IF EXISTS public.get_alerts(uuid, integer, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_alerts(
     p_company_id uuid,
@@ -240,7 +236,7 @@ END;
 $$;
 
 
--- 5. Fix `get_anomaly_insights` to use sales table
+-- 5. Fix `get_anomaly_insights`
 DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid);
 CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
 RETURNS TABLE(date text, daily_revenue numeric, daily_customers bigint, avg_revenue numeric, avg_customers numeric, anomaly_type text, deviation_percentage numeric)
@@ -270,33 +266,32 @@ BEGIN
             ds.customers,
             a.avg_revenue,
             a.avg_customers,
-            (ds.revenue - a.avg_revenue) / a.avg_revenue AS revenue_deviation,
-            (ds.customers::numeric - a.avg_customers) / a.avg_customers AS customers_deviation
+            (ds.revenue - a.avg_revenue) / NULLIF(a.avg_revenue, 0) AS revenue_deviation,
+            (ds.customers::numeric - a.avg_customers) / NULLIF(a.avg_customers, 0) AS customers_deviation
         FROM daily_stats ds, avg_stats a
-        WHERE a.avg_revenue > 0 AND a.avg_customers > 0
     )
     SELECT
         a.stat_date::text,
-        a.revenue,
-        a.customers,
-        ROUND(a.avg_revenue, 2),
-        ROUND(a.avg_customers, 2),
+        a.revenue::numeric,
+        a.customers::bigint,
+        ROUND(a.avg_revenue, 2)::numeric,
+        ROUND(a.avg_customers, 2)::numeric,
         CASE
-            WHEN ABS(a.revenue_deviation) > 2 THEN 'Revenue Anomaly'
-            WHEN ABS(a.customers_deviation) > 2 THEN 'Customer Anomaly'
+            WHEN ABS(COALESCE(a.revenue_deviation, 0)) > 2 THEN 'Revenue Anomaly'
+            WHEN ABS(COALESCE(a.customers_deviation, 0)) > 2 THEN 'Customer Anomaly'
             ELSE 'No Anomaly'
         END::text AS anomaly_type,
         CASE
-            WHEN ABS(a.revenue_deviation) > 2 THEN ROUND(a.revenue_deviation * 100, 2)
-            WHEN ABS(a.customers_deviation) > 2 THEN ROUND(a.customers_deviation * 100, 2)
+            WHEN ABS(COALESCE(a.revenue_deviation, 0)) > 2 THEN ROUND(a.revenue_deviation * 100, 2)
+            WHEN ABS(COALESCE(a.customers_deviation, 0)) > 2 THEN ROUND(a.customers_deviation * 100, 2)
             ELSE 0
         END::numeric AS deviation_percentage
     FROM anomalies a
-    WHERE ABS(a.revenue_deviation) > 2 OR ABS(a.customers_deviation) > 2;
+    WHERE ABS(COALESCE(a.revenue_deviation, 0)) > 2 OR ABS(COALESCE(a.customers_deviation, 0)) > 2;
 END;
 $$;
 
--- 6. Grant Permissions to fixed functions
+-- Grant Permissions to fixed functions
 GRANT EXECUTE ON FUNCTION public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_customers_with_stats(uuid, text, integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_distinct_categories(uuid) TO authenticated;
