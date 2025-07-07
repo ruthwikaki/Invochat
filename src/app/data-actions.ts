@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -624,10 +622,7 @@ export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Pr
 
 export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    const suggestions = await db.getReorderSuggestionsFromDB(companyId);
-
-    // Placeholder until AI enhancement is fully implemented in the tool
-    return suggestions.map(s => ({ ...s, base_quantity: s.suggested_reorder_quantity }));
+    return db.getReorderSuggestionsFromDB(companyId);
 }
 
 export async function createPurchaseOrdersFromSuggestions(

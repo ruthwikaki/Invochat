@@ -1,5 +1,3 @@
-
-
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -172,6 +170,7 @@ export const AnomalySchema = z.object({
     avg_revenue: z.coerce.number(),
     avg_customers: z.coerce.number(),
     anomaly_type: z.string(),
+    deviation_percentage: z.coerce.number().optional(), // Make sure this is part of the schema if used
     // Added fields for AI explanation
     explanation: z.string().optional(),
     confidence: z.enum(['high', 'medium', 'low']).optional(),

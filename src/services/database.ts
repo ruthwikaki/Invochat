@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -531,7 +530,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         const { data, error } = await supabase.rpc('get_alerts', { 
             p_company_id: companyId,
             p_dead_stock_days: settings.dead_stock_days,
-            p_fast_moving_days: settings.fast_moving_days,
+            p_fast_moving_days: config.businessLogic.fastMovingDays,
             p_predictive_stock_days: config.businessLogic.predictiveStockDays,
         });
 

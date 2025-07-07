@@ -1,4 +1,3 @@
-
 -- =====================================================
 -- INVOCHAT DATABASE FIXES
 -- Run this script in your Supabase SQL Editor
@@ -463,7 +462,7 @@ BEGIN
     EXCEPTION
         WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to update auth.users metadata: %', SQLERRM;
-        END;
+    END;
     END IF;
 
     RAISE NOTICE '[handle_new_user] Trigger finished successfully.';
@@ -588,6 +587,36 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_customer_analytics TO anon, authenticated;
+
+
+-- New Function for Reorder Tool
+CREATE OR REPLACE FUNCTION public.get_historical_sales(p_company_id uuid, p_skus text[])
+RETURNS TABLE(sku text, monthly_sales jsonb)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    WITH monthly_sales_data AS (
+        SELECT 
+            oi.sku,
+            to_char(date_trunc('month', o.sale_date), 'YYYY-MM') as month,
+            SUM(oi.quantity)::integer as total_quantity
+        FROM order_items oi
+        JOIN orders o ON oi.sale_id = o.id
+        WHERE o.company_id = p_company_id
+          AND oi.sku = ANY(p_skus)
+          AND o.sale_date >= now() - interval '24 months'
+        GROUP BY oi.sku, to_char(date_trunc('month', o.sale_date), 'YYYY-MM')
+    )
+    SELECT 
+        s.sku,
+        jsonb_agg(jsonb_build_object('month', s.month, 'total_quantity', s.total_quantity)) as monthly_sales
+    FROM monthly_sales_data s
+    GROUP BY s.sku;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_historical_sales TO anon, authenticated;
 
 -- =====================================================
 -- Script completed successfully!
