@@ -295,11 +295,11 @@ BEGIN
         cd.sales_channel as channel,
         cd.revenue as total_revenue,
         cd.cost as total_cost,
-        (cd.revenue * f.pct_fee + f.fix_fee) as channel_fees,
-        cd.revenue - cd.cost - (cd.revenue * f.pct_fee + f.fix_fee) as net_profit,
+        (cd.revenue * (f.pct_fee / 100) + f.fix_fee) as channel_fees,
+        cd.revenue - cd.cost - (cd.revenue * (f.pct_fee / 100) + f.fix_fee) as net_profit,
         CASE 
             WHEN cd.revenue > 0 
-            THEN ((cd.revenue - cd.cost - (cd.revenue * f.pct_fee + f.fix_fee)) / cd.revenue) * 100
+            THEN ((cd.revenue - cd.cost - (cd.revenue * (f.pct_fee / 100) + f.fix_fee)) / cd.revenue) * 100
             ELSE 0
         END as net_margin_percentage
     FROM channel_data cd, fees f;
@@ -570,6 +570,7 @@ GRANT EXECUTE ON FUNCTION public.get_historical_sales TO anon, authenticated;
 -- FIX: Handle dependent objects before dropping tables
 -- =====================================================
 
+-- First, check if return_items table exists and has the foreign key
 DO $$ 
 BEGIN
     -- Drop the foreign key constraint if it exists
@@ -891,6 +892,110 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_dead_stock_alerts_data(uuid, integer) TO authenticated;
+
+-- Fix get_unified_inventory to use sales table
+DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid,text,text,uuid,uuid,text,integer,integer);
+CREATE OR REPLACE FUNCTION public.get_unified_inventory(
+    p_company_id uuid,
+    p_query text DEFAULT NULL,
+    p_category text DEFAULT NULL,
+    p_location_id uuid DEFAULT NULL,
+    p_supplier_id uuid DEFAULT NULL,
+    p_sku_filter text DEFAULT NULL,
+    p_limit integer DEFAULT 50,
+    p_offset integer DEFAULT 0
+)
+RETURNS TABLE (
+    items json,
+    totalcount bigint
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    WITH monthly_sales_data AS (
+        SELECT
+            si.sku,
+            SUM(si.quantity) AS total_units_sold,
+            SUM(si.quantity * (si.unit_price - COALESCE(i.cost, 0))) AS total_profit
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY si.sku
+    )
+    SELECT
+        (
+            SELECT json_agg(t.*)
+            FROM (
+                SELECT
+                    i.sku,
+                    i.name as product_name,
+                    i.category,
+                    i.quantity,
+                    i.cost,
+                    i.price,
+                    (i.quantity * i.cost) as total_value,
+                    i.reorder_point,
+                    i.on_order_quantity,
+                    i.landed_cost,
+                    i.barcode,
+                    i.location_id,
+                    l.name AS location_name,
+                    COALESCE(ms.total_units_sold, 0)::integer as monthly_units_sold,
+                    COALESCE(ms.total_profit, 0)::numeric as monthly_profit,
+                    i.version
+                FROM inventory i
+                LEFT JOIN locations l ON i.location_id = l.id
+                LEFT JOIN monthly_sales_data ms ON i.sku = ms.sku
+                WHERE i.company_id = p_company_id
+                    AND i.deleted_at IS NULL
+                    AND (p_query IS NULL OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
+                    AND (p_category IS NULL OR i.category = p_category)
+                    AND (p_location_id IS NULL OR i.location_id = p_location_id)
+                    AND (p_sku_filter IS NULL OR i.sku = p_sku_filter)
+                    AND (p_supplier_id IS NULL OR EXISTS (
+                        SELECT 1 FROM supplier_catalogs sc
+                        WHERE sc.sku = i.sku AND sc.supplier_id = p_supplier_id
+                    ))
+                ORDER BY i.name
+                LIMIT p_limit OFFSET p_offset
+            ) t
+        ) as items,
+        (
+            SELECT COUNT(*)
+            FROM inventory i
+            WHERE i.company_id = p_company_id
+                AND i.deleted_at IS NULL
+                AND (p_query IS NULL OR (i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%'))
+                AND (p_category IS NULL OR i.category = p_category)
+                AND (p_location_id IS NULL OR i.location_id = p_location_id)
+                AND (p_sku_filter IS NULL OR i.sku = p_sku_filter)
+                AND (p_supplier_id IS NULL OR EXISTS (
+                    SELECT 1 FROM supplier_catalogs sc
+                    WHERE sc.sku = i.sku AND sc.supplier_id = p_supplier_id
+                ))
+        ) as totalcount;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_unified_inventory TO anon, authenticated;
+
+-- Fix get_distinct_categories to cast to text
+DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
+CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
+RETURNS TABLE (category text)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT i.category::text
+    FROM inventory i
+    WHERE i.company_id = p_company_id AND i.category IS NOT NULL AND i.deleted_at IS NULL
+    ORDER BY i.category;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_distinct_categories TO anon, authenticated;
+
 
 -- =====================================================
 -- Script completed successfully!
