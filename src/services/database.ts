@@ -1,4 +1,5 @@
 
+
 'use server';
 
 /**
@@ -204,7 +205,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
             lowStockItemsCount: mvData?.low_stock_count || 0,
             deadStockItemsCount: metrics.deadStockItemsCount || 0,
             totalSkus: mvData?.total_skus || 0,
-            totalOrders: metrics.totalOrders || 0,
+            totalSales: metrics.totalSales || 0,
             totalCustomers: customerCount || 0,
             averageOrderValue: metrics.averageOrderValue || 0,
             salesTrendData: (metrics.salesTrendData as { date: string; Sales: number }[] | null) ?? [],
@@ -1310,7 +1311,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
 
         const RpcResponseSchema = z.object({
             items: z.array(UnifiedInventoryItemSchema),
-            total_count: z.number().int(),
+            total_count: z.bigint().transform(Number),
         });
         
         const responseData = data && data.length > 0 ? data[0] : { items: [], total_count: 0 };
@@ -1422,8 +1423,9 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
             throw new Error(`Could not load customer data: ${error.message}`);
         }
         
+        const CustomerWithStatsSchema = CustomerSchema.extend({ total_sales: z.number().int() });
         const RpcResponseSchema = z.object({
-            items: z.array(CustomerSchema),
+            items: z.array(CustomerWithStatsSchema),
             totalCount: z.number().int(),
         });
         const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });

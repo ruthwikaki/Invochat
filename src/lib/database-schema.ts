@@ -1,10 +1,11 @@
+
 -- =====================================================
--- INVOCHAT DATABASE SCHEMA - V4 (FINAL FIXES)
+-- INVOCHAT DATABASE SCHEMA - V5 (FINAL FINAL FIXES)
 -- This script fixes all remaining function issues.
 -- Run this script in your Supabase SQL Editor.
 -- =====================================================
 
--- 1. Fix get_distinct_categories
+-- 1. Fix get_distinct_categories (ORDER BY clause)
 DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
 RETURNS TABLE(category text)
@@ -17,12 +18,12 @@ BEGIN
     WHERE i.company_id = p_company_id
     AND i.category IS NOT NULL
     AND i.category <> ''
-    ORDER BY i.category::text;
+    ORDER BY i.category::text; -- FIX: Changed from i.category to i.category::text
 END;
 $$;
 
 
--- 2. Fix get_unified_inventory
+-- 2. Fix get_unified_inventory (Correct counting and return logic)
 DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
     p_company_id uuid,
@@ -130,7 +131,7 @@ BEGIN
             c.status,
             c.deleted_at,
             c.created_at,
-            COUNT(s.id) as total_orders,
+            COUNT(s.id) as total_sales,
             COALESCE(SUM(s.total_amount), 0) as total_spend
         FROM public.customers c
         LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
