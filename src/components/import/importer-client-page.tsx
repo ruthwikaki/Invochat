@@ -57,10 +57,10 @@ function MappingSuggestions({ suggestions, onConfirm }: { suggestions: CsvMappin
     }, {} as Record<string, string>);
 
     return (
-        <Card className="mt-6">
+        <Card className="mt-6 border-primary/30">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary" /> AI Mapping Suggestions</CardTitle>
-                <CardDescription>The AI has suggested the following column mappings. Unmapped columns will be ignored.</CardDescription>
+                <CardDescription>The AI has suggested the following column mappings. Unmapped columns will be ignored during the import.</CardDescription>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-48">
@@ -99,27 +99,23 @@ function MappingSuggestions({ suggestions, onConfirm }: { suggestions: CsvMappin
 
 function ImportResultsCard({ results, onClear }: { results: Omit<ImportResult, 'success'>; onClear: () => void }) {
     const hasErrors = (results.errorCount || 0) > 0;
-    const alertVariant = hasErrors ? 'destructive' : 'default';
-    const Icon = hasErrors ? XCircle : CheckCircle;
+    const alertVariant = results.isDryRun ? 'default' : (hasErrors ? 'destructive' : 'default');
+    const Icon = results.isDryRun ? Info : (hasErrors ? XCircle : CheckCircle);
+    const title = results.isDryRun ? (hasErrors ? 'Dry Run Failed' : 'Dry Run Successful') : (hasErrors ? 'Import Had Errors' : 'Import Successful');
     
     return (
         <Card>
             <CardHeader className="flex flex-row items-start justify-between">
                 <div>
-                    <CardTitle>Import Results {results.isDryRun && <span className="text-sm font-normal text-muted-foreground">(Dry Run)</span>}</CardTitle>
-                    <CardDescription>Review the outcome of your file processing.</CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <Icon className={cn("h-5 w-5", hasErrors && 'text-destructive', !hasErrors && 'text-success')} />
+                        {title}
+                    </CardTitle>
+                    <CardDescription>{results.summaryMessage}</CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={onClear}>Clear</Button>
             </CardHeader>
             <CardContent>
-                <Alert variant={alertVariant} className="mb-4">
-                    <Icon className="h-4 w-4" />
-                    <AlertTitle>{results.summaryMessage}</AlertTitle>
-                    {results.isDryRun && !hasErrors && (
-                        <AlertDescription className="mt-2">No errors found. Uncheck "Dry Run Mode" to import this data.</AlertDescription>
-                    )}
-                </Alert>
-
                 {hasErrors && results.errors && (
                     <div>
                         <h3 className="mb-2 font-semibold">Error Details:</h3>
@@ -159,7 +155,7 @@ export function ImporterClientPage() {
         setCsrfToken(token || null);
     }, []);
 
-    const handleFormSubmit = (mappings: Record<string, string>) => {
+    const handleFormSubmit = (mappings: Record<string, string> = {}) => {
         if (!file) {
             toast({ variant: 'destructive', title: 'No file selected', description: 'Please choose a file to upload.' });
             return;
@@ -178,14 +174,14 @@ export function ImporterClientPage() {
         formData.append('mappings', JSON.stringify(mappings));
 
         setResults(null);
+        setMappingSuggestions(null);
 
         startTransition(async () => {
             const result = await handleDataImport(formData);
             if (result.success) {
                 setResults(result);
-                if (!result.isDryRun) {
+                if (!result.isDryRun && (result.errorCount === 0 || result.errorCount === undefined)) {
                     setFile(null);
-                    setMappingSuggestions(null);
                 }
             } else {
                  toast({ variant: 'destructive', title: 'Import Failed', description: result.summaryMessage });
@@ -201,9 +197,16 @@ export function ImporterClientPage() {
         formData.append('file', file);
         formData.append(CSRF_COOKIE_NAME, csrfToken);
 
+        setResults(null);
+        setMappingSuggestions(null);
+
         startTransition(async () => {
-            const suggestions = await getMappingSuggestions(formData);
-            setMappingSuggestions(suggestions);
+            try {
+                const suggestions = await getMappingSuggestions(formData);
+                setMappingSuggestions(suggestions);
+            } catch (e: any) {
+                toast({ variant: 'destructive', title: 'AI Mapping Failed', description: e.message });
+            }
         });
     };
     
@@ -290,21 +293,40 @@ export function ImporterClientPage() {
                             </div>
                             <Input 
                                 type="file" 
-                                accept=".csv" 
+                                accept=".csv,text/csv,application/vnd.ms-excel" 
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 onChange={handleFileChange}
                             />
                         </div>
                     </div>
-                    {file && !mappingSuggestions && (
-                         <Button onClick={handleGetMappingSuggestions} disabled={isPending} className="w-full">
-                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                            Suggest Mappings with AI
-                        </Button>
+                     {file && (
+                        <div className="space-y-4 rounded-lg border p-4">
+                             <div className="flex items-center space-x-2">
+                                <Checkbox id="dryRun" checked={dryRun} onCheckedChange={(checked) => setDryRun(!!checked)} />
+                                <div className="grid gap-1.5 leading-none">
+                                    <label
+                                        htmlFor="dryRun"
+                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                    >
+                                        Dry Run Mode
+                                    </label>
+                                    <p className="text-sm text-muted-foreground">
+                                        Validate the file for errors without saving any data to the database.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <Button onClick={() => handleFormSubmit({})} disabled={isPending} className="flex-1">
+                                    {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TableIcon className="mr-2 h-4 w-4" />}
+                                    Start Import
+                                </Button>
+                                <Button onClick={handleGetMappingSuggestions} variant="outline" disabled={isPending} className="flex-1">
+                                    {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    Suggest Mappings with AI
+                                </Button>
+                            </div>
+                        </div>
                     )}
-                    
-                    {mappingSuggestions && <MappingSuggestions suggestions={mappingSuggestions} onConfirm={handleFormSubmit} />}
-
                 </CardContent>
             </Card>
 
@@ -314,11 +336,13 @@ export function ImporterClientPage() {
                         <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
                         <CardTitle className="mt-4">Processing...</CardTitle>
                         <CardDescription className="mt-2 max-w-xs">
-                            The AI is analyzing your file. This may take a moment.
+                           The system is analyzing your file. This may take a moment.
                         </CardDescription>
                     </Card>
                 ) : results ? (
                     <ImportResultsCard results={results} onClear={() => { setResults(null); setFile(null); setMappingSuggestions(null); }} />
+                ) : mappingSuggestions ? (
+                     <MappingSuggestions suggestions={mappingSuggestions} onConfirm={handleFormSubmit} />
                 ) : (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
                         <UploadCloud className="h-12 w-12 text-muted-foreground" />
@@ -332,3 +356,5 @@ export function ImporterClientPage() {
         </div>
     );
 }
+
+    

@@ -62,20 +62,26 @@ async function processCsv<T extends z.ZodType>(
     mappings: Record<string, string>
 ): Promise<Omit<ImportResult, 'success' | 'isDryRun'>> {
     
-    // Remap headers before parsing
-    const transformedContent = Papa.unparse(
-        Papa.parse(fileContent, { header: true, skipEmptyLines: true }).data.map((row: any) => {
-            const newRow: Record<string, any> = {};
-            for (const key in row) {
-                if (mappings[key]) {
-                    newRow[mappings[key]] = row[key];
-                }
-            }
-            return newRow;
-        })
-    );
+    let contentToParse = fileContent;
 
-    const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(transformedContent, {
+    // Only remap headers if a mapping object is provided and is not empty.
+    if (mappings && Object.keys(mappings).length > 0) {
+        contentToParse = Papa.unparse(
+            Papa.parse(fileContent, { header: true, skipEmptyLines: true }).data.map((row: any) => {
+                const newRow: Record<string, any> = {};
+                // Iterate over the original row's keys to build the new row based on mappings
+                for (const originalHeader in row) {
+                    const newHeader = mappings[originalHeader];
+                    if (newHeader) {
+                        newRow[newHeader] = row[originalHeader];
+                    }
+                }
+                return newRow;
+            })
+        );
+    }
+
+    const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(contentToParse, {
         header: true,
         skipEmptyLines: true,
         transformHeader: header => header.trim(),
@@ -228,8 +234,11 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             return { success: false, isDryRun, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
         }
         
-        if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-            logger.warn(`[Data Import] Blocked invalid file type: ${file.type}`);
+        const { type: fileType } = file;
+        const isAllowedType = ALLOWED_MIME_TYPES.some(allowedType => fileType.startsWith(allowedType));
+
+        if (!isAllowedType && !file.name.endsWith('.csv')) {
+             logger.warn(`[Data Import] Blocked invalid file type: ${file.type} with name ${file.name}`);
             return { success: false, isDryRun, summaryMessage: `Invalid file type. Only CSV files are allowed.` };
         }
         
@@ -279,3 +288,5 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
     }
 }
+
+    
