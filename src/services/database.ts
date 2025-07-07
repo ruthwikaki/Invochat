@@ -349,7 +349,7 @@ export async function getPurchaseOrdersFromDB(companyId: string, params: { query
         }
         
         const RpcResponseSchema = z.object({
-            items: z.array(PurchaseOrderSchema.partial()),
+            items: z.array(PurchaseOrderSchema.partial()).nullable().default([]),
             totalCount: z.coerce.number().default(0),
         });
         const parsedData = RpcResponseSchema.parse(rpcData ?? { items: [], totalCount: 0 });
@@ -1313,7 +1313,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         });
 
         const RpcResponseSchema = z.object({
-            items: z.array(UnifiedInventoryItemSchema).default([]),
+            items: z.array(UnifiedInventoryItemSchema).nullable().default([]),
             total_count: z.coerce.number().default(0),
         });
         
@@ -1428,8 +1428,8 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
         
         const CustomerWithStatsSchema = CustomerSchema.extend({ total_orders: z.number().int(), total_spent: z.number() });
         const RpcResponseSchema = z.object({
-            items: z.array(CustomerWithStatsSchema),
-            totalCount: z.coerce.number(),
+            items: z.array(CustomerWithStatsSchema).nullable().default([]),
+            totalCount: z.coerce.number().default(0),
         });
         const parsedData = RpcResponseSchema.parse(rpcData ?? { items: [], totalCount: 0 });
         

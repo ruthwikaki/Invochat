@@ -813,9 +813,9 @@ BEGIN
         SELECT count(*) as total FROM customer_stats
     )
     SELECT json_build_object(
-        'items', (SELECT json_agg(cs) FROM (
+        'items', COALESCE((SELECT json_agg(cs) FROM (
             SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
-        ) cs),
+        ) cs), '[]'::json),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
     
@@ -1195,9 +1195,9 @@ BEGIN
         SELECT count(*) as total FROM filtered_pos
     )
     SELECT json_build_object(
-        'items', (SELECT json_agg(t) FROM (
+        'items', COALESCE((SELECT json_agg(t) FROM (
             SELECT * FROM filtered_pos ORDER BY order_date DESC LIMIT p_limit OFFSET p_offset
-        ) t),
+        ) t), '[]'::json),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
     
@@ -1400,7 +1400,7 @@ BEGIN
         'Sale fulfillment'
     FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
-    JOIN inventory i ON si.sku = i.sku AND i.company_id = p_company_id
+    JOIN inventory i ON si.sku = si.sku AND i.company_id = p_company_id
     WHERE s.id = p_sale_id
     AND s.company_id = p_company_id;
 END;
@@ -1728,4 +1728,5 @@ CREATE TRIGGER validate_sale_items_company
 -- =================================================================
 -- SCRIPT COMPLETE
 -- =================================================================
+
 
