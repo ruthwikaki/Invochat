@@ -38,12 +38,6 @@ const businessRulesFields: { key: keyof CompanySettings; label: string; descript
     { key: 'high_value_threshold', label: 'High-Value Threshold ($)', description: 'The cost above which an item is considered "high-value".', type: 'number' },
 ];
 
-const themeFields: { key: keyof CompanySettings; label: string; description: string }[] = [
-    { key: 'theme_primary_color', label: 'Primary Color', description: 'Main color for buttons and highlights.' },
-    { key: 'theme_background_color', label: 'Background Color', description: 'Main page background color.' },
-    { key: 'theme_accent_color', label: 'Accent Color', description: 'Color for secondary elements and hovers.' },
-];
-
 function ChannelFeeManager({ csrfToken }: { csrfToken: string | null }) {
     const [fees, setFees] = useState<ChannelFee[]>([]);
     const [loading, setLoading] = useState(true);
@@ -162,28 +156,11 @@ export default function SettingsPage() {
         fetchSettings();
         setCsrfToken(getCookie('csrf_token'));
     }, [toast]);
-
-    // Live theme preview effect
-    useEffect(() => {
-        const root = document.documentElement;
-        if (settings.theme_primary_color) root.style.setProperty('--primary', settings.theme_primary_color);
-        if (settings.theme_background_color) root.style.setProperty('--background', settings.theme_background_color);
-        if (settings.theme_accent_color) root.style.setProperty('--accent', settings.theme_accent_color);
-    }, [settings.theme_primary_color, settings.theme_background_color, settings.theme_accent_color]);
     
     const handleInputChange = (key: keyof CompanySettings, value: string) => {
         const field = businessRulesFields.find(f => f.key === key);
         const processedValue = field?.type === 'number' && value !== '' ? Number(value) : value;
         setSettings(prev => ({ ...prev, [key]: processedValue }));
-    };
-
-    const handleResetTheme = () => {
-        setSettings(prev => ({
-            ...prev,
-            theme_primary_color: initialSettings.theme_primary_color,
-            theme_background_color: initialSettings.theme_background_color,
-            theme_accent_color: initialSettings.theme_accent_color,
-        }));
     };
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -248,49 +225,6 @@ export default function SettingsPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Theming Card */}
-                         <Card className="mt-6">
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Palette className="h-5 w-5" />
-                                            Branding & Theming
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Customize the look and feel of your workspace. Use HSL format for colors.
-                                        </CardDescription>
-                                    </div>
-                                    <Button type="button" variant="ghost" onClick={handleResetTheme}><Undo2 className="mr-2 h-4 w-4"/>Reset</Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {loading ? <Skeleton className="h-64 w-full" /> : (
-                                    <div className="space-y-6">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            {themeFields.map(({ key, label, description }) => (
-                                                <div key={key} className="space-y-2">
-                                                    <Label htmlFor={key}>{label}</Label>
-                                                    <Input
-                                                        id={key}
-                                                        name={key}
-                                                        type="text"
-                                                        value={settings[key] as string || ''}
-                                                        onChange={(e) => handleInputChange(key, e.target.value)}
-                                                        placeholder='e.g., 262 84% 59%'
-                                                    />
-                                                    <p className="text-xs text-muted-foreground">{description}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted p-2 rounded-lg">
-                                            <Info className="h-4 w-4 shrink-0" />
-                                            <span>You can get HSL color values from web tools like <a href="https://hslpicker.com/" target="_blank" rel="noopener noreferrer" className="underline">hslpicker.com</a>.</span>
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
                          <div className="flex justify-end pt-4 mt-6">
                             <Button type="submit" disabled={isPending || loading || !csrfToken} size="lg">
                                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

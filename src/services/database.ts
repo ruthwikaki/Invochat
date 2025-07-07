@@ -86,9 +86,6 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
             currency: 'USD',
             timezone: 'UTC',
             tax_rate: 0,
-            theme_primary_color: '256 75% 61%',
-            theme_background_color: '222 83% 4%',
-            theme_accent_color: '217 33% 17%',
             custom_rules: {},
         };
         
@@ -113,9 +110,6 @@ const CompanySettingsUpdateSchema = z.object({
     overstock_multiplier: z.coerce.number().positive('Overstock multiplier must be a positive number.').optional(),
     high_value_threshold: z.coerce.number().int().positive('High-value threshold must be a positive number.').optional(),
     predictive_stock_days: z.coerce.number().int().positive('Predictive stock days must be a positive number.').optional(),
-    theme_primary_color: z.string().nullable().optional(),
-    theme_background_color: z.string().nullable().optional(),
-    theme_accent_color: z.string().nullable().optional(),
 });
 
 

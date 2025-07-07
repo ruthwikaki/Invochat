@@ -1,6 +1,6 @@
 
 /**
- * @fileoverview Centralized, environment-aware configuration for ARVO.
+ * @fileoverview Centralized, environment-aware configuration for InvoChat.
  *
  * This file consolidates all external configuration, pulling from environment
  * variables with sensible defaults. This is crucial for security and for

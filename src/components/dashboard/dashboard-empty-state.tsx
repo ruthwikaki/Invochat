@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { UploadCloud, FileText } from 'lucide-react';
-import { ArvoLogo } from '../arvo-logo';
+import { InvoChatLogo } from '../invochat-logo';
 
 export function DashboardEmptyState() {
   return (
@@ -18,10 +18,10 @@ export function DashboardEmptyState() {
           transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
           className="mx-auto mb-6"
         >
-          <ArvoLogo className="h-20 w-20" />
+          <InvoChatLogo className="h-20 w-20" />
         </motion.div>
         <CardHeader className="p-0">
-          <CardTitle className="text-3xl font-bold">Welcome to ARVO!</CardTitle>
+          <CardTitle className="text-3xl font-bold">Welcome to InvoChat!</CardTitle>
           <CardDescription className="mt-2 text-lg text-muted-foreground">
             Your dashboard is ready. Let's populate it with data.
           </CardDescription>
