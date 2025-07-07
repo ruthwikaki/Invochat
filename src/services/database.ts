@@ -8,8 +8,8 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -606,13 +606,13 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
                     }
                     return { tableName, rows: [] };
                 }
-                return { tableName, rows: data || [] };
+                return { tableName, rows: data ?? [] };
             });
 
         const allTableData = await Promise.all(tablePromises);
 
         // Now that we have the purchase orders, fetch their related items
-        const purchaseOrders = allTableData.find(d => d.tableName === 'purchase_orders')?.rows as PurchaseOrder[] || [];
+        const purchaseOrders = allTableData.find(d => d.tableName === 'purchase_orders')?.rows as PurchaseOrder[] ?? [];
         const poIds = purchaseOrders.map(po => po.id).filter(Boolean);
 
         let poItems: unknown[] = [];
@@ -626,14 +626,14 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
             if (error) {
                 logError(error, { context: `Could not fetch data for table 'purchase_order_items'` });
             } else {
-                poItems = data || [];
+                poItems = data ?? [];
             }
         }
         allTableData.push({ tableName: 'purchase_order_items', rows: poItems });
 
         // Ensure the final array is in the original, intended order
         return USER_FACING_TABLES.map(tableName => 
-            allTableData.find(d => d.tableName === tableName) || { tableName, rows: [] }
+            allTableData.find(d => d.tableName === tableName) ?? { tableName, rows: [] }
         );
     });
 }
@@ -670,7 +670,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
             return [];
         }
         
-        return data.map((item: { category: string }) => item.category) || [];
+        return data.map((item: { category: string }) => item.category) ?? [];
     });
 }
 
@@ -1140,7 +1140,7 @@ export async function getIntegrationsByCompanyId(companyId: string): Promise<Int
       logError(error, { context: `getIntegrationsByCompanyId for company ${companyId}` });
       throw error;
     }
-    return data || [];
+    return data ?? [];
   });
 }
 
@@ -1374,105 +1374,85 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
 }
 
 
-// Analytics Tools DB Functions
-export async function getDemandForecastFromDB(companyId: string): Promise<any> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getDemandForecastFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_demand_forecast', {
-            p_company_id: companyId
-        });
-        if (error) {
-            logError(error, { context: `Error fetching demand forecast for company ${companyId}` });
-            throw error;
-        }
-        return data;
-    });
+// --- Sales Recording ---
+export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>[]> {
+  if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+  return withPerformanceTracking('searchProductsForSale', async () => {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('inventory')
+        .select('sku, name, price, quantity')
+        .eq('company_id', companyId)
+        .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
+        .limit(10);
+    
+    if (error) {
+        logError(error, { context: `searchProductsForSale failed for query: ${query}` });
+        return [];
+    }
+
+    return data.map(item => ({
+        sku: item.sku,
+        product_name: item.name,
+        price: item.price,
+        quantity: item.quantity
+    }));
+  });
 }
 
-export async function getAbcAnalysisFromDB(companyId: string): Promise<any> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getAbcAnalysisFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_abc_analysis', {
-            p_company_id: companyId
-        });
-        if (error) {
-            logError(error, { context: `Error fetching ABC analysis for company ${companyId}` });
-            throw error;
-        }
-        return data;
-    });
+export async function recordSaleInDB(companyId: string, userId: string, saleData: SaleCreateInput): Promise<Sale> {
+  return withPerformanceTracking('recordSaleInDB', async () => {
+    const supabase = getServiceRoleClient();
+    
+    const itemsForRpc = saleData.items.map(item => ({
+        sku: item.sku,
+        product_name: item.product_name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        cost_at_time: item.cost_at_time,
+    }));
+    
+    const { data, error } = await supabase.rpc('record_sale_transaction', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_sale_items: itemsForRpc,
+        p_customer_name: saleData.customer_name,
+        p_customer_email: saleData.customer_email,
+        p_payment_method: saleData.payment_method,
+        p_notes: saleData.notes,
+    }).single();
+    
+    if (error) {
+        logError(error, { context: 'record_sale_transaction RPC failed' });
+        throw new Error(error.message);
+    }
+    
+    return SaleSchema.parse(data);
+  });
 }
 
-export async function getGrossMarginAnalysisFromDB(companyId: string): Promise<any> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getGrossMarginAnalysisFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_gross_margin_analysis', {
-            p_company_id: companyId
-        });
-        if (error) {
-            logError(error, { context: `Error fetching gross margin analysis for company ${companyId}` });
-            throw error;
-        }
-        return data;
-    });
-}
-
-export async function getNetMarginByChannelFromDB(companyId: string, channelName: string): Promise<any> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getNetMarginByChannelFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_net_margin_by_channel', {
-            p_company_id: companyId,
-            p_channel_name: channelName,
-        });
-        if (error) {
-            logError(error, { context: `Error fetching net margin for company ${companyId}, channel ${channelName}` });
-            throw error;
-        }
-        return data;
-    });
-}
-
-export async function getMarginTrendsFromDB(companyId: string): Promise<any> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getMarginTrendsFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_margin_trends', {
-            p_company_id: companyId,
-        });
-        if (error) {
-            logError(error, { context: `Error fetching margin trends for company ${companyId}` });
-            throw error;
-        }
-        return data;
-    });
-}
-
-export async function logSuccessfulLogin(userId: string, ipAddress: string | null): Promise<void> {
-    if (!isValidUuid(userId)) return; // Basic validation
-    return withPerformanceTracking('logSuccessfulLogin', async () => {
-        const supabase = getServiceRoleClient();
-        const { data: user } = await supabase.from('users').select('company_id').eq('id', userId).single();
+export async function getSalesFromDB(companyId: string, params: { query?: string; limit: number; offset: number }): Promise<{items: Sale[], totalCount: number}> {
+  return withPerformanceTracking('getSalesFromDB', async () => {
+    const supabase = getServiceRoleClient();
+    let query = supabase
+        .from('sales')
+        .select('*', { count: 'exact' })
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .range(params.offset, params.offset + params.limit - 1);
         
-        if (!user) {
-            logger.warn(`[Audit] Could not log successful login for non-existent user ID: ${userId}`);
-            return;
-        }
+    if (params.query) {
+        query = query.or(`sale_number.ilike.%${params.query}%,customer_name.ilike.%${params.query}%,customer_email.ilike.%${params.query}%`);
+    }
 
-        const { error } = await supabase.from('audit_log').insert({
-            company_id: user.company_id,
-            user_id: userId,
-            action: 'LOGIN_SUCCESS',
-            table_name: 'auth.users',
-            record_id: userId,
-            ip_address: ipAddress,
-            new_data: { event: 'User successfully authenticated.' }
-        });
-        if (error) {
-            logError(error, { context: `Failed to log successful login for user ${userId}` });
-        }
-    });
+    const { data, error, count } = await query;
+    if (error) {
+        logError(error, { context: 'getSalesFromDB failed' });
+        throw new Error(`Could not load sales data: ${error.message}`);
+    }
+    return {
+        items: z.array(SaleSchema).parse(data ?? []),
+        totalCount: count ?? 0,
+    };
+  });
 }

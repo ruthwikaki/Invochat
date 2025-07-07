@@ -1,4 +1,3 @@
-
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -386,7 +385,6 @@ export const SaleItemSchema = z.object({
     product_name: z.string(),
     quantity: z.number().int(),
     unit_price: z.number(),
-    total_price: z.number(),
     cost_at_time: z.number().nullable(),
 });
 export type SaleItem = z.infer<typeof SaleItemSchema>;

@@ -1,4 +1,3 @@
-
 import { getUnifiedInventory, getInventoryCategories, getLocations, getSuppliersData, exportInventory } from '@/app/data-actions';
 import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
 import { Package } from 'lucide-react';

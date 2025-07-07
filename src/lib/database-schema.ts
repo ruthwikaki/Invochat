@@ -463,7 +463,6 @@ BEGIN
         WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to update auth.users metadata: %', SQLERRM;
     END;
-    END IF;
 
     RAISE NOTICE '[handle_new_user] Trigger finished successfully.';
     RETURN new;
@@ -618,7 +617,122 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_historical_sales TO anon, authenticated;
 
+-- ========================================================
+-- == NEW FOR SALES & EXPORTS
+-- ========================================================
+
+-- Sales Tables
+CREATE TABLE IF NOT EXISTS public.sales (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_id UUID NOT NULL REFERENCES companies(id),
+  sale_number TEXT NOT NULL,
+  customer_name TEXT,
+  customer_email TEXT,
+  total_amount NUMERIC(10,2) NOT NULL,
+  payment_method TEXT NOT NULL DEFAULT 'card',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by UUID REFERENCES auth.users(id),
+  CONSTRAINT unique_sale_number_per_company UNIQUE (company_id, sale_number)
+);
+ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage sales for their own company"
+    ON public.sales FOR ALL
+    USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
+
+CREATE TABLE IF NOT EXISTS public.sale_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sale_id UUID NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  sku TEXT NOT NULL,
+  product_name TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  unit_price NUMERIC(10,2) NOT NULL,
+  cost_at_time NUMERIC(10,2),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage sale items for sales in their own company"
+    ON public.sale_items FOR ALL
+    USING (sale_id IN (SELECT id FROM sales WHERE company_id = (SELECT company_id FROM users WHERE id = auth.uid())));
+
+-- Indexes for Sales
+CREATE INDEX IF NOT EXISTS idx_sales_company_date ON public.sales(company_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_customer ON public.sales(customer_name);
+CREATE INDEX IF NOT EXISTS idx_sale_items_sku ON public.sale_items(sku);
+CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON public.sale_items(sale_id);
+
+
+-- Function to record a sale atomically
+CREATE OR REPLACE FUNCTION public.record_sale_transaction(
+    p_company_id uuid,
+    p_user_id uuid,
+    p_sale_items jsonb, -- [{sku, product_name, quantity, unit_price, cost_at_time}]
+    p_customer_name text,
+    p_customer_email text,
+    p_payment_method text,
+    p_notes text
+) RETURNS public.sales
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    new_sale public.sales;
+    item record;
+    total_sale_amount numeric := 0;
+    new_sale_number text;
+BEGIN
+    -- Calculate total amount
+    FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price numeric)
+    LOOP
+        total_sale_amount := total_sale_amount + (item.quantity * item.unit_price);
+    END LOOP;
+
+    -- Generate a unique sale number
+    new_sale_number := 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '-' || (
+        SELECT COALESCE(MAX(SUBSTRING(sale_number, -3)::int), 0) + 1 FROM sales WHERE company_id = p_company_id AND sale_number LIKE 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '%'
+    )::text;
+
+    -- Create the main sale record
+    INSERT INTO public.sales (company_id, created_by, sale_number, customer_name, customer_email, total_amount, payment_method, notes)
+    VALUES (p_company_id, p_user_id, new_sale_number, p_customer_name, p_customer_email, total_sale_amount, p_payment_method, p_notes)
+    RETURNING * INTO new_sale;
+
+    -- Create sale items and update inventory
+    FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric)
+    LOOP
+        -- Insert sale item
+        INSERT INTO public.sale_items (sale_id, sku, product_name, quantity, unit_price, cost_at_time)
+        VALUES (new_sale.id, item.sku, item.product_name, item.quantity, item.unit_price, item.cost_at_time);
+
+        -- Update inventory quantity and create ledger entry
+        UPDATE inventory 
+        SET quantity = quantity - item.quantity,
+            last_sold_date = NOW(),
+            updated_at = NOW()
+        WHERE company_id = p_company_id AND sku = item.sku;
+
+        INSERT INTO inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, related_id, notes)
+        SELECT p_company_id, item.sku, 'sale', -item.quantity, i.quantity, new_sale.id, 'Sale #' || new_sale.sale_number
+        FROM inventory i WHERE i.company_id = p_company_id AND i.sku = item.sku;
+    END LOOP;
+
+    -- Update customer stats if customer exists
+    IF p_customer_email IS NOT NULL THEN
+        PERFORM public.update_customer_stats_from_sale(p_company_id, p_customer_email, total_sale_amount);
+    END IF;
+
+    RETURN new_sale;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.record_sale_transaction TO authenticated;
+
+-- Grant permissions for new tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sales TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE sales_id_seq TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sale_items TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE sale_items_id_seq TO authenticated;
+
+
 -- =====================================================
 -- Script completed successfully!
--- Your database is now fixed and ready to use.
 -- =====================================================
