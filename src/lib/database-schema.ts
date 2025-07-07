@@ -308,8 +308,7 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
 
 -- Step 4: Materialized Views
 -- -----------------------------------------------------------------
-DROP MATERIALIZED VIEW IF EXISTS public.company_dashboard_metrics;
-CREATE MATERIALIZED VIEW public.company_dashboard_metrics AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT 
   company_id,
   COUNT(DISTINCT sku) as total_skus,
@@ -319,6 +318,31 @@ FROM inventory
 WHERE deleted_at IS NULL
 GROUP BY company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.company_dashboard_metrics(company_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS public.customer_analytics_metrics AS
+WITH customer_stats AS (
+    SELECT
+        c.company_id,
+        c.id,
+        MIN(s.created_at) as first_order_date,
+        COUNT(s.id) as total_orders,
+        SUM(s.total_amount) as total_spent
+    FROM public.customers c
+    JOIN public.sales s ON c.id = s.customer_id
+    WHERE c.deleted_at IS NULL
+    GROUP BY c.company_id, c.id
+)
+SELECT
+    cs.company_id,
+    COUNT(cs.id) as total_customers,
+    COUNT(*) FILTER (WHERE cs.first_order_date >= NOW() - INTERVAL '30 days') as new_customers_last_30_days,
+    COALESCE(AVG(cs.total_spent), 0) as average_lifetime_value,
+    CASE WHEN COUNT(cs.id) > 0 THEN
+        (COUNT(*) FILTER (WHERE cs.total_orders > 1))::numeric * 100 / COUNT(cs.id)::numeric
+    ELSE 0 END as repeat_customer_rate
+FROM customer_stats cs
+GROUP BY cs.company_id;
+CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
 
 -- Step 5: Trigger Functions & Triggers
@@ -405,13 +429,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS public.refresh_dashboard_metrics_for_company(uuid);
-CREATE OR REPLACE FUNCTION public.refresh_dashboard_metrics_for_company(p_company_id uuid)
+DROP FUNCTION IF EXISTS public.refresh_materialized_views(uuid);
+CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
+  REFRESH MATERIALIZED VIEW CONCURRENTLY public.customer_analytics_metrics;
 END;
 $$;
 
@@ -494,7 +519,7 @@ BEGIN
         SELECT
             s.created_at::date AS stat_date,
             SUM(s.total_amount) AS revenue,
-            COUNT(DISTINCT s.customer_email) AS customers
+            COUNT(DISTINCT s.customer_id) AS customers
         FROM public.sales s
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '30 days'
         GROUP BY s.created_at::date
@@ -698,26 +723,35 @@ DECLARE
 BEGIN
     WITH customer_stats AS (
         SELECT
-            COUNT(*) as total_customers,
-            COUNT(*) FILTER (WHERE c.first_order_date >= NOW() - INTERVAL '30 days') as new_customers_last_30_days,
-            COALESCE(AVG(c.total_spent), 0) as average_lifetime_value,
-            CASE WHEN COUNT(*) > 0 THEN
-                (COUNT(*) FILTER (WHERE c.total_orders > 1))::numeric * 100 / COUNT(*)::numeric
-            ELSE 0 END as repeat_customer_rate
-        FROM customers c
+            c.id,
+            c.company_id,
+            c.platform,
+            c.external_id,
+            c.customer_name,
+            c.email,
+            c.status,
+            c.deleted_at,
+            c.created_at,
+            COUNT(s.id) as total_orders,
+            COALESCE(SUM(s.total_amount), 0) as total_spent
+        FROM public.customers c
+        LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
         WHERE c.company_id = p_company_id AND c.deleted_at IS NULL
+        GROUP BY c.id
+    ),
+    analytics_view AS (
+        SELECT * FROM public.customer_analytics_metrics WHERE company_id = p_company_id
     )
     SELECT json_build_object(
-        'total_customers', (SELECT total_customers FROM customer_stats),
-        'new_customers_last_30_days', (SELECT new_customers_last_30_days FROM customer_stats),
-        'average_lifetime_value', (SELECT average_lifetime_value FROM customer_stats),
-        'repeat_customer_rate', (SELECT repeat_customer_rate / 100.0 FROM customer_stats),
+        'total_customers', (SELECT total_customers FROM analytics_view),
+        'new_customers_last_30_days', (SELECT new_customers_last_30_days FROM analytics_view),
+        'average_lifetime_value', (SELECT average_lifetime_value FROM analytics_view),
+        'repeat_customer_rate', (SELECT repeat_customer_rate / 100.0 FROM analytics_view),
         'top_customers_by_spend', COALESCE((
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_spent))
             FROM (
                 SELECT customer_name, total_spent
-                FROM customers
-                WHERE company_id = p_company_id AND deleted_at IS NULL
+                FROM customer_stats
                 ORDER BY total_spent DESC
                 LIMIT 5
             ) top_spend
@@ -726,8 +760,7 @@ BEGIN
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_orders))
             FROM (
                 SELECT customer_name, total_orders
-                FROM customers
-                WHERE company_id = p_company_id AND deleted_at IS NULL
+                FROM customer_stats
                 ORDER BY total_orders DESC
                 LIMIT 5
             ) top_sales
@@ -1695,3 +1728,4 @@ CREATE TRIGGER validate_sale_items_company
 -- =================================================================
 -- SCRIPT COMPLETE
 -- =================================================================
+

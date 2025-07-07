@@ -46,14 +46,14 @@ export async function refreshMaterializedViews(companyId: string): Promise<void>
     if (!isValidUuid(companyId)) return;
     await withPerformanceTracking('refreshMaterializedViews', async () => {
         const supabase = getServiceRoleClient();
-        const { error } = await supabase.rpc('refresh_dashboard_metrics_for_company', {
+        const { error } = await supabase.rpc('refresh_materialized_views', {
             p_company_id: companyId,
         });
         if (error) {
-            logError(error, { context: `Failed to refresh dashboard metrics for company ${companyId}` });
+            logError(error, { context: `Failed to refresh materialized views for company ${companyId}` });
             // Don't throw, as this is a background optimization, not a critical failure
         } else {
-            logger.info(`[DB Service] Refreshed dashboard metrics for company ${companyId}`);
+            logger.info(`[DB Service] Refreshed materialized views for company ${companyId}`);
         }
     });
 }
@@ -1356,7 +1356,7 @@ export async function deleteCustomerFromDb(id: string, companyId: string): Promi
             .from('sales')
             .select('id', { count: 'exact', head: true })
             .eq('company_id', companyId)
-            .eq('customer_email', (await supabase.from('customers').select('email').eq('id', id).single()).data?.email);
+            .eq('customer_id', id);
             
         if (countError) {
             logError(countError, { context: `Error checking sales for customer ${id}` });
