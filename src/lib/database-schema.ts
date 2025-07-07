@@ -1,5 +1,5 @@
-export const SETUP_SQL_SCRIPT = `-- =====================================================
--- INVOCHAT DATABASE SCHEMA
+-- =====================================================
+-- INVOCHAT DATABASE SCHEMA - FIXED VERSION
 -- Run this script in your Supabase SQL Editor
 -- =====================================================
 
@@ -295,11 +295,11 @@ BEGIN
         cd.sales_channel as channel,
         cd.revenue as total_revenue,
         cd.cost as total_cost,
-        (cd.revenue * (f.pct_fee / 100) + f.fix_fee) as channel_fees,
-        cd.revenue - cd.cost - (cd.revenue * (f.pct_fee / 100) + f.fix_fee) as net_profit,
+        (cd.revenue * (f.pct_fee) + f.fix_fee) as channel_fees,
+        cd.revenue - cd.cost - (cd.revenue * (f.pct_fee) + f.fix_fee) as net_profit,
         CASE 
             WHEN cd.revenue > 0 
-            THEN ((cd.revenue - cd.cost - (cd.revenue * (f.pct_fee / 100) + f.fix_fee)) / cd.revenue) * 100
+            THEN ((cd.revenue - cd.cost - (cd.revenue * (f.pct_fee) + f.fix_fee)) / cd.revenue) * 100
             ELSE 0
         END as net_margin_percentage
     FROM channel_data cd, fees f;
@@ -566,11 +566,27 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_historical_sales TO anon, authenticated;
 
--- Drop old orders tables
-DROP TABLE IF EXISTS public.order_items;
-DROP TABLE IF EXISTS public.orders;
+-- =====================================================
+-- FIX: Handle dependent objects before dropping tables
+-- =====================================================
+DO $$ 
+BEGIN
+    IF EXISTS (
+        SELECT 1 
+        FROM information_schema.table_constraints 
+        WHERE constraint_name = 'return_items_order_item_id_fkey'
+        AND table_name = 'return_items'
+    ) THEN
+        ALTER TABLE public.return_items DROP CONSTRAINT return_items_order_item_id_fkey;
+    END IF;
+    
+    DROP TABLE IF EXISTS public.order_items CASCADE;
+    DROP TABLE IF EXISTS public.orders CASCADE;
+END $$;
 
--- Sales Tables
+-- =====================================================
+-- Create Sales Tables (if they don't already exist)
+-- =====================================================
 CREATE TABLE IF NOT EXISTS public.sales (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id UUID NOT NULL REFERENCES companies(id),
@@ -632,13 +648,11 @@ DECLARE
     total_sale_amount numeric := 0;
     new_sale_number text;
 BEGIN
-    -- Calculate total amount
     FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price numeric)
     LOOP
         total_sale_amount := total_sale_amount + (item.quantity * item.unit_price);
     END LOOP;
 
-    -- Generate a unique sale number if not an external sale
     IF p_external_id IS NULL THEN
         new_sale_number := 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '-' || (
             SELECT COALESCE(MAX(SUBSTRING(sale_number, -3)::int), 0) + 1 FROM sales WHERE company_id = p_company_id AND sale_number LIKE 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '%'
@@ -647,7 +661,6 @@ BEGIN
         new_sale_number := 'EXT-' || p_external_id;
     END IF;
 
-    -- Create the main sale record
     INSERT INTO public.sales (company_id, created_by, sale_number, customer_name, customer_email, total_amount, payment_method, notes, external_id)
     VALUES (p_company_id, p_user_id, new_sale_number, p_customer_name, p_customer_email, total_sale_amount, p_payment_method, p_notes, p_external_id)
     ON CONFLICT (company_id, external_id) WHERE p_external_id IS NOT NULL
@@ -659,14 +672,11 @@ BEGIN
     RETURNING * INTO new_sale;
 
 
-    -- Create sale items and update inventory
     FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric)
     LOOP
-        -- Insert sale item
         INSERT INTO public.sale_items (sale_id, sku, product_name, quantity, unit_price, cost_at_time)
         VALUES (new_sale.id, item.sku, item.product_name, item.quantity, item.unit_price, item.cost_at_time);
 
-        -- Update inventory quantity and create ledger entry
         UPDATE inventory 
         SET quantity = quantity - item.quantity,
             last_sold_date = NOW(),
@@ -678,7 +688,6 @@ BEGIN
         FROM inventory i WHERE i.company_id = p_company_id AND i.sku = item.sku;
     END LOOP;
 
-    -- Update customer stats if customer exists
     IF p_customer_email IS NOT NULL THEN
         PERFORM public.update_customer_stats_from_sale(p_company_id, p_customer_email, total_sale_amount);
     END IF;
@@ -690,12 +699,185 @@ GRANT EXECUTE ON FUNCTION public.record_sale_transaction TO authenticated;
 
 -- Grant permissions for new tables
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sales TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE sales_id_seq TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.sale_items TO authenticated;
-GRANT USAGE, SELECT ON SEQUENCE sale_items_id_seq TO authenticated;
 
+-- =====================================================
+-- FIXES FOR FINAL SET OF ERRORS
+-- =====================================================
+
+-- Anomaly Insights RPC using `sales` table
+DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid);
+CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
+RETURNS TABLE (
+    date date,
+    daily_revenue numeric,
+    daily_customers bigint,
+    avg_revenue numeric,
+    avg_customers numeric,
+    anomaly_type text,
+    deviation_percentage numeric
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    WITH daily_stats AS (
+        SELECT
+            s.created_at::date as date,
+            SUM(s.total_amount) as revenue,
+            COUNT(DISTINCT s.customer_email) as customers
+        FROM public.sales s
+        WHERE s.company_id = p_company_id
+        GROUP BY s.created_at::date
+    ),
+    avg_stats AS (
+        SELECT
+            AVG(revenue) as avg_revenue,
+            AVG(customers) as avg_customers,
+            STDDEV(revenue) as stddev_revenue,
+            STDDEV(customers) as stddev_customers
+        FROM daily_stats
+        WHERE date >= now() - interval '30 days'
+    )
+    SELECT
+        ds.date,
+        ds.revenue as daily_revenue,
+        ds.customers as daily_customers,
+        a.avg_revenue,
+        a.avg_customers,
+        CASE
+            WHEN ds.revenue > a.avg_revenue + (2 * a.stddev_revenue) THEN 'Revenue Anomaly'
+            WHEN ds.customers > a.avg_customers + (2 * a.stddev_customers) THEN 'Customer Anomaly'
+            ELSE 'No Anomaly'
+        END::text as anomaly_type,
+        CASE
+            WHEN ds.revenue > a.avg_revenue + (2 * a.stddev_revenue) THEN (ds.revenue - a.avg_revenue) / a.avg_revenue * 100
+            WHEN ds.customers > a.avg_customers + (2 * a.stddev_customers) THEN (ds.customers - a.avg_customers) / a.avg_customers * 100
+            ELSE 0
+        END::numeric as deviation_percentage
+    FROM daily_stats ds, avg_stats a
+    WHERE
+        ds.date >= now() - interval '7 days' AND
+        (ds.revenue > a.avg_revenue + (2 * a.stddev_revenue) OR ds.customers > a.avg_customers + (2 * a.stddev_customers));
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_anomaly_insights(uuid) TO authenticated;
+
+-- Alerts RPC using `sales` table
+DROP FUNCTION IF EXISTS public.get_alerts(uuid, integer, integer, integer);
+CREATE OR REPLACE FUNCTION public.get_alerts(
+    p_company_id uuid,
+    p_dead_stock_days integer,
+    p_fast_moving_days integer,
+    p_predictive_stock_days integer
+) RETURNS TABLE (
+    type text,
+    sku text,
+    product_name text,
+    current_stock integer,
+    reorder_point integer,
+    last_sold_date date,
+    value numeric,
+    days_of_stock_remaining numeric
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    -- Low Stock Alerts
+    SELECT
+        'low_stock'::text as type,
+        i.sku,
+        i.name::text as product_name,
+        i.quantity::integer as current_stock,
+        i.reorder_point::integer,
+        i.last_sold_date::date,
+        (i.quantity * i.cost)::numeric as value,
+        NULL::numeric as days_of_stock_remaining
+    FROM inventory i
+    WHERE i.company_id = p_company_id
+      AND i.quantity > 0
+      AND i.reorder_point IS NOT NULL
+      AND i.quantity < i.reorder_point
+
+    UNION ALL
+
+    -- Dead Stock Alerts
+    SELECT
+        'dead_stock'::text as type,
+        i.sku,
+        i.name::text as product_name,
+        i.quantity::integer as current_stock,
+        i.reorder_point::integer,
+        i.last_sold_date::date,
+        (i.quantity * i.cost)::numeric as value,
+        NULL::numeric as days_of_stock_remaining
+    FROM inventory i
+    WHERE i.company_id = p_company_id
+      AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval)
+
+    UNION ALL
+    
+    -- Predictive Stockout Alerts
+    WITH sales_velocity AS (
+      SELECT
+        si.sku,
+        SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
+      FROM sale_items si
+      JOIN sales s ON si.sale_id = s.id
+      WHERE s.company_id = p_company_id
+        AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+      GROUP BY si.sku
+    )
+    SELECT
+        'predictive'::text as type,
+        i.sku,
+        i.name::text as product_name,
+        i.quantity::integer as current_stock,
+        i.reorder_point::integer,
+        i.last_sold_date::date,
+        (i.quantity * i.cost)::numeric as value,
+        (i.quantity / sv.daily_sales)::numeric as days_of_stock_remaining
+    FROM inventory i
+    JOIN sales_velocity sv ON i.sku = sv.sku
+    WHERE i.company_id = p_company_id
+      AND sv.daily_sales > 0
+      AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_alerts(uuid, integer, integer, integer) TO authenticated;
+
+-- Dead Stock Alerts Data Function (to fix type mismatch)
+DROP FUNCTION IF EXISTS public.get_dead_stock_alerts_data(uuid, integer);
+CREATE OR REPLACE FUNCTION public.get_dead_stock_alerts_data(p_company_id uuid, p_dead_stock_days integer)
+RETURNS TABLE (
+    sku text,
+    product_name text,
+    quantity numeric,
+    cost numeric,
+    total_value numeric,
+    last_sale_date date
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        i.sku::text,
+        i.name::text,
+        i.quantity::numeric,
+        i.cost::numeric,
+        (i.quantity * i.cost)::numeric,
+        i.last_sold_date::date
+    FROM inventory i
+    WHERE i.company_id = p_company_id
+    AND i.last_sold_date < (now() - (p_dead_stock_days || ' day')::interval)
+    AND i.deleted_at IS NULL;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.get_dead_stock_alerts_data(uuid, integer) TO authenticated;
 
 -- =====================================================
 -- Script completed successfully!
 -- =====================================================
-`;
+    
