@@ -518,7 +518,7 @@ BEGIN
                 LIMIT 5
             ) top_spend
         ), '[]'::json),
-        'top_customers_by_sales', COALESCE((
+        'top_customers_by_orders', COALESCE((
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_orders))
             FROM (
                 SELECT customer_name, total_orders
@@ -920,7 +920,7 @@ BEGIN
             SUM(si.quantity * (si.unit_price - COALESCE(i.cost, 0))) AS total_profit
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
-        JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+        JOIN inventory i ON si.sku = si.sku AND s.company_id = i.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '30 days'
         GROUP BY si.sku
     )
