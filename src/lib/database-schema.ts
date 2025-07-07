@@ -1,83 +1,14 @@
 -- =====================================================
--- FIX FUNCTIONS THAT REFERENCE OLD ORDERS TABLES
+-- INVOCHAT DATABASE SCHEMA - V3 (FINAL)
+-- This script fixes all remaining references to the old 'orders' table.
+-- Run this script in your Supabase SQL Editor.
 -- =====================================================
 
--- 1. Fix process_sales_order_inventory
-DROP FUNCTION IF EXISTS public.process_sales_order_inventory(uuid, uuid);
-CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_company_id uuid, p_sale_id uuid)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    -- Update inventory quantities based on sale items
-    UPDATE inventory i
-    SET quantity = i.quantity - si.quantity,
-        last_sold_date = CURRENT_DATE,
-        updated_at = NOW()
-    FROM sale_items si
-    JOIN sales s ON si.sale_id = s.id
-    WHERE s.id = p_sale_id
-    AND s.company_id = p_company_id
-    AND i.sku = si.sku
-    AND i.company_id = p_company_id;
+-- =====================================================
+-- SECTION 1: FIX ALL FUNCTIONS REFERENCING 'orders'
+-- =====================================================
 
-    -- Create inventory ledger entries
-    INSERT INTO inventory_ledger (company_id, sku, created_at, change_type, quantity_change, new_quantity, related_id, notes)
-    SELECT 
-        p_company_id,
-        si.sku,
-        NOW(),
-        'sale',
-        -si.quantity,
-        i.quantity,
-        p_sale_id,
-        'Sale fulfillment'
-    FROM sale_items si
-    JOIN sales s ON si.sale_id = s.id
-    JOIN inventory i ON si.sku = i.sku AND i.company_id = p_company_id
-    WHERE s.id = p_sale_id
-    AND s.company_id = p_company_id;
-END;
-$$;
-
--- 2. Fix validate_same_company_reference trigger function
-CREATE OR REPLACE FUNCTION public.validate_same_company_reference()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    ref_company_id uuid;
-    current_company_id uuid;
-BEGIN
-    -- Check vendor reference for purchase_orders
-    IF TG_TABLE_NAME = 'purchase_orders' AND NEW.supplier_id IS NOT NULL THEN
-        SELECT company_id INTO ref_company_id FROM vendors WHERE id = NEW.supplier_id;
-        IF ref_company_id != NEW.company_id THEN
-            RAISE EXCEPTION 'Security violation: Cannot reference a vendor from a different company.';
-        END IF;
-    END IF;
-
-    -- Check inventory location reference
-    IF TG_TABLE_NAME = 'inventory' AND NEW.location_id IS NOT NULL THEN
-        SELECT company_id INTO ref_company_id FROM locations WHERE id = NEW.location_id;
-        IF ref_company_id != NEW.company_id THEN
-            RAISE EXCEPTION 'Security violation: Cannot assign to a location from a different company.';
-        END IF;
-    END IF;
-
-    -- Check sale items reference inventory (updated from order_items)
-    IF TG_TABLE_NAME = 'sale_items' THEN
-        SELECT company_id INTO ref_company_id FROM sales WHERE id = NEW.sale_id;
-        IF NOT EXISTS (SELECT 1 FROM inventory WHERE sku = NEW.sku and company_id = ref_company_id) THEN
-            RAISE EXCEPTION 'Security violation: SKU does not exist for this company.';
-        END IF;
-    END IF;
-    
-    RETURN NEW;
-END;
-$$;
-
--- 3. Fix get_unified_inventory function
+-- 1. Fix get_unified_inventory
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -95,7 +26,6 @@ DECLARE
     result_items json;
     total_count bigint;
 BEGIN
-    -- Get filtered items
     WITH filtered_inventory AS (
         SELECT 
             i.sku,
@@ -113,20 +43,20 @@ BEGIN
             l.name as location_name,
             COALESCE(
                 (SELECT SUM(si.quantity) 
-                 FROM sales s 
-                 JOIN sale_items si ON s.id = si.sale_id 
+                 FROM public.sales s 
+                 JOIN public.sale_items si ON s.id = si.sale_id 
                  WHERE si.sku = i.sku 
                    AND s.company_id = i.company_id 
-                   AND s.created_at >= CURRENT_DATE - interval '30 days'
+                   AND s.created_at >= (NOW() - interval '30 days')
                 ), 0
             ) as monthly_units_sold,
             COALESCE(
                 (SELECT SUM(si.quantity * (si.unit_price - i.cost))
-                 FROM sales s 
-                 JOIN sale_items si ON s.id = si.sale_id 
+                 FROM public.sales s 
+                 JOIN public.sale_items si ON s.id = si.sale_id 
                  WHERE si.sku = i.sku 
                    AND s.company_id = i.company_id 
-                   AND s.created_at >= CURRENT_DATE - interval '30 days'
+                   AND s.created_at >= (NOW() - interval '30 days')
                 ), 0
             ) as monthly_profit,
             i.version
@@ -146,23 +76,22 @@ BEGIN
                 WHERE sc.sku = i.sku AND sc.supplier_id = p_supplier_id
             ))
             AND (p_sku_filter IS NULL OR i.sku = p_sku_filter)
+    ),
+    count_query AS (
+        SELECT count(*) as total FROM filtered_inventory
     )
     SELECT 
-        json_agg(fi.*) as items,
-        COUNT(*) OVER() as total_count
-    INTO result_items, total_count
-    FROM (
-        SELECT * FROM filtered_inventory
-        ORDER BY sku
-        LIMIT p_limit
-        OFFSET p_offset
-    ) fi;
+        (SELECT COALESCE(json_agg(fi.*), '[]'::json) FROM (SELECT * FROM filtered_inventory ORDER BY product_name LIMIT p_limit OFFSET p_offset) fi) as items,
+        (SELECT total FROM count_query) as total_count
+    INTO result_items, total_count;
 
-    RETURN QUERY SELECT COALESCE(result_items, '[]'::json), COALESCE(total_count, 0);
+    RETURN QUERY SELECT result_items, total_count;
 END;
 $$;
 
--- 4. Fix get_customers_with_stats function
+
+-- 2. Fix get_customers_with_stats
+DROP FUNCTION IF EXISTS public.get_customers_with_stats(uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -203,9 +132,9 @@ BEGIN
         SELECT count(*) as total FROM customer_stats
     )
     SELECT json_build_object(
-        'items', (SELECT json_agg(cs) FROM (
+        'items', COALESCE((SELECT json_agg(cs) FROM (
             SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
-        ) cs),
+        ) cs), '[]'::json),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
     
@@ -213,23 +142,178 @@ BEGIN
 END;
 $$;
 
--- 5. Grant permissions to all fixed functions
-GRANT EXECUTE ON FUNCTION public.process_sales_order_inventory(uuid, uuid) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.validate_same_company_reference() TO authenticated;
+
+-- 3. Fix get_distinct_categories
+CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
+RETURNS TABLE(category text)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT i.category::text
+    FROM inventory i
+    WHERE i.company_id = p_company_id
+    AND i.category IS NOT NULL
+    AND i.category <> ''
+    ORDER BY i.category;
+END;
+$$;
+
+
+-- 4. Fix get_alerts to use the `sales` table
+CREATE OR REPLACE FUNCTION public.get_alerts(
+    p_company_id uuid,
+    p_dead_stock_days integer,
+    p_fast_moving_days integer,
+    p_predictive_stock_days integer
+)
+RETURNS TABLE(type text, sku text, product_name text, current_stock integer, reorder_point integer, last_sold_date date, value numeric, days_of_stock_remaining numeric)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    -- Low Stock Alerts
+    SELECT
+        'low_stock'::text as type,
+        i.sku,
+        i.name::text as product_name,
+        i.quantity::integer as current_stock,
+        i.reorder_point::integer,
+        i.last_sold_date::date,
+        (i.quantity * i.cost)::numeric as value,
+        NULL::numeric as days_of_stock_remaining
+    FROM inventory i
+    WHERE i.company_id = p_company_id
+      AND i.reorder_point IS NOT NULL
+      AND i.quantity <= i.reorder_point
+      AND i.quantity > 0
+
+    UNION ALL
+
+    -- Dead Stock Alerts
+    SELECT
+        'dead_stock'::text as type,
+        i.sku,
+        i.name::text as product_name,
+        i.quantity::integer as current_stock,
+        i.reorder_point::integer,
+        i.last_sold_date::date,
+        (i.quantity * i.cost)::numeric as value,
+        NULL::numeric as days_of_stock_remaining
+    FROM inventory i
+    WHERE i.company_id = p_company_id
+      AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval)
+
+    UNION ALL
+
+    -- Predictive Stockout Alerts
+    (
+        WITH sales_velocity AS (
+          SELECT
+            si.sku,
+            SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
+          FROM sale_items si
+          JOIN sales s ON si.sale_id = s.id
+          WHERE s.company_id = p_company_id
+            AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+          GROUP BY si.sku
+        )
+        SELECT
+            'predictive'::text as type,
+            i.sku,
+            i.name::text as product_name,
+            i.quantity::integer as current_stock,
+            i.reorder_point::integer,
+            i.last_sold_date::date,
+            (i.quantity * i.cost)::numeric as value,
+            (i.quantity / sv.daily_sales)::numeric as days_of_stock_remaining
+        FROM inventory i
+        JOIN sales_velocity sv ON i.sku = sv.sku
+        WHERE i.company_id = p_company_id
+          AND sv.daily_sales > 0
+          AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days
+    );
+END;
+$$;
+
+
+-- 5. Fix `get_anomaly_insights` to use sales table
+CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
+RETURNS TABLE(date text, daily_revenue numeric, daily_customers bigint, avg_revenue numeric, avg_customers numeric, anomaly_type text, deviation_percentage numeric)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    WITH daily_stats AS (
+        SELECT
+            s.created_at::date AS stat_date,
+            SUM(s.total_amount) AS revenue,
+            COUNT(DISTINCT s.customer_email) AS customers
+        FROM public.sales s
+        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY s.created_at::date
+    ),
+    avg_stats AS (
+        SELECT
+            AVG(revenue) AS avg_revenue,
+            AVG(customers) AS avg_customers
+        FROM daily_stats
+    ),
+    anomalies AS (
+        SELECT
+            ds.stat_date,
+            ds.revenue,
+            ds.customers,
+            a.avg_revenue,
+            a.avg_customers,
+            (ds.revenue - a.avg_revenue) / a.avg_revenue AS revenue_deviation,
+            (ds.customers::numeric - a.avg_customers) / a.avg_customers AS customers_deviation
+        FROM daily_stats ds, avg_stats a
+        WHERE a.avg_revenue > 0 AND a.avg_customers > 0
+    )
+    SELECT
+        a.stat_date::text,
+        a.revenue,
+        a.customers,
+        ROUND(a.avg_revenue, 2),
+        ROUND(a.avg_customers, 2),
+        CASE
+            WHEN ABS(a.revenue_deviation) > 2 THEN 'Revenue Anomaly'
+            WHEN ABS(a.customers_deviation) > 2 THEN 'Customer Anomaly'
+            ELSE 'No Anomaly'
+        END::text AS anomaly_type,
+        CASE
+            WHEN ABS(a.revenue_deviation) > 2 THEN ROUND(a.revenue_deviation * 100, 2)
+            WHEN ABS(a.customers_deviation) > 2 THEN ROUND(a.customers_deviation * 100, 2)
+            ELSE 0
+        END::numeric AS deviation_percentage
+    FROM anomalies a
+    WHERE ABS(a.revenue_deviation) > 2 OR ABS(a.customers_deviation) > 2;
+END;
+$$;
+
+-- 6. Grant Permissions to fixed functions
 GRANT EXECUTE ON FUNCTION public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_customers_with_stats(uuid, text, integer, integer) TO authenticated;
-
--- 6. If you have triggers using validate_same_company_reference, recreate them
--- First drop old triggers if they exist
-DROP TRIGGER IF EXISTS validate_sale_items_company ON sale_items;
-
--- Create trigger for sale_items instead of order_items
-CREATE TRIGGER validate_sale_items_company
-    BEFORE INSERT OR UPDATE ON sale_items
-    FOR EACH ROW
-    EXECUTE FUNCTION validate_same_company_reference();
+GRANT EXECUTE ON FUNCTION public.get_distinct_categories(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_alerts(uuid, integer, integer, integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_anomaly_insights(uuid) TO authenticated;
 
 -- =====================================================
--- Script completed - all references to orders/order_items 
--- have been updated to sales/sale_items
+-- SECTION 2: ENSURE IDEMPOTENCY OF THE REST OF THE SCRIPT
+-- =====================================================
+
+-- Drop policy if it exists, then recreate it
+DROP POLICY IF EXISTS "Users can manage sales for their own company" ON public.sales;
+CREATE POLICY "Users can manage sales for their own company"
+    ON public.sales FOR ALL
+    USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+    
+DROP POLICY IF EXISTS "Users can manage sale items for sales in their own company" ON public.sale_items;
+CREATE POLICY "Users can manage sale items for sales in their own company"
+    ON public.sale_items FOR ALL
+    USING (sale_id IN (SELECT id FROM sales WHERE company_id = (SELECT company_id FROM users WHERE id = auth.uid())));
+    
+-- =====================================================
+-- SCRIPT FULLY CORRECTED
 -- =====================================================
