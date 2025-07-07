@@ -4,24 +4,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
-
-const CsvMappingInputSchema = z.object({
-  csvHeaders: z.array(z.string()).describe("The list of column headers from the user's CSV file."),
-  sampleRows: z.array(z.record(z.string())).describe("An array of sample rows (as objects) from the CSV to provide data context."),
-  expectedDbFields: z.array(z.string()).describe("The list of target database fields we need to map to."),
-});
-export type CsvMappingInput = z.infer<typeof CsvMappingInputSchema>;
-
-export const CsvMappingOutputSchema = z.object({
-  mappings: z.array(z.object({
-    csvColumn: z.string().describe("The original column header from the CSV."),
-    dbField: z.string().describe("The database field it maps to."),
-    confidence: z.number().min(0).max(1).describe("The AI's confidence in this specific mapping."),
-  })),
-  unmappedColumns: z.array(z.string()).describe("A list of CSV columns that could not be confidently mapped."),
-});
-export type CsvMappingOutput = z.infer<typeof CsvMappingOutputSchema>;
+import { CsvMappingInputSchema, CsvMappingOutputSchema, type CsvMappingInput, type CsvMappingOutput } from '@/types';
 
 const csvMappingPrompt = ai.definePrompt({
   name: 'csvMappingPrompt',

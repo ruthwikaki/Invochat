@@ -5,25 +5,9 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import type { Anomaly } from '@/types';
+import type { Anomaly, AnomalyExplanationInput, AnomalyExplanationOutput } from '@/types';
+import { AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from '@/types';
 
-const AnomalyExplanationInputSchema = z.object({
-  anomaly: z.custom<Anomaly>(),
-  dateContext: z.object({
-    dayOfWeek: z.string(),
-    month: z.string(),
-    season: z.string(),
-    knownHoliday: z.string().optional(),
-  }),
-});
-export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
-
-export const AnomalyExplanationOutputSchema = z.object({
-  explanation: z.string().describe("A concise, 1-2 sentence explanation for the anomaly."),
-  confidence: z.enum(['high', 'medium', 'low']).describe("The confidence level in the explanation."),
-  suggestedAction: z.string().optional().describe("A relevant, actionable suggestion for the user, if applicable."),
-});
-export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 const anomalyExplanationPrompt = ai.definePrompt({
   name: 'anomalyExplanationPrompt',

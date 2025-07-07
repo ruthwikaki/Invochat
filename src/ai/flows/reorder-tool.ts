@@ -8,11 +8,11 @@ import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getHistoricalSalesForSkus } from '@/services/database';
 import type { ReorderSuggestion } from '@/types';
-import { ReorderSuggestionSchema } from '@/types';
+import { ReorderSuggestionBaseSchema } from '@/types';
 
 // The input for the AI refinement prompt
 const ReorderRefinementInputSchema = z.object({
-  suggestions: z.array(ReorderSuggestionSchema),
+  suggestions: z.array(ReorderSuggestionBaseSchema),
   historicalSales: z.array(z.object({
       sku: z.string(),
       monthly_sales: z.array(z.object({
@@ -23,7 +23,7 @@ const ReorderRefinementInputSchema = z.object({
   currentDate: z.string().describe("The current date in YYYY-MM-DD format, to provide context for seasonality.")
 });
 
-const EnhancedReorderSuggestionSchema = ReorderSuggestionSchema.extend({
+const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
     base_quantity: z.number().int().describe("The initial, simple calculated reorder quantity before AI adjustment."),
     adjustment_reason: z.string().describe("A concise explanation for why the reorder quantity was adjusted."),
     seasonality_factor: z.number().describe("A factor from ~0.5 (low season) to ~1.5 (high season) that influenced the adjustment."),

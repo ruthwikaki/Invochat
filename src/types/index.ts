@@ -265,7 +265,8 @@ export const ReorderRuleSchema = z.object({
 });
 export type ReorderRule = z.infer<typeof ReorderRuleSchema>;
 
-export const ReorderSuggestionSchema = z.object({
+// Base schema without transform for extension
+export const ReorderSuggestionBaseSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
     current_quantity: z.number(),
@@ -274,12 +275,9 @@ export const ReorderSuggestionSchema = z.object({
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
     unit_cost: z.number().nullable(),
-    // New fields for enhanced suggestions
-    base_quantity: z.number().int().optional(),
-    adjustment_reason: z.string().optional(),
-    seasonality_factor: z.number().optional(),
-    confidence: z.number().optional(),
-}).transform((data) => ({
+});
+
+export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.transform((data) => ({
     ...data,
     // Provide default values for nullable fields to prevent downstream errors
     supplier_name: data.supplier_name ?? 'Unknown Supplier',
@@ -417,3 +415,40 @@ export const SaleCreateSchema = z.object({
     items: z.array(SaleCreateItemSchema).min(1, 'Sale must have at least one item.'),
 });
 export type SaleCreateInput = z.infer<typeof SaleCreateSchema>;
+
+
+// Schemas for AI Flows moved from flow files
+export const AnomalyExplanationInputSchema = z.object({
+  anomaly: z.custom<Anomaly>(),
+  dateContext: z.object({
+    dayOfWeek: z.string(),
+    month: z.string(),
+    season: z.string(),
+    knownHoliday: z.string().optional(),
+  }),
+});
+export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
+
+export const AnomalyExplanationOutputSchema = z.object({
+  explanation: z.string().describe("A concise, 1-2 sentence explanation for the anomaly."),
+  confidence: z.enum(['high', 'medium', 'low']).describe("The confidence level in the explanation."),
+  suggestedAction: z.string().optional().describe("A relevant, actionable suggestion for the user, if applicable."),
+});
+export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
+
+export const CsvMappingInputSchema = z.object({
+  csvHeaders: z.array(z.string()).describe("The list of column headers from the user's CSV file."),
+  sampleRows: z.array(z.record(z.string())).describe("An array of sample rows (as objects) from the CSV to provide data context."),
+  expectedDbFields: z.array(z.string()).describe("The list of target database fields we need to map to."),
+});
+export type CsvMappingInput = z.infer<typeof CsvMappingInputSchema>;
+
+export const CsvMappingOutputSchema = z.object({
+  mappings: z.array(z.object({
+    csvColumn: z.string().describe("The original column header from the CSV."),
+    dbField: z.string().describe("The database field it maps to."),
+    confidence: z.number().min(0).max(1).describe("The AI's confidence in this specific mapping."),
+  })),
+  unmappedColumns: z.array(z.string()).describe("A list of CSV columns that could not be confidently mapped."),
+});
+export type CsvMappingOutput = z.infer<typeof CsvMappingOutputSchema>;

@@ -1,24 +1,27 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob, Customer, CustomerAnalytics } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, Sale, SaleCreateInput, CsvMappingInput, CsvMappingOutput } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
+import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema, SaleCreateSchema } from '@/types';
 import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
+import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { validateCSRF, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import Papa from 'papaparse';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -135,7 +138,7 @@ export async function getAlertsData() {
     // Simulate sending email alerts for any low stock items found
     const lowStockAlerts = alerts.filter(alert => alert.type === 'low_stock');
     if (lowStockAlerts.length > 0) {
-        logger.debug(`[Alerts] Found ${lowStockAlerts.length} low stock alerts. Simulating email notifications.`);
+        logger.info(`[Alerts] Found ${lowStockAlerts.length} low stock alerts. Simulating email notifications.`);
         for (const alert of lowStockAlerts) {
             // In a real app, this would be queued to avoid blocking the request.
             // We use a `catch` here because we don't want a failed email simulation
@@ -953,4 +956,85 @@ export async function getCustomersData(params: { query?: string, page?: number }
     const offset = (page - 1) * limit;
     
     return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
+}
+
+// === Sales Recording ===
+
+export async function searchProductsForSale(query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>[]> {
+  const { companyId } = await getAuthContext();
+  return db.searchProductsForSaleInDB(companyId, query);
+}
+
+export async function recordSale(formData: FormData): Promise<{ success: boolean; error?: string, sale?: Sale }> {
+  try {
+    const { companyId, userId, userRole } = await getAuthContext();
+    requireRole(userRole, ['Owner', 'Admin']);
+    validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+    
+    const saleDataRaw = formData.get('saleData') as string;
+    const saleData = SaleCreateSchema.parse(JSON.parse(saleDataRaw));
+
+    const sale = await db.recordSaleInDB(companyId, userId, saleData);
+    
+    await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
+    await db.refreshMaterializedViews(companyId);
+    revalidatePath('/sales');
+    revalidatePath('/inventory');
+
+    return { success: true, sale };
+  } catch (error) {
+    logError(error, { context: 'recordSale action' });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+const SALES_PAGE_SIZE = 25;
+export async function getSales(params: { query?: string, page?: number, limit?: number }): Promise<{ items: Sale[], totalCount: number }> {
+  const { companyId } = await getAuthContext();
+  const limit = params.limit || SALES_PAGE_SIZE;
+  const page = params.page || 1;
+  const offset = (page - 1) * limit;
+
+  return db.getSalesFromDB(companyId, { query: params.query, limit, offset });
+}
+
+
+// === EXPORT ACTIONS ===
+
+async function exportData(
+    fetchFunction: (companyId: string, filters: any) => Promise<{ items: any[], totalCount: number }>,
+    companyId: string,
+    filters: any
+): Promise<{ success: boolean; data?: string; error?: string }> {
+    try {
+        const { items } = await fetchFunction(companyId, { ...filters, limit: 10000, offset: 0 }); // Fetch all items for export
+
+        if (items.length === 0) {
+            return { success: false, error: "No data available to export for the selected criteria." };
+        }
+        
+        const csv = Papa.unparse(items);
+        return { success: true, data: csv };
+    } catch (e) {
+        logError(e, { context: `export action`});
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function exportInventory(filters: { query?: string; category?: string, location?: string, supplier?: string }) {
+    const { companyId, userRole } = await getAuthContext();
+    requireRole(userRole, ['Owner', 'Admin']);
+    return exportData(db.getUnifiedInventoryFromDB, companyId, filters);
+}
+
+export async function exportSales(filters: { query?: string }) {
+    const { companyId, userRole } = await getAuthContext();
+    requireRole(userRole, ['Owner', 'Admin']);
+    return exportData(db.getSalesFromDB, companyId, filters);
+}
+
+export async function exportCustomers(filters: { query?: string }) {
+    const { companyId, userRole } = await getAuthContext();
+    requireRole(userRole, ['Owner', 'Admin']);
+    return exportData(db.getCustomersFromDB, companyId, filters);
 }
