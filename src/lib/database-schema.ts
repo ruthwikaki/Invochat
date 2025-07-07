@@ -197,7 +197,7 @@ BEGIN
             i.name as product_name,
             COALESCE(SUM(si.quantity * si.unit_price), 0) as revenue
         FROM inventory i
-        LEFT JOIN sale_items si ON i.sku = si.sku
+        LEFT JOIN sale_items si ON i.sku = i.sku
         LEFT JOIN sales s ON si.sale_id = s.id AND s.company_id = p_company_id
         WHERE i.company_id = p_company_id 
         AND i.deleted_at IS NULL
@@ -295,11 +295,11 @@ BEGIN
         cd.sales_channel as channel,
         cd.revenue as total_revenue,
         cd.cost as total_cost,
-        (cd.revenue * (f.pct_fee) + f.fix_fee) as channel_fees,
-        cd.revenue - cd.cost - (cd.revenue * (f.pct_fee) + f.fix_fee) as net_profit,
+        (cd.revenue * f.pct_fee + f.fix_fee) as channel_fees,
+        cd.revenue - cd.cost - (cd.revenue * f.pct_fee + f.fix_fee) as net_profit,
         CASE 
             WHEN cd.revenue > 0 
-            THEN ((cd.revenue - cd.cost - (cd.revenue * (f.pct_fee) + f.fix_fee)) / cd.revenue) * 100
+            THEN ((cd.revenue - cd.cost - (cd.revenue * f.pct_fee + f.fix_fee)) / cd.revenue) * 100
             ELSE 0
         END as net_margin_percentage
     FROM channel_data cd, fees f;
@@ -571,6 +571,7 @@ GRANT EXECUTE ON FUNCTION public.get_historical_sales TO anon, authenticated;
 -- =====================================================
 DO $$ 
 BEGIN
+    -- Drop the foreign key constraint if it exists
     IF EXISTS (
         SELECT 1 
         FROM information_schema.table_constraints 
@@ -580,6 +581,7 @@ BEGIN
         ALTER TABLE public.return_items DROP CONSTRAINT return_items_order_item_id_fkey;
     END IF;
     
+    -- Now we can safely drop the old orders tables if they exist
     DROP TABLE IF EXISTS public.order_items CASCADE;
     DROP TABLE IF EXISTS public.orders CASCADE;
 END $$;
@@ -602,6 +604,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
   CONSTRAINT unique_sale_number_per_company UNIQUE (company_id, sale_number)
 );
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage sales for their own company" ON public.sales;
 CREATE POLICY "Users can manage sales for their own company"
     ON public.sales FOR ALL
     USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
@@ -618,6 +621,7 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage sale items for sales in their own company" ON public.sale_items;
 CREATE POLICY "Users can manage sale items for sales in their own company"
     ON public.sale_items FOR ALL
     USING (sale_id IN (SELECT id FROM sales WHERE company_id = (SELECT company_id FROM users WHERE id = auth.uid())));
@@ -648,11 +652,13 @@ DECLARE
     total_sale_amount numeric := 0;
     new_sale_number text;
 BEGIN
+    -- Calculate total amount
     FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price numeric)
     LOOP
         total_sale_amount := total_sale_amount + (item.quantity * item.unit_price);
     END LOOP;
 
+    -- Generate a unique sale number if not an external sale
     IF p_external_id IS NULL THEN
         new_sale_number := 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '-' || (
             SELECT COALESCE(MAX(SUBSTRING(sale_number, -3)::int), 0) + 1 FROM sales WHERE company_id = p_company_id AND sale_number LIKE 'SALE-' || to_char(NOW(), 'YYYYMMDD') || '%'
@@ -661,6 +667,7 @@ BEGIN
         new_sale_number := 'EXT-' || p_external_id;
     END IF;
 
+    -- Create the main sale record
     INSERT INTO public.sales (company_id, created_by, sale_number, customer_name, customer_email, total_amount, payment_method, notes, external_id)
     VALUES (p_company_id, p_user_id, new_sale_number, p_customer_name, p_customer_email, total_sale_amount, p_payment_method, p_notes, p_external_id)
     ON CONFLICT (company_id, external_id) WHERE p_external_id IS NOT NULL
@@ -672,11 +679,14 @@ BEGIN
     RETURNING * INTO new_sale;
 
 
+    -- Create sale items and update inventory
     FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric)
     LOOP
+        -- Insert sale item
         INSERT INTO public.sale_items (sale_id, sku, product_name, quantity, unit_price, cost_at_time)
         VALUES (new_sale.id, item.sku, item.product_name, item.quantity, item.unit_price, item.cost_at_time);
 
+        -- Update inventory quantity and create ledger entry
         UPDATE inventory 
         SET quantity = quantity - item.quantity,
             last_sold_date = NOW(),
@@ -688,6 +698,7 @@ BEGIN
         FROM inventory i WHERE i.company_id = p_company_id AND i.sku = item.sku;
     END LOOP;
 
+    -- Update customer stats if customer exists
     IF p_customer_email IS NOT NULL THEN
         PERFORM public.update_customer_stats_from_sale(p_company_id, p_customer_email, total_sale_amount);
     END IF;
@@ -880,4 +891,4 @@ GRANT EXECUTE ON FUNCTION public.get_dead_stock_alerts_data(uuid, integer) TO au
 -- =====================================================
 -- Script completed successfully!
 -- =====================================================
-    
+``` the correct file? i ran it and I am still getting the same error
