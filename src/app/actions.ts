@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
+import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
 
 async function getCompanyIdForChat(): Promise<string> {
     const cookieStore = cookies();
