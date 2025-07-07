@@ -1029,7 +1029,7 @@ BEGIN
         SELECT SUM(si.quantity * i.cost) AS total_cogs
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
-        JOIN inventory i ON si.sku = i.sku
+        JOIN inventory i ON si.sku = si.sku
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval
           AND i.company_id = p_company_id
     ),
