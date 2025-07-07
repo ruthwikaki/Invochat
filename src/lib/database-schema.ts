@@ -176,10 +176,12 @@ CREATE TABLE IF NOT EXISTS public.customers (
     UNIQUE(company_id, email)
 );
 
+CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
+
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    sale_number text NOT NULL,
+    sale_number text NOT NULL UNIQUE,
     customer_name text,
     customer_email text,
     total_amount numeric(10,2) NOT NULL,
@@ -321,8 +323,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.compa
 
 -- Step 5: Trigger Functions & Triggers
 -- -----------------------------------------------------------------
--- Function to create a company and link it to the new user
-DROP FUNCTION IF EXISTS public.handle_new_user();
+
+-- Drop the trigger first to avoid dependency errors on the function
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+-- Now drop and recreate the function safely
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -357,8 +363,6 @@ BEGIN
 END;
 $$;
 
--- Drop trigger if it exists to ensure idempotency
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 -- Create the trigger to fire after a new user is created in auth.users
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -423,12 +427,12 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT i.category
+    SELECT DISTINCT i.category::text
     FROM inventory i
     WHERE i.company_id = p_company_id
     AND i.category IS NOT NULL
     AND i.category <> ''
-    ORDER BY i.category;
+    ORDER BY i.category::text;
 END;
 $$;
 
@@ -513,7 +517,7 @@ BEGIN
         FROM daily_stats ds, avg_stats a
     )
     SELECT
-        a.stat_date::text, a.revenue, a.customers, ROUND(a.avg_revenue, 2), ROUND(a.avg_customers, 2),
+        a.stat_date::text, a.revenue, a.customers::bigint, ROUND(a.avg_revenue, 2), ROUND(a.avg_customers, 2),
         CASE
             WHEN ABS(COALESCE(a.revenue_deviation, 0)) > 2 THEN 'Revenue Anomaly'
             WHEN ABS(COALESCE(a.customers_deviation, 0)) > 2 THEN 'Customer Anomaly'
@@ -727,7 +731,7 @@ BEGIN
                 LIMIT 5
             ) top_spend
         ), '[]'::json),
-        'top_customers_by_orders', COALESCE((
+        'top_customers_by_sales', COALESCE((
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_orders))
             FROM (
                 SELECT customer_name, total_orders
@@ -735,7 +739,7 @@ BEGIN
                 WHERE company_id = p_company_id AND deleted_at IS NULL
                 ORDER BY total_orders DESC
                 LIMIT 5
-            ) top_orders
+            ) top_sales
         ), '[]'::json)
     ) INTO result_json;
 
@@ -769,7 +773,7 @@ BEGIN
             c.deleted_at,
             c.created_at,
             COUNT(s.id) as total_orders,
-            COALESCE(SUM(s.total_amount), 0) as total_spend
+            COALESCE(SUM(s.total_amount), 0) as total_spent
         FROM public.customers c
         LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
         WHERE c.company_id = p_company_id
@@ -786,7 +790,7 @@ BEGIN
     )
     SELECT json_build_object(
         'items', (SELECT json_agg(cs) FROM (
-            SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
+            SELECT * FROM customer_stats ORDER BY total_spent DESC LIMIT p_limit OFFSET p_offset
         ) cs),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
@@ -832,14 +836,14 @@ BEGIN
         SELECT 
             COALESCE(SUM(daily_revenue), 0) as total_revenue,
             COALESCE(SUM(daily_profit), 0) as total_profit,
-            COALESCE(SUM(daily_orders), 0) as total_orders
+            COALESCE(SUM(daily_orders), 0) as total_sales
         FROM sales_data
     )
     SELECT json_build_object(
         'totalSalesValue', (SELECT total_revenue FROM totals),
         'totalProfit', (SELECT total_profit FROM totals),
-        'totalSales', (SELECT total_orders FROM totals),
-        'averageOrderValue', (SELECT CASE WHEN total_orders > 0 THEN total_revenue / total_orders ELSE 0 END FROM totals),
+        'totalSales', (SELECT total_sales FROM totals),
+        'averageOrderValue', (SELECT CASE WHEN total_sales > 0 THEN total_revenue / total_sales ELSE 0 END FROM totals),
         'deadStockItemsCount', (
             SELECT COUNT(*) 
             FROM inventory 
@@ -1062,7 +1066,7 @@ BEGIN
         END AS gross_margin_percentage
     FROM sales s
     JOIN sale_items si ON s.id = si.sale_id
-    JOIN inventory i ON si.sku = i.sku
+    JOIN inventory i ON si.sku = si.sku
     WHERE s.company_id = p_company_id AND i.company_id = p_company_id
       AND s.created_at >= NOW() - INTERVAL '12 months'
     GROUP BY month
@@ -1085,7 +1089,7 @@ BEGIN
             COUNT(s.id) as number_of_sales
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
-        JOIN inventory i ON si.sku = i.sku
+        JOIN inventory i ON si.sku = si.sku
         WHERE s.company_id = p_company_id AND i.company_id = p_company_id
           AND s.payment_method = p_channel_name
         GROUP BY s.payment_method
@@ -1295,7 +1299,7 @@ BEGIN
     ),
     paginated_inventory AS (
         SELECT * FROM counted_inventory
-        ORDER BY product_name
+        ORDER BY name
         LIMIT p_limit
         OFFSET p_offset
     )
@@ -1425,7 +1429,7 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid,uuid,jsonb,text,text,text,text);
+DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid,uuid,jsonb,text,text,text,text,text);
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
     p_user_id uuid,
