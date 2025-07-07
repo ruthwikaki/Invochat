@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { getIntegrations } from '@/app/data-actions';
-import { Integration } from '../types';
+import { Integration, Platform } from '../types';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
@@ -34,12 +34,13 @@ export function useIntegrations() {
         fetchIntegrations();
     }, [user]);
     
-    const triggerSync = (integrationId: string) => {
+    const triggerSync = (integrationId: string, platform: Platform) => {
         startSyncTransition(async () => {
             try {
                 const payload = { integrationId };
+                const apiUrl = `/api/${platform}/sync`;
 
-                const response = await fetch('/api/shopify/sync', {
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),

@@ -3,7 +3,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Integration } from '../types';
+import { Integration, Platform } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { Loader2, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import {
@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react';
 
 interface IntegrationCardProps {
     integration: Integration;
-    onSync: (id: string) => void;
+    onSync: (id: string, platform: Platform) => void;
     onDisconnect: (id: string) => void;
 }
 
@@ -72,7 +72,7 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
                     {renderStatus()}
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => onSync(integration.id)} disabled={isSyncing}>
+                    <Button variant="outline" onClick={() => onSync(integration.id, integration.platform)} disabled={isSyncing}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                         Sync Now
                     </Button>
