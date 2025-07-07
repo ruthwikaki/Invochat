@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, DragEvent, useRef, useEffect, ChangeEvent } from 'react';
@@ -14,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { Checkbox } from '../ui/checkbox';
-import type { CsvMappingOutput } from '@/ai/flows/csv-mapping-flow';
+import type { CsvMappingOutput } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
 const CSRF_FORM_NAME = 'csrf_token';
@@ -356,5 +355,3 @@ export function ImporterClientPage() {
         </div>
     );
 }
-
-    
