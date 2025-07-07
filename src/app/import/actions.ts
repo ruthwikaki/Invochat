@@ -14,6 +14,7 @@ import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User } from '@/types';
 import { revalidatePath } from 'next/cache';
 import { refreshMaterializedViews } from '@/services/database';
+import { suggestCsvMappings, CsvMappingOutput } from '@/ai/flows/csv-mapping-flow';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -149,6 +150,33 @@ async function processCsv<T extends z.ZodType>(
         errors: validationErrors,
         summaryMessage: summaryMessage
     };
+}
+
+export async function getMappingSuggestions(formData: FormData): Promise<CsvMappingOutput> {
+    const file = formData.get('file') as File | null;
+    if (!file) {
+        throw new Error('File not provided for mapping suggestions.');
+    }
+    
+    const fileContent = await file.text();
+    const { data: rows, meta } = Papa.parse<Record<string, unknown>>(fileContent, {
+        header: true,
+        skipEmptyLines: true,
+        preview: 5, // Use first 5 rows as a sample
+    });
+
+    const csvHeaders = (meta.fields || []);
+    
+    // This is a placeholder for getting the DB fields based on import type
+    const expectedDbFields = ['sku', 'name', 'quantity', 'cost', 'category', 'supplier_name', 'location'];
+
+    const result = await suggestCsvMappings({
+        csvHeaders,
+        sampleRows: rows,
+        expectedDbFields
+    });
+    
+    return result;
 }
 
 

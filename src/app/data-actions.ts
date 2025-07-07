@@ -15,6 +15,7 @@ import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
+import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
 import { ai } from '@/ai/genkit';
 import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
@@ -136,7 +137,7 @@ export async function getAlertsData() {
     // Simulate sending email alerts for any low stock items found
     const lowStockAlerts = alerts.filter(alert => alert.type === 'low_stock');
     if (lowStockAlerts.length > 0) {
-        logger.info(`[Alerts] Found ${lowStockAlerts.length} low stock alerts. Simulating email notifications.`);
+        logger.debug(`[Alerts] Found ${lowStockAlerts.length} low stock alerts. Simulating email notifications.`);
         for (const alert of lowStockAlerts) {
             // In a real app, this would be queued to avoid blocking the request.
             // We use a `catch` here because we don't want a failed email simulation
@@ -165,7 +166,7 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
     const { companyId } = await getAuthContext();
 
     // Fetch all data points in parallel
-    const [anomalies, deadStockData, alerts] = await Promise.all([
+    const [rawAnomalies, deadStockData, alerts] = await Promise.all([
       db.getAnomalyInsightsFromDB(companyId),
       db.getDeadStockPageData(companyId),
       getAlertsData(),
@@ -179,16 +180,44 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
       .filter(a => a.type === 'low_stock')
       .slice(0, 5);
 
+    // Generate AI explanations for each anomaly
+    const explainedAnomalies = await Promise.all(
+        rawAnomalies.map(async (anomaly) => {
+            try {
+                const date = new Date(anomaly.date);
+                const explanation = await generateAnomalyExplanation({
+                    anomaly: anomaly,
+                    dateContext: {
+                        dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
+                        month: date.toLocaleDateString('en-US', { month: 'long' }),
+                        season: 'winter', // This would be more dynamic in a real app
+                    }
+                });
+                return { ...anomaly, ...explanation };
+            } catch (e) {
+                logError(e, { context: `Failed to generate explanation for anomaly on ${anomaly.date}`});
+                // Return original anomaly with a default explanation on error
+                return { 
+                    ...anomaly, 
+                    explanation: "AI explanation could not be generated for this anomaly.",
+                    confidence: "low",
+                    suggestedAction: "Investigate this anomaly manually."
+                };
+            }
+        })
+    );
+    
+
     // Generate the summary using the AI flow
     const summary = await generateInsightsSummary({
-      anomalies,
+      anomalies: explainedAnomalies,
       lowStockCount: alerts.filter(a => a.type === 'low_stock').length,
       deadStockCount: deadStockData.deadStockItems.length,
     });
     
     return {
       summary,
-      anomalies,
+      anomalies: explainedAnomalies,
       topDeadStock,
       topLowStock,
     };
@@ -595,7 +624,10 @@ export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Pr
 
 export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    return db.getReorderSuggestionsFromDB(companyId);
+    const suggestions = await db.getReorderSuggestionsFromDB(companyId);
+
+    // Placeholder until AI enhancement is fully implemented in the tool
+    return suggestions.map(s => ({ ...s, base_quantity: s.suggested_reorder_quantity }));
 }
 
 export async function createPurchaseOrdersFromSuggestions(

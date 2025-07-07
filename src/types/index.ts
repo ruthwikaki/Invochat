@@ -172,6 +172,10 @@ export const AnomalySchema = z.object({
     avg_revenue: z.coerce.number(),
     avg_customers: z.coerce.number(),
     anomaly_type: z.string(),
+    // Added fields for AI explanation
+    explanation: z.string().optional(),
+    confidence: z.enum(['high', 'medium', 'low']).optional(),
+    suggestedAction: z.string().optional(),
 });
 export type Anomaly = z.infer<typeof AnomalySchema>;
 
@@ -274,6 +278,11 @@ export const ReorderSuggestionSchema = z.object({
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
     unit_cost: z.number().nullable(),
+    // New fields for enhanced suggestions
+    base_quantity: z.number().int().optional(),
+    adjustment_reason: z.string().optional(),
+    seasonality_factor: z.number().optional(),
+    confidence: z.number().optional(),
 }).transform((data) => ({
     ...data,
     // Provide default values for nullable fields to prevent downstream errors
@@ -282,6 +291,7 @@ export const ReorderSuggestionSchema = z.object({
     unit_cost: data.unit_cost ?? 0,
 }));
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+
 
 export const ChannelFeeSchema = z.object({
   id: z.string().uuid(),

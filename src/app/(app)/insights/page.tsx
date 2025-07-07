@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -10,7 +9,7 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import { getInsightsPageData } from '@/app/data-actions';
-import { Lightbulb, AlertTriangle, CheckCircle, Bot, TrendingDown, Package, ArrowRight, ServerCrash } from 'lucide-react';
+import { Lightbulb, AlertTriangle, CheckCircle, Bot, TrendingDown, Package, ArrowRight, ServerCrash, BrainCircuit } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +19,9 @@ import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+
 
 interface InsightsData {
     summary: string;
@@ -34,6 +36,7 @@ function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
   const averageValue = isRevenue ? anomaly.avg_revenue : anomaly.avg_customers;
   const deviation = Math.abs(currentValue - averageValue);
   const direction = currentValue > averageValue ? 'higher' : 'lower';
+  const confidenceColor = anomaly.confidence === 'high' ? 'text-success' : anomaly.confidence === 'medium' ? 'text-amber-500' : 'text-destructive';
   
   return (
     <div className="border-t p-4">
@@ -46,6 +49,20 @@ function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
         <strong className="text-foreground">{isRevenue ? `$${Number(currentValue).toLocaleString()}` : currentValue}</strong>, which is{' '}
         {averageValue > 0 ? ((deviation / averageValue) * 100).toFixed(0) : '100'}% {direction} than the average.
       </p>
+      <div className="mt-3 bg-muted/50 p-3 rounded-md space-y-2 border">
+        <div className="flex items-center gap-2 text-sm">
+            <BrainCircuit className="h-4 w-4 text-primary shrink-0" />
+            <p><strong className="font-semibold">AI Explanation:</strong> {anomaly.explanation || "No explanation generated."}</p>
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className={cn("font-semibold capitalize", confidenceColor)}>Confidence: {anomaly.confidence}</span>
+            {anomaly.suggestedAction && 
+              <Button asChild variant="link" size="sm" className="p-0 h-auto">
+                <Link href={`/chat?q=${encodeURIComponent(anomaly.suggestedAction)}`}>{anomaly.suggestedAction}</Link>
+              </Button>
+            }
+        </div>
+      </div>
     </div>
   );
 }
@@ -146,7 +163,7 @@ export default function InsightsPage() {
 
   useEffect(() => {
     fetchInsights();
-  }, [toast]);
+  }, []);
   
   if (loading) {
     return (
