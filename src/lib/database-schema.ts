@@ -288,11 +288,11 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
 );
 
 CREATE TABLE IF NOT EXISTS public.sync_state (
-    integration_id uuid PRIMARY KEY REFERENCES public.integrations(id) ON DELETE CASCADE,
+    integration_id uuid NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
     sync_type text NOT NULL,
     last_processed_cursor text,
     last_update timestamptz,
-    UNIQUE(integration_id, sync_type)
+    PRIMARY KEY(integration_id, sync_type)
 );
 
 CREATE TABLE IF NOT EXISTS public.sync_logs (
@@ -324,10 +324,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.compa
 -- Step 5: Trigger Functions & Triggers
 -- -----------------------------------------------------------------
 
--- Drop the trigger first to avoid dependency errors on the function
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
--- Now drop and recreate the function safely
+-- Use CASCADE to ensure dependent triggers are also dropped
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -369,7 +366,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Trigger for optimistic concurrency control
-DROP FUNCTION IF EXISTS increment_version();
+DROP FUNCTION IF EXISTS increment_version() CASCADE;
 CREATE OR REPLACE FUNCTION increment_version()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -379,7 +376,6 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-DROP TRIGGER IF EXISTS handle_inventory_update ON inventory;
 CREATE TRIGGER handle_inventory_update
 BEFORE UPDATE ON inventory
 FOR EACH ROW
@@ -487,7 +483,7 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid);
+DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
 RETURNS TABLE(date text, daily_revenue numeric, daily_customers bigint, avg_revenue numeric, avg_customers numeric, anomaly_type text, deviation_percentage numeric)
 LANGUAGE plpgsql
@@ -577,29 +573,24 @@ declare
   new_po purchase_orders;
   item_record record;
 begin
-  -- 1. Create the main purchase order record
   INSERT INTO public.purchase_orders
     (company_id, supplier_id, po_number, status, order_date, expected_date, notes, total_amount)
   VALUES
     (p_company_id, p_supplier_id, p_po_number, 'draft', p_order_date, p_expected_date, p_notes, p_total_amount)
   RETURNING * INTO new_po;
 
-  -- 2. Insert all items and update inventory on_order_quantity in a loop
   FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
   LOOP
-    -- Insert the item into purchase_order_items
     INSERT INTO public.purchase_order_items
       (po_id, sku, quantity_ordered, unit_cost)
     VALUES
       (new_po.id, item_record.sku, item_record.quantity_ordered, item_record.unit_cost);
 
-    -- Increment the on_order_quantity for the corresponding inventory item
     UPDATE public.inventory
     SET on_order_quantity = on_order_quantity + item_record.quantity_ordered
     WHERE sku = item_record.sku AND company_id = p_company_id;
   END LOOP;
 
-  -- 3. Return the newly created PO
   return new_po;
 end;
 $$;
@@ -790,7 +781,7 @@ BEGIN
     )
     SELECT json_build_object(
         'items', (SELECT json_agg(cs) FROM (
-            SELECT * FROM customer_stats ORDER BY total_spent DESC LIMIT p_limit OFFSET p_offset
+            SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
         ) cs),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
@@ -812,7 +803,6 @@ DECLARE
     start_date timestamptz := now() - (p_days || ' days')::interval;
     dead_stock_days integer;
 BEGIN
-    -- Get company settings
     SELECT COALESCE(cs.dead_stock_days, 90) INTO dead_stock_days
     FROM company_settings cs
     WHERE cs.company_id = p_company_id;
@@ -1254,7 +1244,7 @@ END;
 $$;
 
 
-DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid,text,text,uuid,uuid,text,integer,integer);
+DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid,text,text,uuid,uuid,text,integer,integer) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -1272,7 +1262,6 @@ DECLARE
     result_items json;
     count_result bigint;
 BEGIN
-    -- This CTE gets the base filtered inventory and calculates counts in one pass
     WITH filtered_inventory AS (
         SELECT 
             i.*,
@@ -1562,7 +1551,7 @@ begin
 end;
 $$;
 
-DROP FUNCTION IF EXISTS public.validate_same_company_reference();
+DROP FUNCTION IF EXISTS public.validate_same_company_reference() CASCADE;
 CREATE OR REPLACE FUNCTION public.validate_same_company_reference()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1678,13 +1667,30 @@ DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON pu
 CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
 
 
--- Step 8: Grant Permissions
+-- Step 8: Grant Permissions & Re-create Triggers
 -- -----------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+-- Recreate triggers after all functions are defined
+CREATE TRIGGER validate_purchase_order_refs
+    BEFORE INSERT OR UPDATE ON public.purchase_orders
+    FOR EACH ROW
+    EXECUTE FUNCTION public.validate_same_company_reference();
+
+CREATE TRIGGER validate_inventory_location_ref
+    BEFORE INSERT OR UPDATE ON public.inventory
+    FOR EACH ROW
+    EXECUTE FUNCTION public.validate_same_company_reference();
+
+CREATE TRIGGER validate_sale_items_company
+    BEFORE INSERT OR UPDATE ON public.sale_items
+    FOR EACH ROW
+    EXECUTE FUNCTION public.validate_same_company_reference();
+
 
 -- =================================================================
 -- SCRIPT COMPLETE
