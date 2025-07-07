@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Location, Supplier } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import { Package } from 'lucide-react';
 import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { ExportButton } from '../ui/export-button';
 
 
 interface InventoryClientPageProps {
@@ -34,6 +35,7 @@ interface InventoryClientPageProps {
   categories: string[];
   locations: Location[];
   suppliers: Supplier[];
+  exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
 const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
@@ -120,7 +122,7 @@ function EmptyInventoryState() {
 }
 
 
-export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, locations, suppliers }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, locations, suppliers, exportAction }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace, refresh } = useRouter();
@@ -222,8 +224,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const isSomeSelected = numSelected > 0 && numSelected < numInventory;
   
   const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('location') || !!searchParams.get('supplier');
-  const showEmptyState = inventory.length === 0 && !isFiltered;
-  const showNoResultsState = inventory.length === 0 && isFiltered;
+  const showEmptyState = totalCount === 0 && !isFiltered;
+  const showNoResultsState = totalCount === 0 && isFiltered;
   
   return (
     <div className="space-y-4">
@@ -286,6 +288,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                 ))}
               </SelectContent>
             </Select>
+            <ExportButton exportAction={exportAction} filename="inventory.csv" />
         </div>
       </div>
       

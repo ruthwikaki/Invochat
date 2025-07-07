@@ -1,16 +1,15 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import * as db from '@/services/database';
-import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, Alert, DeadStockItem, ExportJob, Customer } from '@/types';
+import type { User, CompanySettings, UnifiedInventoryItem, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, ReorderSuggestion, ReceiveItemsFormInput, PurchaseOrderUpdateInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, Sale, SaleCreateInput } from '@/types';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema } from '@/types';
+import { PurchaseOrderCreateSchema, PurchaseOrderUpdateSchema, InventoryUpdateSchema, SaleCreateSchema } from '@/types';
 import { sendPurchaseOrderEmail, sendEmailAlert } from '@/services/email';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
@@ -20,6 +19,7 @@ import { isRedisEnabled, redisClient, invalidateCompanyCache, rateLimit } from '
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { validateCSRF, CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
+import Papa from 'papaparse';
 
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
@@ -165,7 +165,7 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
     const { companyId } = await getAuthContext();
 
     // Fetch all data points in parallel
-    const [anomalies, deadStockData, alerts] = await Promise.all([
+    const [rawAnomalies, deadStockData, alerts] = await Promise.all([
       db.getAnomalyInsightsFromDB(companyId),
       db.getDeadStockPageData(companyId),
       getAlertsData(),
@@ -179,16 +179,44 @@ export async function getInsightsPageData(): Promise<{ summary: string; anomalie
       .filter(a => a.type === 'low_stock')
       .slice(0, 5);
 
+    // Generate AI explanations for each anomaly
+    const explainedAnomalies = await Promise.all(
+        rawAnomalies.map(async (anomaly) => {
+            try {
+                const date = new Date(anomaly.date);
+                const explanation = await generateAnomalyExplanation({
+                    anomaly: anomaly,
+                    dateContext: {
+                        dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
+                        month: date.toLocaleDateString('en-US', { month: 'long' }),
+                        season: 'winter', // This would be more dynamic in a real app
+                    }
+                });
+                return { ...anomaly, ...explanation };
+            } catch (e) {
+                logError(e, { context: `Failed to generate explanation for anomaly on ${anomaly.date}`});
+                // Return original anomaly with a default explanation on error
+                return { 
+                    ...anomaly, 
+                    explanation: "AI explanation could not be generated for this anomaly.",
+                    confidence: "low",
+                    suggestedAction: "Investigate this anomaly manually."
+                };
+            }
+        })
+    );
+    
+
     // Generate the summary using the AI flow
     const summary = await generateInsightsSummary({
-      anomalies,
+      anomalies: explainedAnomalies,
       lowStockCount: alerts.filter(a => a.type === 'low_stock').length,
       deadStockCount: deadStockData.deadStockItems.length,
     });
     
     return {
       summary,
-      anomalies,
+      anomalies: explainedAnomalies,
       topDeadStock,
       topLowStock,
     };
@@ -913,6 +941,11 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean; er
     }
 }
 
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
+    const { companyId } = await getAuthContext();
+    return db.getCustomerAnalyticsFromDB(companyId);
+}
+
 const CUSTOMERS_PER_PAGE = 25;
 export async function getCustomersData(params: { query?: string, page?: number }): Promise<{ items: Customer[], totalCount: number }> {
     const { companyId } = await getAuthContext();
@@ -923,3 +956,91 @@ export async function getCustomersData(params: { query?: string, page?: number }
     return db.getCustomersFromDB(companyId, { query: params.query, limit, offset });
 }
 
+// === Sales Recording ===
+
+export async function searchProductsForSale(query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>[]> {
+  const { companyId } = await getAuthContext();
+  return db.searchProductsForSaleInDB(companyId, query);
+}
+
+export async function recordSale(formData: FormData): Promise<{ success: boolean; error?: string, sale?: Sale }> {
+  try {
+    const { companyId, userId, userRole } = await getAuthContext();
+    requireRole(userRole, ['Owner', 'Admin']);
+    validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+    
+    const saleDataRaw = formData.get('saleData') as string;
+    const saleData = SaleCreateSchema.parse(JSON.parse(saleDataRaw));
+
+    const sale = await db.recordSaleInDB(companyId, userId, saleData);
+    
+    await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
+    await db.refreshMaterializedViews(companyId);
+    revalidatePath('/sales');
+    revalidatePath('/inventory');
+
+    return { success: true, sale };
+  } catch (error) {
+    logError(error, { context: 'recordSale action' });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+const SALES_PAGE_SIZE = 25;
+export async function getSales(params: { query?: string, page?: number, limit?: number }): Promise<{ items: Sale[], totalCount: number }> {
+  const { companyId } = await getAuthContext();
+  const limit = params.limit || SALES_PAGE_SIZE;
+  const page = params.page || 1;
+  const offset = (page - 1) * limit;
+
+  return db.getSalesFromDB(companyId, { query: params.query, limit, offset });
+}
+
+
+// === EXPORT ACTIONS ===
+
+async function exportData(
+    exportFunction: () => Promise<any[]>,
+    filename: string
+): Promise<{ success: boolean; data?: string; error?: string }> {
+    try {
+        const { userRole } = await getAuthContext();
+        requireRole(userRole, ['Owner', 'Admin']);
+
+        const data = await exportFunction();
+
+        if (data.length === 0) {
+            return { success: false, error: "No data available to export." };
+        }
+        
+        const csv = Papa.unparse(data);
+        return { success: true, data: csv };
+    } catch (e) {
+        logError(e, { context: `export action for ${filename}`});
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function exportInventory(filters: { query?: string; category?: string, location?: string, supplier?: string }) {
+    const { companyId } = await getAuthContext();
+    return exportData(
+        () => db.getUnifiedInventoryFromDB(companyId, { ...filters }).then(res => res.items),
+        "inventory.csv"
+    );
+}
+
+export async function exportSales(filters: { query?: string }) {
+    const { companyId } = await getAuthContext();
+    return exportData(
+        () => db.getSalesFromDB(companyId, { ...filters }).then(res => res.items),
+        "sales.csv"
+    );
+}
+
+export async function exportCustomers(filters: { query?: string }) {
+    const { companyId } = await getAuthContext();
+    return exportData(
+        () => db.getCustomersFromDB(companyId, { ...filters }).then(res => res.items),
+        "customers.csv"
+    );
+}

@@ -1,5 +1,5 @@
 
-import { getUnifiedInventory, getInventoryCategories, getLocations, getSuppliersData } from '@/app/data-actions';
+import { getUnifiedInventory, getInventoryCategories, getLocations, getSuppliersData, exportInventory } from '@/app/data-actions';
 import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
 import { Package } from 'lucide-react';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -31,6 +31,11 @@ export default async function InventoryPage({
     getSuppliersData()
   ]);
 
+  const handleExport = async () => {
+    'use server';
+    return exportInventory({ query, category, location, supplier });
+  }
+
   return (
     <AppPage className="flex flex-col h-full">
       <AppPageHeader
@@ -43,7 +48,8 @@ export default async function InventoryPage({
         itemsPerPage={ITEMS_PER_PAGE}
         categories={categories} 
         locations={locations}
-        suppliers={suppliers} 
+        suppliers={suppliers}
+        exportAction={handleExport}
       />
     </AppPage>
   );

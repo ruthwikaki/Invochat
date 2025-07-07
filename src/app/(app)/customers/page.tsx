@@ -1,5 +1,5 @@
 
-import { getCustomersData, getCustomerAnalytics } from '@/app/data-actions';
+import { getCustomersData, getCustomerAnalytics, exportCustomers } from '@/app/data-actions';
 import { CustomersClientPage } from '@/components/customers/customers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
@@ -21,6 +21,11 @@ export default async function CustomersPage({
     getCustomerAnalytics(),
   ]);
 
+  const handleExport = async () => {
+    'use server';
+    return exportCustomers({ query });
+  }
+
   return (
     <AppPage className="flex flex-col h-full">
       <AppPageHeader
@@ -32,6 +37,7 @@ export default async function CustomersPage({
         totalCount={customerData.totalCount}
         itemsPerPage={ITEMS_PER_PAGE}
         analyticsData={analyticsData}
+        exportAction={handleExport}
       />
     </AppPage>
   );

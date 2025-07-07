@@ -7,7 +7,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 import type { Customer, CustomerAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Star } from 'lucide-react';
+import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Star, Download } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -26,12 +26,14 @@ import { deleteCustomer } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '../ui/avatar';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { ExportButton } from '../ui/export-button';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
   totalCount: number;
   itemsPerPage: number;
   analyticsData: CustomerAnalytics;
+  exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
 const formatCurrency = (value: number) => {
@@ -138,7 +140,7 @@ function EmptyCustomerState() {
   );
 }
 
-export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage, analyticsData }: CustomersClientPageProps) {
+export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage, analyticsData, exportAction }: CustomersClientPageProps) {
   const [isDeleting, startDeleteTransition] = useTransition();
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const router = useRouter();
@@ -197,8 +199,13 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
 
         <Card>
             <CardHeader>
-                <CardTitle>All Customers</CardTitle>
-                <CardDescription>Search and manage your complete customer list.</CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>All Customers</CardTitle>
+                    <CardDescription>Search and manage your complete customer list.</CardDescription>
+                  </div>
+                  <ExportButton exportAction={exportAction} filename="customers.csv" />
+                </div>
                 <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input

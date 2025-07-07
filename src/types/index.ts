@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -372,7 +373,52 @@ export const CustomerAnalyticsSchema = z.object({
     new_customers_last_30_days: z.number(),
     average_lifetime_value: z.number(),
     repeat_customer_rate: z.number(),
-    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })),
-    top_customers_by_orders: z.array(z.object({ name: z.string(), value: z.number() })),
+    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
+    top_customers_by_orders: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
+
+// === Sales Recording ===
+export const SaleItemSchema = z.object({
+    id: z.string().uuid(),
+    sale_id: z.string().uuid(),
+    sku: z.string(),
+    product_name: z.string(),
+    quantity: z.number().int(),
+    unit_price: z.number(),
+    total_price: z.number(),
+    cost_at_time: z.number().nullable(),
+});
+export type SaleItem = z.infer<typeof SaleItemSchema>;
+
+export const SaleSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    sale_number: z.string(),
+    customer_name: z.string().nullable(),
+    customer_email: z.string().email().nullable(),
+    total_amount: z.number(),
+    payment_method: z.string(),
+    notes: z.string().nullable(),
+    created_at: z.string(),
+    created_by: z.string().uuid(),
+});
+export type Sale = z.infer<typeof SaleSchema>;
+
+export const SaleCreateItemSchema = z.object({
+  sku: z.string().min(1),
+  product_name: z.string(),
+  quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
+  unit_price: z.coerce.number().min(0),
+  cost_at_time: z.coerce.number().min(0).optional().nullable(),
+});
+export type SaleCreateItemInput = z.infer<typeof SaleCreateItemSchema>;
+
+export const SaleCreateSchema = z.object({
+    customer_name: z.string().optional(),
+    customer_email: z.string().email().optional().or(z.literal('')),
+    payment_method: z.enum(['cash', 'card', 'other']),
+    notes: z.string().optional(),
+    items: z.array(SaleCreateItemSchema).min(1, 'Sale must have at least one item.'),
+});
+export type SaleCreateInput = z.infer<typeof SaleCreateSchema>;
