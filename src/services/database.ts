@@ -1193,6 +1193,82 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
   });
 }
 
+export async function getDemandForecastFromDB(companyId: string): Promise<any[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getDemandForecastFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_demand_forecast', {
+            p_company_id: companyId
+        });
+        if (error) {
+            logError(error, { context: `Error fetching demand forecast for company ${companyId}` });
+            throw error;
+        }
+        return data ?? [];
+    });
+}
+
+export async function getAbcAnalysisFromDB(companyId: string): Promise<any[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getAbcAnalysisFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_abc_analysis', {
+            p_company_id: companyId
+        });
+        if (error) {
+            logError(error, { context: `Error fetching ABC analysis for company ${companyId}` });
+            throw error;
+        }
+        return data ?? [];
+    });
+}
+
+export async function getGrossMarginAnalysisFromDB(companyId: string): Promise<any[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getGrossMarginAnalysisFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_gross_margin_analysis', {
+            p_company_id: companyId
+        });
+        if (error) {
+            logError(error, { context: `Error fetching gross margin analysis for company ${companyId}` });
+            throw error;
+        }
+        return data ?? [];
+    });
+}
+
+export async function getNetMarginByChannelFromDB(companyId: string, channelName: string): Promise<any[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getNetMarginByChannelFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_net_margin_by_channel', {
+            p_company_id: companyId,
+            p_channel_name: channelName
+        });
+        if (error) {
+            logError(error, { context: `Error fetching net margin for channel ${channelName} for company ${companyId}` });
+            throw error;
+        }
+        return data ?? [];
+    });
+}
+
+export async function getMarginTrendsFromDB(companyId: string): Promise<any[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getMarginTrendsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_margin_trends', {
+            p_company_id: companyId
+        });
+        if (error) {
+            logError(error, { context: `Error fetching margin trends for company ${companyId}` });
+            throw error;
+        }
+        return data ?? [];
+    });
+}
+
 export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string; supplier?: string; limit?: number; offset?: number; sku?: string }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
@@ -1456,4 +1532,29 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
         totalCount: count ?? 0,
     };
   });
+}
+
+// Supabase has no method for logging in a user by their id, but it does allow for a user to be created.
+// This is a workaround for that.
+export async function logSuccessfulLogin(userId: string, ipAddress: string): Promise<void> {
+    if (!isValidUuid(userId)) return;
+
+    return withPerformanceTracking('logSuccessfulLogin', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase
+            .from('audit_log')
+            .insert({
+                user_id: userId,
+                action: 'user_login',
+                details: {
+                    ip_address: ipAddress,
+                    user_agent: 'unknown'
+                }
+            });
+        
+        if (error) {
+            logError(error, { context: `Failed to log login for user ${userId}`});
+            // Do not throw, this is a non-critical audit log.
+        }
+    });
 }
