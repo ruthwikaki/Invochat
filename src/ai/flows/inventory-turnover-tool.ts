@@ -29,18 +29,23 @@ export const getInventoryTurnoverReport = ai.defineTool(
   },
   async (input) => {
     logger.info(`[Inventory Turnover Tool] Getting report for company: ${input.companyId}`);
-    const supabase = getServiceRoleClient();
+    try {
+        const supabase = getServiceRole_client();
 
-    const { data, error } = await supabase.rpc('get_inventory_turnover_report', {
-        p_company_id: input.companyId,
-        p_days: input.days,
-    });
-    
-    if (error) {
-        logError(error, { context: `[Inventory Turnover Tool] Failed to run RPC for company ${input.companyId}` });
-        throw new Error('Failed to calculate inventory turnover.');
+        const { data, error } = await supabase.rpc('get_inventory_turnover_report', {
+            p_company_id: input.companyId,
+            p_days: input.days,
+        });
+        
+        if (error) {
+            throw error;
+        }
+
+        return InventoryTurnoverReportSchema.parse(data);
+
+    } catch (e) {
+        logError(e, { context: `[Inventory Turnover Tool] Failed to run RPC for company ${input.companyId}` });
+        throw new Error('An error occurred while trying to calculate the inventory turnover rate.');
     }
-
-    return InventoryTurnoverReportSchema.parse(data);
   }
 );

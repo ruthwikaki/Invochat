@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger';
  * @param alert The alert object containing details for the email.
  */
 export async function sendEmailAlert(alert: Alert): Promise<void> {
-  logger.info('--- SIMULATING EMAIL ALERT ---');
+  logger.debug('--- SIMULATING EMAIL ALERT ---');
   
   const subject = `InvoChat Alert: ${alert.title} - ${alert.metadata.productName || 'System Alert'}`;
   
@@ -39,10 +39,10 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     This is a simulated email. To enable real email sending, integrate a service here.
   `.trim();
 
-  logger.info(`To: user@example.com`);
-  logger.info(`Subject: ${subject}`);
-  logger.info('Body:', `\n${body}`);
-  logger.info('------------------------------');
+  logger.debug(`To: user@example.com`);
+  logger.debug(`Subject: ${subject}`);
+  logger.debug('Body:', `\n${body}`);
+  logger.debug('------------------------------');
 }
 
 
@@ -51,7 +51,7 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
  * @param po The purchase order object.
  */
 export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
-    logger.info('--- SIMULATING PURCHASE ORDER EMAIL ---');
+    logger.debug('--- SIMULATING PURCHASE ORDER EMAIL ---');
 
     const subject = `Purchase Order #${po.po_number} from Your Company`;
     const toEmail = po.supplier_email || 'supplier-not-found@example.com';
@@ -88,8 +88,8 @@ export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
         Your Company
     `.trim();
 
-    logger.info(`To: ${toEmail}`);
-    logger.info(`Subject: ${subject}`);
-    logger.info('Body:', `\n${body}`);
-    logger.info('---------------------------------------');
+    logger.debug(`To: ${toEmail}`);
+    logger.debug(`Subject: ${subject}`);
+    logger.debug('Body:', `\n${body}`);
+    logger.debug('---------------------------------------');
 }

@@ -22,7 +22,7 @@ import { createPurchaseOrdersTool } from './create-po-tool';
 import { getDeadStockReport } from './dead-stock-tool';
 import { getInventoryTurnoverReport } from './inventory-turnover-tool';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends } from './analytics-tools';
-import { logError } from '@/lib/error-handler';
+import { logError, getErrorMessage } from '@/lib/error-handler';
 
 // List of all available tools for the AI to use.
 const allTools = [
@@ -95,23 +95,34 @@ const universalChatOrchestrator = ai.defineFlow(
         const toolCall = toolCalls[0];
         logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCall.name}`);
         
-        const toolResult = await ai.runTool(toolCall);
-        
-        // Step 3: Use a second AI call to formulate a natural language response from the tool's data.
-        const { output: finalOutput } = await finalResponsePrompt(
-            { userQuery, toolResult: toolResult.output },
-            { model: aiModel }
-        );
+        try {
+            const toolResult = await ai.runTool(toolCall);
+            
+            // Step 3: Use a second AI call to formulate a natural language response from the tool's data.
+            const { output: finalOutput } = await finalResponsePrompt(
+                { userQuery, toolResult: toolResult.output },
+                { model: aiModel }
+            );
 
-        if (!finalOutput) {
-            throw new Error('The AI model did not return a valid final response object after tool use.');
+            if (!finalOutput) {
+                throw new Error('The AI model did not return a valid final response object after tool use.');
+            }
+            
+            return {
+                ...finalOutput,
+                data: toolResult.output,
+                toolName: toolCall.name,
+            };
+        } catch (e) {
+            logError(e, { context: `Tool execution failed for '${toolCall.name}'` });
+            return {
+                response: `I tried to use a tool to answer your question, but it failed with the following error: ${getErrorMessage(e)}`,
+                data: [],
+                visualization: { type: 'none' },
+                confidence: 0.1,
+                assumptions: ['The tool needed to answer your question failed to execute.'],
+            }
         }
-        
-        return {
-            ...finalOutput,
-            data: toolResult.output as any[],
-            toolName: toolCall.name,
-        };
     }
 
     // Step 4: If no tool is called, the AI should answer directly.

@@ -93,10 +93,7 @@ export const getReorderSuggestions = ai.defineTool(
 
     } catch (e) {
         logError(e, { context: `[Reorder Tool] Failed to get suggestions for ${input.companyId}` });
-        // In a real scenario, you might want to return a more specific error structure,
-        // but for now, an empty array will signal that no suggestions could be generated.
-        return [];
+        throw new Error('An error occurred while trying to generate reorder suggestions.');
     }
   }
 );
-    

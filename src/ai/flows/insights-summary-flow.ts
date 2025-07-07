@@ -6,10 +6,11 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { AnomalySchema } from '@/types';
 import type { Anomaly } from '@/types';
 
 const InsightsInputSchema = z.object({
-  anomalies: z.array(z.any()).describe("A list of recent business anomalies (e.g., unusual spikes in revenue or customer count)."),
+  anomalies: z.array(AnomalySchema).describe("A list of recent business anomalies (e.g., unusual spikes in revenue or customer count)."),
   lowStockCount: z.number().int().describe("The number of items currently low on stock."),
   deadStockCount: z.number().int().describe("The number of items considered dead stock (unsold for a long time)."),
 });

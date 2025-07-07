@@ -9,6 +9,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import * as db from '@/services/database';
+import { getErrorMessage, logError } from '@/lib/error-handler';
 
 // A generic schema for tools that only require a companyId
 const CompanyIdInputSchema = z.object({
@@ -23,8 +24,13 @@ export const getDemandForecast = ai.defineTool(
     output: z.any(),
   },
   async ({ companyId }) => {
-    logger.info(`[Analytics Tool] Getting demand forecast for company: ${companyId}`);
-    return db.getDemandForecastFromDB(companyId);
+    try {
+        logger.info(`[Analytics Tool] Getting demand forecast for company: ${companyId}`);
+        return await db.getDemandForecastFromDB(companyId);
+    } catch (e) {
+        logError(e, { context: `[Analytics Tool] Demand forecast failed for company ${companyId}`});
+        throw new Error('An error occurred while trying to generate the demand forecast.');
+    }
   }
 );
 
@@ -36,8 +42,13 @@ export const getAbcAnalysis = ai.defineTool(
     output: z.any(),
   },
   async ({ companyId }) => {
-    logger.info(`[Analytics Tool] Performing ABC analysis for company: ${companyId}`);
-    return db.getAbcAnalysisFromDB(companyId);
+    try {
+        logger.info(`[Analytics Tool] Performing ABC analysis for company: ${companyId}`);
+        return await db.getAbcAnalysisFromDB(companyId);
+    } catch (e) {
+        logError(e, { context: `[Analytics Tool] ABC analysis failed for company ${companyId}`});
+        throw new Error('An error occurred while trying to perform the ABC analysis.');
+    }
   }
 );
 
@@ -49,8 +60,13 @@ export const getGrossMarginAnalysis = ai.defineTool(
     output: z.any(),
   },
   async ({ companyId }) => {
-    logger.info(`[Analytics Tool] Getting gross margin analysis for company: ${companyId}`);
-    return db.getGrossMarginAnalysisFromDB(companyId);
+    try {
+        logger.info(`[Analytics Tool] Getting gross margin analysis for company: ${companyId}`);
+        return await db.getGrossMarginAnalysisFromDB(companyId);
+    } catch (e) {
+        logError(e, { context: `[Analytics Tool] Gross margin analysis failed for company ${companyId}`});
+        throw new Error('An error occurred while trying to generate the gross margin analysis.');
+    }
   }
 );
 
@@ -65,8 +81,13 @@ export const getNetMarginByChannel = ai.defineTool(
     output: z.any(),
   },
   async ({ companyId, channelName }) => {
-    logger.info(`[Analytics Tool] Getting net margin for channel '${channelName}' for company: ${companyId}`);
-    return db.getNetMarginByChannelFromDB(companyId, channelName);
+    try {
+        logger.info(`[Analytics Tool] Getting net margin for channel '${channelName}' for company: ${companyId}`);
+        return await db.getNetMarginByChannelFromDB(companyId, channelName);
+    } catch (e) {
+        logError(e, { context: `[Analytics Tool] Net margin analysis for channel '${channelName}' failed for company ${companyId}`});
+        throw new Error(`An error occurred while trying to generate the net margin analysis for ${channelName}.`);
+    }
   }
 );
 
@@ -78,7 +99,12 @@ export const getMarginTrends = ai.defineTool(
     output: z.any(),
   },
   async ({ companyId }) => {
-    logger.info(`[Analytics Tool] Getting margin trends for company: ${companyId}`);
-    return db.getMarginTrendsFromDB(companyId);
+    try {
+        logger.info(`[Analytics Tool] Getting margin trends for company: ${companyId}`);
+        return await db.getMarginTrendsFromDB(companyId);
+    } catch (e) {
+        logError(e, { context: `[Analytics Tool] Margin trends analysis failed for company ${companyId}`});
+        throw new Error('An error occurred while trying to generate the margin trend analysis.');
+    }
   }
 );

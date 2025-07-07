@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { getSupplierPerformanceFromDB } from '@/services/database';
 import type { SupplierPerformanceReport } from '@/types';
 import { SupplierPerformanceReportSchema } from '@/types';
+import { logError } from '@/lib/error-handler';
 
 export const getSupplierPerformanceReport = ai.defineTool(
   {
@@ -27,9 +28,8 @@ export const getSupplierPerformanceReport = ai.defineTool(
         logger.info(`[Supplier Performance Tool] Found data for ${performanceData.length} suppliers.`);
         return performanceData;
     } catch (e) {
-        // This is a complex report, so it's okay if it fails. Return empty.
-        logger.error(`[Supplier Performance Tool] Failed to generate report for company ${input.companyId}`, e);
-        return [];
+        logError(e, { context: `[Supplier Performance Tool] Failed to generate report for company ${input.companyId}` });
+        throw new Error('An error occurred while trying to generate the supplier performance report.');
     }
   }
 );

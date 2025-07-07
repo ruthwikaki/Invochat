@@ -49,10 +49,7 @@ export const getEconomicIndicators = ai.defineTool(
 
     } catch (e) {
         logError(e, { context: `[Economic Tool] Failed to get data for ${input.indicator}` });
-        return {
-            indicator: input.indicator,
-            value: "Could not retrieve information."
-        };
+        throw new Error('Could not retrieve information for the requested economic indicator.');
     }
   }
 );

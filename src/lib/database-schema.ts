@@ -463,24 +463,15 @@ BEGIN
     EXCEPTION
         WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to update auth.users metadata: %', SQLERRM;
-    END;
+        END;
+    END IF;
 
     RAISE NOTICE '[handle_new_user] Trigger finished successfully.';
     RETURN new;
 END;
 $$;
 
--- 6. Secure the execute_dynamic_query function
--- First revoke all permissions
-REVOKE ALL ON FUNCTION public.execute_dynamic_query FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.execute_dynamic_query FROM anon;
-REVOKE ALL ON FUNCTION public.execute_dynamic_query FROM authenticated;
-
--- Only grant to service_role
-GRANT EXECUTE ON FUNCTION public.execute_dynamic_query TO service_role;
-
--- Add a comment warning about its use
-COMMENT ON FUNCTION public.execute_dynamic_query IS 'SECURITY WARNING: This function executes arbitrary SQL. Only use through secure server-side code with proper input validation.';
+-- 6. REMOVED execute_dynamic_query function for security.
 
 -- 7. Create the company_dashboard_metrics table properly (not as materialized view)
 -- It already exists as a table, so we just need to ensure it has the right structure

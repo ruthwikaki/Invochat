@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { getDeadStockPageData } from '@/services/database';
 import { DeadStockItemSchema } from '@/types';
+import { logError } from '@/lib/error-handler';
 
 export const getDeadStockReport = ai.defineTool(
   {
@@ -26,8 +27,8 @@ export const getDeadStockReport = ai.defineTool(
         // The tool should return just the items, not the totals.
         return deadStockData.deadStockItems;
     } catch (e) {
-        logger.error(`[Dead Stock Tool] Failed to generate report for company ${input.companyId}`, e);
-        return [];
+        logError(e, { context: `[Dead Stock Tool] Failed to generate report for company ${input.companyId}` });
+        throw new Error('An error occurred while trying to generate the dead stock report.');
     }
   }
 );

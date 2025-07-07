@@ -27,7 +27,7 @@ export type UniversalChatInput = z.infer<typeof UniversalChatInputSchema>;
 // Output schema for the universal chat flow
 export const UniversalChatOutputSchema = z.object({
   response: z.string().describe("The natural language response to the user."),
-  data: z.array(z.record(z.string(), z.unknown())).optional().nullable().describe("The raw data retrieved from the database, if any, for visualizations."),
+  data: z.any().optional().nullable().describe("The raw data retrieved from the database, if any. This could be an array of objects or a single object."),
   visualization: z.object({
     type: z.enum(['table', 'bar', 'pie', 'line', 'treemap', 'scatter', 'none']),
     title: z.string().optional(),

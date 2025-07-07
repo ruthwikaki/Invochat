@@ -1,5 +1,4 @@
 
-
 'use server';
 
 /**
@@ -249,7 +248,7 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
         return [];
     }
     
-    const result = z.array(DeadStockItemSchema.partial()).safeParse(data || []);
+    const result = z.array(DeadStockItemSchema.partial()).safeParse(data ?? []);
     if (!result.success) {
         logError(result.error, {context: 'Zod parsing error for dead stock data'});
         return [];
@@ -322,7 +321,7 @@ export async function getSuppliersFromDB(companyId: string) {
             throw new Error(`Could not load supplier data: ${error.message}`);
         }
         
-        const result = z.array(SupplierSchema).parse(data || []);
+        const result = z.array(SupplierSchema).parse(data ?? []);
 
         if (isRedisEnabled) {
         try {
@@ -351,11 +350,15 @@ export async function getPurchaseOrdersFromDB(companyId: string, params: { query
             throw new Error(`Could not load purchase order data: ${error.message}`);
         }
         
-        const result = data as { items: any[], totalCount: number };
+        const RpcResponseSchema = z.object({
+            items: z.array(PurchaseOrderSchema.partial()),
+            totalCount: z.number().int(),
+        });
+        const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });
 
         return {
-            items: z.array(PurchaseOrderSchema.partial()).parse(result.items || []),
-            totalCount: result.totalCount || 0,
+            items: parsedData.items,
+            totalCount: parsedData.totalCount,
         };
      });
 }
@@ -650,7 +653,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
             throw new Error(`Failed to generate anomaly insights: ${error.message}`);
         }
 
-        return z.array(AnomalySchema).parse(data || []);
+        return z.array(AnomalySchema).parse(data ?? []);
     });
 }
 
@@ -800,7 +803,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw new Error(`Could not generate reorder suggestions: ${error.message}`);
         }
 
-        const parsedData = z.array(ReorderSuggestionSchema).safeParse(data || []);
+        const parsedData = z.array(ReorderSuggestionSchema).safeParse(data ?? []);
         if (!parsedData.success) {
             logError(parsedData.error, { context: 'Zod parsing error for reorder suggestions' });
             return [];
@@ -830,7 +833,7 @@ export async function getHistoricalSalesForSkus(
             throw error;
         }
 
-        return data || [];
+        return data ?? [];
     });
 }
 
@@ -848,7 +851,7 @@ export async function getChannelFeesFromDB(companyId: string): Promise<ChannelFe
             logError(error, { context: `Error fetching channel fees for company ${companyId}` });
             throw error;
         }
-        return z.array(ChannelFeeSchema).parse(data || []);
+        return z.array(ChannelFeeSchema).parse(data ?? []);
     });
 }
 
@@ -895,7 +898,7 @@ export async function getLocationsFromDB(companyId: string): Promise<Location[]>
             logError(error, { context: 'getLocationsFromDB' });
             throw error;
         }
-        return z.array(LocationSchema).parse(data || []);
+        return z.array(LocationSchema).parse(data ?? []);
     });
 }
 
@@ -1180,7 +1183,7 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
         on_time_delivery_rate: z.coerce.number(),
         average_delivery_variance_days: z.coerce.number(),
         average_lead_time_days: z.coerce.number(),
-    })).safeParse(data || []);
+    })).safeParse(data ?? []);
 
     if (!parsedData.success) {
         logError(parsedData.error, { context: 'Zod parsing error for supplier performance report' });
@@ -1210,11 +1213,35 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             throw new Error(`Could not load inventory data: ${error.message}`);
         }
         
-        const result = data as { items: UnifiedInventoryItem[], totalCount: number };
+        const UnifiedInventoryItemSchema = z.object({
+            sku: z.string(),
+            product_name: z.string(),
+            category: z.string().nullable(),
+            quantity: z.number(),
+            cost: z.number(),
+            price: z.number().nullable(),
+            total_value: z.number(),
+            reorder_point: z.number().nullable(),
+            on_order_quantity: z.number(),
+            landed_cost: z.number().nullable(),
+            barcode: z.string().nullable(),
+            location_id: z.string().uuid().nullable(),
+            location_name: z.string().nullable(),
+            monthly_units_sold: z.number(),
+            monthly_profit: z.number(),
+            version: z.number(),
+        });
+
+        const RpcResponseSchema = z.object({
+            items: z.array(UnifiedInventoryItemSchema),
+            totalCount: z.number().int(),
+        });
+        
+        const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });
         
         return {
-            items: result.items || [],
-            totalCount: result.totalCount || 0,
+            items: parsedData.items,
+            totalCount: parsedData.totalCount,
         };
     });
 }
@@ -1234,7 +1261,7 @@ export async function getInventoryLedgerForSkuFromDB(companyId: string, sku: str
             throw error;
         }
 
-        return z.array(InventoryLedgerEntrySchema).parse(data || []);
+        return z.array(InventoryLedgerEntrySchema).parse(data ?? []);
     });
 }
 
@@ -1318,11 +1345,15 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
             throw new Error(`Could not load customer data: ${error.message}`);
         }
         
-        const result = data as { items: Customer[], totalCount: number };
+        const RpcResponseSchema = z.object({
+            items: z.array(CustomerSchema),
+            totalCount: z.number().int(),
+        });
+        const parsedData = RpcResponseSchema.parse(data ?? { items: [], totalCount: 0 });
         
         return {
-            items: z.array(CustomerSchema).parse(result.items || []),
-            totalCount: result.totalCount || 0,
+            items: parsedData.items,
+            totalCount: parsedData.totalCount,
         };
     });
 }
