@@ -26,6 +26,7 @@ BEGIN
 END$$;
 
 -- Step 3: Tables and Indexes
+-- This section includes ALL required tables for the application.
 -- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -109,6 +110,31 @@ CREATE TABLE IF NOT EXISTS public.vendors (
     UNIQUE(company_id, vendor_name)
 );
 
+CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
+    sku text NOT NULL,
+    supplier_sku text,
+    product_name text,
+    unit_cost numeric(10,2) NOT NULL,
+    moq integer DEFAULT 1,
+    lead_time_days integer,
+    is_active boolean DEFAULT true,
+    created_at timestamptz DEFAULT now(),
+    UNIQUE(supplier_id, sku)
+);
+
+CREATE TABLE IF NOT EXISTS public.reorder_rules (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    sku text NOT NULL,
+    rule_type text DEFAULT 'manual',
+    min_stock integer,
+    max_stock integer,
+    reorder_quantity integer,
+    UNIQUE(company_id, sku)
+);
+
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -162,7 +188,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
     notes text,
     created_at timestamptz DEFAULT now(),
     created_by uuid REFERENCES auth.users(id),
-    external_id text
+    external_id text,
+    UNIQUE(company_id, sale_number)
 );
 CREATE INDEX IF NOT EXISTS idx_sales_company_id ON public.sales(company_id);
 
@@ -175,6 +202,31 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     unit_price numeric(10,2) NOT NULL,
     cost_at_time numeric(10,2),
     UNIQUE(sale_id, sku)
+);
+
+CREATE TABLE IF NOT EXISTS public.conversations (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    last_accessed_at timestamptz DEFAULT now(),
+    is_starred boolean DEFAULT false
+);
+
+CREATE TABLE IF NOT EXISTS public.messages (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    role text NOT NULL,
+    content text,
+    component text,
+    component_props jsonb,
+    visualization jsonb,
+    confidence numeric(3,2),
+    assumptions text[],
+    created_at timestamptz DEFAULT now(),
+    is_error boolean DEFAULT false
 );
 
 CREATE TABLE IF NOT EXISTS public.integrations (
@@ -359,8 +411,7 @@ BEGIN
 END;
 $$;
 
--- All other functions from previous attempts have been consolidated or fixed below.
--- Recreating all functions ensures they are correct.
+
 DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
 RETURNS TABLE(category text)
@@ -368,140 +419,14 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT i.category
+    SELECT DISTINCT i.category::text
     FROM inventory i
     WHERE i.company_id = p_company_id
     AND i.category IS NOT NULL
     AND i.category <> ''
-    ORDER BY category;
+    ORDER BY i.category::text;
 END;
 $$;
-
-
-DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer);
-CREATE OR REPLACE FUNCTION public.get_unified_inventory(
-    p_company_id uuid,
-    p_query text DEFAULT NULL,
-    p_category text DEFAULT NULL,
-    p_location_id uuid DEFAULT NULL,
-    p_supplier_id uuid DEFAULT NULL,
-    p_sku_filter text DEFAULT NULL,
-    p_limit integer DEFAULT 50,
-    p_offset integer DEFAULT 0
-)
-RETURNS TABLE(items json, total_count bigint)
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    result_items json;
-    total_count_result bigint;
-BEGIN
-    WITH filtered_inventory AS (
-        SELECT 
-            i.sku,
-            i.name as product_name,
-            i.category,
-            i.quantity,
-            i.cost,
-            i.price,
-            (i.quantity * i.cost) as total_value,
-            i.reorder_point,
-            i.on_order_quantity,
-            i.landed_cost,
-            i.barcode,
-            i.location_id,
-            l.name as location_name,
-            COALESCE(
-                (SELECT SUM(si.quantity) 
-                 FROM public.sales s 
-                 JOIN public.sale_items si ON s.id = si.sale_id 
-                 WHERE si.sku = i.sku 
-                   AND s.company_id = i.company_id 
-                   AND s.created_at >= (NOW() - interval '30 days')
-                ), 0
-            ) as monthly_units_sold,
-            COALESCE(
-                (SELECT SUM(si.quantity * (si.unit_price - i.cost))
-                 FROM public.sales s 
-                 JOIN public.sale_items si ON s.id = si.sale_id 
-                 WHERE si.sku = i.sku 
-                   AND s.company_id = i.company_id 
-                   AND s.created_at >= (NOW() - interval '30 days')
-                ), 0
-            ) as monthly_profit,
-            i.version
-        FROM inventory i
-        LEFT JOIN locations l ON i.location_id = l.id
-        WHERE i.company_id = p_company_id
-            AND i.deleted_at IS NULL
-            AND (p_query IS NULL OR (
-                i.sku ILIKE '%' || p_query || '%' OR
-                i.name ILIKE '%' || p_query || '%' OR
-                i.barcode ILIKE '%' || p_query || '%'
-            ))
-            AND (p_category IS NULL OR i.category = p_category)
-            AND (p_location_id IS NULL OR i.location_id = p_location_id)
-            AND (p_supplier_id IS NULL OR EXISTS (
-                SELECT 1 FROM supplier_catalogs sc 
-                WHERE sc.sku = i.sku AND sc.supplier_id = p_supplier_id
-            ))
-            AND (p_sku_filter IS NULL OR i.sku = p_sku_filter)
-    ),
-    count_query AS (
-        SELECT count(*) as total FROM filtered_inventory
-    )
-    SELECT 
-        (SELECT COALESCE(json_agg(fi.*), '[]'::json) FROM (SELECT * FROM filtered_inventory ORDER BY product_name LIMIT p_limit OFFSET p_offset) fi),
-        (SELECT total FROM count_query)
-    INTO result_items, total_count_result;
-
-    RETURN QUERY SELECT result_items, total_count_result;
-END;
-$$;
-
-
-DROP FUNCTION IF EXISTS public.get_customers_with_stats(uuid, text, integer, integer);
-CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
-    p_company_id uuid,
-    p_query text DEFAULT NULL,
-    p_limit integer DEFAULT 50,
-    p_offset integer DEFAULT 0
-)
-RETURNS json
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    result_json json;
-BEGIN
-    WITH customer_stats AS (
-        SELECT
-            c.id, c.company_id, c.platform, c.external_id, c.customer_name,
-            c.email, c.status, c.deleted_at, c.created_at,
-            COUNT(s.id) as total_sales,
-            COALESCE(SUM(s.total_amount), 0) as total_spend
-        FROM public.customers c
-        LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
-        WHERE c.company_id = p_company_id
-          AND c.deleted_at IS NULL
-          AND (
-            p_query IS NULL OR
-            c.customer_name ILIKE '%' || p_query || '%' OR
-            c.email ILIKE '%' || p_query || '%'
-          )
-        GROUP BY c.id
-    ),
-    count_query AS (SELECT count(*) as total FROM customer_stats)
-    SELECT json_build_object(
-        'items', COALESCE((SELECT json_agg(cs) FROM (
-            SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
-        ) cs), '[]'::json),
-        'totalCount', (SELECT total FROM count_query)
-    ) INTO result_json;
-    
-    RETURN result_json;
-END;
-$$;
-
 
 DROP FUNCTION IF EXISTS public.get_alerts(uuid, integer, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_alerts(
@@ -517,7 +442,7 @@ BEGIN
     RETURN QUERY
     -- Low Stock Alerts
     SELECT
-        'low_stock'::text, i.sku, i.name, i.quantity, i.reorder_point,
+        'low_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
     FROM inventory i
     WHERE i.company_id = p_company_id AND i.reorder_point IS NOT NULL AND i.quantity <= i.reorder_point AND i.quantity > 0 AND i.deleted_at IS NULL
@@ -526,10 +451,10 @@ BEGIN
 
     -- Dead Stock Alerts
     SELECT
-        'dead_stock'::text, i.sku, i.name, i.quantity, i.reorder_point,
+        'dead_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
     FROM inventory i
-    WHERE i.company_id = p_company_id AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval) AND i.deleted_at IS NULL
+    WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.last_sold_date IS NOT NULL AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval)
 
     UNION ALL
 
@@ -545,7 +470,7 @@ BEGIN
           GROUP BY si.sku
         )
         SELECT
-            'predictive'::text, i.sku, i.name, i.quantity, i.reorder_point,
+            'predictive'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
             i.last_sold_date, (i.quantity * i.cost), (i.quantity / sv.daily_sales)
         FROM inventory i
         JOIN sales_velocity sv ON i.sku = sv.sku
@@ -553,7 +478,6 @@ BEGIN
     );
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid);
 CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
@@ -619,6 +543,11 @@ ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.supplier_catalogs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reorder_rules ENABLE ROW LEVEL SECURITY;
+
 
 DROP POLICY IF EXISTS "Users can only see their own company" ON public.companies;
 CREATE POLICY "Users can only see their own company" ON public.companies FOR SELECT USING (id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
@@ -665,6 +594,18 @@ CREATE POLICY "Users can manage fees for their own company" ON public.channel_fe
 DROP POLICY IF EXISTS "Users can manage export jobs for their own company" ON public.export_jobs;
 CREATE POLICY "Users can manage export jobs for their own company" ON public.export_jobs FOR ALL USING (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
 
+DROP POLICY IF EXISTS "Users can manage their own conversations" ON public.conversations;
+CREATE POLICY "Users can manage their own conversations" ON public.conversations FOR ALL USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "Users can manage their own messages" ON public.messages;
+CREATE POLICY "Users can manage their own messages" ON public.messages FOR ALL USING (conversation_id IN (SELECT id FROM conversations WHERE user_id = auth.uid()));
+
+DROP POLICY IF EXISTS "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs;
+CREATE POLICY "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs FOR ALL USING (supplier_id IN (SELECT id FROM vendors WHERE company_id = (SELECT company_id FROM users WHERE id = auth.uid())));
+
+DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
+CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+
 
 -- Step 8: Grant Permissions
 -- -----------------------------------------------------------------
@@ -677,3 +618,5 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 -- =================================================================
 -- SCRIPT COMPLETE
 -- =================================================================
+
+      
