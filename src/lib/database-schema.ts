@@ -197,7 +197,7 @@ BEGIN
             i.name as product_name,
             COALESCE(SUM(si.quantity * si.unit_price), 0) as revenue
         FROM inventory i
-        LEFT JOIN sale_items si ON i.sku = i.sku
+        LEFT JOIN sale_items si ON i.sku = si.sku
         LEFT JOIN sales s ON si.sale_id = s.id AND s.company_id = p_company_id
         WHERE i.company_id = p_company_id 
         AND i.deleted_at IS NULL
@@ -569,6 +569,7 @@ GRANT EXECUTE ON FUNCTION public.get_historical_sales TO anon, authenticated;
 -- =====================================================
 -- FIX: Handle dependent objects before dropping tables
 -- =====================================================
+
 DO $$ 
 BEGIN
     -- Drop the foreign key constraint if it exists
@@ -589,6 +590,7 @@ END $$;
 -- =====================================================
 -- Create Sales Tables (if they don't already exist)
 -- =====================================================
+
 CREATE TABLE IF NOT EXISTS public.sales (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_id UUID NOT NULL REFERENCES companies(id),
@@ -828,32 +830,34 @@ BEGIN
       AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval)
 
     UNION ALL
-    
+
     -- Predictive Stockout Alerts
-    WITH sales_velocity AS (
-      SELECT
-        si.sku,
-        SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
-      FROM sale_items si
-      JOIN sales s ON si.sale_id = s.id
-      WHERE s.company_id = p_company_id
-        AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
-      GROUP BY si.sku
-    )
-    SELECT
-        'predictive'::text as type,
-        i.sku,
-        i.name::text as product_name,
-        i.quantity::integer as current_stock,
-        i.reorder_point::integer,
-        i.last_sold_date::date,
-        (i.quantity * i.cost)::numeric as value,
-        (i.quantity / sv.daily_sales)::numeric as days_of_stock_remaining
-    FROM inventory i
-    JOIN sales_velocity sv ON i.sku = sv.sku
-    WHERE i.company_id = p_company_id
-      AND sv.daily_sales > 0
-      AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days;
+    (
+        WITH sales_velocity AS (
+        SELECT
+            si.sku,
+            SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE s.company_id = p_company_id
+            AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+        GROUP BY si.sku
+        )
+        SELECT
+            'predictive'::text as type,
+            i.sku,
+            i.name::text as product_name,
+            i.quantity::integer as current_stock,
+            i.reorder_point::integer,
+            i.last_sold_date::date,
+            (i.quantity * i.cost)::numeric as value,
+            (i.quantity / sv.daily_sales)::numeric as days_of_stock_remaining
+        FROM inventory i
+        JOIN sales_velocity sv ON i.sku = sv.sku
+        WHERE i.company_id = p_company_id
+        AND sv.daily_sales > 0
+        AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days
+    );
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.get_alerts(uuid, integer, integer, integer) TO authenticated;
@@ -891,4 +895,5 @@ GRANT EXECUTE ON FUNCTION public.get_dead_stock_alerts_data(uuid, integer) TO au
 -- =====================================================
 -- Script completed successfully!
 -- =====================================================
-``` the correct file? i ran it and I am still getting the same error
+
+    
