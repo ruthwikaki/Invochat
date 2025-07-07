@@ -518,7 +518,7 @@ BEGIN
                 LIMIT 5
             ) top_spend
         ), '[]'::json),
-        'top_customers_by_orders', COALESCE((
+        'top_customers_by_sales', COALESCE((
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_orders))
             FROM (
                 SELECT customer_name, total_orders
@@ -895,5 +895,3 @@ GRANT EXECUTE ON FUNCTION public.get_dead_stock_alerts_data(uuid, integer) TO au
 -- =====================================================
 -- Script completed successfully!
 -- =====================================================
-
-    

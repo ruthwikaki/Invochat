@@ -372,7 +372,7 @@ export const CustomerAnalyticsSchema = z.object({
     average_lifetime_value: z.number(),
     repeat_customer_rate: z.number(),
     top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
-    top_customers_by_orders: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
+    top_customers_by_sales: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
