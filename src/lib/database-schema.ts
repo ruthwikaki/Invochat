@@ -1,4 +1,5 @@
 
+
 export const SETUP_SQL_SCRIPT = `-- =================================================================
 -- INVOCHAT - THE COMPLETE & IDEMPOTENT DATABASE SETUP SCRIPT
 -- =================================================================
@@ -329,7 +330,7 @@ WITH customer_stats AS (
         COUNT(s.id) as total_orders,
         SUM(s.total_amount) as total_spent
     FROM public.customers c
-    JOIN public.sales s ON c.customer_id = s.customer_id
+    JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
     WHERE c.deleted_at IS NULL
     GROUP BY c.company_id, c.id
 )
@@ -712,21 +713,15 @@ DECLARE
 BEGIN
     WITH customer_stats AS (
         SELECT
-            c.id,
             c.company_id,
-            c.platform,
-            c.external_id,
-            c.customer_name,
-            c.email,
-            c.status,
-            c.deleted_at,
-            c.created_at,
+            c.id,
+            MIN(s.created_at) as first_order_date,
             COUNT(s.id) as total_orders,
-            COALESCE(SUM(s.total_amount), 0) as total_spent
+            SUM(s.total_amount) as total_spent
         FROM public.customers c
-        LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
+        JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
         WHERE c.company_id = p_company_id AND c.deleted_at IS NULL
-        GROUP BY c.id
+        GROUP BY c.company_id, c.id
     ),
     analytics_view AS (
         SELECT * FROM public.customer_analytics_metrics WHERE company_id = p_company_id
