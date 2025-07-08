@@ -516,7 +516,7 @@ BEGIN
         SELECT
             s.created_at::date AS stat_date,
             SUM(s.total_amount) AS revenue,
-            COUNT(DISTINCT s.customer_id) AS customers
+            COUNT(DISTINCT s.customer_email) AS customers
         FROM public.sales s
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '30 days'
         GROUP BY s.created_at::date
@@ -713,15 +713,21 @@ DECLARE
 BEGIN
     WITH customer_stats AS (
         SELECT
-            c.company_id,
             c.id,
-            MIN(s.created_at) as first_order_date,
+            c.company_id,
+            c.platform,
+            c.external_id,
+            c.customer_name,
+            c.email,
+            c.status,
+            c.deleted_at,
+            c.created_at,
             COUNT(s.id) as total_orders,
-            SUM(s.total_amount) as total_spent
+            COALESCE(SUM(s.total_amount), 0) as total_spent
         FROM public.customers c
-        JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
+        LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
         WHERE c.company_id = p_company_id AND c.deleted_at IS NULL
-        GROUP BY c.company_id, c.id
+        GROUP BY c.id
     ),
     analytics_view AS (
         SELECT * FROM public.customer_analytics_metrics WHERE company_id = p_company_id
