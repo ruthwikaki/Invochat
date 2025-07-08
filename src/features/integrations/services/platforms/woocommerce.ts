@@ -6,6 +6,7 @@ import { logError } from '@/lib/error-handler';
 import type { Integration } from '../../types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
+import { getSecret } from '../encryption';
 
 const RATE_LIMIT_DELAY = 500; // 500ms delay between requests
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -144,11 +145,12 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
 export async function runWooCommerceFullSync(integration: Integration) {
     const supabase = getServiceRoleClient();
     try {
-        if (!integration.access_token || !integration.shop_domain) {
+        const credentialsJson = await getSecret(integration.company_id, 'woocommerce');
+        if (!credentialsJson || !integration.shop_domain) {
             throw new Error('WooCommerce credentials or store URL are missing.');
         }
 
-        const credentials = JSON.parse(integration.access_token);
+        const credentials = JSON.parse(credentialsJson);
         if (!credentials.consumerKey || !credentials.consumerSecret) {
             throw new Error('Invalid WooCommerce credentials format.');
         }

@@ -9,7 +9,6 @@ export type Integration = {
   shop_domain: string | null;
   shop_name: string | null;
   is_active: boolean;
-  access_token: string | null;
   last_sync_at: string | null;
   sync_status: 'syncing_products' | 'syncing_sales' | 'syncing' | 'success' | 'failed' | 'idle' | null;
   created_at: string;

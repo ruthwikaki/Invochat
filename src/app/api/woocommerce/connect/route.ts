@@ -6,6 +6,7 @@ import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Platform } from '@/features/integrations/types';
+import { createOrUpdateSecret } from '@/features/integrations/services/encryption';
 
 const connectSchema = z.object({
   storeUrl: z.string().url({ message: 'Please enter a valid store URL (e.g., https://your-store.com).' }),
@@ -42,6 +43,8 @@ export async function POST(request: Request) {
         const { storeUrl, consumerKey, consumerSecret } = parsed.data;
         
         const credentialsToStore = JSON.stringify({ consumerKey, consumerSecret });
+        // Securely store credentials in the vault
+        await createOrUpdateSecret(companyId, platform, credentialsToStore);
 
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
@@ -53,7 +56,6 @@ export async function POST(request: Request) {
                 shop_name: new URL(storeUrl).hostname,
                 is_active: true,
                 sync_status: 'idle',
-                access_token: credentialsToStore,
             }, { onConflict: 'company_id, platform' })
             .select()
             .single();

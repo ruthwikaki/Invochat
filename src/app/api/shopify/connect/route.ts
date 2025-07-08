@@ -6,6 +6,7 @@ import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Platform } from '@/features/integrations/types';
+import { createOrUpdateSecret } from '@/features/integrations/services/encryption';
 
 const connectSchema = z.object({
   storeUrl: z.string().url({ message: 'Please enter a valid store URL (e.g., https://your-store.myshopify.com).' }),
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
         if (!shopData?.shop?.name) {
             throw new Error('Could not verify Shopify credentials. Response was invalid.');
         }
+
+        // Securely store the token in the vault
+        await createOrUpdateSecret(companyId, platform, accessToken);
         
         const shopName = shopData.shop.name;
         
@@ -75,7 +79,6 @@ export async function POST(request: Request) {
                 shop_name: shopName,
                 is_active: true,
                 sync_status: 'idle',
-                access_token: accessToken, // Store token directly
             }, { onConflict: 'company_id, platform' })
             .select()
             .single();

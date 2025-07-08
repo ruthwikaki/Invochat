@@ -6,6 +6,7 @@ import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Platform } from '@/features/integrations/types';
+import { createOrUpdateSecret } from '@/features/integrations/services/encryption';
 
 const connectSchema = z.object({
   sellerId: z.string().min(1, { message: 'Seller ID cannot be empty.' }),
@@ -40,8 +41,9 @@ export async function POST(request: Request) {
         
         const { sellerId, authToken } = parsed.data;
 
-        // Store credentials as a JSON string directly in the access_token column.
         const credentialsToStore = JSON.stringify({ sellerId, authToken });
+        // Securely store credentials in the vault
+        await createOrUpdateSecret(companyId, platform, credentialsToStore);
         
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase
@@ -52,7 +54,6 @@ export async function POST(request: Request) {
                 shop_name: `Amazon Seller (${sellerId.slice(-4)})`,
                 is_active: true,
                 sync_status: 'idle',
-                access_token: credentialsToStore,
             }, { onConflict: 'company_id, platform' })
             .select()
             .single();

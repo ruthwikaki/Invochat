@@ -6,6 +6,7 @@ import { logError } from '@/lib/error-handler';
 import type { Integration } from '../../types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
+import { getSecret } from '../encryption';
 
 // Since this is a simulation, we'll create some mock data.
 const MOCK_FBA_PRODUCTS = [
@@ -80,11 +81,12 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
 export async function runAmazonFbaFullSync(integration: Integration) {
     const supabase = getServiceRoleClient();
     try {
-        if (!integration.access_token) {
+        const credentialsJson = await getSecret(integration.company_id, 'amazon_fba');
+        if (!credentialsJson) {
             throw new Error('Could not retrieve Amazon FBA credentials.');
         }
         
-        const credentials = JSON.parse(integration.access_token);
+        const credentials = JSON.parse(credentialsJson);
         
         logger.info(`[Sync] Starting product sync for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_products' }).eq('id', integration.id);
