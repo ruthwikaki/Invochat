@@ -246,7 +246,7 @@ async function getRawDeadStockData(companyId: string, settings: CompanySettings)
         return [];
     }
     
-    const result = z.array(DeadStockItemSchema.partial()).safeParse(data ?? []);
+    const result = z.array(DeadStockItemSchema.partial()).safeParse(data || []);
     if (!result.success) {
         logError(result.error, {context: 'Zod parsing error for dead stock data'});
         return [];
@@ -319,7 +319,7 @@ export async function getSuppliersFromDB(companyId: string) {
             throw new Error(`Could not load supplier data: ${error.message}`);
         }
         
-        const result = z.array(SupplierSchema).parse(data ?? []);
+        const result = z.array(SupplierSchema).parse(data || []);
 
         if (isRedisEnabled) {
         try {
@@ -657,7 +657,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
             throw new Error(`Failed to generate anomaly insights: ${error.message}`);
         }
 
-        return z.array(AnomalySchema).parse(data ?? []);
+        return z.array(AnomalySchema).parse(data || []);
     });
 }
 
@@ -693,7 +693,7 @@ export async function getTeamMembersFromDB(companyId: string): Promise<TeamMembe
             logError(error, { context: `Error fetching team members for company ${companyId}` });
             throw error;
         }
-        return data as TeamMember[];
+        return (data ?? []) as TeamMember[];
     });
 }
 
@@ -855,7 +855,7 @@ export async function getChannelFeesFromDB(companyId: string): Promise<ChannelFe
             logError(error, { context: `Error fetching channel fees for company ${companyId}` });
             throw error;
         }
-        return z.array(ChannelFeeSchema).parse(data ?? []);
+        return z.array(ChannelFeeSchema).parse(data || []);
     });
 }
 
@@ -902,7 +902,7 @@ export async function getLocationsFromDB(companyId: string): Promise<Location[]>
             logError(error, { context: 'getLocationsFromDB' });
             throw error;
         }
-        return z.array(LocationSchema).parse(data ?? []);
+        return z.array(LocationSchema).parse(data || []);
     });
 }
 
@@ -1342,7 +1342,7 @@ export async function getInventoryLedgerForSkuFromDB(companyId: string, sku: str
             throw error;
         }
 
-        return z.array(InventoryLedgerEntrySchema).parse(data ?? []);
+        return z.array(InventoryLedgerEntrySchema).parse(data || []);
     });
 }
 
@@ -1452,7 +1452,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
             logError(error, { context: `Error fetching customer analytics for company ${companyId}` });
             throw error;
         }
-        return CustomerAnalyticsSchema.parse(data ?? {});
+        return CustomerAnalyticsSchema.parse(data || {});
     });
 }
 
@@ -1474,7 +1474,7 @@ export async function searchProductsForSaleInDB(companyId: string, query: string
         return [];
     }
 
-    return data.map(item => ({
+    return (data || []).map(item => ({
         sku: item.sku,
         product_name: item.name,
         price: item.price,
@@ -1534,7 +1534,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
         throw new Error(`Could not load sales data: ${error.message}`);
     }
     return {
-        items: z.array(SaleSchema).parse(data ?? []),
+        items: z.array(SaleSchema).parse(data || []),
         totalCount: count ?? 0,
     };
   });
