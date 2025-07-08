@@ -1,4 +1,3 @@
-
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -149,14 +148,6 @@ export function AppSidebar() {
               <Link href="/import" prefetch={false}>
                 <Upload />
                 <span>Data Importer</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname === '/database-setup'}>
-              <Link href="/database-setup" prefetch={false}>
-                <DatabaseZap />
-                <span>Database Setup</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
