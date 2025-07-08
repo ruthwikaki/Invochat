@@ -730,10 +730,10 @@ BEGIN
         SELECT * FROM public.customer_analytics_metrics WHERE company_id = p_company_id
     )
     SELECT json_build_object(
-        'total_customers', (SELECT total_customers FROM analytics_view),
-        'new_customers_last_30_days', (SELECT new_customers_last_30_days FROM analytics_view),
-        'average_lifetime_value', (SELECT average_lifetime_value FROM analytics_view),
-        'repeat_customer_rate', (SELECT repeat_customer_rate / 100.0 FROM analytics_view),
+        'total_customers', COALESCE((SELECT total_customers FROM analytics_view), 0),
+        'new_customers_last_30_days', COALESCE((SELECT new_customers_last_30_days FROM analytics_view), 0),
+        'average_lifetime_value', COALESCE((SELECT average_lifetime_value FROM analytics_view), 0),
+        'repeat_customer_rate', COALESCE((SELECT repeat_customer_rate / 100.0 FROM analytics_view), 0),
         'top_customers_by_spend', COALESCE((
             SELECT json_agg(json_build_object('name', customer_name, 'value', total_spent))
             FROM (
@@ -1695,3 +1695,7 @@ CREATE TRIGGER validate_sale_items_company
 -- =================================================================
 -- SCRIPT COMPLETE
 -- =================================================================
+
+
+
+
