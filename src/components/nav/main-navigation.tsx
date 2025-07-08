@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -18,6 +19,7 @@ import {
   Settings,
   Users,
   ShoppingCart,
+  ShieldCheck,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -36,6 +38,7 @@ const menuItems = [
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
   { href: '/locations', label: 'Locations', icon: Warehouse },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
+  { href: '/test-supabase', label: 'System Health', icon: ShieldCheck },
 ];
 
 export function MainNavigation() {
