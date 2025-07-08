@@ -38,7 +38,6 @@ const menuItems = [
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
   { href: '/locations', label: 'Locations', icon: Warehouse },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
-  { href: '/test-supabase', label: 'System Health', icon: ShieldCheck },
 ];
 
 export function MainNavigation() {

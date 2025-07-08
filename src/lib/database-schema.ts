@@ -374,8 +374,8 @@ BEGIN
   
   -- Update the user's app_metadata in auth.users
   UPDATE auth.users
-  SET app_metadata = jsonb_set(
-      COALESCE(app_metadata, '{}'::jsonb),
+  SET raw_app_meta_data = jsonb_set(
+      COALESCE(raw_app_meta_data, '{}'::jsonb),
       '{company_id}',
       to_jsonb(new_company_id)
   ) || jsonb_build_object('role', user_role)
@@ -1700,4 +1700,3 @@ CREATE TRIGGER validate_sale_items_company
 
 
 
-`;
