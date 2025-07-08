@@ -42,8 +42,8 @@ export default async function RootLayout({
       <body className={cn('font-body antialiased', inter.variable)}>
         <ThemeProvider
             attribute="class"
-            defaultTheme="dark"
-            enableSystem={false}
+            defaultTheme="system"
+            enableSystem
             disableTransitionOnChange
         >
             <AuthProvider>
