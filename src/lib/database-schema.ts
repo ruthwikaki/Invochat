@@ -803,7 +803,7 @@ BEGIN
     )
     SELECT json_build_object(
         'items', COALESCE((SELECT json_agg(cs) FROM (
-            SELECT * FROM customer_stats ORDER BY total_spend DESC LIMIT p_limit OFFSET p_offset
+            SELECT * FROM customer_stats ORDER BY total_spent DESC LIMIT p_limit OFFSET p_offset
         ) cs), '[]'::json),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
@@ -839,7 +839,7 @@ BEGIN
             COUNT(DISTINCT s.id) as daily_orders
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
-        LEFT JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+        LEFT JOIN inventory i ON si.sku = si.sku AND s.company_id = i.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= start_date
         GROUP BY 1
     ),
