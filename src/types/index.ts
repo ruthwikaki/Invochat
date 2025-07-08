@@ -29,7 +29,7 @@ export type Message = {
   component?: 'deadStockTable' | 'reorderList' | 'supplierPerformanceTable' | 'confirmation';
   componentProps?: Record<string, any>; // Loosened to allow for various component props
   visualization?: {
-    type: 'table' | 'chart' | 'alert';
+    type: 'table' | 'chart' | 'alert' | 'none';
     data: Record<string, unknown>[];
     config?: {
         title?: string;
@@ -118,7 +118,7 @@ export const CompanySettingsSchema = z.object({
   tax_rate: z.number().nullable().optional().default(0),
   custom_rules: z.record(z.unknown()).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
-  updated_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }).nullable(),
 });
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 

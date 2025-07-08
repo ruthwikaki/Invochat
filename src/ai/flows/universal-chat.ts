@@ -96,64 +96,77 @@ const universalChatOrchestrator = ai.defineFlow(
     
     const aiModel = config.ai.model;
     
-    // Step 1: Let the AI decide if a tool is needed.
-    const { toolCalls } = await ai.generate({
-      model: aiModel,
-      tools: allTools,
-      history: conversationHistory.slice(0, -1),
-      prompt: `The user's company ID is ${companyId}. Use this when calling any tool that requires a companyId. User's question: "${userQuery}"`,
-    });
-    
-    // Step 2: If a tool is chosen, execute it.
-    if (toolCalls && toolCalls.length > 0) {
-        const toolCall = toolCalls[0];
-        logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCall.name}`);
+    try {
+        // Step 1: Let the AI decide if a tool is needed.
+        const { toolCalls } = await ai.generate({
+          model: aiModel,
+          tools: allTools,
+          history: conversationHistory.slice(0, -1),
+          prompt: `The user's company ID is ${companyId}. Use this when calling any tool that requires a companyId. User's question: "${userQuery}"`,
+        });
         
-        try {
-            const toolResult = await ai.runTool(toolCall);
+        // Step 2: If a tool is chosen, execute it.
+        if (toolCalls && toolCalls.length > 0) {
+            const toolCall = toolCalls[0];
+            logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCall.name}`);
             
-            // Step 3: Use a second AI call to formulate a natural language response from the tool's data.
-            const { output: finalOutput } = await finalResponsePrompt(
-                { userQuery, toolResult: toolResult.output },
-                { model: aiModel }
-            );
+            try {
+                const toolResult = await ai.runTool(toolCall);
+                
+                // Step 3: Use a second AI call to formulate a natural language response from the tool's data.
+                const { output: finalOutput } = await finalResponsePrompt(
+                    { userQuery, toolResult: toolResult.output },
+                    { model: aiModel }
+                );
 
-            if (!finalOutput) {
-                throw new Error('The AI model did not return a valid final response object after tool use.');
-            }
-            
-            return {
-                ...finalOutput,
-                data: toolResult.output,
-                toolName: toolCall.name,
-            };
-        } catch (e) {
-            logError(e, { context: `Tool execution failed for '${toolCall.name}'` });
-            return {
-                response: `I tried to use a tool to answer your question, but it failed with the following error: ${getErrorMessage(e)}`,
-                data: [],
-                visualization: { type: 'none', title: '' },
-                confidence: 0.1,
-                assumptions: ['The tool needed to answer your question failed to execute.'],
+                if (!finalOutput) {
+                    throw new Error('The AI model did not return a valid final response object after tool use.');
+                }
+                
+                return {
+                    ...finalOutput,
+                    data: toolResult.output,
+                    toolName: toolCall.name,
+                };
+            } catch (e) {
+                logError(e, { context: `Tool execution failed for '${toolCall.name}'` });
+                return {
+                    response: `I tried to use a tool to answer your question, but it failed with the following error: ${getErrorMessage(e)}`,
+                    data: [],
+                    visualization: { type: 'none', title: '' },
+                    confidence: 0.1,
+                    assumptions: ['The tool needed to answer your question failed to execute.'],
+                }
             }
         }
+
+        // Step 4: If no tool is called, the AI should answer directly.
+        logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
+        const { text } = await ai.generate({
+            model: aiModel,
+            history: conversationHistory.slice(0, -1),
+            prompt: userQuery,
+        });
+
+        return {
+            response: text,
+            data: [],
+            visualization: { type: 'none', title: '' },
+            confidence: 0.5,
+            assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
+        };
+
+    } catch (e) {
+        logError(e, { context: `Universal Chat Flow failed for query: "${userQuery}"` });
+        return {
+            response: `I'm sorry, but I encountered an error while trying to generate a response. The AI service may be temporarily unavailable. Please try again in a few moments.`,
+            data: [],
+            visualization: { type: 'none', title: '' },
+            confidence: 0.0,
+            assumptions: ['An unexpected error occurred in the AI processing flow.'],
+            isError: true, // Custom flag to indicate an error state in the UI
+        } as any; // Cast to any to allow the `isError` flag
     }
-
-    // Step 4: If no tool is called, the AI should answer directly.
-    logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
-    const { text } = await ai.generate({
-        model: aiModel,
-        history: conversationHistory.slice(0, -1),
-        prompt: userQuery,
-    });
-
-    return {
-        response: text,
-        data: [],
-        visualization: { type: 'none', title: '' },
-        confidence: 0.5,
-        assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
-    };
   }
 );
 
