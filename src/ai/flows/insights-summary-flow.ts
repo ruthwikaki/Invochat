@@ -8,6 +8,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { AnomalySchema } from '@/types';
 import type { Anomaly } from '@/types';
+import { config } from '@/config/app-config';
 
 const InsightsInputSchema = z.object({
   anomalies: z.array(AnomalySchema).describe("A list of recent business anomalies (e.g., unusual spikes in revenue or customer count)."),
@@ -47,6 +48,6 @@ const insightsSummaryPrompt = ai.definePrompt({
 });
 
 export async function generateInsightsSummary(input: InsightsInput): Promise<string> {
-    const { output } = await insightsSummaryPrompt(input);
+    const { output } = await insightsSummaryPrompt(input, { model: config.ai.model });
     return output?.summary || "Could not generate a summary at this time.";
 }

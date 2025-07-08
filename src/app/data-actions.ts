@@ -46,8 +46,8 @@ import {
   createExportJobInDb,
   refreshMaterializedViews,
   getIntegrationsByCompanyId,
-  getServiceRoleClient
 } from '@/services/database';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import {
     generateAnomalyExplanation,
 } from '@/ai/flows/anomaly-explanation-flow';
