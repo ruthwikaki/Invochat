@@ -1452,7 +1452,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
             logError(error, { context: `Error fetching customer analytics for company ${companyId}` });
             throw error;
         }
-        return CustomerAnalyticsSchema.parse(data);
+        return CustomerAnalyticsSchema.parse(data ?? {});
     });
 }
 
