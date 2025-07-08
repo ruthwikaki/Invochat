@@ -1,4 +1,5 @@
--- =================================================================
+
+export const SETUP_SQL_SCRIPT = `-- =================================================================
 -- INVOCHAT - THE COMPLETE & IDEMPOTENT DATABASE SETUP SCRIPT
 -- =================================================================
 -- This script is designed to be run in its entirety. It sets up all
@@ -328,7 +329,7 @@ WITH customer_stats AS (
         COUNT(s.id) as total_orders,
         SUM(s.total_amount) as total_spent
     FROM public.customers c
-    JOIN public.sales s ON c.id = s.customer_id
+    JOIN public.sales s ON c.customer_id = s.customer_id
     WHERE c.deleted_at IS NULL
     GROUP BY c.company_id, c.id
 )
@@ -409,7 +410,6 @@ EXECUTE PROCEDURE increment_version();
 -- Step 6: All RPC Functions
 -- -----------------------------------------------------------------
 
-DROP FUNCTION IF EXISTS public.batch_upsert_with_transaction(text,jsonb,text[]);
 CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
     p_table_name text,
     p_records jsonb,
@@ -429,7 +429,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS public.refresh_materialized_views(uuid);
 CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -441,7 +440,6 @@ END;
 $$;
 
 
-DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
 RETURNS TABLE(category text)
 LANGUAGE plpgsql
@@ -457,7 +455,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_alerts(uuid, integer, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_alerts(
     p_company_id uuid,
     p_dead_stock_days integer,
@@ -508,7 +505,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
 RETURNS TABLE(date text, daily_revenue numeric, daily_customers bigint, avg_revenue numeric, avg_customers numeric, anomaly_type text, deviation_percentage numeric)
 LANGUAGE plpgsql
@@ -554,7 +550,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.check_inventory_references(uuid,text[]);
 CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_skus text[])
 RETURNS TABLE(sku text)
 LANGUAGE plpgsql
@@ -580,7 +575,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.create_purchase_order_and_update_inventory(uuid,uuid,text,date,date,text,numeric,jsonb);
 CREATE OR REPLACE FUNCTION public.create_purchase_order_and_update_inventory(
     p_company_id uuid,
     p_supplier_id uuid,
@@ -620,7 +614,6 @@ begin
 end;
 $$;
 
-DROP FUNCTION IF EXISTS public.delete_location_and_unassign_inventory(uuid,uuid);
 CREATE OR REPLACE FUNCTION public.delete_location_and_unassign_inventory(p_location_id uuid, p_company_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -631,7 +624,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.delete_purchase_order(uuid,uuid);
 CREATE OR REPLACE FUNCTION public.delete_purchase_order(p_po_id uuid, p_company_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -655,7 +647,6 @@ begin
 end;
 $$;
 
-DROP FUNCTION IF EXISTS public.delete_supplier_and_catalogs(uuid,uuid);
 CREATE OR REPLACE FUNCTION public.delete_supplier_and_catalogs(p_supplier_id uuid, p_company_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -669,7 +660,6 @@ begin
 end;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_abc_analysis(uuid);
 CREATE OR REPLACE FUNCTION public.get_abc_analysis(p_company_id uuid)
 RETURNS TABLE(sku text, product_name text, total_revenue numeric, percentage_of_total_revenue numeric, abc_category text)
 LANGUAGE plpgsql
@@ -713,7 +703,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_customer_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_customer_analytics(p_company_id uuid)
 RETURNS json
 LANGUAGE plpgsql
@@ -772,7 +761,6 @@ END;
 $$;
 
 
-DROP FUNCTION IF EXISTS public.get_customers_with_stats(uuid,text,integer,integer);
 CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -823,7 +811,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_dashboard_metrics(uuid,integer);
 CREATE OR REPLACE FUNCTION public.get_dashboard_metrics(
     p_company_id uuid,
     p_days integer DEFAULT 30
@@ -909,7 +896,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_dead_stock_alerts_data(uuid,integer);
 CREATE OR REPLACE FUNCTION public.get_dead_stock_alerts_data(p_company_id uuid, p_dead_stock_days integer)
 RETURNS TABLE(sku text, product_name text, quantity integer, cost numeric, total_value numeric, last_sale_date date)
 LANGUAGE plpgsql
@@ -932,7 +918,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_demand_forecast(uuid);
 CREATE OR REPLACE FUNCTION public.get_demand_forecast(p_company_id uuid)
 RETURNS TABLE(sku text, product_name text, forecast_30_days numeric)
 LANGUAGE plpgsql
@@ -974,7 +959,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_gross_margin_analysis(uuid);
 CREATE OR REPLACE FUNCTION public.get_gross_margin_analysis(p_company_id uuid)
 RETURNS TABLE(product_name text, sales_channel text, total_revenue numeric, total_cogs numeric, gross_margin_percentage numeric)
 LANGUAGE plpgsql
@@ -999,7 +983,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_historical_sales(uuid,text[]);
 CREATE OR REPLACE FUNCTION public.get_historical_sales(p_company_id uuid, p_skus text[])
 RETURNS TABLE(sku text, monthly_sales jsonb)
 LANGUAGE plpgsql
@@ -1026,7 +1009,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_inventory_ledger_for_sku(uuid,text);
 CREATE OR REPLACE FUNCTION public.get_inventory_ledger_for_sku(p_company_id uuid, p_sku text)
 RETURNS TABLE(id uuid, company_id uuid, sku text, created_at text, change_type text, quantity_change integer, new_quantity integer, related_id uuid, notes text)
 LANGUAGE plpgsql
@@ -1041,7 +1023,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_inventory_turnover_report(uuid,integer);
 CREATE OR REPLACE FUNCTION public.get_inventory_turnover_report(p_company_id uuid, p_days integer)
 RETURNS TABLE(turnover_rate numeric, total_cogs numeric, average_inventory_value numeric, period_days integer)
 LANGUAGE plpgsql
@@ -1073,7 +1054,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_margin_trends(uuid);
 CREATE OR REPLACE FUNCTION public.get_margin_trends(p_company_id uuid)
 RETURNS TABLE(month text, gross_margin_percentage numeric)
 LANGUAGE plpgsql
@@ -1097,7 +1077,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_net_margin_by_channel(uuid,text);
 CREATE OR REPLACE FUNCTION public.get_net_margin_by_channel(p_company_id uuid, p_channel_name text)
 RETURNS TABLE(sales_channel text, total_revenue numeric, total_cogs numeric, total_fees numeric, net_margin_percentage numeric)
 LANGUAGE plpgsql
@@ -1132,7 +1111,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_purchase_order_details(uuid,uuid);
 CREATE OR REPLACE FUNCTION public.get_purchase_order_details(p_po_id uuid, p_company_id uuid)
 RETURNS TABLE(id uuid, company_id uuid, supplier_id uuid, po_number text, status text, order_date text, expected_date text, total_amount numeric, notes text, created_at text, updated_at text, supplier_name text, supplier_email text, items jsonb)
 LANGUAGE plpgsql
@@ -1163,7 +1141,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_purchase_orders(uuid,text,integer,integer);
 CREATE OR REPLACE FUNCTION public.get_purchase_orders(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -1205,7 +1182,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_reorder_suggestions(uuid,integer);
 CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid, p_fast_moving_days integer)
 RETURNS TABLE(sku text, product_name text, current_quantity integer, reorder_point integer, suggested_reorder_quantity integer, supplier_name text, supplier_id uuid, unit_cost numeric)
 LANGUAGE plpgsql
@@ -1240,7 +1216,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_supplier_performance(uuid);
 CREATE OR REPLACE FUNCTION public.get_supplier_performance(p_company_id uuid)
 RETURNS TABLE(supplier_name text, total_completed_orders bigint, on_time_delivery_rate numeric, average_delivery_variance_days numeric, average_lead_time_days numeric)
 LANGUAGE plpgsql
@@ -1277,7 +1252,6 @@ END;
 $$;
 
 
-DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid,text,text,uuid,uuid,text,integer,integer) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -1371,7 +1345,6 @@ END;
 $$;
 
 
-DROP FUNCTION IF EXISTS public.process_sales_order_inventory(uuid,uuid);
 CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_company_id uuid, p_sale_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -1406,7 +1379,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.receive_purchase_order_items(uuid,jsonb,uuid);
 CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -1451,7 +1423,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid,uuid,jsonb,text,text,text,text,text);
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
     p_user_id uuid,
@@ -1487,7 +1458,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.update_inventory_item_with_lock(uuid,text,integer,text,text,numeric,integer,numeric,text,uuid);
 CREATE OR REPLACE FUNCTION public.update_inventory_item_with_lock(
     p_company_id uuid,
     p_sku text,
@@ -1526,7 +1496,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.update_purchase_order(uuid,uuid,uuid,text,text,date,date,text,jsonb);
 CREATE OR REPLACE FUNCTION public.update_purchase_order(
     p_po_id uuid,
     p_company_id uuid,
@@ -1730,3 +1699,5 @@ CREATE TRIGGER validate_sale_items_company
 -- =================================================================
 
 
+
+`;
