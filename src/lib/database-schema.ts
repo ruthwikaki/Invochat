@@ -838,7 +838,7 @@ BEGIN
             COUNT(DISTINCT s.id) as daily_orders
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
-        LEFT JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
+        LEFT JOIN inventory i ON si.sku = si.sku AND s.company_id = i.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= start_date
         GROUP BY 1
     ),
