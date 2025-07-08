@@ -1,4 +1,3 @@
-
 'use client';
 
 import { AppPage, AppPageHeader } from '@/components/ui/page';
