@@ -61,7 +61,7 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
-  const publicRoutes = ['/quick-test'];
+  const publicRoutes = ['/quick-test', '/env-check'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isPublicRoute = publicRoutes.includes(pathname);
   
