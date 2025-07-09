@@ -62,7 +62,8 @@ import {
   testMaterializedView as dbTestMView,
   getBusinessProfile,
   healthCheckInventoryConsistency,
-  healthCheckFinancialConsistency
+  healthCheckFinancialConsistency,
+  createAuditLogInDb
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -275,37 +276,52 @@ export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
 }
 
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount: number; error?: string }> {
-  try {
-    const { companyId } = await getAuthContext();
-    
-    const suggestionsBySupplier = suggestions.reduce((acc, s) => {
-        const supplierId = s.supplier_id || 'unknown';
-        if (!acc[supplierId]) {
-            acc[supplierId] = [];
+    try {
+        const { companyId, userId } = await getAuthContext();
+        
+        // --- Financial Circuit Breaker ---
+        const businessProfile = await getBusinessProfile(companyId);
+        const totalSuggestionValue = suggestions.reduce((acc, s) => acc + (s.suggested_reorder_quantity * (s.unit_cost || 0)), 0);
+        
+        if ((businessProfile.outstanding_po_value + totalSuggestionValue) > (businessProfile.monthly_revenue * config.smb.financial.maxTotalExposurePercent)) {
+            await createAuditLogInDb(userId, companyId, 'po_creation_blocked', { reason: 'Total exposure limit exceeded.' });
+            return { success: false, createdPoCount: 0, error: 'This order exceeds your company\'s financial safety limits for total outstanding POs.' };
         }
-        acc[supplierId].push(s);
-        return acc;
-    }, {} as Record<string, ReorderSuggestion[]>);
-    
-    const poCreationPayload = Object.values(suggestionsBySupplier).map(supplierSuggestions => {
-        return {
+
+        const poCreationPayload = Object.values(suggestions.reduce((acc, s) => {
+            const supplierId = s.supplier_id || 'unknown';
+            if (!acc[supplierId]) acc[supplierId] = [];
+            acc[supplierId].push(s);
+            return acc;
+        }, {} as Record<string, ReorderSuggestion[]>)
+        ).map(supplierSuggestions => ({
             supplier_id: supplierSuggestions[0].supplier_id,
             items: supplierSuggestions.map(s => ({
-                sku: s.sku,
+                product_id: s.product_id,
                 quantity_ordered: s.suggested_reorder_quantity,
                 unit_cost: s.unit_cost || 0,
             }))
-        };
-    });
-
-    const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, poCreationPayload);
-    
-    revalidatePath('/purchase-orders');
-    return { success: true, createdPoCount };
-  } catch(e) {
-    logError(e, { context: 'createPurchaseOrdersFromSuggestions' });
-    return { success: false, createdPoCount: 0, error: getErrorMessage(e) };
-  }
+        }));
+        
+        // Check single order limits
+        for (const po of poCreationPayload) {
+            const poValue = po.items.reduce((acc, item) => acc + (item.quantity_ordered * item.unit_cost), 0);
+            if (poValue > (businessProfile.monthly_revenue * config.smb.financial.maxSingleOrderPercent)) {
+                await createAuditLogInDb(userId, companyId, 'po_creation_blocked', { reason: 'Single PO value limit exceeded.', supplier: po.supplier_id });
+                return { success: false, createdPoCount: 0, error: `The order for one of the suppliers exceeds your company's financial safety limits for a single PO.` };
+            }
+        }
+        
+        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, poCreationPayload);
+        
+        await createAuditLogInDb(userId, companyId, 'po_created_from_suggestion', { po_count: createdPoCount, suggestions_count: suggestions.length });
+        
+        revalidatePath('/purchase-orders');
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions' });
+        return { success: false, createdPoCount: 0, error: getErrorMessage(e) };
+    }
 }
 
 export async function getPurchaseOrders(params: { query?: string, page: number }) {
@@ -333,14 +349,7 @@ export async function getPurchaseOrderById(id: string) {
 export async function createPurchaseOrder(data: PurchaseOrderCreateInput) {
     try {
         const { companyId } = await getAuthContext();
-        const poDataWithCents = {
-            ...data,
-            items: data.items.map(item => ({
-                ...item,
-                unit_cost: Math.round(item.unit_cost * 100)
-            }))
-        };
-        await createPurchaseOrderInDb(companyId, poDataWithCents);
+        await createPurchaseOrderInDb(companyId, data);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch(e) {
@@ -351,14 +360,7 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput) {
 export async function updatePurchaseOrder(id: string, data: PurchaseOrderUpdateInput) {
     try {
         const { companyId } = await getAuthContext();
-        const poDataWithCents = {
-            ...data,
-            items: data.items.map(item => ({
-                ...item,
-                unit_cost: Math.round(item.unit_cost * 100)
-            }))
-        };
-        await updatePurchaseOrderInDb(id, companyId, poDataWithCents);
+        await updatePurchaseOrderInDb(id, companyId, data);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch(e) {
@@ -573,15 +575,7 @@ export async function recordSale(formData: FormData): Promise<{ success: boolean
         const saleDataString = formData.get('saleData') as string;
         const saleData: SaleCreateInput = JSON.parse(saleDataString);
         
-        const saleDataWithCents = {
-            ...saleData,
-            items: saleData.items.map(item => ({
-                ...item,
-                unit_price: Math.round(item.unit_price * 100),
-            })),
-        };
-
-        const sale = await recordSaleInDB(companyId, userId, saleDataWithCents);
+        const sale = await recordSaleInDB(companyId, userId, saleData);
         revalidatePath('/sales');
         return { success: true, sale };
     } catch (e) {

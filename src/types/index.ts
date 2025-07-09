@@ -45,6 +45,18 @@ export type Message = {
   isError?: boolean;
 };
 
+export const ProductSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    sku: z.string(),
+    name: z.string(),
+    category: z.string().nullable(),
+    cost: z.number().int(), // In cents
+    price: z.number().int().nullable(), // In cents
+    barcode: z.string().nullable(),
+});
+export type Product = z.infer<typeof ProductSchema>;
+
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
     vendor_name: z.string().min(1),
@@ -183,7 +195,7 @@ export type Anomaly = z.infer<typeof AnomalySchema>;
 export const PurchaseOrderItemSchema = z.object({
   id: z.string().uuid(),
   po_id: z.string().uuid(),
-  sku: z.string(),
+  product_id: z.string().uuid(),
   product_name: z.string().optional().nullable(),
   quantity_ordered: z.number().int(),
   quantity_received: z.number().int(),
@@ -211,7 +223,7 @@ export const PurchaseOrderSchema = z.object({
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
 const POItemInputSchema = z.object({
-    sku: z.string().min(1, 'SKU is required.'),
+    product_id: z.string().uuid('A valid product must be selected.'),
     quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
     unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
 });
@@ -234,7 +246,10 @@ export type PurchaseOrderUpdateInput = z.infer<typeof PurchaseOrderUpdateSchema>
 export const ReceiveItemsFormSchema = z.object({
   poId: z.string().uuid(),
   items: z.array(z.object({
-    sku: z.string(),
+    product_id: z.string(),
+    product_name: z.string(),
+    quantity_ordered: z.number(),
+    quantity_already_received: z.number(),
     quantity_to_receive: z.coerce.number().int().min(0, 'Cannot be negative.'),
   })).min(1).refine(items => items.some(item => item.quantity_to_receive > 0), {
     message: 'You must enter a quantity for at least one item to receive.',
@@ -246,9 +261,8 @@ export type ReceiveItemsFormInput = z.infer<typeof ReceiveItemsFormSchema>;
 export const SupplierCatalogSchema = z.object({
   id: z.string().uuid(),
   supplier_id: z.string().uuid(),
-  sku: z.string(),
+  product_id: z.string().uuid(),
   supplier_sku: z.string().nullable(),
-  product_name: z.string().nullable(),
   unit_cost: z.number().int(), // In cents
   moq: z.number().int().optional().default(1),
   lead_time_days: z.number().int().nullable(),
@@ -259,7 +273,7 @@ export type SupplierCatalog = z.infer<typeof SupplierCatalogSchema>;
 export const ReorderRuleSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
-  sku: z.string(),
+  product_id: z.string().uuid(),
   rule_type: z.string().default('manual'),
   min_stock: z.number().int().nullable(),
   max_stock: z.number().int().nullable(),
@@ -268,7 +282,7 @@ export const ReorderRuleSchema = z.object({
 export type ReorderRule = z.infer<typeof ReorderRuleSchema>;
 
 export const ReorderSuggestionBaseSchema = z.object({
-    sku: z.string(),
+    product_id: z.string().uuid(),
     product_name: z.string(),
     current_quantity: z.number(),
     reorder_point: z.number().nullable(),
@@ -322,7 +336,7 @@ export const LocationFormSchema = z.object({
   address: z.string().optional().nullable(),
   is_default: z.boolean().optional(),
 });
-export type LocationFormData = z.infer<typeof LocationFormSchema>;
+export type LocationFormData = z.infer<typeof LocationFormData>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
@@ -336,7 +350,7 @@ export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReport
 export const InventoryLedgerEntrySchema = z.object({
     id: z.string().uuid(),
     company_id: z.string().uuid(),
-    sku: z.string(),
+    product_id: z.string().uuid(),
     created_at: z.string(),
     change_type: z.string(),
     quantity_change: z.number().int(),
@@ -385,8 +399,7 @@ export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 export const SaleItemSchema = z.object({
     id: z.string().uuid(),
     sale_id: z.string().uuid(),
-    sku: z.string(),
-    product_name: z.string(),
+    product_id: z.string().uuid(),
     quantity: z.number().int(),
     unit_price: z.number().int(), // In cents
     cost_at_time: z.number().int().nullable(), // In cents
@@ -408,7 +421,7 @@ export const SaleSchema = z.object({
 export type Sale = z.infer<typeof SaleSchema>;
 
 export const SaleCreateItemSchema = z.object({
-  sku: z.string().min(1),
+  product_id: z.string().uuid(),
   product_name: z.string(),
   quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
   unit_price: z.coerce.number().min(0),
