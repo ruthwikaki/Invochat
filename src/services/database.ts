@@ -34,12 +34,14 @@ export async function withPerformanceTracking<T>(
     }
 }
 
-export async function refreshMaterializedViews(companyId: string): Promise<void> {
+export async function refreshMaterializedViews(companyId: string, viewNames?: ('company_dashboard_metrics' | 'customer_analytics_metrics')[]): Promise<void> {
     if (!isValidUuid(companyId)) return;
+    const viewsToRefresh = viewNames || ['company_dashboard_metrics', 'customer_analytics_metrics'];
     await withPerformanceTracking('refreshMaterializedViews', async () => {
         const supabase = getServiceRoleClient();
         const { error } = await supabase.rpc('refresh_materialized_views', {
             p_company_id: companyId,
+            p_view_names: viewsToRefresh
         });
         if (error) {
             logError(error, { context: `Failed to refresh materialized views for company ${companyId}` });
@@ -424,7 +426,7 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
 }
 
 
-export async function updatePurchaseOrderInDb(poId: string, companyId: string, poData: PurchaseOrderUpdateInput): Promise<void> {
+export async function updatePurchaseOrderInDb(id: string, companyId: string, poData: PurchaseOrderUpdateInput) {
     return withPerformanceTracking('updatePurchaseOrderInDb', async () => {
         const supabase = getServiceRoleClient();
         
@@ -435,7 +437,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, p
         }));
 
         const { error } = await supabase.rpc('update_purchase_order', {
-            p_po_id: poId,
+            p_po_id: id,
             p_company_id: companyId,
             p_supplier_id: poData.supplier_id,
             p_po_number: poData.po_number,
@@ -447,7 +449,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, p
         });
 
         if (error) {
-            logError(error, { context: `Failed to update PO ${poId}` });
+            logError(error, { context: `Failed to update PO ${id}` });
             throw error;
         }
 
@@ -507,7 +509,7 @@ export async function receivePurchaseOrderItemsInDB(
         }
 
         logger.info(`[DB Service] Successfully received items for PO ${poId}.`);
-        await refreshMaterializedViews(companyId);
+        await refreshMaterializedViews(companyId, ['company_dashboard_metrics']);
         revalidatePath(`/purchase-orders/${poId}`);
         revalidatePath('/inventory');
     });
@@ -1134,7 +1136,7 @@ export async function updateInventoryItemInDb(companyId: string, productId: stri
             throw error;
         }
 
-        const { data: fullData } = await getUnifiedInventoryFromDB(companyId, { sku: data.sku, limit: 1 });
+        const { data: fullData } = await getUnifiedInventoryFromDB(companyId, { product_id: data.id, limit: 1 });
         if (!fullData || fullData.items.length === 0) {
             throw new Error('Failed to retrieve updated item details.');
         }
@@ -1284,7 +1286,7 @@ export async function getMarginTrendsFromDB(companyId: string): Promise<any[]> {
     });
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string; supplier?: string; limit?: number; offset?: number; sku?: string }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; location?: string; supplier?: string; limit?: number; offset?: number; product_id?: string }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
@@ -1294,7 +1296,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             p_category: params.category || null,
             p_location_id: params.location ? (isValidUuid(params.location) ? params.location : null) : null,
             p_supplier_id: params.supplier ? (isValidUuid(params.supplier) ? params.supplier : null) : null,
-            p_sku_filter: params.sku || null,
+            p_product_id_filter: params.product_id || null,
             p_limit: params.limit || 50,
             p_offset: params.offset || 0,
         });
@@ -1425,15 +1427,15 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
 }
 
 
-export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>>[] {
+export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'>>[] {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   return withPerformanceTracking('searchProductsForSale', async () => {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('inventory')
-        .select('sku, name, price, quantity')
+        .select('product_id, sku:products!inner(sku, name), price, quantity')
         .eq('company_id', companyId)
-        .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
+        .or(`products.name.ilike.%${query}%,products.sku.ilike.%${query}%`)
         .limit(10);
     
     if (error) {
@@ -1441,44 +1443,27 @@ export async function searchProductsForSaleInDB(companyId: string, query: string
         return [];
     }
 
-    return (data || []).map(item => ({
-        sku: item.sku,
-        product_name: item.name,
-        price: item.price,
-        quantity: item.quantity
-    }));
+    return (data || []).map(item => {
+        const product = Array.isArray(item.products) ? item.products[0] : item.products;
+        return {
+            product_id: item.product_id,
+            sku: product.sku,
+            product_name: product.name,
+            price: item.price,
+            quantity: item.quantity
+        }
+    });
   });
 }
 
-export async function recordSaleInDB(companyId: string, userId: string, saleData: Omit<SaleCreateInput, 'items'> & { items: { sku: string; product_name: string; quantity: number; unit_price: number }[] }): Promise<Sale> {
+export async function recordSaleInDB(companyId: string, userId: string, saleData: SaleCreateInput): Promise<Sale> {
   return withPerformanceTracking('recordSaleInDB', async () => {
     const supabase = getServiceRoleClient();
-    
-    const itemsForRpc = await Promise.all(saleData.items.map(async (item) => {
-        const { data: inventoryItem, error } = await supabase
-            .from('inventory')
-            .select('cost')
-            .eq('company_id', companyId)
-            .eq('sku', item.sku)
-            .single();
-
-        if (error || !inventoryItem) {
-            throw new Error(`Could not find current cost for SKU: ${item.sku}`);
-        }
-
-        return {
-            sku: item.sku,
-            product_name: item.product_name,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            cost_at_time: inventoryItem.cost,
-        };
-    }));
     
     const { data, error } = await supabase.rpc('record_sale_transaction', {
         p_company_id: companyId,
         p_user_id: userId,
-        p_sale_items: itemsForRpc,
+        p_sale_items: saleData.items,
         p_customer_name: saleData.customer_name,
         p_customer_email: saleData.customer_email,
         p_payment_method: saleData.payment_method,
@@ -1619,7 +1604,7 @@ export async function createExportJobInDb(companyId: string, userId: string): Pr
     });
 }
 
-export async function updateProductInDb(companyId: string, productId: string, productData: ProductUpdateData): Promise<Product> {
+export async function updateProductInDb(companyId: string, productId: string, productData: ProductUpdateData): Promise<UnifiedInventoryItem> {
     if (!isValidUuid(productId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('updateProductInDb', async () => {
         const supabase = getServiceRoleClient();
@@ -1634,6 +1619,13 @@ export async function updateProductInDb(companyId: string, productId: string, pr
             logError(error, { context: `updateProductInDb: ${productId}` });
             throw error;
         }
-        return data as Product;
+        
+        // After updating, refetch the unified view of the item to return complete data
+        const { data: unifiedData } = await getUnifiedInventoryFromDB(companyId, { product_id: productId, limit: 1 });
+        if (!unifiedData || unifiedData.items.length === 0) {
+             throw new Error("Could not refetch the updated product's inventory details.");
+        }
+        
+        return unifiedData.items[0];
     });
 }

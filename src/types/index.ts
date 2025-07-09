@@ -467,7 +467,6 @@ export type Sale = z.infer<typeof SaleSchema>;
 
 export const SaleCreateItemSchema = z.object({
   product_id: z.string().uuid(),
-  product_name: z.string(),
   quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
   unit_price: z.coerce.number().min(0),
 });

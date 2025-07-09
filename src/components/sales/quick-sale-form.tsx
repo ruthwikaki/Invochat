@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
@@ -77,7 +78,6 @@ export function QuickSaleForm() {
     } else {
       append({
         product_id: product.product_id,
-        product_name: product.product_name,
         quantity: 1,
         unit_price: product.price || 0,
       });
@@ -166,7 +166,7 @@ export function QuickSaleForm() {
                              const lineTotal = field.quantity * field.unit_price;
                             return (
                             <TableRow key={field.fieldId}>
-                                <TableCell>{field.product_name}</TableCell>
+                                <TableCell>{field.product_id}</TableCell>
                                 <TableCell><Input type="number" {...form.register(`items.${index}.quantity`)} min={1} /></TableCell>
                                 <TableCell><Input type="number" step="0.01" {...form.register(`items.${index}.unit_price`, { valueAsNumber: true })} /></TableCell>
                                 <TableCell className="text-right font-medium">${(lineTotal/100).toFixed(2)}</TableCell>

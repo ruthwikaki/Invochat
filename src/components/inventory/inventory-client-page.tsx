@@ -187,18 +187,18 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
     if (checked === true) {
-      setSelectedRows(new Set(inventory.map(item => item.sku)));
+      setSelectedRows(new Set(inventory.map(item => item.product_id)));
     } else {
       setSelectedRows(new Set());
     }
   };
 
-  const handleSelectRow = (sku: string, checked: boolean) => {
+  const handleSelectRow = (productId: string, checked: boolean) => {
     const newSelectedRows = new Set(selectedRows);
     if (checked) {
-      newSelectedRows.add(sku);
+      newSelectedRows.add(productId);
     } else {
-      newSelectedRows.delete(sku);
+      newSelectedRows.delete(productId);
     }
     setSelectedRows(newSelectedRows);
   };
@@ -207,7 +207,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     if (!itemToDelete) return;
     startDeleteTransition(async () => {
       const formData = new FormData();
-      formData.append('skus', JSON.stringify(itemToDelete));
+      formData.append('productIds', JSON.stringify(itemToDelete));
       const csrfToken = getCookie('csrf_token');
       if (csrfToken) {
         formData.append(CSRF_FORM_NAME, csrfToken);
@@ -225,18 +225,18 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     });
   };
 
-  const toggleExpandRow = (sku: string) => {
+  const toggleExpandRow = (productId: string) => {
     const newExpandedRows = new Set(expandedRows);
-    if (newExpandedRows.has(sku)) {
-      newExpandedRows.delete(sku);
+    if (newExpandedRows.has(productId)) {
+      newExpandedRows.delete(productId);
     } else {
-      newExpandedRows.add(sku);
+      newExpandedRows.add(productId);
     }
     setExpandedRows(newExpandedRows);
   };
 
   const handleSaveItem = (updatedItem: UnifiedInventoryItem) => {
-    setInventory(prev => prev.map(item => item.sku === updatedItem.sku ? updatedItem : item));
+    setInventory(prev => prev.map(item => item.product_id === updatedItem.product_id ? updatedItem : item));
     refresh(); 
   };
 
@@ -400,12 +400,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                             const profitColor = monthlyProfit > 0 ? 'text-success' : monthlyProfit < 0 ? 'text-destructive' : 'text-muted-foreground';
 
                             return (
-                            <Fragment key={item.sku}>
+                            <Fragment key={item.product_id}>
                             <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
                                 <TableCell>
                                 <Checkbox
-                                    checked={selectedRows.has(item.sku)}
-                                    onCheckedChange={(checked) => handleSelectRow(item.sku, !!checked)}
+                                    checked={selectedRows.has(item.product_id)}
+                                    onCheckedChange={(checked) => handleSelectRow(item.product_id, !!checked)}
                                 />
                                 </TableCell>
                                 <TableCell>
@@ -414,12 +414,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                 </TableCell>
                                 <TableCell>{item.location_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
-                                <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-medium">${(item.total_value/100).toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
                                     <span className={cn('font-semibold', marginColor)}>{margin.toFixed(1)}%</span>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                     <span className={cn('font-semibold', profitColor)}>{monthlyProfit >= 0 ? '$' : '-$'}{Math.abs(monthlyProfit).toFixed(2)}</span>
+                                     <span className={cn('font-semibold', profitColor)}>{monthlyProfit >= 0 ? '$' : '-$'}{(Math.abs(monthlyProfit)/100).toFixed(2)}</span>
                                 </TableCell>
                                 <TableCell>
                                 <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
@@ -436,7 +436,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setTransferringItem(item)}><Replace className="mr-2 h-4 w-4" />Transfer Stock</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setItemToDelete([item.sku])} className="text-destructive">
+                                                <DropdownMenuItem onSelect={() => setItemToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -445,20 +445,20 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            onClick={() => toggleExpandRow(item.sku)}
+                                            onClick={() => toggleExpandRow(item.product_id)}
                                         >
-                                            <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.sku) && "rotate-180")} />
+                                            <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.product_id) && "rotate-180")} />
                                         </Button>
                                     </div>
                                 </TableCell>
                             </TableRow>
-                            {expandedRows.has(item.sku) && (
+                            {expandedRows.has(item.product_id) && (
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
                                     <TableCell colSpan={9} className="p-4">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                             <div><strong className="text-muted-foreground">Category:</strong> {item.category || 'N/A'}</div>
-                                            <div><strong className="text-muted-foreground">Unit Cost:</strong> ${item.cost.toFixed(2)}</div>
-                                            <div><strong className="text-muted-foreground">Landed Cost:</strong> {item.landed_cost ? `$${item.landed_cost.toFixed(2)}` : 'N/A'}</div>
+                                            <div><strong className="text-muted-foreground">Unit Cost:</strong> ${(item.cost/100).toFixed(2)}</div>
+                                            <div><strong className="text-muted-foreground">Landed Cost:</strong> {item.landed_cost ? `$${(item.landed_cost/100).toFixed(2)}` : 'N/A'}</div>
                                             <div><strong className="text-muted-foreground">On Order:</strong> {item.on_order_quantity} units</div>
                                             <div><strong className="text-muted-foreground">Barcode:</strong> {item.barcode || 'N/A'}</div>
                                             <div><strong className="text-muted-foreground">Monthly Units Sold:</strong> {item.monthly_units_sold}</div>
