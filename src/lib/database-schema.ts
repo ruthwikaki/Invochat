@@ -449,7 +449,7 @@ BEGIN
          WHERE table_name = p_table_name AND column_name NOT IN (SELECT unnest(p_conflict_columns)))
     );
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid)
 RETURNS void
