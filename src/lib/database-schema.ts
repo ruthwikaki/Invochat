@@ -210,12 +210,14 @@ CREATE INDEX IF NOT EXISTS idx_sales_customer_email ON public.sales(company_id, 
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL,
     sku text NOT NULL,
     product_name text,
     quantity integer NOT NULL,
     unit_price numeric(10,2) NOT NULL,
     cost_at_time numeric(10,2),
-    UNIQUE(sale_id, sku)
+    UNIQUE(sale_id, sku),
+    CONSTRAINT fk_sale_items_inventory FOREIGN KEY (company_id, sku) REFERENCES public.inventory (company_id, sku)
 );
 
 CREATE TABLE IF NOT EXISTS public.conversations (
@@ -902,7 +904,7 @@ BEGIN
             COUNT(DISTINCT s.id) as daily_orders
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
-        LEFT JOIN inventory i ON si.sku = si.sku AND s.company_id = i.company_id
+        LEFT JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= start_date
         GROUP BY 1
     ),
@@ -1514,8 +1516,8 @@ BEGIN
     RETURNING * INTO new_sale;
 
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric) LOOP
-        INSERT INTO sale_items (sale_id, sku, product_name, quantity, unit_price, cost_at_time)
-        VALUES (new_sale.id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
+        INSERT INTO sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
+        VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
     END LOOP;
     
     RETURN new_sale;
@@ -1624,7 +1626,6 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     ref_company_id uuid;
-    current_company_id uuid;
 BEGIN
     IF TG_TABLE_NAME = 'purchase_orders' AND NEW.supplier_id IS NOT NULL THEN
         SELECT company_id INTO ref_company_id FROM vendors WHERE id = NEW.supplier_id;
@@ -1637,13 +1638,6 @@ BEGIN
         SELECT company_id INTO ref_company_id FROM locations WHERE id = NEW.location_id;
         IF ref_company_id != NEW.company_id THEN
             RAISE EXCEPTION 'Security violation: Cannot assign to a location from a different company.';
-        END IF;
-    END IF;
-
-    IF TG_TABLE_NAME = 'sale_items' THEN
-        SELECT company_id INTO ref_company_id FROM sales WHERE id = NEW.sale_id;
-        IF NOT EXISTS (SELECT 1 FROM inventory WHERE sku = NEW.sku and company_id = ref_company_id) THEN
-            RAISE EXCEPTION 'Security violation: SKU does not exist for this company.';
         END IF;
     END IF;
     
@@ -1700,7 +1694,7 @@ DROP POLICY IF EXISTS "Users can manage sales for their own company" ON public.s
 CREATE POLICY "Users can manage sales for their own company" ON public.sales FOR ALL USING (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "Users can manage sale items for sales in their own company" ON public.sale_items;
-CREATE POLICY "Users can manage sale items for sales in their own company" ON public.sale_items FOR ALL USING (sale_id IN (SELECT id FROM sales WHERE company_id = (SELECT company_id FROM public.users WHERE id = auth.uid())));
+CREATE POLICY "Users can manage sale items for sales in their own company" ON public.sale_items FOR ALL USING (sale_id IN (SELECT id FROM sales WHERE company_id = (SELECT company_id FROM public.users WHERE id = auth.uid())) AND company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
 
 DROP POLICY IF EXISTS "Users can manage customers for their own company" ON public.customers;
 CREATE POLICY "Users can manage customers for their own company" ON public.customers FOR ALL USING (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
@@ -1749,11 +1743,6 @@ CREATE TRIGGER validate_purchase_order_refs
 
 CREATE TRIGGER validate_inventory_location_ref
     BEFORE INSERT OR UPDATE ON public.inventory
-    FOR EACH ROW
-    EXECUTE FUNCTION public.validate_same_company_reference();
-
-CREATE TRIGGER validate_sale_items_company
-    BEFORE INSERT OR UPDATE ON public.sale_items
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
 
@@ -1875,6 +1864,7 @@ BEGIN
     WHERE v.company_id = p_company_id;
 END;
 $$;
+
 
 
 
