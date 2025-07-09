@@ -743,7 +743,7 @@ BEGIN
             COALESCE(SUM(si.quantity * si.unit_price), 0) AS revenue
         FROM public.inventory AS i
         LEFT JOIN public.sale_items AS si ON i.sku = si.sku AND i.company_id = si.company_id
-        LEFT JOIN public.sales AS s ON si.sale_id = s.id AND s.created_at >= NOW() - interval '1 year'
+        LEFT JOIN public.sales AS s ON si.sale_id = s.id AND s.created_at >= NOW() - interval '1 year' AND s.company_id = si.company_id
         WHERE i.company_id = p_company_id AND i.deleted_at IS NULL
         GROUP BY i.sku, i.name
     ),
@@ -911,7 +911,7 @@ BEGIN
             COUNT(DISTINCT s.id) AS daily_orders
         FROM public.sales AS s
         JOIN public.sale_items AS si ON s.id = si.sale_id
-        WHERE s.company_id = p_company_id AND s.created_at >= start_date AND si.cost_at_time IS NOT NULL
+        WHERE s.company_id = p_company_id AND s.created_at >= start_date AND si.cost_at_time IS NOT NULL AND s.company_id = si.company_id
         GROUP BY 1
     ),
     totals AS (
@@ -1051,7 +1051,7 @@ BEGIN
             ELSE 0
         END AS gross_margin_percentage
     FROM public.sale_items AS si
-    JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
+    JOIN public.sales AS s ON si.sale_id = s.id AND s.company_id = si.company_id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
     GROUP BY si.product_name, s.payment_method;
 END;
@@ -2002,11 +2002,6 @@ ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
 ALTER TABLE public.sale_items
 ADD CONSTRAINT fk_sale_items_company
 FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
-ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_inventory;
-ALTER TABLE public.sale_items
-ADD CONSTRAINT fk_sale_items_inventory
-FOREIGN KEY (company_id, sku) REFERENCES public.inventory(company_id, sku);
 
 ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS fk_inventory_location;
 ALTER TABLE public.inventory
