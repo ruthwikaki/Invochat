@@ -8,6 +8,7 @@
  */
 import { config as dotenvConfig } from 'dotenv';
 import { z } from 'zod';
+import { SMB_CONFIG } from './smb';
 
 // Force load .env variables at the earliest point.
 dotenvConfig();
@@ -83,7 +84,7 @@ export const config = {
     fastMovingDays: parseIntWithDefault(process.env.BL_FAST_MOVING_DAYS, 30),
     predictiveStockDays: parseIntWithDefault(process.env.BL_PREDICTIVE_STOCK_DAYS, 7),
     overstockMultiplier: parseIntWithDefault(process.env.BL_OVERSTOCK_MULTIPLIER, 3),
-    highValueThreshold: parseIntWithDefault(process.env.BL_HIGH_VALUE_THRESHOLD, 1000),
+    highValueThreshold: parseIntWithDefault(process.env.BL_HIGH_VALUE_THRESHOLD, 100000),
   },
   chat: {
     quickActions: [
@@ -96,8 +97,10 @@ export const config = {
   ui: {
     sidebarCookieMaxAge: parseIntWithDefault(process.env.UI_SIDEBAR_COOKIE_MAX_AGE, 60 * 60 * 24 * 7), // 7 days
   },
+  smb: SMB_CONFIG,
 };
 
 
 // A type alias for convenience
 export type AppConfig = typeof config;
+

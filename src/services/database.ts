@@ -10,7 +10,7 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionBaseSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -805,7 +805,7 @@ export async function updateTeamMemberRoleInDb(
 }
 
 
-export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
+export async function getReorderSuggestionsFromDB(companyId: string, timezone: string): Promise<ReorderSuggestion[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getReorderSuggestionsFromDB', async () => {
         const supabase = getServiceRoleClient();
@@ -1649,9 +1649,44 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
     });
 }
 
+// Health Check Functions
+export async function getInventoryConsistencyReport(companyId: string): Promise<HealthCheckResult> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getInventoryConsistencyReport', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('health_check_inventory_consistency', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: `Error running inventory consistency check for company ${companyId}` });
+            return { healthy: false, metric: -1, message: "Error running check" };
+        }
+        return data[0];
+    });
+}
 
+export async function getFinancialConsistencyReport(companyId: string): Promise<HealthCheckResult> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getFinancialConsistencyReport', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('health_check_financial_consistency', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: `Error running financial consistency check for company ${companyId}` });
+            return { healthy: false, metric: -1, message: "Error running check" };
+        }
+        return data[0];
+    });
+}
 
-
-
-
+export async function getBusinessProfile(companyId: string): Promise<BusinessProfile> {
+     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+     return withPerformanceTracking('getBusinessProfile', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_business_profile', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: `Error fetching business profile for company ${companyId}` });
+            // Return a default conservative profile on error
+            return { monthlyRevenue: 0, outstandingPoValue: 0, riskTolerance: 'conservative' };
+        }
+        return data[0];
+     });
+}
     

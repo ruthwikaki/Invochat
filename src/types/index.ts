@@ -289,6 +289,13 @@ export const ReorderSuggestionBaseSchema = z.object({
 });
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionBaseSchema>;
 
+export type SafeReorderSuggestion = ReorderSuggestion & {
+    validationStatus: 'approved' | 'warning' | 'blocked';
+    warnings: string[];
+    blocks: string[];
+    requiresManualReview: boolean;
+};
+
 
 export const ChannelFeeSchema = z.object({
   id: z.string().uuid(),
@@ -477,6 +484,16 @@ export const SalesAnalyticsSchema = z.object({
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
+// SMB Safeguards
+export type BusinessProfile = {
+  monthlyRevenue: number;
+  outstandingPoValue: number;
+  riskTolerance: 'conservative' | 'moderate' | 'aggressive';
+};
 
-
+export type HealthCheckResult = {
+    healthy: boolean;
+    metric: number;
+    message: string;
+};
     
