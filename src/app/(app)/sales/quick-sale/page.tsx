@@ -1,3 +1,4 @@
+
 import { QuickSaleForm } from "@/components/sales/quick-sale-form";
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 
