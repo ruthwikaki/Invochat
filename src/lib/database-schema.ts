@@ -1,10 +1,4 @@
 
--- INVOCHAT - THE COMPLETE & IDEMPOTENT DATABASE SETUP SCRIPT
--- This script is designed to be run in its entirety. It sets up all
--- necessary tables, functions, triggers, and security policies for
--- the InvoChat application to function correctly. It is idempotent,
--- meaning it can be run multiple times without causing errors.
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$
@@ -195,7 +189,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_customer_email ON public.sales(company_id, 
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid, -- Allow NULL initially
+    company_id uuid,
     sku text NOT NULL,
     product_name text,
     quantity integer NOT NULL,
@@ -985,6 +979,7 @@ BEGIN
                 FROM public.sales AS s
                 JOIN public.customers AS c ON s.customer_email = c.email AND s.company_id = c.company_id
                 WHERE s.company_id = p_company_id
+                    AND c.company_id = p_company_id
                     AND s.created_at >= start_date
                     AND c.deleted_at IS NULL
                 GROUP BY c.customer_name
@@ -1035,7 +1030,7 @@ BEGIN
             SUM(si.quantity) AS total_quantity
         FROM public.sale_items AS si
         JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
-        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '12 months'
+        WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '12 months'
         GROUP BY si.sku, sale_month
     ),
     sales_with_time AS (
@@ -1094,12 +1089,9 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT
-        s.sku,
-        jsonb_agg(jsonb_build_object('month', s.month, 'total_quantity', s.total_quantity)) AS monthly_sales
-    FROM (
+    WITH monthly_sales AS (
         SELECT
-            si.sku,
+            si.sku AS sku,
             to_char(s.created_at, 'YYYY-MM') AS month,
             SUM(si.quantity) AS total_quantity
         FROM public.sale_items AS si
@@ -1108,8 +1100,29 @@ BEGIN
           AND si.sku = ANY(p_skus)
           AND s.created_at >= NOW() - INTERVAL '24 months'
         GROUP BY si.sku, month
-        ORDER BY si.sku, month
-    ) AS s
+    ),
+    stats AS (
+        SELECT
+            sku,
+            avg(total_quantity) as avg_sales,
+            stddev(total_quantity) as stddev_sales
+        FROM monthly_sales
+        GROUP BY sku
+    ),
+    filtered_sales AS (
+        SELECT
+            ms.sku,
+            ms.month,
+            ms.total_quantity
+        FROM monthly_sales AS ms
+        JOIN stats ON ms.sku = stats.sku
+        WHERE ms.total_quantity BETWEEN (stats.avg_sales - 3 * stats.stddev_sales) AND (stats.avg_sales + 3 * stats.stddev_sales)
+           OR stats.stddev_sales IS NULL
+    )
+    SELECT
+        s.sku,
+        jsonb_agg(jsonb_build_object('month', s.month, 'total_quantity', s.total_quantity) ORDER BY s.month) AS monthly_sales
+    FROM filtered_sales AS s
     GROUP BY s.sku;
 END;
 $$;
@@ -1140,7 +1153,7 @@ BEGIN
         SELECT COALESCE(SUM(si.quantity * si.cost_at_time), 0) AS total_cogs
         FROM public.sale_items si
         JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
-        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
+        WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
         SELECT COALESCE(SUM(i.quantity * i.cost), 1) AS current_inventory_value
@@ -1319,6 +1332,7 @@ BEGIN
         WHERE i.company_id = p_company_id
           AND i.quantity <= COALESCE(i.reorder_point, 0)
           AND i.deleted_at IS NULL
+          AND i.quantity >= 0
     )
     SELECT
         bs.sku, bs.product_name, bs.current_quantity, bs.reorder_point,
@@ -1596,6 +1610,10 @@ DECLARE
     current_inventory record;
     inventory_updates jsonb := '[]'::jsonb;
 BEGIN
+    IF (SELECT created_at FROM jsonb_to_recordset(p_sale_items) AS x(created_at timestamptz) LIMIT 1) > NOW() THEN
+      RAISE EXCEPTION 'Sale date cannot be in the future.';
+    END IF;
+
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int) LOOP
         SELECT quantity, version INTO current_inventory FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id AND deleted_at IS NULL FOR UPDATE;
         IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
@@ -1682,16 +1700,20 @@ DECLARE
   new_total_amount bigint := 0;
 BEGIN
   FOR item_change IN
-    WITH old_items AS (
+    WITH new_items_agg AS (
+        SELECT
+            sku,
+            SUM(quantity_ordered) as quantity_ordered
+        FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
+        GROUP BY sku
+    ), old_items AS (
         SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
-    ), new_items AS (
-        SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
     )
-    SELECT 
+    SELECT
       COALESCE(oi.sku, ni.sku) as sku,
       COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
     FROM old_items AS oi
-    FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
+    FULL OUTER JOIN new_items_agg AS ni ON oi.sku = ni.sku
   LOOP
     UPDATE public.inventory
     SET on_order_quantity = on_order_quantity + item_change.quantity_diff
@@ -1700,7 +1722,13 @@ BEGIN
   
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
-  FOR item_change IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost bigint)
+  FOR item_change IN 
+    SELECT
+        sku,
+        SUM(quantity_ordered) as quantity_ordered,
+        AVG(unit_cost) as unit_cost
+    FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost bigint)
+    GROUP BY sku
   LOOP
     INSERT INTO public.purchase_order_items
       (po_id, sku, quantity_ordered, unit_cost)
@@ -1933,6 +1961,22 @@ BEGIN
 END;
 $$;
 
+DROP FUNCTION IF EXISTS public.purge_soft_deleted_data(integer);
+CREATE OR REPLACE FUNCTION public.purge_soft_deleted_data(p_retention_days integer)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM public.inventory
+    WHERE deleted_at < NOW() - (p_retention_days || ' days')::interval;
+    
+    DELETE FROM public.customers
+    WHERE deleted_at < NOW() - (p_retention_days || ' days')::interval;
+END;
+$$;
+
+
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -2027,6 +2071,7 @@ CREATE TRIGGER validate_inventory_location_ref
     BEFORE INSERT OR UPDATE ON public.inventory
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
+
 ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS fk_inventory_location;
 ALTER TABLE public.inventory
 ADD CONSTRAINT fk_inventory_location

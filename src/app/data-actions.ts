@@ -1,3 +1,4 @@
+
 'use server';
 
 import type { Message } from '@/types';
@@ -410,9 +411,15 @@ export async function getChannelFees() {
 export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId } = await getAuthContext();
+        
+        const percentageFee = parseFloat(formData.get('percentage_fee') as string);
+        if (isNaN(percentageFee) || percentageFee < 0 || percentageFee > 1) {
+            throw new Error('Percentage fee must be a decimal between 0 and 1 (e.g., 0.029 for 2.9%).');
+        }
+
         const feeData = {
             channel_name: formData.get('channel_name') as string,
-            percentage_fee: parseFloat(formData.get('percentage_fee') as string),
+            percentage_fee: percentageFee,
             fixed_fee: Math.round(parseFloat(formData.get('fixed_fee') as string) * 100),
         };
         await upsertChannelFeeInDB(companyId, feeData);
