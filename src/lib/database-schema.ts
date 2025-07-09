@@ -496,7 +496,7 @@ BEGIN
         'dead_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
     FROM inventory i
-    WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.last_sold_date IS NOT NULL AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval)
+    WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0 AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval))
 
     UNION ALL
 
@@ -751,8 +751,8 @@ BEGIN
             pr.sku,
             pr.name,
             pr.revenue,
-            pr.revenue * 100 / tr.total AS percentage_of_total,
-            SUM(pr.revenue * 100 / tr.total) OVER (ORDER BY pr.revenue DESC) AS cumulative_percentage
+            pr.revenue * 100 / NULLIF(tr.total, 0) AS percentage_of_total,
+            SUM(pr.revenue * 100 / NULLIF(tr.total, 0)) OVER (ORDER BY pr.revenue DESC) AS cumulative_percentage
         FROM product_revenue pr, total_revenue tr
     )
     SELECT
@@ -978,7 +978,7 @@ BEGIN
     FROM inventory i
     WHERE i.company_id = p_company_id
       AND i.quantity > 0
-      AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval)
+      AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval))
       AND i.deleted_at IS NULL
     ORDER BY total_value DESC;
 END;
@@ -1268,16 +1268,16 @@ BEGIN
         i.name,
         i.quantity,
         i.reorder_point,
-        GREATEST(i.reorder_point, CEIL(COALESCE(sv.daily_sales, 0) * 30))::integer - i.quantity,
+        GREATEST(0, (CEIL(COALESCE(sv.daily_sales, 0) * p_fast_moving_days) - i.quantity))::integer as suggested_reorder_quantity,
         v.vendor_name,
-        v.id,
+        v.id as supplier_id,
         sc.unit_cost
     FROM inventory i
     LEFT JOIN sales_velocity sv ON i.sku = sv.sku
     LEFT JOIN supplier_catalogs sc ON i.sku = sc.sku
     LEFT JOIN vendors v ON sc.supplier_id = v.id
     WHERE i.company_id = p_company_id
-      AND i.quantity <= i.reorder_point
+      AND i.quantity <= COALESCE(i.reorder_point, 0)
       AND i.deleted_at IS NULL;
 END;
 $$;
@@ -1506,20 +1506,35 @@ DECLARE
     new_sale sales;
     item_record record;
     total_amount numeric := 0;
+    current_stock integer;
 BEGIN
+    -- [FIX] Check stock levels before proceeding
+    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int) LOOP
+        SELECT quantity INTO current_stock FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id;
+        IF NOT FOUND OR current_stock < item_record.quantity THEN
+            RAISE EXCEPTION 'Insufficient stock for SKU: %. Available: %, Requested: %', item_record.sku, COALESCE(current_stock, 0), item_record.quantity;
+        END IF;
+    END LOOP;
+
+    -- Calculate total amount
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price numeric) LOOP
         total_amount := total_amount + (item_record.quantity * item_record.unit_price);
     END LOOP;
 
+    -- Create the sale record
     INSERT INTO sales (company_id, sale_number, customer_name, customer_email, total_amount, payment_method, notes, created_by, external_id)
     VALUES (p_company_id, 'SALE-' || nextval('sales_sale_number_seq'::regclass), p_customer_name, p_customer_email, total_amount, p_payment_method, p_notes, p_user_id, p_external_id)
     RETURNING * INTO new_sale;
 
+    -- Insert sale items
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric) LOOP
         INSERT INTO sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
         VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
     END LOOP;
     
+    -- [FIX] Decrement inventory
+    PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id);
+
     RETURN new_sale;
 END;
 $$;
@@ -1864,6 +1879,7 @@ BEGIN
     WHERE v.company_id = p_company_id;
 END;
 $$;
+
 
 
 
