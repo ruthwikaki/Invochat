@@ -43,8 +43,8 @@ const allTools = [
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
-  input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
-  output: { schema: FinalResponseObjectSchema },
+  inputSchema: z.object({ userQuery: z.string(), toolResult: z.any() }),
+  outputSchema: FinalResponseObjectSchema,
   prompt: `
     You are ARVO, an expert AI inventory analyst. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
@@ -142,7 +142,7 @@ const universalChatOrchestrator = ai.defineFlow(
                     confidence: 0.1,
                     assumptions: ['The tool needed to answer your question failed to execute.'],
                     toolName: toolCall.name,
-                }
+                } as any;
             }
         }
 

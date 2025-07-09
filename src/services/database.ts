@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionBaseSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -1627,5 +1627,146 @@ export async function updateProductInDb(companyId: string, productId: string, pr
         }
         
         return unifiedData.items[0];
+    });
+}
+
+export async function logSuccessfulLogin(userId: string, ipAddress: string): Promise<void> {
+    await createAuditLogInDb(userId, null, 'login_success', { ip: ipAddress });
+}
+
+export async function createAuditLogInDb(userId: string | null, companyId: string | null, action: string, details: Record<string, any>): Promise<void> {
+    if (userId && !isValidUuid(userId)) throw new Error('Invalid User ID format.');
+    if (companyId && !isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    
+    // Do not use performance tracking for audit logging to avoid infinite loops.
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('audit_log').insert({
+        user_id: userId,
+        company_id: companyId,
+        action: action,
+        details: details,
+    });
+    if (error) {
+        // Log to console directly to avoid looping if logger uses audit logging.
+        console.error(`[Audit Log Failed] Action: ${action}`, error);
+    }
+}
+
+
+// --- Test Functions for /test-supabase page ---
+export async function testSupabaseConnection() {
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: { user } } = await supabase.auth.getUser();
+        return {
+            isConfigured: !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            success: true,
+            user,
+        };
+    } catch (e: any) {
+        return { isConfigured: false, success: false, error: e };
+    }
+}
+
+export async function testDatabaseQuery() {
+    try {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.from('inventory').select('id').limit(1);
+        if (error) throw error;
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function testMaterializedView() {
+    try {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.from('company_dashboard_metrics').select('company_id').limit(1);
+        if (error) throw error;
+        return { success: true };
+    } catch(e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function approvePurchaseOrderInDb(poId: string, companyId: string, userId: string): Promise<void> {
+    if (!isValidUuid(poId) || !isValidUuid(companyId) || !isValidUuid(userId)) throw new Error('Invalid ID format.');
+
+    return withPerformanceTracking('approvePurchaseOrderInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.rpc('approve_purchase_order', {
+            p_po_id: poId,
+            p_company_id: companyId,
+            p_user_id: userId
+        });
+
+        if (error) {
+            logError(error, { context: `Failed to approve PO ${poId}` });
+            throw error;
+        }
+
+        await createAuditLogInDb(userId, companyId, 'po_approved', { po_id: poId });
+    });
+}
+
+export async function transferInventoryInDb(companyId: string, productId: string, fromLocationId: string, toLocationId: string, quantity: number, notes: string, userId: string): Promise<void> {
+    if (![companyId, productId, fromLocationId, toLocationId, userId].every(isValidUuid)) {
+        throw new Error('Invalid UUID format provided.');
+    }
+    return withPerformanceTracking('transferInventoryInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.rpc('transfer_inventory', {
+            p_company_id: companyId,
+            p_product_id: productId,
+            p_from_location_id: fromLocationId,
+            p_to_location_id: toLocationId,
+            p_quantity: quantity,
+            p_notes: notes,
+            p_user_id: userId,
+        });
+
+        if (error) {
+            logError(error, { context: 'transferInventoryInDb RPC failed' });
+            throw error;
+        }
+    });
+}
+
+export async function reconcileInventoryInDb(companyId: string, integrationId: string): Promise<void> {
+     if (!isValidUuid(companyId) || !isValidUuid(integrationId)) {
+        throw new Error('Invalid UUID format provided.');
+    }
+    return withPerformanceTracking('reconcileInventoryInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.rpc('reconcile_inventory_from_external', {
+            p_company_id: companyId,
+            p_integration_id: integrationId
+        });
+
+        if (error) {
+            logError(error, { context: 'reconcileInventoryInDb RPC failed' });
+            throw error;
+        }
+    });
+}
+
+export async function getInventoryAgingReportFromDB(companyId: string): Promise<InventoryAgingReportItem[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getInventoryAgingReportFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'getInventoryAgingReportFromDB RPC failed' });
+            throw error;
+        }
+        return z.array(InventoryAgingReportItemSchema).parse(data || []);
     });
 }

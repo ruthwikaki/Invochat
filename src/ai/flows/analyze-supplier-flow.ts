@@ -21,8 +21,8 @@ const SupplierAnalysisOutputSchema = z.object({
 
 const supplierAnalysisPrompt = ai.definePrompt({
   name: 'supplierAnalysisPrompt',
-  input: { schema: z.object({ performanceData: z.array(z.custom<SupplierPerformanceReport>()) }) },
-  output: { schema: SupplierAnalysisOutputSchema.omit({ performanceData: true }) },
+  inputSchema: z.object({ performanceData: z.array(z.custom<SupplierPerformanceReport>()) }),
+  outputSchema: SupplierAnalysisOutputSchema.omit({ performanceData: true }),
   prompt: `
     You are an expert supply chain analyst. You have been given a list of supplier performance reports. Your task is to analyze this data and provide a recommendation for the best supplier.
 
@@ -79,8 +79,8 @@ export const getSupplierAnalysisTool = ai.defineTool(
     {
         name: 'getSupplierPerformanceAnalysis',
         description: "Analyzes supplier performance to recommend the best one. Use this when the user asks about 'best supplier', 'supplier performance', 'which vendor is best', 'on-time delivery', or 'supplier reliability'.",
-        input: SupplierAnalysisInputSchema,
-        output: SupplierAnalysisOutputSchema
+        inputSchema: SupplierAnalysisInputSchema,
+        outputSchema: SupplierAnalysisOutputSchema
     },
     async (input) => analyzeSuppliersFlow(input)
 );
