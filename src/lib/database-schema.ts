@@ -1,12 +1,10 @@
+
 -- INVOCHAT - THE COMPLETE & IDEMPOTENT DATABASE SETUP SCRIPT
--- =================================================================
 -- This script is designed to be run in its entirety. It sets up all
 -- necessary tables, functions, triggers, and security policies for
 -- the InvoChat application to function correctly. It is idempotent,
 -- meaning it can be run multiple times without causing errors.
 
--- Step 1: Extensions & Types
--- -----------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$
@@ -21,8 +19,6 @@ BEGIN
 END;
 $$;
 
--- Step 2: Table Definitions
--- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -34,7 +30,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     email text,
-    role user_role NOT NULL DEFAULT 'Member',
+    role public.user_role NOT NULL DEFAULT 'Member',
     deleted_at timestamptz,
     created_at timestamptz DEFAULT now()
 );
@@ -309,8 +305,6 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     completed_at timestamptz
 );
 
--- Step 3: Materialized Views
--- -----------------------------------------------------------------
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   i.company_id,
@@ -347,9 +341,6 @@ FROM customer_stats AS cs
 GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
-
--- Step 4: Functions & Triggers
--- -----------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -1150,7 +1141,7 @@ BEGIN
             ELSE 0
         END AS gross_margin_percentage
     FROM public.sales AS s
-    JOIN public.sale_items AS si ON s.id = s.id
+    JOIN public.sale_items AS si ON s.id = si.sale_id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
       AND s.created_at >= NOW() - INTERVAL '12 months'
     GROUP BY month
@@ -1172,7 +1163,7 @@ BEGIN
             SUM(si.quantity * si.cost_at_time) AS cogs,
             COUNT(s.id) as number_of_sales
         FROM public.sales AS s
-        JOIN public.sale_items AS si ON s.id = si.id
+        JOIN public.sale_items AS si ON s.id = si.sale_id
         WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
           AND s.payment_method = p_channel_name
         GROUP BY s.payment_method
@@ -1438,7 +1429,7 @@ BEGIN
                 'monthly_units_sold', COALESCE(
                     (SELECT SUM(si.quantity)
                      FROM public.sales AS s
-                     JOIN public.sale_items AS si ON s.id = si.id
+                     JOIN public.sale_items AS si ON s.id = si.sale_id
                      WHERE si.sku = pi.sku
                        AND s.company_id = pi.company_id
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
@@ -1447,7 +1438,7 @@ BEGIN
                 'monthly_profit', COALESCE(
                     (SELECT SUM(si.quantity * (si.unit_price - si.cost_at_time))
                      FROM public.sales AS s
-                     JOIN public.sale_items AS si ON s.id = si.id
+                     JOIN public.sale_items AS si ON s.id = si.sale_id
                      WHERE si.sku = pi.sku
                        AND s.company_id = pi.company_id
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
@@ -1660,14 +1651,13 @@ DECLARE
   item_change record;
   new_total_amount bigint := 0;
 BEGIN
-  -- Process inventory changes
-  FOR item_change IN
+  FOR item_change IN 
     WITH old_items AS (
         SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
     ), new_items AS (
         SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
     )
-    SELECT
+    SELECT 
       COALESCE(oi.sku, ni.sku) as sku,
       COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
     FROM old_items AS oi
@@ -1913,8 +1903,6 @@ BEGIN
 END;
 $$;
 
--- Step 5: Row Level Security (RLS)
--- -----------------------------------------------------------------
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -1992,8 +1980,6 @@ CREATE POLICY "Users can manage their own company's supplier catalogs" ON public
 DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
 CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 
--- Step 6: Grants & Finalization
--- -----------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
