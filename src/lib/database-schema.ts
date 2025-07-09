@@ -1,4 +1,3 @@
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$
@@ -336,7 +335,6 @@ FROM customer_stats cs
 GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
-
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -380,15 +378,13 @@ CREATE TRIGGER on_auth_user_created
 
 DROP FUNCTION IF EXISTS increment_version() CASCADE;
 CREATE OR REPLACE FUNCTION increment_version()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+RETURNS TRIGGER AS $$
 BEGIN
    NEW.version = OLD.version + 1;
    NEW.updated_at = now();
    RETURN NEW;
 END;
-$$;
+$$ language 'plpgsql';
 
 CREATE TRIGGER handle_inventory_update
 BEFORE UPDATE ON inventory
@@ -427,6 +423,7 @@ BEGIN
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.customer_analytics_metrics;
 END;
 $$;
+
 
 DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
@@ -609,7 +606,7 @@ begin
 end;
 $$;
 
-DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions_tx(uuid, jsonb, jsonb);
+DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions_tx(uuid, jsonb);
 CREATE OR REPLACE FUNCTION public.create_purchase_orders_from_suggestions_tx(
     p_company_id uuid,
     p_po_payload jsonb
@@ -826,6 +823,7 @@ BEGIN
     RETURN result_json;
 END;
 $$;
+
 
 DROP FUNCTION IF EXISTS public.get_customers_with_stats(uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
@@ -1046,7 +1044,7 @@ BEGIN
             ELSE 0
         END AS gross_margin_percentage
     FROM sale_items si
-    JOIN sales s ON si.sale_id = si.sale_id
+    JOIN sales s ON si.sale_id = s.id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
     GROUP BY si.product_name, s.payment_method;
 END;
@@ -1108,19 +1106,17 @@ BEGIN
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
-        SELECT AVG(daily_value) as avg_inventory_value FROM (
-            SELECT SUM(quantity * cost) as daily_value
-            FROM inventory
-            WHERE company_id = p_company_id AND created_at <= generate_series(NOW() - (p_days || ' day')::interval, NOW(), '1 day'::interval)
-        ) daily_values
+        SELECT SUM(i.quantity * i.cost) as current_inventory_value
+        FROM inventory i
+        WHERE i.company_id = p_company_id AND i.deleted_at IS NULL
     )
     SELECT
         CASE
-            WHEN iv.avg_inventory_value > 0 THEN COALESCE(cc.total_cogs, 0) / iv.avg_inventory_value
+            WHEN iv.current_inventory_value > 0 THEN COALESCE(cc.total_cogs, 0) / iv.current_inventory_value
             ELSE 0
         END,
         COALESCE(cc.total_cogs, 0),
-        COALESCE(iv.avg_inventory_value, 0),
+        COALESCE(iv.current_inventory_value, 0),
         p_days
     FROM cogs_calc cc, inventory_value_calc iv;
 END;
@@ -1720,7 +1716,6 @@ BEGIN
 END;
 $$;
 
-
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -1820,6 +1815,7 @@ CREATE TRIGGER validate_inventory_location_ref
 DROP FUNCTION IF EXISTS public.get_inventory_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
 RETURNS json
+LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN (
@@ -1838,6 +1834,7 @@ $$;
 DROP FUNCTION IF EXISTS public.get_purchase_order_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_purchase_order_analytics(p_company_id uuid)
 RETURNS json
+LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN (
@@ -1870,6 +1867,7 @@ $$;
 DROP FUNCTION IF EXISTS public.get_sales_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_sales_analytics(p_company_id uuid)
 RETURNS json
+LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN (
@@ -2006,5 +2004,3 @@ ALTER TABLE public.inventory
 DROP CONSTRAINT IF EXISTS fk_inventory_location,
 ADD CONSTRAINT fk_inventory_location
 FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
-
-    
