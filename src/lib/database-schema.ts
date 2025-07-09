@@ -1485,21 +1485,28 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_company_id uuid, p_sale_id uuid)
+CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_company_id uuid, p_sale_id uuid, p_inventory_updates jsonb)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    item_record RECORD;
+    item_record record;
+    updated_row_count int;
 BEGIN
-    FOR item_record IN SELECT si.sku, si.quantity FROM sale_items si WHERE si.sale_id = p_sale_id
+    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_inventory_updates) AS x(sku text, quantity int, expected_version int)
     LOOP
         UPDATE inventory i
-        SET quantity = i.quantity - item_record.quantity,
-            last_sold_date = CURRENT_DATE,
-            version = i.version + 1 -- Manually increment version
+        SET 
+            quantity = i.quantity - item_record.quantity,
+            last_sold_date = CURRENT_DATE
         WHERE i.sku = item_record.sku
-          AND i.company_id = p_company_id;
+          AND i.company_id = p_company_id
+          AND i.version = item_record.expected_version;
+
+        GET DIAGNOSTICS updated_row_count = ROW_COUNT;
+        IF updated_row_count = 0 THEN
+            RAISE EXCEPTION 'Concurrency error: Inventory for SKU % was updated by another process. Please try again.', item_record.sku;
+        END IF;
 
         INSERT INTO inventory_ledger (company_id, sku, created_at, change_type, quantity_change, new_quantity, related_id, notes)
         SELECT 
@@ -1584,15 +1591,17 @@ DECLARE
     new_sale sales;
     item_record record;
     total_amount bigint := 0;
-    current_stock integer;
-    v_cost_at_time bigint;
+    current_inventory record;
+    inventory_updates jsonb := '[]'::jsonb;
 BEGIN
     -- Check stock levels before proceeding
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int) LOOP
-        SELECT quantity INTO current_stock FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id AND deleted_at IS NULL;
-        IF NOT FOUND OR current_stock < item_record.quantity THEN
-            RAISE EXCEPTION 'Insufficient stock for SKU: %. Available: %, Requested: %', item_record.sku, COALESCE(current_stock, 0), item_record.quantity;
+        SELECT quantity, version INTO current_inventory FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id AND deleted_at IS NULL FOR UPDATE;
+        IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
+            RAISE EXCEPTION 'Insufficient stock for SKU: %. Available: %, Requested: %', item_record.sku, COALESCE(current_inventory.quantity, 0), item_record.quantity;
         END IF;
+        -- Build payload for inventory update function, including expected version
+        inventory_updates := inventory_updates || jsonb_build_object('sku', item_record.sku, 'quantity', item_record.quantity, 'expected_version', current_inventory.version);
     END LOOP;
 
     -- Calculate total amount
@@ -1612,7 +1621,7 @@ BEGIN
     END LOOP;
     
     -- Decrement inventory (This function handles the ledger creation)
-    PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id);
+    PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id, inventory_updates);
 
     RETURN new_sale;
 END;

@@ -7,7 +7,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { getReorderSuggestionsFromDB, getHistoricalSalesForSkus } from '@/services/database';
+import { getReorderSuggestionsFromDB, getHistoricalSalesForSkus, getSettings } from '@/services/database';
 import type { ReorderSuggestion } from '@/types';
 import { ReorderSuggestionBaseSchema } from '@/types';
 
@@ -21,7 +21,8 @@ const ReorderRefinementInputSchema = z.object({
           total_quantity: z.number(),
       }))
   })),
-  currentDate: z.string().describe("The current date in YYYY-MM-DD format, to provide context for seasonality.")
+  currentDate: z.string().describe("The current date in YYYY-MM-DD format, to provide context for seasonality."),
+  timezone: z.string().describe("The business's timezone, e.g., 'America/New_York'.")
 });
 
 const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
@@ -39,6 +40,7 @@ const reorderRefinementPrompt = ai.definePrompt({
         You are an expert supply chain analyst for an e-commerce business. Your task is to refine a list of automatically-generated reorder suggestions by considering their historical sales data and seasonality.
 
         Current Date: {{{currentDate}}}
+        Business Timezone: {{{timezone}}}
 
         Here are the initial suggestions based on stock levels and reorder points. The 'suggested_reorder_quantity' is the base quantity you should start with.
         {{{json suggestions}}}
@@ -49,7 +51,7 @@ const reorderRefinementPrompt = ai.definePrompt({
         **Your Task:**
         For each product, analyze its sales trends and adjust the 'suggested_reorder_quantity' based on your findings.
 
-        1.  **Analyze Seasonality:** Look at the historical sales. Does this product sell more during certain times of the year (e.g., summer for sunglasses, December for toys)?
+        1.  **Analyze Seasonality:** Using the business timezone, look at the historical sales. Does this product sell more during certain times of the year (e.g., summer for sunglasses, December for toys)?
         2.  **Identify Trends:** Is the product trending up or down in sales over the last few months?
         3.  **Adjust Quantity:**
             - If you detect a strong upcoming seasonal peak or an upward trend, **increase** the 'suggested_reorder_quantity'.
@@ -87,9 +89,11 @@ export const getReorderSuggestions = ai.defineTool(
             return [];
         }
 
-        // Step 2: Get historical sales data for these SKUs
-        const skusToAnalyze = baseSuggestions.map(s => s.sku);
-        const historicalSales = await getHistoricalSalesForSkus(input.companyId, skusToAnalyze);
+        // Step 2: Get historical sales data and company settings (for timezone)
+        const [historicalSales, settings] = await Promise.all([
+            getHistoricalSalesForSkus(input.companyId, baseSuggestions.map(s => s.sku)),
+            getSettings(input.companyId),
+        ]);
         
         // Step 3: Call the AI to refine the suggestions
         logger.info(`[Reorder Tool] Refining ${baseSuggestions.length} suggestions with AI.`);
@@ -97,7 +101,8 @@ export const getReorderSuggestions = ai.defineTool(
         const { output } = await reorderRefinementPrompt({
             suggestions: baseSuggestions,
             historicalSales: historicalSales,
-            currentDate: new Date().toISOString().split('T')[0]
+            currentDate: new Date().toISOString().split('T')[0],
+            timezone: settings.timezone || 'UTC',
         });
 
         if (!output) {
@@ -105,7 +110,7 @@ export const getReorderSuggestions = ai.defineTool(
             // Fallback: Add required fields to base suggestions
             return baseSuggestions.map(s => ({
                 ...s,
-                base_quantity: s.base_quantity,
+                base_quantity: s.suggested_reorder_quantity,
                 adjustment_reason: 'AI refinement failed, using base calculation.',
                 seasonality_factor: 1.0,
                 confidence: 0.1,
@@ -122,5 +127,3 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
-
-    

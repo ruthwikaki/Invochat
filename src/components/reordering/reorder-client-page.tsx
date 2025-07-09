@@ -21,18 +21,23 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
         return <span className="text-muted-foreground">—</span>;
     }
 
-    const confidenceColor = suggestion.confidence && suggestion.confidence > 0.7 
+    const confidence = suggestion.confidence ?? 0;
+    const confidenceColor = confidence > 0.7 
         ? 'text-success' 
-        : suggestion.confidence && suggestion.confidence > 0.4 
+        : confidence > 0.4 
         ? 'text-amber-500' 
         : 'text-destructive';
+
+    const confidenceIcon = confidence < 0.4 
+        ? <AlertTriangle className="h-4 w-4 mr-1 text-destructive" /> 
+        : <BrainCircuit className="h-4 w-4" />;
 
     return (
          <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
                     <span className="flex items-center gap-1 cursor-help text-primary">
-                        <BrainCircuit className="h-4 w-4" />
+                        {confidenceIcon}
                         AI Adjusted
                     </span>
                 </TooltipTrigger>
