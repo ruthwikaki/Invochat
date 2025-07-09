@@ -62,9 +62,9 @@ export async function runSync(integrationId: string, companyId: string, attempt 
     } catch (e: any) {
         logError(e, { context: `Sync failed for integration ${integration.id}, attempt ${attempt}` });
         
-        // If a sync fails, don't clear the cursor. This allows retrying from where it left off.
-        // The sync functions themselves should NOT clear state on failure.
-
+        // On failure, do not clear the cursor state. This allows the sync
+        // to be potentially retried from where it left off.
+        
         if (attempt < MAX_ATTEMPTS) {
             const delayMs = Math.pow(2, attempt) * 2000; // Exponential backoff starts at 2s, then 4s
             logger.info(`[Sync Service] Retrying sync for ${integration.id} in ${delayMs}ms...`);
@@ -78,3 +78,5 @@ export async function runSync(integrationId: string, companyId: string, attempt 
         }
     }
 }
+
+    

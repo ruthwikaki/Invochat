@@ -1,3 +1,4 @@
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -6,6 +7,7 @@ import type { Integration } from '@/features/integrations/types';
 export type User = Omit<SupabaseUser, 'app_metadata' | 'role'> & {
   app_metadata?: {
     company_id?: string;
+    role?: 'Owner' | 'Admin' | 'Member';
   };
   role?: 'Owner' | 'Admin' | 'Member';
 };
@@ -284,16 +286,7 @@ export const ReorderSuggestionBaseSchema = z.object({
     seasonality_factor: z.number().optional(),
     confidence: z.number().optional(),
 });
-
-export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.transform((data) => ({
-    ...data,
-    // Provide default values for nullable fields to prevent downstream errors
-    reorder_point: data.reorder_point ?? 0,
-    supplier_name: data.supplier_name ?? 'Unknown Supplier',
-    supplier_id: data.supplier_id ?? null,
-    unit_cost: data.unit_cost ?? 0,
-}));
-export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+export type ReorderSuggestion = z.infer<typeof ReorderSuggestionBaseSchema>;
 
 
 export const ChannelFeeSchema = z.object({
@@ -483,3 +476,6 @@ export const SalesAnalyticsSchema = z.object({
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
+
+
+    

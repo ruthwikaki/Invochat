@@ -101,6 +101,7 @@ export async function syncProducts(integration: Integration, accessToken: string
             nextUrl = parseLinkHeader(response.headers.get('Link'));
             
             // Checkpoint progress: Only update cursor on successful batch processing
+            // If the loop breaks due to an error, the cursor for the failed page won't be saved.
             await supabase.from('sync_state').upsert({
                 integration_id: integration.id,
                 sync_type: syncType,
@@ -109,7 +110,7 @@ export async function syncProducts(integration: Integration, accessToken: string
             });
         }
         
-        // On success, clean up sync state for this type
+        // On complete success, clean up sync state for this type
         await supabase.from('sync_state').delete().eq('integration_id', integration.id).eq('sync_type', syncType);
         if (logId) await supabase.from('sync_logs').update({ status: 'completed', completed_at: new Date().toISOString(), records_synced: totalRecordsSynced }).eq('id', logId);
         logger.info(`Successfully synced ${totalRecordsSynced} products for ${integration.shop_name}`);
@@ -224,3 +225,6 @@ export async function runShopifyFullSync(integration: Integration) {
     }
 }
 
+
+
+    

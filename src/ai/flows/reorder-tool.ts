@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Defines a Genkit tool for getting intelligent reorder suggestions.
@@ -104,7 +105,7 @@ export const getReorderSuggestions = ai.defineTool(
             // Fallback: Add required fields to base suggestions
             return baseSuggestions.map(s => ({
                 ...s,
-                base_quantity: s.suggested_reorder_quantity,
+                base_quantity: s.base_quantity,
                 adjustment_reason: 'AI refinement failed, using base calculation.',
                 seasonality_factor: 1.0,
                 confidence: 0.1,
@@ -121,3 +122,5 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
+    

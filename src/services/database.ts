@@ -11,7 +11,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionBaseSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -405,8 +405,6 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
     return withPerformanceTracking('createPurchaseOrderInDb', async () => {
         const supabase = getServiceRoleClient();
         
-        const totalAmount = poData.items.reduce((sum, item) => sum + (item.quantity_ordered * item.unit_cost), 0);
-        
         const itemsForRpc = poData.items.map(item => ({
             sku: item.sku,
             quantity_ordered: item.quantity_ordered,
@@ -420,7 +418,6 @@ export async function createPurchaseOrderInDb(companyId: string, poData: Purchas
             p_order_date: poData.order_date.toISOString(),
             p_expected_date: poData.expected_date?.toISOString(),
             p_notes: poData.notes,
-            p_total_amount: totalAmount,
             p_items: itemsForRpc,
         }).select().single();
 
@@ -824,7 +821,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw new Error(`Could not generate reorder suggestions: ${error.message}`);
         }
 
-        const parsedData = z.array(ReorderSuggestionSchema).safeParse(data ?? []);
+        const parsedData = z.array(ReorderSuggestionBaseSchema).safeParse(data ?? []);
         if (!parsedData.success) {
             logError(parsedData.error, { context: 'Zod parsing error for reorder suggestions' });
             return [];
@@ -1655,3 +1652,6 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
 
 
 
+
+
+    

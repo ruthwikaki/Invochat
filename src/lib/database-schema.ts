@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_variant_id text,
     external_quantity integer,
     UNIQUE(company_id, sku),
-    CONSTRAINT inventory_quantity_non_negative CHECK ((quantity >= 0))
+    CONSTRAINT inventory_quantity_non_negative CHECK ((quantity >= 0)),
+    CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0))
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_company_sku ON public.inventory(company_id, sku);
 CREATE INDEX IF NOT EXISTS idx_inventory_category ON public.inventory(company_id, category);
@@ -606,7 +607,6 @@ CREATE OR REPLACE FUNCTION public.create_purchase_order_and_update_inventory(
     p_order_date date,
     p_expected_date date,
     p_notes text,
-    p_total_amount numeric,
     p_items jsonb
 )
 RETURNS purchase_orders
@@ -615,11 +615,18 @@ AS $$
 declare
   new_po purchase_orders;
   item_record record;
+  v_total_amount numeric := 0;
 begin
+  -- Calculate total amount first
+  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(quantity_ordered int, unit_cost numeric)
+  LOOP
+    v_total_amount := v_total_amount + (item_record.quantity_ordered * item_record.unit_cost);
+  END LOOP;
+
   INSERT INTO public.purchase_orders
     (company_id, supplier_id, po_number, status, order_date, expected_date, notes, total_amount)
   VALUES
-    (p_company_id, p_supplier_id, p_po_number, 'draft', p_order_date, p_expected_date, p_notes, p_total_amount)
+    (p_company_id, p_supplier_id, p_po_number, 'draft', p_order_date, p_expected_date, p_notes, v_total_amount)
   RETURNING * INTO new_po;
 
   FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
@@ -767,7 +774,7 @@ BEGIN
         FROM inventory i
         LEFT JOIN sale_items si ON i.sku = si.sku AND i.company_id = si.company_id
         LEFT JOIN sales s ON si.sale_id = s.id AND s.created_at >= NOW() - interval '1 year'
-        WHERE i.company_id = p_company_id
+        WHERE i.company_id = p_company_id AND i.deleted_at IS NULL
         GROUP BY i.sku, i.name
     ),
     total_revenue AS (
@@ -792,7 +799,8 @@ BEGIN
             WHEN rr.cumulative_percentage <= 95 THEN 'B'
             ELSE 'C'
         END::text AS abc_category
-    FROM ranked_revenue rr;
+    FROM ranked_revenue rr
+    WHERE rr.revenue > 0;
 END;
 $$;
 
@@ -1275,7 +1283,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid, p_fast_moving_days integer)
-RETURNS TABLE(sku text, product_name text, current_quantity integer, reorder_point integer, suggested_reorder_quantity integer, supplier_name text, supplier_id uuid, unit_cost numeric)
+RETURNS TABLE(sku text, product_name text, current_quantity integer, reorder_point integer, suggested_reorder_quantity integer, supplier_name text, supplier_id uuid, unit_cost numeric, base_quantity integer)
 LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -1288,23 +1296,32 @@ BEGIN
       JOIN sales s ON si.sale_id = s.id
       WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
       GROUP BY si.sku
+    ),
+    base_suggestions AS (
+        SELECT
+            i.sku,
+            i.name as product_name,
+            i.quantity as current_quantity,
+            i.reorder_point,
+            -- Core suggestion logic: order up to reorder point + safety stock (30 days of sales)
+            GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * 30)) - i.quantity)::integer as base_quantity,
+            v.vendor_name,
+            v.id as supplier_id,
+            sc.unit_cost
+        FROM inventory i
+        LEFT JOIN sales_velocity sv ON i.sku = sv.sku
+        LEFT JOIN supplier_catalogs sc ON i.sku = sc.sku
+        LEFT JOIN vendors v ON sc.supplier_id = v.id
+        WHERE i.company_id = p_company_id
+          AND i.quantity <= COALESCE(i.reorder_point, 0)
+          AND i.deleted_at IS NULL
     )
-    SELECT
-        i.sku,
-        i.name,
-        i.quantity,
-        i.reorder_point,
-        GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * p_fast_moving_days) - i.quantity))::integer as suggested_reorder_quantity,
-        v.vendor_name,
-        v.id as supplier_id,
-        sc.unit_cost
-    FROM inventory i
-    LEFT JOIN sales_velocity sv ON i.sku = sv.sku
-    LEFT JOIN supplier_catalogs sc ON i.sku = sc.sku
-    LEFT JOIN vendors v ON sc.supplier_id = v.id
-    WHERE i.company_id = p_company_id
-      AND i.quantity <= COALESCE(i.reorder_point, 0)
-      AND i.deleted_at IS NULL;
+    SELECT 
+        bs.sku, bs.product_name, bs.current_quantity, bs.reorder_point, 
+        bs.base_quantity as suggested_reorder_quantity, -- Initially, suggested is the same as base
+        bs.supplier_name, bs.supplier_id, bs.unit_cost,
+        bs.base_quantity
+    FROM base_suggestions bs;
 END;
 $$;
 
@@ -1473,35 +1490,32 @@ CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_company_id uui
 RETURNS void
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    item_record RECORD;
 BEGIN
-    UPDATE inventory i
-    SET quantity = i.quantity - si.quantity,
-        last_sold_date = CURRENT_DATE,
-        updated_at = NOW()
-    FROM sale_items si
-    JOIN sales s ON si.sale_id = s.id
-    WHERE s.id = p_sale_id
-    AND s.company_id = p_company_id
-    AND i.sku = si.sku
-    AND i.company_id = p_company_id;
+    FOR item_record IN SELECT si.sku, si.quantity FROM sale_items si WHERE si.sale_id = p_sale_id
+    LOOP
+        UPDATE inventory i
+        SET quantity = i.quantity - item_record.quantity,
+            last_sold_date = CURRENT_DATE
+        WHERE i.sku = item_record.sku
+          AND i.company_id = p_company_id
+          AND i.version = (SELECT version FROM inventory WHERE sku = item_record.sku AND company_id = p_company_id FOR UPDATE); -- Optimistic locking
 
-    INSERT INTO inventory_ledger (company_id, sku, created_at, change_type, quantity_change, new_quantity, related_id, notes)
-    SELECT 
-        p_company_id,
-        si.sku,
-        NOW(),
-        'sale',
-        -si.quantity,
-        i.quantity,
-        p_sale_id,
-        'Sale fulfillment'
-    FROM sale_items si
-    JOIN sales s ON si.sale_id = s.id
-    JOIN inventory i ON si.sku = si.sku AND i.company_id = p_company_id
-    WHERE s.id = p_sale_id
-    AND s.company_id = p_company_id;
+        INSERT INTO inventory_ledger (company_id, sku, created_at, change_type, quantity_change, new_quantity, related_id, notes)
+        SELECT 
+            p_company_id,
+            item_record.sku,
+            NOW(),
+            'sale',
+            -item_record.quantity,
+            (SELECT quantity FROM inventory WHERE sku = item_record.sku AND company_id = p_company_id),
+            p_sale_id,
+            'Sale fulfillment';
+    END LOOP;
 END;
 $$;
+
 
 CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
 RETURNS void
@@ -1509,8 +1523,8 @@ LANGUAGE plpgsql
 AS $$
 DECLARE 
     item RECORD;
-    v_already_received INTEGER;
     v_ordered_quantity INTEGER;
+    v_already_received INTEGER;
     v_can_receive INTEGER;
     total_ordered INTEGER;
     total_received INTEGER;
@@ -1520,10 +1534,13 @@ BEGIN
     END IF;
 
     FOR item IN SELECT * FROM jsonb_to_recordset(p_items_to_receive) AS x(sku TEXT, quantity_to_receive INTEGER) LOOP
-        SELECT poi.quantity_ordered, COALESCE(poi.quantity_received, 0) INTO v_ordered_quantity, v_already_received
-        FROM purchase_order_items poi WHERE poi.po_id = p_po_id AND poi.sku = item.sku;
+        -- Lock the row to prevent concurrent updates
+        SELECT poi.quantity_ordered, COALESCE(poi.quantity_received, 0) 
+        INTO v_ordered_quantity, v_already_received
+        FROM purchase_order_items poi WHERE poi.po_id = p_po_id AND poi.sku = item.sku FOR UPDATE;
         
         IF NOT FOUND THEN RAISE EXCEPTION 'SKU % not found in this purchase order.', item.sku; END IF;
+        
         v_can_receive := v_ordered_quantity - v_already_received;
         
         IF item.quantity_to_receive > v_can_receive THEN
@@ -1535,7 +1552,7 @@ BEGIN
             UPDATE public.inventory 
             SET 
                 quantity = quantity + item.quantity_to_receive, 
-                on_order_quantity = GREATEST(0, on_order_quantity - item.quantity_to_receive)
+                on_order_quantity = on_order_quantity - item.quantity_to_receive
             WHERE company_id = p_company_id AND sku = item.sku;
             INSERT INTO inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, related_id)
             VALUES (p_company_id, item.sku, 'purchase_order_received', item.quantity_to_receive, (SELECT quantity FROM inventory WHERE sku=item.sku AND company_id=p_company_id), p_po_id);
@@ -1590,11 +1607,9 @@ BEGIN
     RETURNING * INTO new_sale;
 
     -- Insert sale items and capture cost at time of sale
-    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric) LOOP
-        SELECT cost INTO v_cost_at_time FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id;
-        
+    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric) LOOP
         INSERT INTO sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
-        VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, v_cost_at_time);
+        VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
     END LOOP;
     
     -- Decrement inventory (This function handles the ledger creation)
@@ -1657,34 +1672,41 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 declare
-  old_item record;
-  new_item_record record;
+  item_change record;
   new_total_amount numeric := 0;
 begin
-  FOR old_item IN
+  -- Calculate net changes to on_order_quantity
+  WITH old_items AS (
     SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
+  ), new_items AS (
+    SELECT sku, quantity_ordered FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int)
+  )
+  FOR item_change IN 
+    SELECT 
+      COALESCE(oi.sku, ni.sku) as sku,
+      COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
+    FROM old_items oi
+    FULL OUTER JOIN new_items ni ON oi.sku = ni.sku
   LOOP
     UPDATE public.inventory
-    SET on_order_quantity = GREATEST(0, on_order_quantity - old_item.quantity_ordered) -- Prevent negative on_order
-    WHERE sku = old_item.sku AND company_id = p_company_id;
+    SET on_order_quantity = on_order_quantity + item_change.quantity_diff
+    WHERE sku = item_change.sku AND company_id = p_company_id;
   END LOOP;
   
+  -- Now, clear old items and insert new ones
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
-  FOR new_item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
+  FOR item_change IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
   LOOP
     INSERT INTO public.purchase_order_items
       (po_id, sku, quantity_ordered, unit_cost)
     VALUES
-      (p_po_id, new_item_record.sku, new_item_record.quantity_ordered, new_item_record.unit_cost);
-
-    UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity + new_item_record.quantity_ordered
-    WHERE sku = new_item_record.sku AND company_id = p_company_id;
+      (p_po_id, item_change.sku, item_change.quantity_ordered, item_change.unit_cost);
     
-    new_total_amount := new_total_amount + (new_item_record.quantity_ordered * new_item_record.unit_cost);
+    new_total_amount := new_total_amount + (item_change.quantity_ordered * item_change.unit_cost);
   END LOOP;
 
+  -- Finally, update the main PO record
   UPDATE public.purchase_orders
   SET
     supplier_id = p_supplier_id,
@@ -1944,3 +1966,11 @@ BEGIN
     WHERE v.company_id = p_company_id;
 END;
 $$;
+
+-- Add a foreign key to sale_items to ensure data integrity
+ALTER TABLE public.sale_items
+ADD CONSTRAINT fk_sale_items_company
+FOREIGN KEY (company_id) REFERENCES public.companies(id);
+
+
+    
