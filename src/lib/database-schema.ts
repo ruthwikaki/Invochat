@@ -484,7 +484,7 @@ BEGIN
             si.sku,
             SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
           FROM public.sale_items AS si
-          JOIN public.sales AS s ON si.sale_id = s.id
+          JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
           WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
           GROUP BY si.sku
         )
@@ -558,7 +558,7 @@ BEGIN
     AND (
         EXISTS (
             SELECT 1 FROM public.sale_items AS si
-            JOIN public.sales AS s ON si.sale_id = s.id
+            JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
             WHERE si.sku = i.sku AND s.company_id = p_company_id
         )
         OR EXISTS (
@@ -1004,7 +1004,7 @@ BEGIN
             date_trunc('month', s.created_at) AS sale_month,
             SUM(si.quantity) AS total_quantity
         FROM public.sale_items AS si
-        JOIN public.sales AS s ON si.sale_id = s.id
+        JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '12 months'
         GROUP BY si.sku, sale_month
     ),
@@ -1051,7 +1051,7 @@ BEGIN
             ELSE 0
         END AS gross_margin_percentage
     FROM public.sale_items AS si
-    JOIN public.sales AS s ON si.sale_id = s.id
+    JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
     GROUP BY si.product_name, s.payment_method;
 END;
@@ -1073,7 +1073,7 @@ BEGIN
             to_char(s.created_at, 'YYYY-MM') AS month,
             SUM(si.quantity) AS total_quantity
         FROM public.sale_items AS si
-        JOIN public.sales AS s ON si.sale_id = s.id
+        JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
         WHERE s.company_id = p_company_id
           AND si.sku = ANY(p_skus)
           AND s.created_at >= NOW() - INTERVAL '24 months'
@@ -1109,7 +1109,7 @@ BEGIN
     WITH cogs_calc AS (
         SELECT COALESCE(SUM(si.quantity * si.cost_at_time), 0) AS total_cogs
         FROM public.sale_items AS si
-        JOIN public.sales AS s ON si.sale_id = s.id
+        JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
@@ -1141,7 +1141,7 @@ BEGIN
             ELSE 0
         END AS gross_margin_percentage
     FROM public.sales AS s
-    JOIN public.sale_items AS si ON s.id = si.sale_id
+    JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
       AND s.created_at >= NOW() - INTERVAL '12 months'
     GROUP BY month
@@ -1163,7 +1163,7 @@ BEGIN
             SUM(si.quantity * si.cost_at_time) AS cogs,
             COUNT(s.id) as number_of_sales
         FROM public.sales AS s
-        JOIN public.sale_items AS si ON s.id = si.sale_id
+        JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
         WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
           AND s.payment_method = p_channel_name
         GROUP BY s.payment_method
@@ -1268,7 +1268,7 @@ BEGIN
         si.sku,
         SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
       FROM public.sale_items AS si
-      JOIN public.sales AS s ON si.sale_id = s.id
+      JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
       WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
       GROUP BY si.sku
     ),
@@ -1429,7 +1429,7 @@ BEGIN
                 'monthly_units_sold', COALESCE(
                     (SELECT SUM(si.quantity)
                      FROM public.sales AS s
-                     JOIN public.sale_items AS si ON s.id = si.sale_id
+                     JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
                      WHERE si.sku = pi.sku
                        AND s.company_id = pi.company_id
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
@@ -1438,7 +1438,7 @@ BEGIN
                 'monthly_profit', COALESCE(
                     (SELECT SUM(si.quantity * (si.unit_price - si.cost_at_time))
                      FROM public.sales AS s
-                     JOIN public.sale_items AS si ON s.id = si.sale_id
+                     JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
                      WHERE si.sku = pi.sku
                        AND s.company_id = pi.company_id
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
