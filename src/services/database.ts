@@ -548,24 +548,24 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
         for (const item of (data as any[])) {
             if (item.type === 'low_stock') {
                 alerts.push({
-                    id: `low-stock-${item.sku}`, type: 'low_stock', title: `Low Stock Warning`,
+                    id: `low-stock-${item.product_id}`, type: 'low_stock', title: `Low Stock Warning`,
                     message: `Item "${item.product_name || item.sku}" is running low on stock.`,
                     severity: 'warning', timestamp: new Date().toISOString(),
-                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.current_stock, reorderPoint: item.reorder_point },
+                    metadata: { productId: item.product_id, productName: item.product_name || item.sku, currentStock: item.current_stock, reorderPoint: item.reorder_point },
                 });
             } else if (item.type === 'dead_stock') {
                 alerts.push({
-                    id: `dead-stock-${item.sku}`, type: 'dead_stock', title: `Dead Stock Alert`,
+                    id: `dead-stock-${item.product_id}`, type: 'dead_stock', title: `Dead Stock Alert`,
                     message: `Item "${item.product_name || item.sku}" is now considered dead stock.`,
                     severity: 'info', timestamp: new Date().toISOString(),
-                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.current_stock, lastSoldDate: item.last_sold_date, value: item.value },
+                    metadata: { productId: item.product_id, productName: item.product_name || item.sku, currentStock: item.current_stock, lastSoldDate: item.last_sold_date, value: item.value },
                 });
             } else if (item.type === 'predictive') {
                 alerts.push({
-                    id: `predictive-${item.sku}`, type: 'predictive', title: `Predictive Stockout Alert`,
+                    id: `predictive-${item.product_id}`, type: 'predictive', title: `Predictive Stockout Alert`,
                     message: `You are forecast to run out of stock for "${item.product_name || item.sku}" in approximately ${Math.round(item.days_of_stock_remaining)} days.`,
                     severity: 'warning', timestamp: new Date().toISOString(),
-                    metadata: { productId: item.sku, productName: item.product_name || item.sku, currentStock: item.current_stock, daysOfStockRemaining: item.days_of_stock_remaining },
+                    metadata: { productId: item.product_id, productName: item.product_name || item.sku, currentStock: item.current_stock, daysOfStockRemaining: item.days_of_stock_remaining },
                 });
             }
         }
@@ -1069,7 +1069,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string): Promi
     });
 }
 
-export async function softDeleteInventoryItemsFromDb(companyId: string, skus: string[], userId: string): Promise<void> {
+export async function softDeleteInventoryItemsFromDb(companyId: string, productIds: string[], userId: string): Promise<void> {
     if (!isValidUuid(companyId) || !isValidUuid(userId)) throw new Error('Invalid ID format.');
 
     return withPerformanceTracking('softDeleteInventoryItemsFromDb', async () => {
@@ -1077,7 +1077,7 @@ export async function softDeleteInventoryItemsFromDb(companyId: string, skus: st
         
         const { data: activeReferences, error: refError } = await supabase.rpc('check_inventory_references', {
             p_company_id: companyId,
-            p_skus: skus
+            p_product_ids: productIds
         });
         
         if (refError) {
@@ -1086,8 +1086,8 @@ export async function softDeleteInventoryItemsFromDb(companyId: string, skus: st
         }
 
         if (activeReferences && activeReferences.length > 0) {
-            const activeSkus = activeReferences.map((ref: {sku: string}) => ref.sku).join(', ');
-            throw new Error(`Cannot delete items with active references in sales or POs: ${activeSkus}`);
+            const activeSkus = activeReferences.map((ref: {product_id: string}) => ref.product_id).join(', ');
+            throw new Error(`Cannot delete products with active references in sales or POs: ${activeSkus}`);
         }
 
         const { error } = await supabase
@@ -1097,25 +1097,25 @@ export async function softDeleteInventoryItemsFromDb(companyId: string, skus: st
                 deleted_by: userId
             })
             .eq('company_id', companyId)
-            .in('sku', skus)
+            .in('product_id', productIds)
             .is('deleted_at', null);
             
         if (error) {
             logError(error, { context: `softDeleteInventoryItemsFromDb for company ${companyId}` });
             throw error;
         }
-        logger.info(`[DB Service] Soft-deleted ${skus.length} inventory items for company ${companyId}`);
+        logger.info(`[DB Service] Soft-deleted ${productIds.length} inventory items for company ${companyId}`);
     });
 }
 
-export async function updateInventoryItemInDb(companyId: string, sku: string, itemData: InventoryUpdateData): Promise<UnifiedInventoryItem> {
+export async function updateInventoryItemInDb(companyId: string, productId: string, itemData: InventoryUpdateData): Promise<UnifiedInventoryItem> {
     if (!isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('updateInventoryItemInDb', async () => {
         const supabase = getServiceRoleClient();
         
         const { data, error } = await supabase.rpc('update_inventory_item_with_lock', {
             p_company_id: companyId,
-            p_sku: sku,
+            p_product_id: productId,
             p_expected_version: itemData.version,
             p_name: itemData.name,
             p_category: itemData.category,
@@ -1127,7 +1127,7 @@ export async function updateInventoryItemInDb(companyId: string, sku: string, it
         }).single();
 
         if (error) {
-            logError(error, { context: `Optimistic lock failed or error updating SKU ${sku}` });
+            logError(error, { context: `Optimistic lock failed or error updating Product ID ${productId}` });
             if (error.message.includes('Update failed. The item may have been modified by someone else.')) {
                 throw new Error('Update failed. This item was modified by someone else. Please refresh and try again.');
             }

@@ -434,7 +434,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setHistorySku(item.product_id)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setTransferringItem(item)}><Replace className="mr-2 h-4 w-4" />Transfer Stock</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete

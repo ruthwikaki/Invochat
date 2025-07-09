@@ -1,4 +1,5 @@
 
+
 import { z } from 'zod';
 
 // Schema for validating a row from a product CSV.
@@ -28,9 +29,8 @@ export const SupplierImportSchema = z.object({
 export const SupplierCatalogImportSchema = z.object({
   company_id: z.string().uuid(), // This is not a column in the table, but required for context
   supplier_id: z.string().uuid('supplier_id must be a valid UUID.'),
-  sku: z.string().min(1, 'sku is required.'),
+  product_id: z.string().uuid('product_id must be a valid UUID.'),
   supplier_sku: z.string().optional().nullable(),
-  product_name: z.string().optional().nullable(),
   unit_cost: z.coerce.number().int().nonnegative('unit_cost cannot be negative (in cents).'),
   moq: z.coerce.number().int().positive().optional().nullable(),
   lead_time_days: z.coerce.number().int().nonnegative().optional().nullable(),
@@ -40,7 +40,7 @@ export const SupplierCatalogImportSchema = z.object({
 // Schema for validating a row from a reorder rules CSV.
 export const ReorderRuleImportSchema = z.object({
   company_id: z.string().uuid(),
-  sku: z.string().min(1, 'sku is required.'),
+  product_id: z.string().uuid('product_id must be a valid UUID.'),
   rule_type: z.string().optional().nullable().default('manual'),
   min_stock: z.coerce.number().int().nonnegative().optional().nullable(),
   max_stock: z.coerce.number().int().nonnegative().optional().nullable(),

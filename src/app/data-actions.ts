@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import type { Message } from '@/types';
@@ -233,9 +234,9 @@ export async function updateInventoryItem(productId: string, data: InventoryUpda
     }
 }
 
-export async function getInventoryLedger(productId: string) {
+export async function getInventoryLedger(sku: string) {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerForSkuFromDB(companyId, productId);
+    return getInventoryLedgerForSkuFromDB(companyId, sku);
 }
 
 export async function exportInventory(params: { query?: string; category?: string; location?: string, supplier?: string }) {

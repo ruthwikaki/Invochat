@@ -97,7 +97,7 @@ export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryD
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Inventory History for Product ID: {productId}
+            Inventory History for SKU: {productId}
           </DialogTitle>
           <DialogDescription>
             A complete audit trail of all stock movements for this item across all locations.

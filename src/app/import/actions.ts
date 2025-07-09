@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -133,7 +134,7 @@ async function processCsv<T extends z.ZodType>(
         if (tableName === 'products') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
         if (tableName === 'supplier_catalogs') conflictTarget = ['supplier_id', 'sku'];
-        if (tableName === 'reorder_rules') conflictTarget = ['company_id', 'sku'];
+        if (tableName === 'reorder_rules') conflictTarget = ['company_id', 'product_id'];
         if (tableName === 'locations') conflictTarget = ['company_id', 'name'];
 
 

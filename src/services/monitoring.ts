@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { redisClient, isRedisEnabled } from '@/lib/redis';
@@ -110,5 +111,3 @@ export async function incrementCacheMiss(cacheType: string): Promise<void> {
         logger.error(`[Monitoring] Failed to increment cache miss for ${cacheType}:`, e);
     }
 }
-
-    
