@@ -11,7 +11,8 @@ BEGIN
             'Member'
         );
     END IF;
-END$$;
+END;
+$$;
 
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -749,7 +750,7 @@ BEGIN
             (pr.revenue * 100.0 / NULLIF((SELECT total FROM total_revenue), 0)) AS percentage_of_total,
             SUM(pr.revenue) OVER (ORDER BY pr.revenue DESC) * 100.0 / NULLIF((SELECT total FROM total_revenue), 0) AS cumulative_percentage
         FROM product_revenue AS pr
-    )
+    ),
     SELECT
         rr.sku,
         rr.product_name,
@@ -1645,22 +1646,22 @@ DECLARE
   item_change record;
   new_total_amount bigint := 0;
 BEGIN
+  FOR item_change IN 
     WITH old_items AS (
         SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
     ), new_items AS (
         SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
     )
-    FOR item_change IN 
-        SELECT 
-        COALESCE(oi.sku, ni.sku) as sku,
-        COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
-        FROM old_items AS oi
-        FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
-    LOOP
-        UPDATE public.inventory
-        SET on_order_quantity = on_order_quantity + item_change.quantity_diff
-        WHERE sku = item_change.sku AND company_id = p_company_id;
-    END LOOP;
+    SELECT 
+      COALESCE(oi.sku, ni.sku) as sku,
+      COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
+    FROM old_items AS oi
+    FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
+  LOOP
+    UPDATE public.inventory
+    SET on_order_quantity = on_order_quantity + item_change.quantity_diff
+    WHERE sku = item_change.sku AND company_id = p_company_id;
+  END LOOP;
   
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
@@ -1790,7 +1791,7 @@ DROP POLICY IF EXISTS "Users can manage their own company's supplier catalogs" O
 CREATE POLICY "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs FOR ALL USING (supplier_id IN (SELECT id FROM public.vendors WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
 
 DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
-CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
 
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
@@ -2006,3 +2007,5 @@ ALTER TABLE public.inventory
 ADD CONSTRAINT fk_inventory_location
 FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
 `;
+
+    
