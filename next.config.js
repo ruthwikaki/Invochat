@@ -2,6 +2,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Production optimizations
+  compress: true,
+  poweredByHeader: false,
   webpack: (config, { dev }) => {
     // This setting can help resolve strange build issues on Windows,
     // especially when the project is in a cloud-synced directory like OneDrive.

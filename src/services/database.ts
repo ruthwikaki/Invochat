@@ -833,6 +833,23 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     });
 }
 
+export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, poPayload: any): Promise<number> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('createPurchaseOrdersFromSuggestionsInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions_tx', {
+            p_company_id: companyId,
+            p_po_payload: poPayload
+        });
+
+        if (error) {
+            logError(error, { context: 'createPurchaseOrdersFromSuggestionsInDb RPC failed' });
+            throw new Error(`Could not create purchase orders: ${error.message}`);
+        }
+        return data ?? 0;
+    });
+}
+
 export async function getHistoricalSalesForSkus(
     companyId: string, 
     skus: string[]

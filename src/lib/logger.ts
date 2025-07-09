@@ -6,6 +6,8 @@
 
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 // Note: We avoid exporting a complex object directly to stay compatible with
 // Next.js server-side module constraints. Each function is exported individually.
 const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
@@ -14,7 +16,10 @@ const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
 };
 
 function debug(message: string, ...optionalParams: any[]) {
-    log('DEBUG', message, ...optionalParams);
+    // To reduce noise, only log DEBUG level messages in non-production environments.
+    if (!isProduction) {
+        log('DEBUG', message, ...optionalParams);
+    }
 }
 
 function info(message: string, ...optionalParams: any[]) {

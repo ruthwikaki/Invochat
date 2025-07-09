@@ -7,6 +7,11 @@ export const SETUP_SQL_SCRIPT = `-- ============================================
 -- necessary tables, functions, triggers, and security policies for
 -- the InvoChat application to function correctly. It is idempotent,
 -- meaning it can be run multiple times without causing errors.
+--
+-- For production environments, it's recommended to set up a cron
+-- job to periodically refresh the materialized views for optimal
+-- dashboard performance. Example using pg_cron:
+-- SELECT cron.schedule('refresh-views', '0 * * * *', 'SELECT public.refresh_materialized_views(company_id) FROM public.companies');
 -- =================================================================
 
 -- Step 1: Extensions
@@ -98,6 +103,9 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     UNIQUE(company_id, sku)
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_company_sku ON public.inventory(company_id, sku);
+-- Performance Indexes Added
+CREATE INDEX IF NOT EXISTS idx_inventory_category ON public.inventory(company_id, category);
+CREATE INDEX IF NOT EXISTS idx_inventory_deleted_at ON public.inventory(company_id, deleted_at);
 
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -195,6 +203,9 @@ CREATE TABLE IF NOT EXISTS public.sales (
     UNIQUE(company_id, sale_number)
 );
 CREATE INDEX IF NOT EXISTS idx_sales_company_id ON public.sales(company_id);
+-- Performance Indexes Added
+CREATE INDEX IF NOT EXISTS idx_sales_created_at ON public.sales(company_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_sales_customer_email ON public.sales(company_id, customer_email);
 
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -231,6 +242,9 @@ CREATE TABLE IF NOT EXISTS public.messages (
     created_at timestamptz DEFAULT now(),
     is_error boolean DEFAULT false
 );
+-- Performance Index Added
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_created_at ON public.messages(conversation_id, created_at);
+
 
 CREATE TABLE IF NOT EXISTS public.integrations (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -427,7 +441,7 @@ BEGIN
          WHERE table_name = p_table_name AND column_name NOT IN (SELECT unnest(p_conflict_columns)))
     );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid)
 RETURNS void
@@ -612,6 +626,56 @@ begin
 
   return new_po;
 end;
+$$;
+
+CREATE OR REPLACE FUNCTION public.create_purchase_orders_from_suggestions_tx(
+    p_company_id uuid,
+    p_po_payload jsonb
+)
+RETURNS integer
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    po_data jsonb;
+    item_data jsonb;
+    new_po_id uuid;
+    created_count integer := 0;
+BEGIN
+    FOR po_data IN SELECT * FROM jsonb_array_elements(p_po_payload)
+    LOOP
+        INSERT INTO public.purchase_orders (company_id, supplier_id, po_number, order_date, status)
+        VALUES (
+            p_company_id,
+            (po_data->>'supplier_id')::uuid,
+            'PO-' || (nextval('sales_sale_number_seq'::regclass)),
+            CURRENT_DATE,
+            'draft'
+        ) RETURNING id INTO new_po_id;
+
+        FOR item_data IN SELECT * FROM jsonb_array_elements(po_data->'items')
+        LOOP
+            INSERT INTO public.purchase_order_items (po_id, sku, quantity_ordered, unit_cost)
+            VALUES (
+                new_po_id,
+                item_data->>'sku',
+                (item_data->>'quantity_ordered')::integer,
+                (item_data->>'unit_cost')::numeric
+            );
+
+            UPDATE public.inventory
+            SET on_order_quantity = on_order_quantity + (item_data->>'quantity_ordered')::integer
+            WHERE sku = item_data->>'sku' AND company_id = p_company_id;
+        END LOOP;
+        
+        UPDATE public.purchase_orders
+        SET total_amount = (SELECT SUM(quantity_ordered * unit_cost) FROM purchase_order_items WHERE po_id = new_po_id)
+        WHERE id = new_po_id;
+
+        created_count := created_count + 1;
+    END LOOP;
+
+    RETURN created_count;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.delete_location_and_unassign_inventory(p_location_id uuid, p_company_id uuid)
@@ -1811,5 +1875,6 @@ BEGIN
     WHERE v.company_id = p_company_id;
 END;
 $$;
+
 
 

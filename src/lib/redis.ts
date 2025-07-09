@@ -192,7 +192,9 @@ export async function rateLimit(
         return { limited: isLimited, remaining };
     } catch (error) {
         logger.error(`[Redis] Rate limiting failed for action "${action}"`, error);
-        // Fail open: If Redis fails, don't block the request.
+        // DESIGN CHOICE: Fail open. If Redis fails, we do not want to block users.
+        // This prevents a Redis outage from becoming a full application outage.
+        // For actions requiring higher security, a "fail closed" approach might be considered.
         return { limited: false, remaining: limit };
     }
 }

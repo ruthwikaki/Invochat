@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import type { Message } from '@/types';
@@ -25,7 +24,7 @@ import {
   removeTeamMemberFromDb,
   updateTeamMemberRoleInDb,
   getReorderSuggestionsFromDB,
-  createPurchaseOrderInDb,
+  createPurchaseOrdersFromSuggestionsInDb,
   getPurchaseOrdersFromDB,
   getPurchaseOrderByIdFromDB,
   updatePurchaseOrderInDb,
@@ -280,35 +279,34 @@ export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount: number; error?: string }> {
   try {
     const { companyId } = await getAuthContext();
-    const poBySupplier = suggestions.reduce((acc, s) => {
-        if (!s.supplier_id) return acc;
-        if (!acc[s.supplier_id]) {
-            acc[s.supplier_id] = {
-                supplier_id: s.supplier_id,
-                po_number: `PO-${Date.now()}-${s.supplier_id.substring(0, 4)}`,
-                order_date: new Date(),
-                status: 'draft',
-                items: []
-            };
+    
+    // Group suggestions by supplier_id
+    const suggestionsBySupplier = suggestions.reduce((acc, s) => {
+        const supplierId = s.supplier_id || 'unknown';
+        if (!acc[supplierId]) {
+            acc[supplierId] = [];
         }
-        acc[s.supplier_id].items.push({
-            sku: s.sku,
-            quantity_ordered: s.suggested_reorder_quantity,
-            unit_cost: s.unit_cost || 0
-        });
+        acc[supplierId].push(s);
         return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, ReorderSuggestion[]>);
+    
+    const poCreationPayload = Object.values(suggestionsBySupplier).map(supplierSuggestions => {
+        return {
+            supplier_id: supplierSuggestions[0].supplier_id,
+            items: supplierSuggestions.map(s => ({
+                sku: s.sku,
+                quantity_ordered: s.suggested_reorder_quantity,
+                unit_cost: s.unit_cost || 0,
+            }))
+        };
+    });
 
-    let createdPoCount = 0;
-    for (const supplierId in poBySupplier) {
-        const poData = poBySupplier[supplierId];
-        await createPurchaseOrderInDb(companyId, poData);
-        createdPoCount++;
-    }
+    const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, poCreationPayload);
     
     revalidatePath('/purchase-orders');
     return { success: true, createdPoCount };
   } catch(e) {
+    logError(e, { context: 'createPurchaseOrdersFromSuggestions' });
     return { success: false, createdPoCount: 0, error: getErrorMessage(e) };
   }
 }
