@@ -1,5 +1,4 @@
 
-
 import { getPurchaseOrders, getPurchaseOrderAnalytics } from '@/app/data-actions';
 import { PurchaseOrderClientPage } from '@/components/purchase-orders/po-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -36,4 +35,3 @@ export default async function PurchaseOrdersPage({
     </AppPage>
   );
 }
-```
