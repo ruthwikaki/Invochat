@@ -1,4 +1,4 @@
-export const SETUP_SQL_SCRIPT = `
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$
@@ -612,8 +612,7 @@ $$;
 DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions_tx(uuid, jsonb, jsonb);
 CREATE OR REPLACE FUNCTION public.create_purchase_orders_from_suggestions_tx(
     p_company_id uuid,
-    p_po_payload jsonb,
-    p_business_profile jsonb
+    p_po_payload jsonb
 )
 RETURNS integer
 LANGUAGE plpgsql
@@ -624,27 +623,9 @@ DECLARE
     new_po_id uuid;
     created_count integer := 0;
     v_total_amount bigint;
-    monthly_revenue bigint := (p_business_profile->>'monthly_revenue')::bigint;
-    outstanding_po_value bigint := (p_business_profile->>'outstanding_po_value')::bigint;
-    max_single_order_value bigint := monthly_revenue * 0.15;
-    max_total_exposure bigint := monthly_revenue * 0.35;
 BEGIN
     FOR po_data IN SELECT * FROM jsonb_array_elements(p_po_payload)
     LOOP
-        v_total_amount := 0;
-        FOR item_data IN SELECT * FROM jsonb_array_elements(po_data->'items')
-        LOOP
-            v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::bigint);
-        END LOOP;
-
-        IF v_total_amount > max_single_order_value THEN
-            RAISE EXCEPTION 'Financial Circuit Breaker: Order value of % exceeds the single order safety limit of %.', v_total_amount, max_single_order_value;
-        END IF;
-
-        IF outstanding_po_value + v_total_amount > max_total_exposure THEN
-             RAISE EXCEPTION 'Financial Circuit Breaker: This order would exceed the total exposure limit of %.', max_total_exposure;
-        END IF;
-
         IF (po_data->>'supplier_id') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM vendors WHERE id = (po_data->>'supplier_id')::uuid) THEN
             RAISE EXCEPTION 'Supplier with ID % does not exist.', (po_data->>'supplier_id');
         END IF;
@@ -656,9 +637,11 @@ BEGIN
             'PO-' || (nextval('sales_sale_number_seq'::regclass)),
             CURRENT_DATE,
             'draft',
-            v_total_amount
+            0
         ) RETURNING id INTO new_po_id;
         
+        v_total_amount := 0;
+
         FOR item_data IN SELECT * FROM jsonb_array_elements(po_data->'items')
         LOOP
             IF NOT EXISTS (SELECT 1 FROM inventory WHERE sku = (item_data->>'sku') AND company_id = p_company_id AND deleted_at IS NULL) THEN
@@ -676,10 +659,15 @@ BEGIN
             UPDATE public.inventory
             SET on_order_quantity = on_order_quantity + (item_data->>'quantity_ordered')::integer
             WHERE sku = item_data->>'sku' AND company_id = p_company_id;
+            
+            v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::bigint);
         END LOOP;
         
+        UPDATE public.purchase_orders
+        SET total_amount = v_total_amount
+        WHERE id = new_po_id;
+
         created_count := created_count + 1;
-        outstanding_po_value := outstanding_po_value + v_total_amount;
 
     END LOOP;
 
@@ -1268,8 +1256,8 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_reorder_suggestions(uuid, text);
-CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid, p_timezone text)
+DROP FUNCTION IF EXISTS public.get_reorder_suggestions(uuid, integer);
+CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid, p_fast_moving_days integer)
 RETURNS TABLE(sku text, product_name text, current_quantity integer, reorder_point integer, suggested_reorder_quantity integer, supplier_name text, supplier_id uuid, unit_cost bigint, base_quantity integer)
 LANGUAGE plpgsql
 AS $$
@@ -1278,10 +1266,10 @@ BEGIN
     WITH sales_velocity AS (
       SELECT
         si.sku,
-        SUM(si.quantity)::numeric / 30 as daily_sales
+        SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
-      WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - INTERVAL '30 days')
+      WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
       GROUP BY si.sku
     ),
     base_suggestions AS (
@@ -1637,7 +1625,7 @@ BEGIN
     RETURNING * INTO updated_item;
     
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Update failed. The item may have been modified by someone else.';
+        RAISE EXCEPTION 'Update failed. The item may have been modified by another process.';
     END IF;
     
     RETURN updated_item;
@@ -1663,12 +1651,12 @@ declare
   item_change record;
   new_total_amount bigint := 0;
 begin
-  WITH old_items AS (
-    SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
-  ), new_items AS (
-    SELECT sku, quantity_ordered FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int)
-  )
   FOR item_change IN 
+    WITH old_items AS (
+      SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
+    ), new_items AS (
+      SELECT sku, quantity_ordered FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int)
+    )
     SELECT 
       COALESCE(oi.sku, ni.sku) as sku,
       COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
@@ -1731,6 +1719,7 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
 
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -1810,7 +1799,6 @@ CREATE POLICY "Users can manage their own company's supplier catalogs" ON public
 DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
 CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
 
-
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
@@ -1832,7 +1820,6 @@ CREATE TRIGGER validate_inventory_location_ref
 DROP FUNCTION IF EXISTS public.get_inventory_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
 RETURNS json
-LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN (
@@ -1851,7 +1838,6 @@ $$;
 DROP FUNCTION IF EXISTS public.get_purchase_order_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_purchase_order_analytics(p_company_id uuid)
 RETURNS json
-LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN (
@@ -1884,7 +1870,6 @@ $$;
 DROP FUNCTION IF EXISTS public.get_sales_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_sales_analytics(p_company_id uuid)
 RETURNS json
-LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN (
@@ -2021,4 +2006,5 @@ ALTER TABLE public.inventory
 DROP CONSTRAINT IF EXISTS fk_inventory_location,
 ADD CONSTRAINT fk_inventory_location
 FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
-`;
+
+    
