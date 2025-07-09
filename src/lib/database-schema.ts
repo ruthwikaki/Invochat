@@ -1,24 +1,7 @@
 
--- =================================================================
--- INVOCHAT - THE COMPLETE & IDEMPOTENT DATABASE SETUP SCRIPT
--- =================================================================
--- This script is designed to be run in its entirety. It sets up all
--- necessary tables, functions, triggers, and security policies for
--- the InvoChat application to function correctly. It is idempotent,
--- meaning it can be run multiple times without causing errors.
---
--- For production environments, it's recommended to set up a cron
--- job to periodically refresh the materialized views for optimal
--- dashboard performance. Example using pg_cron:
--- SELECT cron.schedule('refresh-views', '0 * * * *', 'SELECT public.refresh_materialized_views(company_id) FROM public.companies');
--- =================================================================
-
--- Step 1: Extensions
--- -----------------------------------------------------------------
+export const SETUP_SQL_SCRIPT = `
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Step 2: Custom Types
--- -----------------------------------------------------------------
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
@@ -30,9 +13,6 @@ BEGIN
     END IF;
 END$$;
 
--- Step 3: Tables and Indexes
--- This section includes ALL required tables for the application.
--- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -320,8 +300,6 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     completed_at timestamptz
 );
 
--- Step 4: Materialized Views
--- -----------------------------------------------------------------
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT 
   company_id,
@@ -358,11 +336,6 @@ FROM customer_stats cs
 GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
-
--- Step 5: Trigger Functions & Triggers
--- -----------------------------------------------------------------
-
--- Use CASCADE to ensure dependent triggers are also dropped
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -374,25 +347,20 @@ DECLARE
   user_role public.user_role;
   company_name_text text;
 BEGIN
-  -- Validate company name
   company_name_text := trim(new.raw_user_meta_data->>'company_name');
   IF company_name_text IS NULL OR company_name_text = '' THEN
     RAISE EXCEPTION 'Company name cannot be empty.';
   END IF;
 
-  -- Create a new company for the user
   INSERT INTO public.companies (name)
   VALUES (company_name_text)
   RETURNING id INTO new_company_id;
 
-  -- The first user is the Owner
   user_role := 'Owner';
   
-  -- Insert a row into public.users
   INSERT INTO public.users (id, company_id, email, role)
   VALUES (new.id, new_company_id, new.email, user_role);
   
-  -- Update the user's app_metadata in auth.users
   UPDATE auth.users
   SET raw_app_meta_data = jsonb_set(
       COALESCE(raw_app_meta_data, '{}'::jsonb),
@@ -405,12 +373,10 @@ BEGIN
 END;
 $$;
 
--- Create the trigger to fire after a new user is created in auth.users
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Trigger for optimistic concurrency control
 DROP FUNCTION IF EXISTS public.increment_version() CASCADE;
 CREATE OR REPLACE FUNCTION public.increment_version()
 RETURNS TRIGGER AS $$
@@ -426,9 +392,6 @@ BEFORE UPDATE ON public.inventory
 FOR EACH ROW
 EXECUTE PROCEDURE public.increment_version();
 
-
--- Step 6: All RPC Functions
--- -----------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.batch_upsert_with_transaction(text, jsonb, text[]);
 CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
     p_table_name text,
@@ -490,25 +453,22 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    -- Low Stock Alerts
     SELECT
         'low_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
-        i.last_sold_date, (i.quantity * i.cost), NULL::numeric
+        i.last_sold_date, (i.quantity * i.cost)::numeric, NULL::numeric
     FROM public.inventory AS i
     WHERE i.company_id = p_company_id AND i.reorder_point IS NOT NULL AND i.quantity <= i.reorder_point AND i.quantity > 0 AND i.deleted_at IS NULL
 
     UNION ALL
 
-    -- Dead Stock Alerts
     SELECT
         'dead_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
-        i.last_sold_date, (i.quantity * i.cost), NULL::numeric
+        i.last_sold_date, (i.quantity * i.cost)::numeric, NULL::numeric
     FROM public.inventory AS i
     WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0 AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval))
 
     UNION ALL
 
-    -- Predictive Stockout Alerts
     (
         WITH sales_velocity AS (
           SELECT
@@ -521,7 +481,7 @@ BEGIN
         )
         SELECT
             'predictive'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
-            i.last_sold_date, (i.quantity * i.cost), (i.quantity / sv.daily_sales)
+            i.last_sold_date, (i.quantity * i.cost)::numeric, (i.quantity / sv.daily_sales)
         FROM public.inventory AS i
         JOIN sales_velocity AS sv ON i.sku = sv.sku
         WHERE i.company_id = p_company_id AND sv.daily_sales > 0 AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days AND i.deleted_at IS NULL
@@ -1152,9 +1112,9 @@ BEGIN
         CASE
             WHEN iv.current_inventory_value > 0 THEN COALESCE(cc.total_cogs, 0) / iv.current_inventory_value
             ELSE 0
-        END,
-        COALESCE(cc.total_cogs, 0),
-        COALESCE(iv.current_inventory_value, 0),
+        END AS turnover_rate,
+        COALESCE(cc.total_cogs, 0)::numeric,
+        COALESCE(iv.current_inventory_value, 0)::numeric,
         p_days
     FROM cogs_calc AS cc, inventory_value_calc AS iv;
 END;
@@ -1188,8 +1148,6 @@ CREATE OR REPLACE FUNCTION public.get_net_margin_by_channel(p_company_id uuid, p
 RETURNS TABLE(sales_channel text, total_revenue numeric, total_cogs numeric, total_fees numeric, net_margin_percentage numeric)
 LANGUAGE plpgsql
 AS $$
--- NOTE: This calculation assumes the percentage_fee in the channel_fees table
--- is stored as a decimal (e.g., 2.9% is stored as 0.029).
 BEGIN
     RETURN QUERY
     WITH channel_sales AS (
@@ -1687,22 +1645,22 @@ DECLARE
   item_change record;
   new_total_amount bigint := 0;
 BEGIN
-  FOR item_change IN 
     WITH old_items AS (
         SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
     ), new_items AS (
         SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
     )
-    SELECT 
-      COALESCE(oi.sku, ni.sku) as sku,
-      COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
-    FROM old_items AS oi
-    FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
-  LOOP
-    UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity + item_change.quantity_diff
-    WHERE sku = item_change.sku AND company_id = p_company_id;
-  END LOOP;
+    FOR item_change IN 
+        SELECT 
+        COALESCE(oi.sku, ni.sku) as sku,
+        COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
+        FROM old_items AS oi
+        FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
+    LOOP
+        UPDATE public.inventory
+        SET on_order_quantity = on_order_quantity + item_change.quantity_diff
+        WHERE sku = item_change.sku AND company_id = p_company_id;
+    END LOOP;
   
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
@@ -1756,9 +1714,6 @@ BEGIN
 END;
 $$;
 
-
--- Step 7: Final RLS Policies
--- -----------------------------------------------------------------
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -1837,16 +1792,12 @@ CREATE POLICY "Users can manage their own company's supplier catalogs" ON public
 DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
 CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 
-
--- Step 8: Grant Permissions & Re-create Triggers
--- -----------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
--- Recreate triggers after all functions are defined
 CREATE TRIGGER validate_purchase_order_refs
     BEFORE INSERT OR UPDATE ON public.purchase_orders
     FOR EACH ROW
@@ -1856,13 +1807,6 @@ CREATE TRIGGER validate_inventory_location_ref
     BEFORE INSERT OR UPDATE ON public.inventory
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
-
-
--- =================================================================
--- SCRIPT COMPLETE
--- =================================================================
--- New Analytics Functions Appended Below
--- =================================================================
 
 DROP FUNCTION IF EXISTS public.get_inventory_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
@@ -2017,7 +1961,7 @@ BEGIN
     
     RETURN QUERY SELECT 
         negative_count = 0, 
-        negative_count,
+        negative_count::numeric,
         CASE 
             WHEN negative_count = 0 THEN 'Inventory levels are consistent.'
             ELSE negative_count || ' item(s) have negative stock, indicating data corruption.'
@@ -2039,7 +1983,7 @@ BEGIN
 
     RETURN QUERY SELECT
         mismatch_count = 0,
-        mismatch_count,
+        mismatch_count::numeric,
         CASE
             WHEN mismatch_count = 0 THEN 'All sales have recorded costs, financial data is consistent.'
             ELSE mismatch_count || ' sale line items are missing cost data, affecting profit reports.'
@@ -2052,9 +1996,13 @@ ALTER TABLE public.sale_items
 ADD CONSTRAINT fk_sale_items_company
 FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
+ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_inventory;
+ALTER TABLE public.sale_items
+ADD CONSTRAINT fk_sale_items_inventory
+FOREIGN KEY (company_id, sku) REFERENCES public.inventory(company_id, sku);
+
 ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS fk_inventory_location;
 ALTER TABLE public.inventory
 ADD CONSTRAINT fk_inventory_location
 FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
-
-    
+`;
