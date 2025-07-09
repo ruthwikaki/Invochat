@@ -195,7 +195,7 @@ CREATE INDEX IF NOT EXISTS idx_sales_customer_email ON public.sales(company_id, 
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL,
+    company_id uuid, -- Allow NULL initially
     sku text NOT NULL,
     product_name text,
     quantity integer NOT NULL,
@@ -203,6 +203,36 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     cost_at_time bigint,
     UNIQUE(sale_id, sku)
 );
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'sale_items'
+        AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE public.sale_items ADD COLUMN company_id uuid;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.sale_items WHERE company_id IS NULL) THEN
+        UPDATE public.sale_items si
+        SET company_id = s.company_id
+        FROM public.sales s
+        WHERE si.sale_id = s.id
+        AND si.company_id IS NULL;
+    END IF;
+
+    ALTER TABLE public.sale_items
+    ALTER COLUMN company_id SET NOT NULL;
+END $$;
+
+ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
+ALTER TABLE public.sale_items
+ADD CONSTRAINT fk_sale_items_company
+FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
 
 CREATE TABLE IF NOT EXISTS public.conversations (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1108,9 +1138,9 @@ BEGIN
     RETURN QUERY
     WITH cogs_calc AS (
         SELECT COALESCE(SUM(si.quantity * si.cost_at_time), 0) AS total_cogs
-        FROM public.sale_items AS si
-        JOIN public.sales AS s ON si.sale_id = s.id AND s.company_id = si.company_id
-        WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
+        FROM public.sale_items si
+        JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
+        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
         SELECT COALESCE(SUM(i.quantity * i.cost), 1) AS current_inventory_value
@@ -1651,22 +1681,22 @@ DECLARE
   item_change record;
   new_total_amount bigint := 0;
 BEGIN
-    FOR item_change IN
-        WITH old_items AS (
-            SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
-        ), new_items AS (
-            SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
-        )
-        SELECT 
-            COALESCE(oi.sku, ni.sku) as sku,
-            COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
-        FROM old_items AS oi
-        FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
-    LOOP
-        UPDATE public.inventory
-        SET on_order_quantity = on_order_quantity + item_change.quantity_diff
-        WHERE sku = item_change.sku AND company_id = p_company_id;
-    END LOOP;
+  FOR item_change IN
+    WITH old_items AS (
+        SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
+    ), new_items AS (
+        SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
+    )
+    SELECT 
+      COALESCE(oi.sku, ni.sku) as sku,
+      COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
+    FROM old_items AS oi
+    FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
+  LOOP
+    UPDATE public.inventory
+    SET on_order_quantity = on_order_quantity + item_change.quantity_diff
+    WHERE sku = item_change.sku AND company_id = p_company_id;
+  END LOOP;
   
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
@@ -1997,12 +2027,6 @@ CREATE TRIGGER validate_inventory_location_ref
     BEFORE INSERT OR UPDATE ON public.inventory
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
-
-ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
-ALTER TABLE public.sale_items
-ADD CONSTRAINT fk_sale_items_company
-FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
 ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS fk_inventory_location;
 ALTER TABLE public.inventory
 ADD CONSTRAINT fk_inventory_location
