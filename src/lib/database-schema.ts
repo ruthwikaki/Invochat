@@ -16,7 +16,7 @@ BEGIN
             'Member'
         );
     END IF;
-END;
+END
 $$;
 
 CREATE TABLE IF NOT EXISTS public.companies (
@@ -911,7 +911,7 @@ BEGIN
             COUNT(DISTINCT s.id) AS daily_orders
         FROM public.sales AS s
         JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
-        WHERE s.company_id = p_company_id AND s.created_at >= start_date AND si.cost_at_time IS NOT NULL AND s.company_id = si.company_id
+        WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND s.created_at >= start_date AND si.cost_at_time IS NOT NULL
         GROUP BY 1
     ),
     totals AS (
@@ -1052,7 +1052,7 @@ BEGIN
         END AS gross_margin_percentage
     FROM public.sale_items AS si
     JOIN public.sales AS s ON si.sale_id = s.id AND s.company_id = si.company_id
-    WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
+    WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
     GROUP BY si.product_name, s.payment_method;
 END;
 $$;
@@ -1074,7 +1074,7 @@ BEGIN
             SUM(si.quantity) AS total_quantity
         FROM public.sale_items AS si
         JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
-        WHERE s.company_id = p_company_id
+        WHERE s.company_id = p_company_id AND si.company_id = p_company_id
           AND si.sku = ANY(p_skus)
           AND s.created_at >= NOW() - INTERVAL '24 months'
         GROUP BY si.sku, month
@@ -1108,9 +1108,9 @@ BEGIN
     RETURN QUERY
     WITH cogs_calc AS (
         SELECT COALESCE(SUM(si.quantity * si.cost_at_time), 0) AS total_cogs
-        FROM public.sale_items si
-        JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
-        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
+        FROM public.sale_items AS si
+        JOIN public.sales AS s ON si.sale_id = s.id AND s.company_id = si.company_id
+        WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
         SELECT COALESCE(SUM(i.quantity * i.cost), 1) AS current_inventory_value
@@ -1142,7 +1142,7 @@ BEGIN
         END AS gross_margin_percentage
     FROM public.sales AS s
     JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
-    WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
+    WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND si.cost_at_time IS NOT NULL
       AND s.created_at >= NOW() - INTERVAL '12 months'
     GROUP BY month
     ORDER BY month;
@@ -1164,7 +1164,7 @@ BEGIN
             COUNT(s.id) as number_of_sales
         FROM public.sales AS s
         JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
-        WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
+        WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND si.cost_at_time IS NOT NULL
           AND s.payment_method = p_channel_name
         GROUP BY s.payment_method
     )
@@ -1269,7 +1269,7 @@ BEGIN
         SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
       FROM public.sale_items AS si
       JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
-      WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+      WHERE s.company_id = p_company_id AND si.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
       GROUP BY si.sku
     ),
     base_suggestions AS (
@@ -1431,7 +1431,7 @@ BEGIN
                      FROM public.sales AS s
                      JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
                      WHERE si.sku = pi.sku
-                       AND s.company_id = pi.company_id
+                       AND s.company_id = pi.company_id AND si.company_id = pi.company_id
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
                     ), 0
                 ),
@@ -1440,7 +1440,7 @@ BEGIN
                      FROM public.sales AS s
                      JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
                      WHERE si.sku = pi.sku
-                       AND s.company_id = pi.company_id
+                       AND s.company_id = pi.company_id AND si.company_id = pi.company_id
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
                        AND si.cost_at_time IS NOT NULL
                     ), 0
@@ -1651,22 +1651,22 @@ DECLARE
   item_change record;
   new_total_amount bigint := 0;
 BEGIN
-  FOR item_change IN 
-    WITH old_items AS (
-        SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
-    ), new_items AS (
-        SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
-    )
-    SELECT 
-      COALESCE(oi.sku, ni.sku) as sku,
-      COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
-    FROM old_items AS oi
-    FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
-  LOOP
-    UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity + item_change.quantity_diff
-    WHERE sku = item_change.sku AND company_id = p_company_id;
-  END LOOP;
+    FOR item_change IN
+        WITH old_items AS (
+            SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
+        ), new_items AS (
+            SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
+        )
+        SELECT 
+            COALESCE(oi.sku, ni.sku) as sku,
+            COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
+        FROM old_items AS oi
+        FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
+    LOOP
+        UPDATE public.inventory
+        SET on_order_quantity = on_order_quantity + item_change.quantity_diff
+        WHERE sku = item_change.sku AND company_id = p_company_id;
+    END LOOP;
   
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
