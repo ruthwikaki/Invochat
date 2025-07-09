@@ -514,7 +514,7 @@ export type PurchaseOrderAnalytics = {
 export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int().nullable(), // In cents
     average_sale_value: z.number().int().nullable(), // In cents
-    payment_method_distribution: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
+    payment_method_distribution: z.array(z.object({ name: string(), value: z.number() })).nullable().default([]),
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
@@ -540,5 +540,3 @@ export const InventoryAgingReportItemSchema = z.object({
     total_value: z.number().int(), // in cents
 });
 export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
-
-    

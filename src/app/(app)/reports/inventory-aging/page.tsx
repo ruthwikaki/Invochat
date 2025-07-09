@@ -16,5 +16,3 @@ export default async function InventoryAgingPage() {
     </AppPage>
   );
 }
-
-    

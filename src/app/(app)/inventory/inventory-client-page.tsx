@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Location, Supplier, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Replace } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { ExportButton } from '../ui/export-button';
+import { InventoryTransferDialog } from './inventory-transfer-dialog';
 
 
 interface InventoryClientPageProps {
@@ -155,6 +156,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
+  const [transferringItem, setTransferringItem] = useState<UnifiedInventoryItem | null>(null);
 
   useEffect(() => {
     setInventory(initialInventory);
@@ -184,18 +186,18 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const handleSelectAll = (checked: boolean | 'indeterminate') => {
     if (checked === true) {
-      setSelectedRows(new Set(inventory.map(item => item.product_id)));
+      setSelectedRows(new Set(inventory.map(item => item.sku)));
     } else {
       setSelectedRows(new Set());
     }
   };
 
-  const handleSelectRow = (productId: string, checked: boolean) => {
+  const handleSelectRow = (sku: string, checked: boolean) => {
     const newSelectedRows = new Set(selectedRows);
     if (checked) {
-      newSelectedRows.add(productId);
+      newSelectedRows.add(sku);
     } else {
-      newSelectedRows.delete(productId);
+      newSelectedRows.delete(sku);
     }
     setSelectedRows(newSelectedRows);
   };
@@ -204,7 +206,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     if (!itemToDelete) return;
     startDeleteTransition(async () => {
       const formData = new FormData();
-      formData.append('productIds', JSON.stringify(itemToDelete));
+      formData.append('skus', JSON.stringify(itemToDelete));
       const csrfToken = getCookie('csrf_token');
       if (csrfToken) {
         formData.append(CSRF_FORM_NAME, csrfToken);
@@ -222,18 +224,18 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     });
   };
 
-  const toggleExpandRow = (productId: string) => {
+  const toggleExpandRow = (sku: string) => {
     const newExpandedRows = new Set(expandedRows);
-    if (newExpandedRows.has(productId)) {
-      newExpandedRows.delete(productId);
+    if (newExpandedRows.has(sku)) {
+      newExpandedRows.delete(sku);
     } else {
-      newExpandedRows.add(productId);
+      newExpandedRows.add(sku);
     }
     setExpandedRows(newExpandedRows);
   };
 
   const handleSaveItem = (updatedItem: UnifiedInventoryItem) => {
-    setInventory(prev => prev.map(item => item.product_id === updatedItem.product_id ? updatedItem : item));
+    setInventory(prev => prev.map(item => item.sku === updatedItem.sku ? updatedItem : item));
     refresh(); 
   };
 
@@ -342,9 +344,19 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
         onClose={() => setEditingItem(null)}
         onSave={handleSaveItem}
       />
+      
+      <InventoryTransferDialog
+        item={transferringItem}
+        locations={locations}
+        onClose={() => setTransferringItem(null)}
+        onTransferSuccess={() => {
+            setTransferringItem(null);
+            refresh();
+        }}
+      />
 
        <InventoryHistoryDialog
-            productId={historySku}
+            sku={historySku}
             onClose={() => setHistorySku(null)}
        />
 
@@ -366,6 +378,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                             <TableHead className="text-right">Quantity</TableHead>
                             <TableHead className="text-right">Total Value</TableHead>
                             <TableHead className="text-right">Profit Margin</TableHead>
+                            <TableHead className="text-right">Monthly Profit</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-24 text-center">Actions</TableHead>
                         </TableRow>
@@ -373,23 +386,25 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                         <TableBody>
                         {showNoResultsState ? (
                             <TableRow>
-                                <TableCell colSpan={8} className="h-24 text-center">
+                                <TableCell colSpan={9} className="h-24 text-center">
                                     No inventory found matching your criteria.
                                 </TableCell>
                             </TableRow>
                         ) : inventory.map(item => {
                             const price = item.price || 0;
-                            const cost = item.cost || 0;
+                            const cost = item.landed_cost || item.cost || 0;
                             const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
                             const marginColor = margin > 30 ? 'text-success' : margin > 15 ? 'text-amber-500' : 'text-destructive';
+                            const monthlyProfit = item.monthly_profit || 0;
+                            const profitColor = monthlyProfit > 0 ? 'text-success' : monthlyProfit < 0 ? 'text-destructive' : 'text-muted-foreground';
 
                             return (
-                            <Fragment key={item.inventory_id}>
+                            <Fragment key={item.sku}>
                             <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
                                 <TableCell>
                                 <Checkbox
-                                    checked={selectedRows.has(item.product_id)}
-                                    onCheckedChange={(checked) => handleSelectRow(item.product_id, !!checked)}
+                                    checked={selectedRows.has(item.sku)}
+                                    onCheckedChange={(checked) => handleSelectRow(item.sku, !!checked)}
                                 />
                                 </TableCell>
                                 <TableCell>
@@ -398,9 +413,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                 </TableCell>
                                 <TableCell>{item.location_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
-                                <TableCell className="text-right font-medium">${(item.total_value/100).toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
                                     <span className={cn('font-semibold', marginColor)}>{margin.toFixed(1)}%</span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                     <span className={cn('font-semibold', profitColor)}>{monthlyProfit >= 0 ? '$' : '-$'}{Math.abs(monthlyProfit).toFixed(2)}</span>
                                 </TableCell>
                                 <TableCell>
                                 <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
@@ -415,8 +433,9 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setHistorySku(item.product_id)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setItemToDelete([item.product_id])} className="text-destructive">
+                                                <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setTransferringItem(item)}><Replace className="mr-2 h-4 w-4" />Transfer Stock</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setItemToDelete([item.sku])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -425,21 +444,23 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            onClick={() => toggleExpandRow(item.product_id)}
+                                            onClick={() => toggleExpandRow(item.sku)}
                                         >
-                                            <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.product_id) && "rotate-180")} />
+                                            <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.sku) && "rotate-180")} />
                                         </Button>
                                     </div>
                                 </TableCell>
                             </TableRow>
-                            {expandedRows.has(item.product_id) && (
+                            {expandedRows.has(item.sku) && (
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
-                                    <TableCell colSpan={8} className="p-4">
+                                    <TableCell colSpan={9} className="p-4">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                             <div><strong className="text-muted-foreground">Category:</strong> {item.category || 'N/A'}</div>
-                                            <div><strong className="text-muted-foreground">Unit Cost:</strong> ${(item.cost/100).toFixed(2)}</div>
+                                            <div><strong className="text-muted-foreground">Unit Cost:</strong> ${item.cost.toFixed(2)}</div>
+                                            <div><strong className="text-muted-foreground">Landed Cost:</strong> {item.landed_cost ? `$${item.landed_cost.toFixed(2)}` : 'N/A'}</div>
                                             <div><strong className="text-muted-foreground">On Order:</strong> {item.on_order_quantity} units</div>
                                             <div><strong className="text-muted-foreground">Barcode:</strong> {item.barcode || 'N/A'}</div>
+                                            <div><strong className="text-muted-foreground">Monthly Units Sold:</strong> {item.monthly_units_sold}</div>
                                         </div>
                                     </TableCell>
                                 </TableRow>

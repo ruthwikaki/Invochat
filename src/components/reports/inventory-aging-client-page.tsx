@@ -85,5 +85,3 @@ export function InventoryAgingClientPage({ initialData }: InventoryAgingClientPa
     </div>
   );
 }
-
-    
