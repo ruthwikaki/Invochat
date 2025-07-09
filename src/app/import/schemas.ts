@@ -1,17 +1,15 @@
+
 import { z } from 'zod';
 
-// Schema for validating a row from an inventory CSV.
-// It uses `z.coerce` to automatically convert string values from the CSV
-// into the correct number types, which is essential for data validation.
-export const InventoryImportSchema = z.object({
+// Schema for validating a row from a product CSV.
+export const ProductImportSchema = z.object({
   company_id: z.string().uuid(),
   sku: z.string().min(1, 'SKU is required and cannot be empty.'),
   name: z.string().min(1, 'Product Name is required.'),
-  quantity: z.coerce.number().int('Quantity must be a whole number.').nonnegative('Quantity cannot be negative.'),
-  cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
-  reorder_point: z.coerce.number().int().nonnegative().optional().nullable(),
+  cost: z.coerce.number().int('Cost must be an integer (in cents).').nonnegative('Cost cannot be negative.'),
+  price: z.coerce.number().int('Price must be an integer (in cents).').nonnegative('Price cannot be negative.').optional().nullable(),
   category: z.string().optional().nullable(),
-  last_sold_date: z.coerce.date().optional().nullable(),
+  barcode: z.string().optional().nullable(),
 });
 
 // Schema for validating a row from a suppliers (vendors) CSV.
@@ -33,7 +31,7 @@ export const SupplierCatalogImportSchema = z.object({
   sku: z.string().min(1, 'sku is required.'),
   supplier_sku: z.string().optional().nullable(),
   product_name: z.string().optional().nullable(),
-  unit_cost: z.coerce.number().nonnegative('unit_cost cannot be negative.'),
+  unit_cost: z.coerce.number().int().nonnegative('unit_cost cannot be negative (in cents).'),
   moq: z.coerce.number().int().positive().optional().nullable(),
   lead_time_days: z.coerce.number().int().nonnegative().optional().nullable(),
 });

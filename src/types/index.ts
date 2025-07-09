@@ -57,6 +57,30 @@ export const ProductSchema = z.object({
 });
 export type Product = z.infer<typeof ProductSchema>;
 
+export const ProductUpdateSchema = z.object({
+  name: z.string().min(1, 'Product Name is required.'),
+  category: z.string().optional().nullable(),
+  cost: z.coerce.number().int().nonnegative('Cost must be a non-negative integer (in cents).'),
+  price: z.coerce.number().int().nonnegative('Price must be a non-negative integer (in cents).').optional().nullable(),
+  barcode: z.string().optional().nullable(),
+});
+export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
+
+export const InventorySchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    product_id: z.string().uuid(),
+    location_id: z.string().uuid().nullable(),
+    quantity: z.number().int(),
+    reorder_point: z.number().int().nullable(),
+    on_order_quantity: z.number().int(),
+    last_sold_date: z.string().nullable(),
+    version: z.number().int(),
+    deleted_at: z.string().nullable(),
+    deleted_by: z.string().uuid().nullable(),
+});
+export type Inventory = z.infer<typeof InventorySchema>;
+
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
     vendor_name: z.string().min(1),
@@ -142,6 +166,8 @@ export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
 
 export type UnifiedInventoryItem = {
+  inventory_id: string;
+  product_id: string;
   sku: string;
   product_name: string;
   category: string | null;
@@ -151,26 +177,11 @@ export type UnifiedInventoryItem = {
   total_value: number; // Stored as cents
   reorder_point: number | null;
   on_order_quantity: number;
-  landed_cost?: number | null; // Stored as cents
   barcode?: string | null;
   location_id: string | null;
   location_name: string | null;
-  monthly_units_sold: number;
-  monthly_profit: number; // Stored as cents
   version: number;
 };
-
-export const InventoryUpdateSchema = z.object({
-  name: z.string().min(1, 'Product Name is required.'),
-  category: z.string().optional().nullable(),
-  cost: z.coerce.number().int().nonnegative('Cost must be a non-negative integer.'), // In cents
-  reorder_point: z.coerce.number().int().nonnegative('Reorder point must be a non-negative integer.').optional().nullable(),
-  landed_cost: z.coerce.number().int().nonnegative('Landed cost must be a non-negative integer.').optional().nullable(), // In cents
-  barcode: z.string().optional().nullable(),
-  location_id: z.string().uuid().optional().nullable(),
-  version: z.number().int('Version must be an integer.'),
-});
-export type InventoryUpdateData = z.infer<typeof InventoryUpdateSchema>;
 
 export type TeamMember = {
   id: string;
@@ -197,6 +208,7 @@ export const PurchaseOrderItemSchema = z.object({
   po_id: z.string().uuid(),
   product_id: z.string().uuid(),
   product_name: z.string().optional().nullable(),
+  sku: z.string(),
   quantity_ordered: z.number().int(),
   quantity_received: z.number().int(),
   unit_cost: z.number().int(), // In cents
@@ -223,9 +235,9 @@ export const PurchaseOrderSchema = z.object({
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
 const POItemInputSchema = z.object({
-    product_id: z.string().uuid('A valid product must be selected.'),
+    sku: z.string().min(1, 'SKU cannot be empty.'),
     quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
-    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
+    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative (in cents).'),
 });
 
 export const PurchaseOrderCreateSchema = z.object({
@@ -284,6 +296,7 @@ export type ReorderRule = z.infer<typeof ReorderRuleSchema>;
 export const ReorderSuggestionBaseSchema = z.object({
     product_id: z.string().uuid(),
     product_name: z.string(),
+    sku: z.string(),
     current_quantity: z.number(),
     reorder_point: z.number().nullable(),
     suggested_reorder_quantity: z.number(),
@@ -336,7 +349,7 @@ export const LocationFormSchema = z.object({
   address: z.string().optional().nullable(),
   is_default: z.boolean().optional(),
 });
-export type LocationFormData = z.infer<typeof LocationFormData>;
+export type LocationFormData = z.infer<typeof LocationFormSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
@@ -402,7 +415,7 @@ export const SaleItemSchema = z.object({
     product_id: z.string().uuid(),
     quantity: z.number().int(),
     unit_price: z.number().int(), // In cents
-    cost_at_time: z.number().int().nullable(), // In cents
+    cost_at_time: z.number().int(), // In cents
 });
 export type SaleItem = z.infer<typeof SaleItemSchema>;
 

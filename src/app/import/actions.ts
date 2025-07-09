@@ -1,10 +1,11 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
-import { InventoryImportSchema, SupplierImportSchema, SupplierCatalogImportSchema, ReorderRuleImportSchema, LocationImportSchema } from './schemas';
+import { ProductImportSchema, SupplierImportSchema, SupplierCatalogImportSchema, ReorderRuleImportSchema, LocationImportSchema } from './schemas';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
@@ -129,7 +130,7 @@ async function processCsv<T extends z.ZodType>(
 
         // Define what makes a row unique for upserting.
         let conflictTarget: string[] = [];
-        if (tableName === 'inventory') conflictTarget = ['company_id', 'sku'];
+        if (tableName === 'products') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
         if (tableName === 'supplier_catalogs') conflictTarget = ['supplier_id', 'sku'];
         if (tableName === 'reorder_rules') conflictTarget = ['company_id', 'sku'];
@@ -246,8 +247,8 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         let requiresViewRefresh = false;
 
         switch (dataType) {
-            case 'inventory':
-                result = await processCsv(fileContent, InventoryImportSchema, 'inventory', companyId, isDryRun, mappings);
+            case 'products':
+                result = await processCsv(fileContent, ProductImportSchema, 'products', companyId, isDryRun, mappings);
                 if (!isDryRun && (result.processedCount || 0) > 0) {
                     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
                     requiresViewRefresh = true;
