@@ -41,10 +41,10 @@ export async function runSync(integrationId: string, companyId: string, attempt 
         return;
     }
 
-    // 2. Set status to 'syncing' immediately to give user feedback.
-    await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
-
     try {
+        // 2. Set status to 'syncing' immediately to give user feedback.
+        await supabase.from('integrations').update({ sync_status: 'syncing', last_sync_at: new Date().toISOString() }).eq('id', integrationId);
+
         // 3. Dispatch to the correct platform-specific service.
         switch (integration.platform) {
             case 'shopify':
@@ -72,11 +72,10 @@ export async function runSync(integrationId: string, companyId: string, attempt 
             return runSync(integrationId, companyId, attempt + 1); // Recursive call for retry
         } else {
             logger.error(`[Sync Service] Max retries reached for integration ${integration.id}. Marking as failed.`);
+            // Update status to failed only after all retries are exhausted
             await supabase.from('integrations').update({ sync_status: 'failed' }).eq('id', integration.id);
             // Re-throw the error to be caught by the original caller if needed
             throw new Error(`Sync failed after ${MAX_ATTEMPTS} attempts. Please check the logs.`);
         }
     }
 }
-
-    

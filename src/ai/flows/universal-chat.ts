@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -157,9 +158,23 @@ const universalChatOrchestrator = ai.defineFlow(
         };
 
     } catch (e) {
+        const errorMessage = getErrorMessage(e);
         logError(e, { context: `Universal Chat Flow failed for query: "${userQuery}"` });
+
+        // Check for specific AI service availability errors
+        if (errorMessage.includes('503') || errorMessage.includes('unavailable')) {
+             return {
+                response: `I'm sorry, but the AI service is currently unavailable. This may be a temporary issue. Please try again in a few moments.`,
+                data: [],
+                visualization: { type: 'none', title: '' },
+                confidence: 0.0,
+                assumptions: ['The AI service is unavailable.'],
+                isError: true,
+            } as any;
+        }
+
         return {
-            response: `I'm sorry, but I encountered an error while trying to generate a response. The AI service may be temporarily unavailable. Please try again in a few moments.`,
+            response: `I'm sorry, but I encountered an unexpected error while trying to generate a response. The AI service may be temporarily unavailable. Please try again in a few moments.`,
             data: [],
             visualization: { type: 'none', title: '' },
             confidence: 0.0,

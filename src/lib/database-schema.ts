@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
     dead_stock_days integer NOT NULL DEFAULT 90,
     overstock_multiplier numeric(10,2) NOT NULL DEFAULT 3,
-    high_value_threshold numeric(10,2) NOT NULL DEFAULT 1000,
+    high_value_threshold bigint NOT NULL DEFAULT 100000,
     fast_moving_days integer NOT NULL DEFAULT 30,
     predictive_stock_days integer NOT NULL DEFAULT 7,
     currency text DEFAULT 'USD',
@@ -83,12 +83,12 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     name text NOT NULL,
     category text,
     quantity integer NOT NULL DEFAULT 0,
-    cost numeric(10,2) NOT NULL DEFAULT 0,
-    price numeric(10,2),
+    cost bigint NOT NULL DEFAULT 0,
+    price bigint,
     reorder_point integer,
     on_order_quantity integer NOT NULL DEFAULT 0,
     last_sold_date date,
-    landed_cost numeric(10,2),
+    landed_cost bigint,
     barcode text,
     location_id uuid REFERENCES public.locations(id) ON DELETE SET NULL,
     version integer NOT NULL DEFAULT 1,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
     sku text NOT NULL,
     supplier_sku text,
     product_name text,
-    unit_cost numeric(10,2) NOT NULL,
+    unit_cost bigint NOT NULL,
     moq integer DEFAULT 1,
     lead_time_days integer,
     is_active boolean DEFAULT true,
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
     status text,
     order_date date,
     expected_date date,
-    total_amount numeric(10,2),
+    total_amount bigint,
     notes text,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz,
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     sku text NOT NULL,
     quantity_ordered integer NOT NULL,
     quantity_received integer DEFAULT 0 NOT NULL,
-    unit_cost numeric(10,2),
+    unit_cost bigint,
     tax_rate numeric(5,4),
     UNIQUE(po_id, sku)
 );
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     customer_name text NOT NULL,
     email text,
     total_orders integer DEFAULT 0,
-    total_spent numeric(12,2) DEFAULT 0,
+    total_spent bigint DEFAULT 0,
     first_order_date date,
     status text,
     deleted_at timestamptz,
@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     sale_number text NOT NULL UNIQUE,
     customer_name text,
     customer_email text,
-    total_amount numeric(10,2) NOT NULL,
+    total_amount bigint NOT NULL,
     payment_method text,
     notes text,
     created_at timestamptz DEFAULT now(),
@@ -214,8 +214,8 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     sku text NOT NULL,
     product_name text,
     quantity integer NOT NULL,
-    unit_price numeric(10,2) NOT NULL,
-    cost_at_time numeric(10,2),
+    unit_price bigint NOT NULL,
+    cost_at_time bigint,
     UNIQUE(sale_id, sku),
     CONSTRAINT fk_sale_items_inventory FOREIGN KEY (company_id, sku) REFERENCES public.inventory (company_id, sku)
 );
@@ -279,7 +279,7 @@ CREATE TABLE IF NOT EXISTS public.channel_fees (
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     channel_name text NOT NULL,
     percentage_fee numeric(8,6) NOT NULL,
-    fixed_fee numeric(10,4) NOT NULL,
+    fixed_fee bigint NOT NULL,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz,
     UNIQUE(company_id, channel_name)
@@ -615,10 +615,10 @@ AS $$
 declare
   new_po purchase_orders;
   item_record record;
-  v_total_amount numeric := 0;
+  v_total_amount bigint := 0;
 begin
   -- Calculate total amount first
-  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(quantity_ordered int, unit_cost numeric)
+  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(quantity_ordered int, unit_cost bigint)
   LOOP
     v_total_amount := v_total_amount + (item_record.quantity_ordered * item_record.unit_cost);
   END LOOP;
@@ -629,7 +629,7 @@ begin
     (p_company_id, p_supplier_id, p_po_number, 'draft', p_order_date, p_expected_date, p_notes, v_total_amount)
   RETURNING * INTO new_po;
 
-  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
+  FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost bigint)
   LOOP
     INSERT INTO public.purchase_order_items
       (po_id, sku, quantity_ordered, unit_cost)
@@ -657,7 +657,7 @@ DECLARE
     item_data jsonb;
     new_po_id uuid;
     created_count integer := 0;
-    v_total_amount numeric;
+    v_total_amount bigint;
 BEGIN
     FOR po_data IN SELECT * FROM jsonb_array_elements(p_po_payload)
     LOOP
@@ -692,14 +692,14 @@ BEGIN
                 new_po_id,
                 item_data->>'sku',
                 (item_data->>'quantity_ordered')::integer,
-                (item_data->>'unit_cost')::numeric
+                (item_data->>'unit_cost')::bigint
             );
 
             UPDATE public.inventory
             SET on_order_quantity = on_order_quantity + (item_data->>'quantity_ordered')::integer
             WHERE sku = item_data->>'sku' AND company_id = p_company_id;
             
-            v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::numeric);
+            v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::bigint);
         END LOOP;
         
         -- Update the PO with the correct total amount
@@ -935,7 +935,7 @@ BEGIN
         SELECT
             date_trunc('day', s.created_at)::date as sale_day,
             SUM(s.total_amount) as daily_revenue,
-            SUM(si.quantity * si.cost_at_time) as daily_profit,
+            SUM(si.quantity * si.cost_at_time) as daily_cogs,
             COUNT(DISTINCT s.id) as daily_orders
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
@@ -945,7 +945,7 @@ BEGIN
     totals AS (
         SELECT 
             COALESCE(SUM(daily_revenue), 0) as total_revenue,
-            COALESCE(SUM(daily_profit), 0) as total_profit,
+            COALESCE(SUM(daily_revenue - daily_cogs), 0) as total_profit,
             COALESCE(SUM(daily_orders), 0) as total_sales
         FROM sales_data
     )
@@ -1139,7 +1139,6 @@ BEGIN
             SELECT SUM(quantity * cost) as daily_value
             FROM inventory
             WHERE company_id = p_company_id AND created_at <= generate_series(NOW() - (p_days || ' day')::interval, NOW(), '1 day'::interval)
-            GROUP BY created_at::date
         ) daily_values
     )
     SELECT
@@ -1212,7 +1211,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_purchase_order_details(p_po_id uuid, p_company_id uuid)
-RETURNS TABLE(id uuid, company_id uuid, supplier_id uuid, po_number text, status text, order_date text, expected_date text, total_amount numeric, notes text, created_at text, updated_at text, supplier_name text, supplier_email text, items jsonb)
+RETURNS TABLE(id uuid, company_id uuid, supplier_id uuid, po_number text, status text, order_date text, expected_date text, total_amount bigint, notes text, created_at text, updated_at text, supplier_name text, supplier_email text, items jsonb)
 LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -1283,7 +1282,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid, p_fast_moving_days integer)
-RETURNS TABLE(sku text, product_name text, current_quantity integer, reorder_point integer, suggested_reorder_quantity integer, supplier_name text, supplier_id uuid, unit_cost numeric, base_quantity integer)
+RETURNS TABLE(sku text, product_name text, current_quantity integer, reorder_point integer, suggested_reorder_quantity integer, supplier_name text, supplier_id uuid, unit_cost bigint, base_quantity integer)
 LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -1497,10 +1496,10 @@ BEGIN
     LOOP
         UPDATE inventory i
         SET quantity = i.quantity - item_record.quantity,
-            last_sold_date = CURRENT_DATE
+            last_sold_date = CURRENT_DATE,
+            version = i.version + 1 -- Manually increment version
         WHERE i.sku = item_record.sku
-          AND i.company_id = p_company_id
-          AND i.version = (SELECT version FROM inventory WHERE sku = item_record.sku AND company_id = p_company_id FOR UPDATE); -- Optimistic locking
+          AND i.company_id = p_company_id;
 
         INSERT INTO inventory_ledger (company_id, sku, created_at, change_type, quantity_change, new_quantity, related_id, notes)
         SELECT 
@@ -1584,9 +1583,9 @@ AS $$
 DECLARE
     new_sale sales;
     item_record record;
-    total_amount numeric := 0;
+    total_amount bigint := 0;
     current_stock integer;
-    v_cost_at_time numeric;
+    v_cost_at_time bigint;
 BEGIN
     -- Check stock levels before proceeding
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int) LOOP
@@ -1597,7 +1596,7 @@ BEGIN
     END LOOP;
 
     -- Calculate total amount
-    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price numeric) LOOP
+    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price bigint) LOOP
         total_amount := total_amount + (item_record.quantity * item_record.unit_price);
     END LOOP;
 
@@ -1607,7 +1606,7 @@ BEGIN
     RETURNING * INTO new_sale;
 
     -- Insert sale items and capture cost at time of sale
-    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric) LOOP
+    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price bigint, cost_at_time bigint) LOOP
         INSERT INTO sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
         VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
     END LOOP;
@@ -1625,9 +1624,9 @@ CREATE OR REPLACE FUNCTION public.update_inventory_item_with_lock(
     p_expected_version integer,
     p_name text,
     p_category text,
-    p_cost numeric,
+    p_cost bigint,
     p_reorder_point integer,
-    p_landed_cost numeric,
+    p_landed_cost bigint,
     p_barcode text,
     p_location_id uuid
 )
@@ -1673,7 +1672,7 @@ LANGUAGE plpgsql
 AS $$
 declare
   item_change record;
-  new_total_amount numeric := 0;
+  new_total_amount bigint := 0;
 begin
   -- Calculate net changes to on_order_quantity
   WITH old_items AS (
@@ -1696,7 +1695,7 @@ begin
   -- Now, clear old items and insert new ones
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
-  FOR item_change IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost numeric)
+  FOR item_change IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost bigint)
   LOOP
     INSERT INTO public.purchase_order_items
       (po_id, sku, quantity_ordered, unit_cost)
@@ -1971,6 +1970,11 @@ $$;
 ALTER TABLE public.sale_items
 ADD CONSTRAINT fk_sale_items_company
 FOREIGN KEY (company_id) REFERENCES public.companies(id);
+
+-- Add foreign key for inventory location
+ALTER TABLE public.inventory
+ADD CONSTRAINT fk_inventory_location
+FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
 
 
     

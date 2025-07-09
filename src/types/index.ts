@@ -1,4 +1,5 @@
 
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -116,7 +117,7 @@ export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
   dead_stock_days: z.number().default(90),
   overstock_multiplier: z.number().default(3),
-  high_value_threshold: z.number().default(1000),
+  high_value_threshold: z.number().int().default(100000), // Stored as cents
   fast_moving_days: z.number().default(30),
   predictive_stock_days: z.number().default(7),
   currency: z.string().nullable().optional().default('USD'),
@@ -134,26 +135,26 @@ export type UnifiedInventoryItem = {
   product_name: string;
   category: string | null;
   quantity: number;
-  cost: number;
-  price: number | null;
-  total_value: number;
+  cost: number; // Stored as cents
+  price: number | null; // Stored as cents
+  total_value: number; // Stored as cents
   reorder_point: number | null;
   on_order_quantity: number;
-  landed_cost?: number | null;
+  landed_cost?: number | null; // Stored as cents
   barcode?: string | null;
   location_id: string | null;
   location_name: string | null;
   monthly_units_sold: number;
-  monthly_profit: number;
+  monthly_profit: number; // Stored as cents
   version: number;
 };
 
 export const InventoryUpdateSchema = z.object({
   name: z.string().min(1, 'Product Name is required.'),
   category: z.string().optional().nullable(),
-  cost: z.coerce.number().nonnegative('Cost must be a non-negative number.'),
+  cost: z.coerce.number().int().nonnegative('Cost must be a non-negative integer.'), // In cents
   reorder_point: z.coerce.number().int().nonnegative('Reorder point must be a non-negative integer.').optional().nullable(),
-  landed_cost: z.coerce.number().nonnegative('Landed cost must be a non-negative number.').optional().nullable(),
+  landed_cost: z.coerce.number().int().nonnegative('Landed cost must be a non-negative integer.').optional().nullable(), // In cents
   barcode: z.string().optional().nullable(),
   location_id: z.string().uuid().optional().nullable(),
   version: z.number().int('Version must be an integer.'),
@@ -189,7 +190,7 @@ export const PurchaseOrderItemSchema = z.object({
   product_name: z.string().optional().nullable(),
   quantity_ordered: z.number().int(),
   quantity_received: z.number().int(),
-  unit_cost: z.number(),
+  unit_cost: z.number().int(), // In cents
   tax_rate: z.number().nullable(),
 });
 export type PurchaseOrderItem = z.infer<typeof PurchaseOrderItemSchema>;
@@ -202,7 +203,7 @@ export const PurchaseOrderSchema = z.object({
   status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']).nullable(),
   order_date: z.string(),
   expected_date: z.string().nullable(),
-  total_amount: z.coerce.number(),
+  total_amount: z.coerce.number().int(), // In cents
   notes: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string().nullable(),
@@ -216,7 +217,7 @@ export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 const POItemInputSchema = z.object({
     sku: z.string().min(1, 'SKU is required.'),
     quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
-    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
+    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'), // This will be dollars in UI, converted to cents in action
 });
 
 export const PurchaseOrderCreateSchema = z.object({
@@ -253,7 +254,7 @@ export const SupplierCatalogSchema = z.object({
   sku: z.string(),
   supplier_sku: z.string().nullable(),
   product_name: z.string().nullable(),
-  unit_cost: z.number(),
+  unit_cost: z.number().int(), // In cents
   moq: z.number().int().optional().default(1),
   lead_time_days: z.number().int().nullable(),
   is_active: z.boolean().default(true),
@@ -280,7 +281,7 @@ export const ReorderSuggestionBaseSchema = z.object({
     suggested_reorder_quantity: z.number(),
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
-    unit_cost: z.number().nullable(),
+    unit_cost: z.number().int().nullable(), // In cents
     base_quantity: z.number().int().optional(),
     adjustment_reason: z.string().optional(),
     seasonality_factor: z.number().optional(),
@@ -294,7 +295,7 @@ export const ChannelFeeSchema = z.object({
   company_id: z.string().uuid(),
   channel_name: z.string(),
   percentage_fee: z.number(),
-  fixed_fee: z.number(),
+  fixed_fee: z.number().int(), // In cents
   created_at: z.string(),
   updated_at: z.string().nullable(),
 });
@@ -357,7 +358,7 @@ export const CustomerSchema = z.object({
   customer_name: z.string(),
   email: z.string().email().nullable(),
   total_orders: z.coerce.number().int(),
-  total_spent: z.coerce.number(),
+  total_spent: z.coerce.number().int(), // In cents
   status: z.string().nullable(),
   deleted_at: z.string().nullable(),
   created_at: z.string(),
@@ -367,9 +368,9 @@ export type Customer = z.infer<typeof CustomerSchema>;
 export const CustomerAnalyticsSchema = z.object({
     total_customers: z.number().nullable(),
     new_customers_last_30_days: z.number().nullable(),
-    average_lifetime_value: z.number().nullable(),
+    average_lifetime_value: z.number().nullable(), // In cents
     repeat_customer_rate: z.number().nullable(),
-    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
+    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]), // In cents
     top_customers_by_sales: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
@@ -381,8 +382,8 @@ export const SaleItemSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
     quantity: z.number().int(),
-    unit_price: z.number(),
-    cost_at_time: z.number().nullable(),
+    unit_price: z.number().int(), // In cents
+    cost_at_time: z.number().int().nullable(), // In cents
 });
 export type SaleItem = z.infer<typeof SaleItemSchema>;
 
@@ -392,7 +393,7 @@ export const SaleSchema = z.object({
     sale_number: z.string(),
     customer_name: z.string().nullable(),
     customer_email: z.string().email().nullable(),
-    total_amount: z.number(),
+    total_amount: z.number().int(), // In cents
     payment_method: z.string(),
     notes: z.string().nullable(),
     created_at: z.string(),
@@ -404,7 +405,7 @@ export const SaleCreateItemSchema = z.object({
   sku: z.string().min(1),
   product_name: z.string(),
   quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
-  unit_price: z.coerce.number().min(0),
+  unit_price: z.coerce.number().min(0), // In dollars in UI, converted to cents in action
 });
 export type SaleCreateItemInput = z.infer<typeof SaleCreateItemSchema>;
 
@@ -456,22 +457,22 @@ export type CsvMappingOutput = z.infer<typeof CsvMappingOutputSchema>;
 
 // Page-specific analytics types
 export type InventoryAnalytics = {
-    total_inventory_value: number;
+    total_inventory_value: number; // In cents
     total_skus: number;
     low_stock_items: number;
-    potential_profit: number;
+    potential_profit: number; // In cents
 };
 
 export type PurchaseOrderAnalytics = {
-    open_po_value: number;
+    open_po_value: number; // In cents
     overdue_po_count: number;
     avg_lead_time: number;
     status_distribution: { name: string; value: number }[];
 };
 
 export const SalesAnalyticsSchema = z.object({
-    total_revenue: z.number().nullable(),
-    average_sale_value: z.number().nullable(),
+    total_revenue: z.number().int().nullable(), // In cents
+    average_sale_value: z.number().int().nullable(), // In cents
     payment_method_distribution: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;

@@ -1,4 +1,5 @@
 
+
 import { NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { redisClient } from '@/lib/redis';
@@ -50,6 +51,11 @@ export async function GET() {
     },
     {
       status: isHealthy ? 200 : 503,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
     }
   );
 }
