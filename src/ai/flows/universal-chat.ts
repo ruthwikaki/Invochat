@@ -18,7 +18,7 @@ import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
 import { getReorderSuggestions } from './reorder-tool';
-import { getSupplierPerformanceReport } from './supplier-performance-tool';
+import { getSupplierAnalysisTool } from './analyze-supplier-flow';
 import { createPurchaseOrdersTool } from './create-po-tool';
 import { getDeadStockReport } from './dead-stock-tool';
 import { getInventoryTurnoverReport } from './inventory-turnover-tool';
@@ -29,7 +29,7 @@ import { logError, getErrorMessage } from '@/lib/error-handler';
 const allTools = [
     getEconomicIndicators, 
     getReorderSuggestions, 
-    getSupplierPerformanceReport, 
+    getSupplierAnalysisTool, 
     createPurchaseOrdersTool, 
     getDeadStockReport, 
     getInventoryTurnoverReport,
@@ -57,7 +57,8 @@ const finalResponsePrompt = ai.definePrompt({
     **RESPONSE GUIDELINES:**
 
     1.  **Analyze & Synthesize**:
-        - **If data exists:** Briefly summarize the key finding. Don't just list the data. For example, instead of saying "The data shows Vendor A has a 98% on-time rate", say "Vendor A is your most reliable supplier with a 98% on-time delivery rate."
+        - **If the data has an 'analysis' field:** Use that text as your primary response. This means another AI has already summarized the data for you.
+        - **If data exists (but no 'analysis' field):** Briefly summarize the key finding. Don't just list the data. For example, instead of saying "The data shows Vendor A has a 98% on-time rate", say "Vendor A is your most reliable supplier with a 98% on-time delivery rate."
         - **If data is empty or null:** Do not just say "No data found." Instead, provide a helpful and context-aware response. For example, if asked for dead stock and none is found, say "Good news! I didn't find any dead stock based on your current settings. Everything seems to be selling well."
         - **Special Case (Action Confirmation):** If the tool result contains a "createdPoCount" key, this was a user-confirmed action. Your primary response should be a clear success message, like "Done! I've created {{toolResult.createdPoCount}} new purchase orders. You can review them on the Purchase Orders page." Set the visualization type to 'none' for this case.
 
@@ -124,9 +125,12 @@ const universalChatOrchestrator = ai.defineFlow(
                     throw new Error('The AI model did not return a valid final response object after tool use.');
                 }
                 
+                // If the tool output has its own nested data (like the supplier analysis flow), use that for the visualization.
+                const dataForVisualization = toolResult.output.performanceData || toolResult.output;
+                
                 return {
                     ...finalOutput,
-                    data: toolResult.output,
+                    data: dataForVisualization,
                     toolName: toolCall.name,
                 };
             } catch (e) {
@@ -137,6 +141,7 @@ const universalChatOrchestrator = ai.defineFlow(
                     visualization: { type: 'none', title: '' },
                     confidence: 0.1,
                     assumptions: ['The tool needed to answer your question failed to execute.'],
+                    toolName: toolCall.name,
                 }
             }
         }
