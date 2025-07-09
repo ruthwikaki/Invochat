@@ -165,23 +165,26 @@ export const CompanySettingsSchema = z.object({
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
 
-export type UnifiedInventoryItem = {
-  inventory_id: string;
-  product_id: string;
-  sku: string;
-  product_name: string;
-  category: string | null;
-  quantity: number;
-  cost: number; // Stored as cents
-  price: number | null; // Stored as cents
-  total_value: number; // Stored as cents
-  reorder_point: number | null;
-  on_order_quantity: number;
-  barcode?: string | null;
-  location_id: string | null;
-  location_name: string | null;
-  version: number;
-};
+export const UnifiedInventoryItemSchema = z.object({
+    product_id: z.string().uuid(),
+    sku: z.string(),
+    product_name: z.string(),
+    category: z.string().nullable(),
+    quantity: z.number(),
+    cost: z.number(), // In cents
+    price: z.number().nullable(), // In cents
+    total_value: z.number(), // In cents
+    reorder_point: z.number().nullable(),
+    on_order_quantity: z.number(),
+    landed_cost: z.number().nullable(),
+    barcode: z.string().nullable(),
+    location_id: z.string().uuid().nullable(),
+    location_name: z.string().nullable(),
+    monthly_units_sold: z.number(),
+    monthly_profit: z.number(),
+    version: z.number(),
+});
+export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
 export type TeamMember = {
   id: string;
@@ -221,11 +224,16 @@ export const PurchaseOrderSchema = z.object({
   company_id: z.string().uuid(),
   supplier_id: z.string().uuid().nullable(),
   po_number: z.string(),
-  status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']).nullable(),
+  status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled', 'pending_approval']).nullable(),
   order_date: z.string(),
   expected_date: z.string().nullable(),
   total_amount: z.coerce.number().int(), // In cents
+  tax_amount: z.coerce.number().int().nullable(),
+  shipping_cost: z.coerce.number().int().nullable(),
   notes: z.string().nullable(),
+  requires_approval: z.boolean().default(false),
+  approved_by: z.string().uuid().nullable(),
+  approved_at: z.string().datetime({ offset: true }).nullable(),
   created_at: z.string(),
   updated_at: z.string().nullable(),
   supplier_name: z.string().optional().nullable(),
@@ -235,7 +243,7 @@ export const PurchaseOrderSchema = z.object({
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
 const POItemInputSchema = z.object({
-    sku: z.string().min(1, 'SKU cannot be empty.'),
+    product_id: z.string().uuid(),
     quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
     unit_cost: z.coerce.number().nonnegative('Cost cannot be negative (in cents).'),
 });
@@ -245,7 +253,7 @@ export const PurchaseOrderCreateSchema = z.object({
   po_number: z.string().min(1, 'PO Number is required.'),
   order_date: z.date(),
   expected_date: z.date().optional().nullable(),
-  status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']),
+  status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled', 'pending_approval']),
   notes: z.string().optional(),
   items: z.array(POItemInputSchema).min(1, 'At least one item is required.'),
 });
@@ -259,7 +267,6 @@ export const ReceiveItemsFormSchema = z.object({
   poId: z.string().uuid(),
   items: z.array(z.object({
     product_id: z.string(),
-    product_name: z.string(),
     quantity_ordered: z.number(),
     quantity_already_received: z.number(),
     quantity_to_receive: z.coerce.number().int().min(0, 'Cannot be negative.'),
@@ -349,7 +356,7 @@ export const LocationFormSchema = z.object({
   address: z.string().optional().nullable(),
   is_default: z.boolean().optional(),
 });
-export type LocationFormData = z.infer<typeof LocationFormSchema>;
+export type LocationFormData = z.infer<typeof LocationFormData>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
@@ -364,7 +371,9 @@ export const InventoryLedgerEntrySchema = z.object({
     id: z.string().uuid(),
     company_id: z.string().uuid(),
     product_id: z.string().uuid(),
+    location_id: z.string().uuid(),
     created_at: z.string(),
+    created_by: z.string().uuid().nullable(),
     change_type: z.string(),
     quantity_change: z.number().int(),
     new_quantity: z.number().int(),
@@ -412,6 +421,7 @@ export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 export const SaleItemSchema = z.object({
     id: z.string().uuid(),
     sale_id: z.string().uuid(),
+    company_id: z.string().uuid(),
     product_id: z.string().uuid(),
     quantity: z.number().int(),
     unit_price: z.number().int(), // In cents
@@ -426,6 +436,7 @@ export const SaleSchema = z.object({
     customer_name: z.string().nullable(),
     customer_email: z.string().email().nullable(),
     total_amount: z.number().int(), // In cents
+    tax_amount: z.number().int().nullable(),
     payment_method: z.string(),
     notes: z.string().nullable(),
     created_at: z.string(),
@@ -520,3 +531,14 @@ export const HealthCheckResultSchema = z.object({
     message: z.string(),
 });
 export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
+
+export const InventoryAgingReportItemSchema = z.object({
+    product_name: z.string(),
+    sku: z.string(),
+    days_since_last_sale: z.number().int(),
+    quantity: z.number().int(),
+    total_value: z.number().int(), // in cents
+});
+export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
+
+    

@@ -1,4 +1,3 @@
-
 -- This script is designed to be idempotent. It can be run multiple times without causing errors.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -79,6 +78,7 @@ CREATE TABLE IF NOT EXISTS public.locations (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, name)
 );
+CREATE INDEX IF NOT EXISTS idx_locations_company_id ON public.locations(company_id);
 
 CREATE TABLE IF NOT EXISTS public.inventory (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0))
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_company_product_location ON public.inventory(company_id, product_id, location_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_location_id ON public.inventory(location_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_deleted_at ON public.inventory(company_id, deleted_at);
 
 CREATE TABLE IF NOT EXISTS public.vendors (
@@ -144,7 +145,12 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
     order_date date,
     expected_date date,
     total_amount bigint,
+    tax_amount bigint,
+    shipping_cost bigint,
     notes text,
+    requires_approval boolean DEFAULT false,
+    approved_by uuid REFERENCES auth.users(id),
+    approved_at timestamptz,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz,
     UNIQUE(company_id, po_number)
@@ -160,6 +166,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
+CREATE INDEX IF NOT EXISTS idx_po_items_po_id ON public.purchase_order_items(po_id);
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -168,6 +175,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     customer_name text,
     customer_email text,
     total_amount bigint NOT NULL,
+    tax_amount bigint,
     payment_method text,
     notes text,
     created_at timestamptz DEFAULT now(),
@@ -182,18 +190,14 @@ CREATE INDEX IF NOT EXISTS idx_sales_customer_email ON public.sales(company_id, 
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid,
-    product_id uuid,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_id uuid NOT NULL REFERENCES public.products(id),
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
     cost_at_time bigint NOT NULL,
     UNIQUE(sale_id, product_id)
 );
-ALTER TABLE public.sale_items
-    ADD CONSTRAINT fk_sale_items_company
-    FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
-    ADD CONSTRAINT fk_sale_items_product
-    FOREIGN KEY (product_id) REFERENCES public.products(id);
+CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON public.sale_items(sale_id);
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -201,6 +205,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     product_id uuid NOT NULL REFERENCES public.products(id),
     location_id uuid NOT NULL REFERENCES public.locations(id),
     created_at timestamptz DEFAULT now() NOT NULL,
+    created_by uuid REFERENCES auth.users(id),
     change_type text NOT NULL,
     quantity_change integer NOT NULL,
     new_quantity integer,
@@ -333,7 +338,7 @@ SELECT
   SUM(i.quantity * p.cost) as inventory_value,
   COUNT(CASE WHEN i.quantity <= i.reorder_point AND i.reorder_point > 0 THEN 1 END) as low_stock_count
 FROM public.products p
-JOIN public.inventory i ON p.id = i.product_id
+JOIN public.inventory i ON p.id = i.product_id AND p.company_id = i.company_id
 WHERE i.deleted_at IS NULL
 GROUP BY p.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.company_dashboard_metrics(company_id);
@@ -436,14 +441,17 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.refresh_materialized_views(uuid);
-CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid)
+DROP FUNCTION IF EXISTS public.refresh_materialized_views(uuid, text[]);
+CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid, p_view_names text[] DEFAULT ARRAY['company_dashboard_metrics', 'customer_analytics_metrics'])
 RETURNS void
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    view_name text;
 BEGIN
-  REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
-  REFRESH MATERIALIZED VIEW CONCURRENTLY public.customer_analytics_metrics;
+    FOREACH view_name IN ARRAY p_view_names LOOP
+        EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.' || quote_ident(view_name);
+    END LOOP;
 END;
 $$;
 
@@ -606,6 +614,8 @@ DECLARE
     new_sale public.sales;
     item_record record;
     total_amount bigint := 0;
+    tax_amount bigint := 0;
+    company_tax_rate numeric;
     current_inventory record;
     inventory_updates jsonb := '[]'::jsonb;
 BEGIN
@@ -622,12 +632,18 @@ BEGIN
         inventory_updates := inventory_updates || jsonb_build_object('product_id', item_record.product_id, 'location_id', current_inventory.location_id, 'quantity', item_record.quantity, 'expected_version', current_inventory.version);
     END LOOP;
 
+    SELECT tax_rate INTO company_tax_rate FROM public.company_settings WHERE company_id = p_company_id;
+    company_tax_rate := COALESCE(company_tax_rate, 0);
+
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(quantity int, unit_price bigint) LOOP
         total_amount := total_amount + (item_record.quantity * item_record.unit_price);
     END LOOP;
+    
+    tax_amount := total_amount * company_tax_rate;
+    total_amount := total_amount + tax_amount;
 
-    INSERT INTO public.sales (company_id, sale_number, customer_name, customer_email, total_amount, payment_method, notes, created_by, external_id)
-    VALUES (p_company_id, 'SALE-' || nextval('sales_sale_number_seq'::regclass), p_customer_name, p_customer_email, total_amount, p_payment_method, p_notes, p_user_id, p_external_id)
+    INSERT INTO public.sales (company_id, sale_number, customer_name, customer_email, total_amount, tax_amount, payment_method, notes, created_by, external_id)
+    VALUES (p_company_id, 'SALE-' || nextval('sales_sale_number_seq'::regclass), p_customer_name, p_customer_email, total_amount, tax_amount, p_payment_method, p_notes, p_user_id, p_external_id)
     RETURNING * INTO new_sale;
 
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity int, unit_price bigint, cost_at_time bigint) LOOP
@@ -669,6 +685,72 @@ BEGIN
     WHERE deleted_at < NOW() - (p_retention_days || ' days')::interval;
 END;
 $$;
+
+DROP FUNCTION IF EXISTS public.transfer_inventory(uuid, uuid, uuid, uuid, integer, text, uuid);
+CREATE OR REPLACE FUNCTION public.transfer_inventory(
+    p_company_id uuid,
+    p_product_id uuid,
+    p_from_location_id uuid,
+    p_to_location_id uuid,
+    p_quantity integer,
+    p_notes text,
+    p_user_id uuid
+) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+    from_loc_quantity integer;
+BEGIN
+    IF p_from_location_id = p_to_location_id THEN
+        RAISE EXCEPTION 'Source and destination locations cannot be the same.';
+    END IF;
+
+    -- Lock source inventory row
+    SELECT quantity INTO from_loc_quantity FROM public.inventory WHERE product_id = p_product_id AND location_id = p_from_location_id AND company_id = p_company_id FOR UPDATE;
+
+    IF NOT FOUND OR from_loc_quantity < p_quantity THEN
+        RAISE EXCEPTION 'Insufficient stock at source location. Available: %, Requested: %', COALESCE(from_loc_quantity, 0), p_quantity;
+    END IF;
+
+    -- Decrement from source
+    UPDATE public.inventory SET quantity = quantity - p_quantity WHERE product_id = p_product_id AND location_id = p_from_location_id AND company_id = p_company_id;
+
+    -- Increment or insert into destination
+    INSERT INTO public.inventory (company_id, product_id, location_id, quantity)
+    VALUES (p_company_id, p_product_id, p_to_location_id, p_quantity)
+    ON CONFLICT (company_id, product_id, location_id) DO UPDATE
+    SET quantity = inventory.quantity + p_quantity;
+
+    -- Log both sides of the transfer
+    INSERT INTO public.inventory_ledger (company_id, product_id, location_id, created_by, change_type, quantity_change, new_quantity, notes)
+    VALUES
+        (p_company_id, p_product_id, p_from_location_id, p_user_id, 'transfer_out', -p_quantity, (SELECT quantity FROM public.inventory WHERE product_id = p_product_id AND location_id = p_from_location_id), p_notes),
+        (p_company_id, p_product_id, p_to_location_id, p_user_id, 'transfer_in', p_quantity, (SELECT quantity FROM public.inventory WHERE product_id = p_product_id AND location_id = p_to_location_id), p_notes);
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.get_inventory_aging_report(uuid);
+CREATE OR REPLACE FUNCTION public.get_inventory_aging_report(p_company_id uuid)
+RETURNS TABLE(
+    product_name text,
+    sku text,
+    days_since_last_sale integer,
+    quantity integer,
+    total_value bigint
+) LANGUAGE plpgsql AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        p.name as product_name,
+        p.sku,
+        EXTRACT(DAY FROM (NOW() - COALESCE(i.last_sold_date, i.created_at)))::integer as days_since_last_sale,
+        i.quantity,
+        (i.quantity * p.cost)::bigint as total_value
+    FROM public.inventory i
+    JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
+    WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0
+    ORDER BY days_since_last_sale DESC;
+END;
+$$;
+
 
 -- Step 8: Triggers
 -- -----------------------------------------------------------------
@@ -737,3 +819,5 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+    

@@ -20,6 +20,7 @@ import {
   Users,
   ShoppingCart,
   ShieldCheck,
+  Archive,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -37,6 +38,7 @@ const menuItems = [
   { href: '/customers', label: 'Customers', icon: Users },
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
   { href: '/locations', label: 'Locations', icon: Warehouse },
+  { href: '/reports/inventory-aging', label: 'Inventory Aging', icon: Archive },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
 ];
 
@@ -64,3 +66,5 @@ export function MainNavigation() {
     </SidebarMenu>
   );
 }
+
+    

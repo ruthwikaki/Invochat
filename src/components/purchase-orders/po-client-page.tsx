@@ -49,7 +49,7 @@ const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, val
     </Card>
 );
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A28CF2'];
 
 const StatusDonutChart = ({ data }: { data: { name: string; value: number }[] }) => {
     if (!data || data.length === 0) return <div className="text-center text-muted-foreground">No data for chart</div>;
@@ -124,6 +124,7 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
 const getStatusVariant = (status: PurchaseOrder['status']) => {
   if (!status) return 'outline';
   switch (status) {
+    case 'pending_approval':
     case 'draft':
       return 'outline';
     case 'sent':
@@ -144,6 +145,8 @@ const getStatusColor = (status: PurchaseOrder['status']) => {
   switch (status) {
     case 'draft':
       return 'border-gray-400 text-gray-500';
+    case 'pending_approval':
+      return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
     case 'sent':
       return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
     case 'partial':
@@ -324,7 +327,7 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders, totalCount, ite
                       <TableCell>{po.supplier_name}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(po.status)} className={getStatusColor(po.status)}>
-                          {po.status ? po.status.charAt(0).toUpperCase() + po.status.slice(1) : 'Unknown'}
+                          {po.status ? po.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown'}
                         </Badge>
                       </TableCell>
                       <TableCell>{po.order_date ? format(new Date(po.order_date), 'MMM d, yyyy') : 'N/A'}</TableCell>
@@ -358,3 +361,5 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders, totalCount, ite
     </div>
   );
 }
+
+    

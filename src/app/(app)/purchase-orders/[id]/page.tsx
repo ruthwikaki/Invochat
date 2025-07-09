@@ -1,13 +1,13 @@
 
 'use client';
 
-import { getPurchaseOrderById, deletePurchaseOrder, emailPurchaseOrder } from '@/app/data-actions';
+import { getPurchaseOrderById, deletePurchaseOrder, emailPurchaseOrder, approvePurchaseOrder } from '@/app/data-actions';
 import { PurchaseOrderReceiveForm } from '@/components/purchase-orders/po-receive-form';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
-import { Edit, Trash2, Mail, MoreVertical, Loader2 } from 'lucide-react';
+import { Edit, Trash2, Mail, MoreVertical, Loader2, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition, useEffect } from 'react';
@@ -51,6 +51,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
   const { toast } = useToast();
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isEmailing, startEmailTransition] = useTransition();
+  const [isApproving, startApproveTransition] = useTransition();
   const [isAlertOpen, setAlertOpen] = useState(false);
   
   const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrder | null>(null);
@@ -62,7 +63,6 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
         setLoading(false);
     });
   }, [params.id]);
-
 
   const handleDelete = () => {
     if (!purchaseOrder) return;
@@ -102,6 +102,19 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
     })
   }
 
+  const handleApprove = () => {
+    if (!purchaseOrder) return;
+    startApproveTransition(async () => {
+        const result = await approvePurchaseOrder(purchaseOrder.id);
+        if (result.success) {
+            toast({ title: "Purchase Order Approved", description: `PO #${purchaseOrder.po_number} is now ready to be sent.` });
+            router.refresh();
+        } else {
+            toast({ variant: 'destructive', title: "Error Approving PO", description: result.error });
+        }
+    });
+  }
+
   if (loading) {
     return <LoadingState />;
   }
@@ -115,6 +128,8 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
     )
   }
 
+  const needsApproval = purchaseOrder.status === 'pending_approval';
+
   return (
     <AppPage className="flex flex-col h-full">
       <AppPageHeader
@@ -122,6 +137,12 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
         description={`Manage and receive items for the order from ${purchaseOrder.supplier_name}.`}
       >
         <div className="flex items-center gap-2">
+            {needsApproval && (
+                <Button onClick={handleApprove} disabled={isApproving}>
+                    {isApproving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                    Approve PO
+                </Button>
+            )}
             <Button variant="outline" asChild>
                 <Link href={`/purchase-orders/${purchaseOrder.id}/edit`}>
                     <Edit className="mr-2 h-4 w-4" /> Edit
@@ -169,3 +190,5 @@ export default function PurchaseOrderDetailPage({ params }: { params: { id: stri
     </AppPage>
   );
 }
+
+    
