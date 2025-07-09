@@ -1373,7 +1373,7 @@ BEGIN
         'Sale fulfillment'
     FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
-    JOIN inventory i ON si.sku = i.sku AND i.company_id = p_company_id
+    JOIN inventory i ON si.sku = si.sku AND i.company_id = p_company_id
     WHERE s.id = p_sale_id
     AND s.company_id = p_company_id;
 END;
@@ -1813,4 +1813,3 @@ END;
 $$;
 
 
-```

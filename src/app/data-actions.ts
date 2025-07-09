@@ -66,7 +66,7 @@ import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, LocationFormData, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, SupplierFormData, SaleCreateInput } from '@/types';
 import { sendPurchaseOrderEmail } from '@/services/email';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { ai } from '@/ai/genkit';
 
@@ -496,8 +496,13 @@ export async function getIntegrations() {
     const { companyId } = await getAuthContext();
     return getIntegrationsByCompanyId(companyId);
 }
+
 export async function disconnectIntegration(formData: FormData) {
     try {
+        const cookieStore = cookies();
+        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+        validateCSRF(formData, csrfTokenFromCookie);
+        
         const { companyId } = await getAuthContext();
         const id = formData.get('integrationId') as string;
         await deleteIntegrationFromDb(id, companyId);
