@@ -100,7 +100,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_product_id text,
     external_variant_id text,
     external_quantity integer,
-    UNIQUE(company_id, sku)
+    UNIQUE(company_id, sku),
+    CONSTRAINT inventory_quantity_non_negative CHECK ((quantity >= 0))
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_company_sku ON public.inventory(company_id, sku);
 CREATE INDEX IF NOT EXISTS idx_inventory_category ON public.inventory(company_id, category);
@@ -764,7 +765,8 @@ BEGIN
             i.name as product_name,
             COALESCE(SUM(si.quantity * si.unit_price), 0) AS revenue
         FROM inventory i
-        JOIN sale_items si ON i.sku = si.sku AND i.company_id = si.company_id
+        LEFT JOIN sale_items si ON i.sku = si.sku AND i.company_id = si.company_id
+        LEFT JOIN sales s ON si.sale_id = s.id AND s.created_at >= NOW() - interval '1 year'
         WHERE i.company_id = p_company_id
         GROUP BY i.sku, i.name
     ),
@@ -929,7 +931,7 @@ BEGIN
             COUNT(DISTINCT s.id) as daily_orders
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
-        WHERE s.company_id = p_company_id AND s.created_at >= start_date
+        WHERE s.company_id = p_company_id AND s.created_at >= start_date AND si.cost_at_time IS NOT NULL
         GROUP BY 1
     ),
     totals AS (
@@ -1122,20 +1124,23 @@ BEGIN
         SELECT SUM(si.quantity * si.cost_at_time) AS total_cogs
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
-        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval
+        WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
-        SELECT SUM(quantity * cost) AS current_inventory_value
-        FROM inventory
-        WHERE company_id = p_company_id
+        SELECT AVG(daily_value) as avg_inventory_value FROM (
+            SELECT SUM(quantity * cost) as daily_value
+            FROM inventory
+            WHERE company_id = p_company_id AND created_at <= generate_series(NOW() - (p_days || ' day')::interval, NOW(), '1 day'::interval)
+            GROUP BY created_at::date
+        ) daily_values
     )
     SELECT
         CASE
-            WHEN iv.current_inventory_value > 0 THEN COALESCE(cc.total_cogs, 0) / iv.current_inventory_value
+            WHEN iv.avg_inventory_value > 0 THEN COALESCE(cc.total_cogs, 0) / iv.avg_inventory_value
             ELSE 0
         END,
         COALESCE(cc.total_cogs, 0),
-        iv.current_inventory_value,
+        COALESCE(iv.avg_inventory_value, 0),
         p_days
     FROM cogs_calc cc, inventory_value_calc iv;
 END;
@@ -1289,10 +1294,6 @@ BEGIN
         i.name,
         i.quantity,
         i.reorder_point,
-        -- Corrected Logic:
-        -- 1. Use COALESCE to handle NULL reorder_point, defaulting to 0.
-        -- 2. Use GREATEST with 0 to prevent suggesting negative quantities.
-        -- 3. Use p_fast_moving_days consistently for the calculation window.
         GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * p_fast_moving_days) - i.quantity))::integer as suggested_reorder_quantity,
         v.vendor_name,
         v.id as supplier_id,
@@ -1313,32 +1314,63 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    WITH po_delivery_dates AS (
+        -- Find the last receipt date for each PO based on ledger entries
+        SELECT
+            il.related_id AS po_id,
+            MAX(il.created_at) AS actual_delivery_date
+        FROM public.inventory_ledger il
+        WHERE il.company_id = p_company_id
+          AND il.change_type = 'purchase_order_received'
+          AND il.related_id IS NOT NULL
+        GROUP BY il.related_id
+    ),
+    po_stats AS (
+        SELECT
+            po.supplier_id,
+            po.status,
+            po.order_date,
+            po.expected_date,
+            podd.actual_delivery_date
+        FROM public.purchase_orders po
+        JOIN po_delivery_dates podd ON po.id = podd.po_id
+        WHERE po.company_id = p_company_id
+          AND po.status IN ('received', 'partial')
+    )
+    SELECT
         v.vendor_name,
-        COUNT(CASE WHEN po.status IN ('received', 'partial') THEN 1 END),
-        ROUND(
-            COUNT(CASE WHEN po.status = 'received' AND po.expected_date IS NOT NULL AND po.updated_at::date <= po.expected_date THEN 1 END)::numeric * 100 / 
-            NULLIF(COUNT(CASE WHEN po.status = 'received' THEN 1 END), 0), 
-            2
-        ),
-        ROUND(AVG(
-            CASE 
-                WHEN po.status = 'received' AND po.expected_date IS NOT NULL 
-                THEN EXTRACT(DAY FROM (po.updated_at::date - po.expected_date))
-            END
-        ), 1),
-        ROUND(AVG(
-            CASE 
-                WHEN po.status = 'received' 
-                THEN EXTRACT(DAY FROM (po.updated_at::date - po.order_date))
-            END
-        ), 1)
-    FROM vendors v
-    LEFT JOIN purchase_orders po ON po.supplier_id = v.id
+        COUNT(ps.*) AS total_completed_orders,
+        -- On-time rate: of fully received orders, how many were on or before expected date
+        COALESCE(
+            ROUND(
+                (COUNT(*) FILTER (WHERE ps.status = 'received' AND ps.expected_date IS NOT NULL AND ps.actual_delivery_date::date <= ps.expected_date))::numeric * 100
+                / NULLIF(COUNT(*) FILTER (WHERE ps.status = 'received' AND ps.expected_date IS NOT NULL), 0),
+                2
+            ),
+            0
+        ) AS on_time_delivery_rate,
+        -- Avg variance: how early/late on average were deliveries
+        COALESCE(
+            ROUND(
+                AVG(EXTRACT(DAY FROM (ps.actual_delivery_date::date - ps.expected_date)))
+                FILTER (WHERE ps.expected_date IS NOT NULL),
+                1
+            ),
+            0
+        ) AS average_delivery_variance_days,
+        -- Avg lead time: how long from order to delivery
+        COALESCE(
+            ROUND(
+                AVG(EXTRACT(DAY FROM (ps.actual_delivery_date::date - ps.order_date))),
+                1
+            ),
+            0
+        ) AS average_lead_time_days
+    FROM public.vendors v
+    JOIN po_stats ps ON v.id = ps.supplier_id
     WHERE v.company_id = p_company_id
     GROUP BY v.id, v.vendor_name
-    HAVING COUNT(CASE WHEN po.status IN ('received', 'partial') THEN 1 END) > 0
-    ORDER BY COUNT(CASE WHEN po.status IN ('received', 'partial') THEN 1 END) DESC;
+    ORDER BY total_completed_orders DESC;
 END;
 $$;
 
@@ -1503,7 +1535,7 @@ BEGIN
             UPDATE public.inventory 
             SET 
                 quantity = quantity + item.quantity_to_receive, 
-                on_order_quantity = GREATEST(0, on_order_quantity - item.quantity_to_receive) -- Prevent on_order from going negative
+                on_order_quantity = GREATEST(0, on_order_quantity - item.quantity_to_receive)
             WHERE company_id = p_company_id AND sku = item.sku;
             INSERT INTO inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, related_id)
             VALUES (p_company_id, item.sku, 'purchase_order_received', item.quantity_to_receive, (SELECT quantity FROM inventory WHERE sku=item.sku AND company_id=p_company_id), p_po_id);
@@ -1912,11 +1944,3 @@ BEGIN
     WHERE v.company_id = p_company_id;
 END;
 $$;
-
-
-
-
-
-
-
-
