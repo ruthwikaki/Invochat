@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
 
 interface InventoryHistoryDialogProps {
-  sku: string | null;
+  productId: string | null;
   onClose: () => void;
 }
 
@@ -65,17 +65,17 @@ function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
     )
 }
 
-export function InventoryHistoryDialog({ sku, onClose }: InventoryHistoryDialogProps) {
+export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryDialogProps) {
   const [history, setHistory] = useState<InventoryLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (sku) {
+    if (productId) {
       const fetchHistory = async () => {
         setLoading(true);
         try {
-          const data = await getInventoryLedger(sku);
+          const data = await getInventoryLedger(productId);
           setHistory(data);
         } catch (error) {
           toast({
@@ -89,15 +89,15 @@ export function InventoryHistoryDialog({ sku, onClose }: InventoryHistoryDialogP
       };
       fetchHistory();
     }
-  }, [sku, toast]);
+  }, [productId, toast]);
 
   return (
-    <Dialog open={!!sku} onOpenChange={onClose}>
+    <Dialog open={!!productId} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Inventory History for SKU: {sku}
+            Inventory History for Product ID: {productId}
           </DialogTitle>
           <DialogDescription>
             A complete audit trail of all stock movements for this item across all locations.

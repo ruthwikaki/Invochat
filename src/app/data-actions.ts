@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import type { Message } from '@/types';
@@ -222,11 +221,11 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     }
 }
 
-export async function updateInventoryItem(sku: string, data: InventoryUpdateData) {
+export async function updateInventoryItem(productId: string, data: InventoryUpdateData) {
     try {
         const { companyId, userId } = await getAuthContext();
-        const updatedItem = await updateInventoryItemInDb(companyId, sku, data);
-        await createAuditLogInDb(userId, companyId, 'inventory_item_updated', { sku: sku, changes: data });
+        const updatedItem = await updateInventoryItemInDb(companyId, productId, data);
+        await createAuditLogInDb(userId, companyId, 'inventory_item_updated', { product_id: productId, changes: data });
         revalidatePath('/inventory');
         return { success: true, updatedItem };
     } catch(e) {
@@ -234,9 +233,9 @@ export async function updateInventoryItem(sku: string, data: InventoryUpdateData
     }
 }
 
-export async function getInventoryLedger(sku: string) {
+export async function getInventoryLedger(productId: string) {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerForSkuFromDB(companyId, sku);
+    return getInventoryLedgerForSkuFromDB(companyId, productId);
 }
 
 export async function exportInventory(params: { query?: string; category?: string; location?: string, supplier?: string }) {

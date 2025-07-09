@@ -2,9 +2,9 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ShopifyConnectModal } from './ShopifyConnectModal';
 import { WooCommerceConnectModal } from './WooCommerceConnectModal';
 import { AmazonConnectModal } from './AmazonConnectModal';
@@ -15,7 +15,11 @@ import { motion } from 'framer-motion';
 import { PlatformLogo } from './platform-logos';
 import type { Platform } from '../types';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
-import { disconnectIntegration } from '@/app/data-actions';
+import { disconnectIntegration, reconcileInventory } from '@/app/data-actions';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle } from 'lucide-react';
 
 function PlatformConnectCard({
     platform,
@@ -42,6 +46,58 @@ function PlatformConnectCard({
                     {comingSoon ? 'Coming Soon' : 'Connect Store'}
                 </Button>
             </div>
+        </Card>
+    );
+}
+
+function ReconciliationCard({ integrationId }: { integrationId: string | undefined }) {
+    const { toast } = useToast();
+    const [isReconciling, startReconciliation] = useTransition();
+
+    if (!integrationId) return null;
+
+    const handleReconcile = () => {
+        startReconciliation(async () => {
+            const result = await reconcileInventory(integrationId);
+            if (result.success) {
+                toast({
+                    title: 'Reconciliation Started',
+                    description: 'Inventory levels are being updated from the platform. This may take a moment.',
+                    variant: 'default',
+                });
+            } else {
+                toast({
+                    title: 'Reconciliation Failed',
+                    description: result.error,
+                    variant: 'destructive',
+                });
+            }
+        });
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Inventory Reconciliation</CardTitle>
+                <CardDescription>
+                    Manually sync your inventory quantities from your e-commerce platform to InvoChat. This is useful if you suspect a discrepancy.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Alert>
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>How it works</AlertTitle>
+                    <AlertDescription>
+                        This process will fetch the current stock levels from your store and update the "External Quantity" field in InvoChat. It will then create an inventory adjustment to match your local quantity to the platform's quantity.
+                    </AlertDescription>
+                </Alert>
+            </CardContent>
+            <CardFooter>
+                <Button onClick={handleReconcile} disabled={isReconciling}>
+                    {isReconciling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Reconcile Inventory
+                </Button>
+            </CardFooter>
         </Card>
     );
 }
@@ -114,6 +170,13 @@ export function IntegrationsClientPage() {
                     )}
                 </div>
             </div>
+
+             {integrations.length > 0 && (
+                <div>
+                     <h2 className="text-xl font-semibold mb-4">Advanced Tools</h2>
+                    <ReconciliationCard integrationId={integrations[0]?.id} />
+                </div>
+            )}
             
             <div>
                 <h2 className="text-xl font-semibold mb-4">Available Integrations</h2>

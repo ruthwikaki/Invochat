@@ -250,7 +250,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                                 </div>
                             </TableCell>
                             <TableCell className="text-right">{customer.total_orders}</TableCell>
-                            <TableCell className="text-right font-medium">${customer.total_spent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-medium">${(customer.total_spent / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             <TableCell className="text-center">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

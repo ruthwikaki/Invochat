@@ -51,8 +51,6 @@ export const ProductSchema = z.object({
     sku: z.string(),
     name: z.string(),
     category: z.string().nullable(),
-    cost: z.number().int(), // In cents
-    price: z.number().int().nullable(), // In cents
     barcode: z.string().nullable(),
     created_at: z.string(),
     updated_at: z.string().nullable(),
@@ -74,6 +72,9 @@ export const InventorySchema = z.object({
     product_id: z.string().uuid(),
     location_id: z.string().uuid().nullable(),
     quantity: z.number().int(),
+    cost: z.number().int(),
+    price: z.number().int().nullable(),
+    landed_cost: z.number().int().nullable(),
     reorder_point: z.number().int().nullable(),
     on_order_quantity: z.number().int(),
     last_sold_date: z.string().nullable(),
@@ -93,6 +94,7 @@ export const InventoryUpdateSchema = z.object({
     name: z.string().min(1, 'Product name is required'),
     category: z.string().nullable(),
     cost: z.coerce.number().nonnegative(),
+    price: z.coerce.number().nonnegative().nullable(),
     reorder_point: z.coerce.number().int().nonnegative().nullable(),
     landed_cost: z.coerce.number().nonnegative().nullable(),
     barcode: z.string().nullable(),
@@ -377,7 +379,7 @@ export const LocationFormSchema = z.object({
   address: z.string().optional().nullable(),
   is_default: z.boolean().optional(),
 });
-export type LocationFormData = z.infer<typeof LocationFormData>;
+export type LocationFormData = z.infer<typeof LocationFormSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
@@ -421,8 +423,6 @@ export const CustomerSchema = z.object({
   external_id: z.string().nullable(),
   customer_name: z.string(),
   email: z.string().email().nullable(),
-  total_orders: z.coerce.number().int(),
-  total_spent: z.coerce.number().int(), // In cents
   status: z.string().nullable(),
   deleted_at: z.string().nullable(),
   created_at: z.string(),

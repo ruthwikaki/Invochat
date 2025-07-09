@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
@@ -18,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Loader2, Plus, Trash2, Search, X } from 'lucide-react';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
-type ProductSearchResult = Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>;
+type ProductSearchResult = Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'>;
 
 export function QuickSaleForm() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export function QuickSaleForm() {
   };
   
   const addProductToCart = (product: ProductSearchResult) => {
-    const existingItemIndex = fields.findIndex(field => field.sku === product.sku);
+    const existingItemIndex = fields.findIndex(field => field.product_id === product.product_id);
     if (existingItemIndex > -1) {
       const currentItem = fields[existingItemIndex];
       update(existingItemIndex, {
@@ -75,11 +76,10 @@ export function QuickSaleForm() {
       });
     } else {
       append({
-        sku: product.sku,
+        product_id: product.product_id,
         product_name: product.product_name,
         quantity: 1,
         unit_price: product.price || 0,
-        cost_at_time: 0, // This should be fetched, but for now...
       });
     }
     setSearchTerm('');
@@ -133,7 +133,7 @@ export function QuickSaleForm() {
                                     <p className="font-medium">{product.product_name}</p>
                                     <p className="text-xs text-muted-foreground">SKU: {product.sku} | Stock: {product.quantity}</p>
                                 </div>
-                                <p className="font-semibold">${product.price?.toFixed(2) || '0.00'}</p>
+                                <p className="font-semibold">${(product.price || 0 / 100).toFixed(2)}</p>
                             </div>
                         ))}
                     </div>
@@ -168,8 +168,8 @@ export function QuickSaleForm() {
                             <TableRow key={field.fieldId}>
                                 <TableCell>{field.product_name}</TableCell>
                                 <TableCell><Input type="number" {...form.register(`items.${index}.quantity`)} min={1} /></TableCell>
-                                <TableCell><Input type="number" step="0.01" {...form.register(`items.${index}.unit_price`)} /></TableCell>
-                                <TableCell className="text-right font-medium">${lineTotal.toFixed(2)}</TableCell>
+                                <TableCell><Input type="number" step="0.01" {...form.register(`items.${index}.unit_price`, { valueAsNumber: true })} /></TableCell>
+                                <TableCell className="text-right font-medium">${(lineTotal/100).toFixed(2)}</TableCell>
                                 <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell>
                             </TableRow>
                         )})}
@@ -217,7 +217,7 @@ export function QuickSaleForm() {
               </div>
                <div className="flex justify-between items-center text-lg font-semibold border-t pt-4 mt-4">
                   <span>Total Amount</span>
-                  <span>${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span>${(totalAmount/100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                </div>
             </CardContent>
             <CardFooter>

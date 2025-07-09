@@ -127,8 +127,8 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
   return (
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <AnalyticsCard title="Total Revenue" value={analyticsData.total_revenue} icon={DollarSign} />
-            <AnalyticsCard title="Average Sale Value" value={analyticsData.average_sale_value} icon={BarChart} />
+            <AnalyticsCard title="Total Revenue" value={formatCurrency(analyticsData.total_revenue)} icon={DollarSign} />
+            <AnalyticsCard title="Average Sale Value" value={formatCurrency(analyticsData.average_sale_value)} icon={BarChart} />
              <Card>
                 <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">Payment Methods</CardTitle>
@@ -169,7 +169,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                       <TableCell>{sale.customer_name || 'Walk-in Customer'}</TableCell>
                       <TableCell>{format(new Date(sale.created_at), 'PP p')}</TableCell>
                       <TableCell><Badge variant="outline" className="capitalize">{sale.payment_method}</Badge></TableCell>
-                      <TableCell className="text-right">${sale.total_amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">${(sale.total_amount/100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

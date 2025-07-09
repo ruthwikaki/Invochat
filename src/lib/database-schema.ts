@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.companies (
 
 CREATE TABLE IF NOT EXISTS public.users (
     id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     email text,
     role public.user_role NOT NULL DEFAULT 'Member',
     deleted_at timestamptz,
@@ -54,8 +54,6 @@ CREATE TABLE IF NOT EXISTS public.products (
     sku text NOT NULL,
     name text NOT NULL,
     category text,
-    cost bigint NOT NULL DEFAULT 0,
-    price bigint,
     barcode text,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz,
@@ -74,12 +72,15 @@ CREATE TABLE IF NOT EXISTS public.locations (
 
 CREATE TABLE IF NOT EXISTS public.inventory (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL,
+    product_id uuid NOT NULL,
     location_id uuid REFERENCES public.locations(id) ON DELETE SET NULL,
     quantity integer NOT NULL DEFAULT 0,
     reorder_point integer,
     on_order_quantity integer NOT NULL DEFAULT 0,
+    cost bigint NOT NULL DEFAULT 0,
+    price bigint,
+    landed_cost bigint,
     last_sold_date date,
     version integer NOT NULL DEFAULT 1,
     deleted_at timestamptz,
@@ -90,10 +91,14 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_product_id text,
     external_variant_id text,
     external_quantity integer,
+    CONSTRAINT fk_inventory_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
+    CONSTRAINT fk_inventory_product FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE,
     UNIQUE(company_id, product_id, location_id),
     CONSTRAINT inventory_quantity_non_negative CHECK ((quantity >= 0)),
-    CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0))
+    CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0)),
+    CONSTRAINT price_non_negative CHECK ((price IS NULL OR price >= 0))
 );
+CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
 
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -114,9 +119,6 @@ CREATE TABLE IF NOT EXISTS public.customers (
     external_id text,
     customer_name text NOT NULL,
     email text,
-    total_orders integer DEFAULT 0,
-    total_spent bigint DEFAULT 0,
-    first_order_date date,
     status text,
     deleted_at timestamptz,
     created_at timestamptz DEFAULT now(),
@@ -127,7 +129,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id uuid REFERENCES public.vendors(id),
+    supplier_id uuid REFERENCES public.vendors(id) ON DELETE SET NULL,
     po_number text NOT NULL,
     status text,
     order_date date,
@@ -154,6 +156,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
+CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -174,33 +177,36 @@ CREATE TABLE IF NOT EXISTS public.sales (
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid,
+    company_id uuid, -- Allow NULL initially
     product_id uuid NOT NULL,
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
     cost_at_time bigint NOT NULL,
     UNIQUE(sale_id, product_id)
 );
+CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
 
--- Idempotent way to handle sale_items company_id column
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'company_id' AND is_nullable = 'NO'
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'company_id'
     ) THEN
+        ALTER TABLE public.sale_items ADD COLUMN company_id uuid;
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM public.sale_items WHERE company_id IS NULL) THEN
         UPDATE public.sale_items si
         SET company_id = s.company_id
         FROM public.sales s
         WHERE si.sale_id = s.id AND si.company_id IS NULL;
-        
-        ALTER TABLE public.sale_items ALTER COLUMN company_id SET NOT NULL;
     END IF;
     
-    ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
-    ALTER TABLE public.sale_items ADD CONSTRAINT fk_sale_items_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+    ALTER TABLE public.sale_items ALTER COLUMN company_id SET NOT NULL;
 END $$;
+
+ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
+ALTER TABLE public.sale_items ADD CONSTRAINT fk_sale_items_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
@@ -335,7 +341,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   p.company_id,
   COUNT(DISTINCT p.id) as total_skus,
-  SUM(i.quantity * p.cost) as inventory_value,
+  SUM(i.quantity * i.cost) as inventory_value,
   COUNT(CASE WHEN i.quantity <= i.reorder_point AND i.reorder_point > 0 THEN 1 END) as low_stock_count
 FROM public.products p
 JOIN public.inventory i ON p.id = i.product_id AND p.company_id = i.company_id
@@ -479,7 +485,7 @@ BEGIN
     RETURN QUERY
     SELECT
         'low_stock'::text AS type, p.id, p.name::text, i.quantity, i.reorder_point,
-        i.last_sold_date, (i.quantity * p.cost)::numeric AS value, NULL::numeric AS days_of_stock_remaining
+        i.last_sold_date, (i.quantity * i.cost)::numeric AS value, NULL::numeric AS days_of_stock_remaining
     FROM public.inventory i
     JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
     WHERE i.company_id = p_company_id AND i.reorder_point IS NOT NULL AND i.quantity <= i.reorder_point AND i.quantity > 0 AND i.deleted_at IS NULL
@@ -488,7 +494,7 @@ BEGIN
 
     SELECT
         'dead_stock'::text, p.id, p.name::text, i.quantity, i.reorder_point,
-        i.last_sold_date, (i.quantity * p.cost)::numeric, NULL::numeric
+        i.last_sold_date, (i.quantity * i.cost)::numeric, NULL::numeric
     FROM public.inventory i
     JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
     WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0 AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval))
@@ -507,7 +513,7 @@ BEGIN
         )
         SELECT
             'predictive'::text, p.id, p.name::text, i.quantity, i.reorder_point,
-            i.last_sold_date, (i.quantity * p.cost)::numeric, (i.quantity / sv.daily_sales)
+            i.last_sold_date, (i.quantity * i.cost)::numeric, (i.quantity / sv.daily_sales)
         FROM public.inventory i
         JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
         JOIN sales_velocity sv ON i.product_id = sv.product_id
@@ -695,8 +701,10 @@ BEGIN
     UPDATE public.inventory SET quantity = quantity - p_quantity WHERE product_id = p_product_id AND location_id = p_from_location_id AND company_id = p_company_id;
 
     -- Increment or insert into destination
-    INSERT INTO public.inventory (company_id, product_id, location_id, quantity)
-    VALUES (p_company_id, p_product_id, p_to_location_id, p_quantity)
+    INSERT INTO public.inventory (company_id, product_id, location_id, quantity, cost, price)
+    SELECT p_company_id, p_product_id, p_to_location_id, p_quantity, cost, price
+    FROM public.inventory
+    WHERE product_id = p_product_id AND location_id = p_from_location_id AND company_id = p_company_id
     ON CONFLICT (company_id, product_id, location_id) DO UPDATE
     SET quantity = inventory.quantity + p_quantity;
 
@@ -723,7 +731,7 @@ BEGIN
         p.sku,
         EXTRACT(DAY FROM (NOW() - COALESCE(i.last_sold_date, i.created_at)))::integer as days_since_last_sale,
         i.quantity,
-        (i.quantity * p.cost)::bigint as total_value
+        (i.quantity * i.cost)::bigint as total_value
     FROM public.inventory i
     JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
     WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0
