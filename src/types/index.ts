@@ -73,8 +73,7 @@ export const DeadStockItemSchema = z.object({
     sku: z.string(),
     product_name: z.string().nullable(),
     quantity: z.coerce.number().default(0),
-    cost: z.coerce.number().default(0),
-    total_value: z.coerce.number().default(0),
+    total_value: z.coerce.number().int().default(0),
     last_sale_date: z.string().nullable().optional(),
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
@@ -169,10 +168,10 @@ export type TeamMember = {
 
 export const AnomalySchema = z.object({
     date: z.string(),
-    daily_revenue: z.coerce.number(),
-    daily_customers: z.coerce.number(),
-    avg_revenue: z.coerce.number(),
-    avg_customers: z.coerce.number(),
+    daily_revenue: z.coerce.number().int(),
+    daily_customers: z.coerce.number().int(),
+    avg_revenue: z.coerce.number().int(),
+    avg_customers: z.coerce.number().int(),
     anomaly_type: z.string(),
     deviation_percentage: z.coerce.number().optional(), // Make sure this is part of the schema if used
     // Added fields for AI explanation
@@ -272,7 +271,7 @@ export const ReorderRuleSchema = z.object({
 });
 export type ReorderRule = z.infer<typeof ReorderRuleSchema>;
 
-// FIX: Separate base schema from transformed schema
+// Base suggestion from the DB
 export const ReorderSuggestionBaseSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
@@ -282,12 +281,20 @@ export const ReorderSuggestionBaseSchema = z.object({
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
     unit_cost: z.number().int().nullable(), // In cents
+});
+
+// The final, enriched suggestion object after AI and validation
+export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
     base_quantity: z.number().int().optional(),
     adjustment_reason: z.string().optional(),
     seasonality_factor: z.number().optional(),
     confidence: z.number().optional(),
+    // Added for SMB Safeguards
+    validationStatus: z.enum(['approved', 'warning', 'blocked']).default('approved'),
+    warnings: z.array(z.string()).optional(),
 });
-export type ReorderSuggestion = z.infer<typeof ReorderSuggestionBaseSchema>;
+export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+
 
 export type SafeReorderSuggestion = ReorderSuggestion & {
     validationStatus: 'approved' | 'warning' | 'blocked';
@@ -375,9 +382,9 @@ export type Customer = z.infer<typeof CustomerSchema>;
 export const CustomerAnalyticsSchema = z.object({
     total_customers: z.number().nullable(),
     new_customers_last_30_days: z.number().nullable(),
-    average_lifetime_value: z.number().nullable(), // In cents
+    average_lifetime_value: z.number().int().nullable(), // In cents
     repeat_customer_rate: z.number().nullable(),
-    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]), // In cents
+    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number().int() })).nullable().default([]), // In cents
     top_customers_by_sales: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
@@ -485,15 +492,16 @@ export const SalesAnalyticsSchema = z.object({
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
 // SMB Safeguards
-export type BusinessProfile = {
-  monthlyRevenue: number;
-  outstandingPoValue: number;
-  riskTolerance: 'conservative' | 'moderate' | 'aggressive';
-};
+export const BusinessProfileSchema = z.object({
+  monthly_revenue: z.number().int().default(0),
+  outstanding_po_value: z.number().int().default(0),
+  risk_tolerance: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
+});
+export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 
-export type HealthCheckResult = {
-    healthy: boolean;
-    metric: number;
-    message: string;
-};
-    
+export const HealthCheckResultSchema = z.object({
+    healthy: z.boolean(),
+    metric: z.number(),
+    message: z.string(),
+});
+export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;

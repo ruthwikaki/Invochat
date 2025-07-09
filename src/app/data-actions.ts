@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import type { Message } from '@/types';
@@ -57,7 +58,15 @@ import {
   getPurchaseOrderAnalyticsFromDB,
   getSalesAnalyticsFromDB,
   getSuppliersWithPerformanceFromDB,
+  testSupabaseConnection as dbTestSupabase,
+  testDatabaseQuery as dbTestQuery,
+  testMaterializedView as dbTestMView,
+  getBusinessProfile,
+  getInventoryConsistencyReport,
+  getFinancialConsistencyReport
 } from '@/services/database';
+import { testGenkitConnection as genkitTest } from '@/services/genkit';
+import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import {
     generateAnomalyExplanation,
 } from '@/ai/flows/anomaly-explanation-flow';
@@ -273,7 +282,8 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
 // Reordering Suggestions
 export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    return getReorderSuggestionsFromDB(companyId);
+    const settings = await getSettings(companyId);
+    return getReorderSuggestionsFromDB(companyId, settings.timezone || 'UTC');
 }
 
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount: number; error?: string }> {
@@ -605,4 +615,24 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+// System Health Actions (for the test page)
+export async function testSupabaseConnection() {
+    return dbTestSupabase();
+}
+export async function testDatabaseQuery() {
+    return dbTestQuery();
+}
+export async function testMaterializedView() {
+    return dbTestMView();
+}
+export async function testGenkitConnection() {
+    return genkitTest();
+}
+export async function testRedisConnection() {
+    return {
+        isEnabled: isRedisEnabled,
+        ...await redisTest()
+    };
 }

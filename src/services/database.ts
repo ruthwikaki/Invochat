@@ -11,7 +11,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionBaseSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionBaseSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -834,9 +834,12 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('createPurchaseOrdersFromSuggestionsInDb', async () => {
         const supabase = getServiceRoleClient();
+        const businessProfile = await getBusinessProfile(companyId);
+
         const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions_tx', {
             p_company_id: companyId,
-            p_po_payload: poPayload
+            p_po_payload: poPayload,
+            p_business_profile: businessProfile,
         });
 
         if (error) {
@@ -1457,7 +1460,7 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
             throw new Error(`Could not load customer data: ${error.message}`);
         }
         
-        const CustomerWithStatsSchema = CustomerSchema.extend({ total_orders: z.number().int(), total_spent: z.number() });
+        const CustomerWithStatsSchema = CustomerSchema.extend({ total_orders: z.number().int(), total_spent: z.number().int() });
         const RpcResponseSchema = z.object({
             items: z.array(CustomerWithStatsSchema).nullable().default([]),
             totalCount: z.coerce.number().default(0),
@@ -1684,9 +1687,9 @@ export async function getBusinessProfile(companyId: string): Promise<BusinessPro
         if (error) {
             logError(error, { context: `Error fetching business profile for company ${companyId}` });
             // Return a default conservative profile on error
-            return { monthlyRevenue: 0, outstandingPoValue: 0, riskTolerance: 'conservative' };
+            return { monthly_revenue: 0, outstanding_po_value: 0, risk_tolerance: 'conservative' };
         }
-        return data[0];
+        return BusinessProfileSchema.parse(data?.[0] || {});
      });
 }
     

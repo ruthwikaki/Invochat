@@ -1,9 +1,10 @@
 
-import { testSupabaseConnection, testDatabaseQuery, testGenkitConnection, testMaterializedView, testRedisConnection } from '@/app/data-actions';
+import { testSupabaseConnection, testDatabaseQuery, testGenkitConnection, testMaterializedView, testRedisConnection, getInventoryConsistencyReport, getFinancialConsistencyReport } from '@/app/data-actions';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { AlertCircle, CheckCircle, Database, HelpCircle, Bot, Zap, Redis } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Database, HelpCircle, Bot, Zap, Redis, ShieldCheck } from 'lucide-react';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import type { HealthCheckResult } from '@/types';
 
 async function TestResultItem({ title, success, helpText, testId, errorText, isEnabled = true }: { title: string, success: boolean, helpText?: string, testId: number, errorText?: string | null, isEnabled?: boolean }) {
   let status: 'pass' | 'fail' | 'skipped' = 'fail';
@@ -42,12 +43,43 @@ async function TestResultItem({ title, success, helpText, testId, errorText, isE
   )
 }
 
+function DataIntegrityCheckItem({ title, result }: { title: string, result: HealthCheckResult }) {
+  const status = result.healthy ? 'pass' : 'fail';
+  const badgeVariant = status === 'pass' ? 'default' : 'destructive';
+  const statusText = status === 'pass' ? 'Healthy' : 'Error';
+
+  return (
+    <div className="flex flex-col items-start gap-1 rounded-lg border p-3">
+        <div className="flex w-full items-center justify-between">
+            <div className="font-medium">{title}</div>
+            <Badge variant={badgeVariant}>
+                {statusText}
+            </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground pl-1">{result.message}</p>
+    </div>
+  );
+}
+
+
 export default async function SystemHealthPage() {
-  const supabaseConnection = await testSupabaseConnection();
-  const databaseQuery = await testDatabaseQuery();
-  const genkitConnection = await testGenkitConnection();
-  const materializedView = await testMaterializedView();
-  const redisConnection = await testRedisConnection();
+  const [
+    supabaseConnection, 
+    databaseQuery, 
+    genkitConnection, 
+    materializedView, 
+    redisConnection, 
+    inventoryConsistency, 
+    financialConsistency
+  ] = await Promise.all([
+      testSupabaseConnection(),
+      testDatabaseQuery(),
+      testGenkitConnection(),
+      testMaterializedView(),
+      testRedisConnection(),
+      getInventoryConsistencyReport(),
+      getFinancialConsistencyReport()
+  ]);
 
   return (
     <AppPage>
@@ -55,6 +87,20 @@ export default async function SystemHealthPage() {
         title="System Health Check"
         description="This page runs a series of tests to diagnose the health of your application's core services."
       />
+
+       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3">
+            <ShieldCheck className="h-6 w-6 text-primary" />
+            Data Integrity Checks
+          </CardTitle>
+          <CardDescription>These checks verify the internal consistency of your business data.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <DataIntegrityCheckItem title="Inventory Quantity Consistency" result={inventoryConsistency} />
+            <DataIntegrityCheckItem title="Sales Financial Consistency" result={financialConsistency} />
+        </CardContent>
+      </Card>
       
       {/* Supabase Tests */}
       <Card>
