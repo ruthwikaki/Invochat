@@ -1,5 +1,23 @@
+-- =================================================================
+-- INVOCHAT - THE COMPLETE & IDEMPOTENT DATABASE SETUP SCRIPT
+-- =================================================================
+-- This script is designed to be run in its entirety. It sets up all
+-- necessary tables, functions, triggers, and security policies for
+-- the InvoChat application to function correctly. It is idempotent,
+-- meaning it can be run multiple times without causing errors.
+--
+-- For production environments, it's recommended to set up a cron
+-- job to periodically refresh the materialized views for optimal
+-- dashboard performance. Example using pg_cron:
+-- SELECT cron.schedule('refresh-views', '0 * * * *', 'SELECT public.refresh_materialized_views(company_id) FROM public.companies');
+-- =================================================================
+
+-- Step 1: Extensions
+-- -----------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Step 2: Custom Types
+-- -----------------------------------------------------------------
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
@@ -11,6 +29,9 @@ BEGIN
     END IF;
 END$$;
 
+-- Step 3: Tables and Indexes
+-- This section includes ALL required tables for the application.
+-- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -299,6 +320,8 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     completed_at timestamptz
 );
 
+-- Step 4: Materialized Views
+-- -----------------------------------------------------------------
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT 
   company_id,
@@ -336,6 +359,10 @@ GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
 
+-- Step 5: Trigger Functions & Triggers
+-- -----------------------------------------------------------------
+
+-- Use CASCADE to ensure dependent triggers are also dropped
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -347,20 +374,25 @@ DECLARE
   user_role public.user_role;
   company_name_text text;
 BEGIN
+  -- Validate company name
   company_name_text := trim(new.raw_user_meta_data->>'company_name');
   IF company_name_text IS NULL OR company_name_text = '' THEN
     RAISE EXCEPTION 'Company name cannot be empty.';
   END IF;
 
+  -- Create a new company for the user
   INSERT INTO public.companies (name)
   VALUES (company_name_text)
   RETURNING id INTO new_company_id;
 
+  -- The first user is the Owner
   user_role := 'Owner';
   
+  -- Insert a row into public.users
   INSERT INTO public.users (id, company_id, email, role)
   VALUES (new.id, new_company_id, new.email, user_role);
   
+  -- Update the user's app_metadata in auth.users
   UPDATE auth.users
   SET raw_app_meta_data = jsonb_set(
       COALESCE(raw_app_meta_data, '{}'::jsonb),
@@ -373,10 +405,12 @@ BEGIN
 END;
 $$;
 
+-- Create the trigger to fire after a new user is created in auth.users
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Trigger for optimistic concurrency control
 DROP FUNCTION IF EXISTS public.increment_version() CASCADE;
 CREATE OR REPLACE FUNCTION public.increment_version()
 RETURNS TRIGGER AS $$
@@ -385,7 +419,7 @@ BEGIN
    NEW.updated_at = now();
    RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE 'plpgsql';
 
 CREATE TRIGGER handle_inventory_update
 BEFORE UPDATE ON public.inventory
@@ -393,6 +427,8 @@ FOR EACH ROW
 EXECUTE PROCEDURE public.increment_version();
 
 
+-- Step 6: All RPC Functions
+-- -----------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.batch_upsert_with_transaction(text, jsonb, text[]);
 CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
     p_table_name text,
@@ -421,11 +457,13 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
+  -- This function is a placeholder. In a production environment, you would
+  -- likely refresh specific views based on which tables have changed.
+  -- For this application's scale, refreshing all is acceptable.
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.customer_analytics_metrics;
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
@@ -435,7 +473,7 @@ AS $$
 BEGIN
     RETURN QUERY
     SELECT DISTINCT i.category::text
-    FROM public.inventory i
+    FROM public.inventory AS i
     WHERE i.company_id = p_company_id
     AND i.category IS NOT NULL
     AND i.category <> ''
@@ -455,37 +493,40 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
+    -- Low Stock Alerts
     SELECT
         'low_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
-    FROM public.inventory i
+    FROM public.inventory AS i
     WHERE i.company_id = p_company_id AND i.reorder_point IS NOT NULL AND i.quantity <= i.reorder_point AND i.quantity > 0 AND i.deleted_at IS NULL
 
     UNION ALL
 
+    -- Dead Stock Alerts (FIXED to include NULL last_sold_date)
     SELECT
         'dead_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
-    FROM public.inventory i
+    FROM public.inventory AS i
     WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0 AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval))
 
     UNION ALL
 
+    -- Predictive Stockout Alerts
     (
         WITH sales_velocity AS (
           SELECT
             si.sku,
             SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
-          FROM public.sale_items si
-          JOIN public.sales s ON si.sale_id = s.id
+          FROM public.sale_items AS si
+          JOIN public.sales AS s ON si.sale_id = s.id
           WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
           GROUP BY si.sku
         )
         SELECT
             'predictive'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
             i.last_sold_date, (i.quantity * i.cost), (i.quantity / sv.daily_sales)
-        FROM public.inventory i
-        JOIN sales_velocity sv ON i.sku = sv.sku
+        FROM public.inventory AS i
+        JOIN sales_velocity AS sv ON i.sku = sv.sku
         WHERE i.company_id = p_company_id AND sv.daily_sales > 0 AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days AND i.deleted_at IS NULL
     );
 END;
@@ -503,7 +544,7 @@ BEGIN
             s.created_at::date AS stat_date,
             SUM(s.total_amount) AS revenue,
             COUNT(DISTINCT s.customer_email) AS customers
-        FROM public.sales s
+        FROM public.sales AS s
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '30 days'
         GROUP BY s.created_at::date
     ),
@@ -518,7 +559,7 @@ BEGIN
             ds.stat_date, ds.revenue, ds.customers, a.avg_revenue, a.avg_customers,
             (ds.revenue - a.avg_revenue) / NULLIF(a.avg_revenue, 0) AS revenue_deviation,
             (ds.customers::numeric - a.avg_customers) / NULLIF(a.avg_customers, 0) AS customers_deviation
-        FROM daily_stats ds, avg_stats a
+        FROM daily_stats AS ds, avg_stats AS a
     )
     SELECT
         a.stat_date::text, a.revenue, a.customers::bigint, ROUND(a.avg_revenue, 2), ROUND(a.avg_customers, 2),
@@ -532,7 +573,7 @@ BEGIN
             WHEN ABS(COALESCE(a.customers_deviation, 0)) > 2 THEN ROUND(a.customers_deviation * 100, 2)
             ELSE 0
         END
-    FROM anomalies a
+    FROM anomalies AS a
     WHERE ABS(COALESCE(a.revenue_deviation, 0)) > 2 OR ABS(COALESCE(a.customers_deviation, 0)) > 2;
 END;
 $$;
@@ -545,18 +586,18 @@ AS $$
 BEGIN
     RETURN QUERY
     SELECT DISTINCT i.sku
-    FROM public.inventory i
+    FROM public.inventory AS i
     WHERE i.company_id = p_company_id 
     AND i.sku = ANY(p_skus)
     AND (
         EXISTS (
-            SELECT 1 FROM public.sale_items si 
-            JOIN public.sales s ON si.sale_id = s.id 
+            SELECT 1 FROM public.sale_items AS si 
+            JOIN public.sales AS s ON si.sale_id = s.id 
             WHERE si.sku = i.sku AND s.company_id = p_company_id
         )
         OR EXISTS (
-            SELECT 1 FROM public.purchase_order_items poi 
-            JOIN public.purchase_orders po ON poi.po_id = po.id 
+            SELECT 1 FROM public.purchase_order_items AS poi 
+            JOIN public.purchase_orders AS po ON poi.po_id = po.id 
             WHERE poi.sku = i.sku AND po.company_id = p_company_id
         )
     );
@@ -576,11 +617,12 @@ CREATE OR REPLACE FUNCTION public.create_purchase_order_and_update_inventory(
 RETURNS public.purchase_orders
 LANGUAGE plpgsql
 AS $$
-declare
+DECLARE
   new_po public.purchase_orders;
   item_record record;
   v_total_amount bigint := 0;
-begin
+BEGIN
+  -- Calculate total amount first
   FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(quantity_ordered int, unit_cost bigint)
   LOOP
     v_total_amount := v_total_amount + (item_record.quantity_ordered * item_record.unit_cost);
@@ -601,11 +643,11 @@ begin
 
     UPDATE public.inventory
     SET on_order_quantity = on_order_quantity + item_record.quantity_ordered
-    WHERE inventory.sku = item_record.sku AND inventory.company_id = p_company_id;
+    WHERE sku = item_record.sku AND company_id = p_company_id;
   END LOOP;
 
-  return new_po;
-end;
+  RETURN new_po;
+END;
 $$;
 
 DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions_tx(uuid, jsonb);
@@ -625,10 +667,12 @@ DECLARE
 BEGIN
     FOR po_data IN SELECT * FROM jsonb_array_elements(p_po_payload)
     LOOP
+        -- Check if supplier exists
         IF (po_data->>'supplier_id') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.vendors WHERE id = (po_data->>'supplier_id')::uuid) THEN
             RAISE EXCEPTION 'Supplier with ID % does not exist.', (po_data->>'supplier_id');
         END IF;
 
+        -- Create PO first
         INSERT INTO public.purchase_orders (company_id, supplier_id, po_number, order_date, status, total_amount)
         VALUES (
             p_company_id,
@@ -636,13 +680,15 @@ BEGIN
             'PO-' || (nextval('sales_sale_number_seq'::regclass)),
             CURRENT_DATE,
             'draft',
-            0
+            0 -- Initial total amount
         ) RETURNING id INTO new_po_id;
         
         v_total_amount := 0;
 
+        -- Loop through items for this PO
         FOR item_data IN SELECT * FROM jsonb_array_elements(po_data->'items')
         LOOP
+            -- Check if product exists
             IF NOT EXISTS (SELECT 1 FROM public.inventory WHERE sku = (item_data->>'sku') AND company_id = p_company_id AND deleted_at IS NULL) THEN
                 RAISE EXCEPTION 'Product with SKU % does not exist or is deleted.', (item_data->>'sku');
             END IF;
@@ -657,17 +703,17 @@ BEGIN
 
             UPDATE public.inventory
             SET on_order_quantity = on_order_quantity + (item_data->>'quantity_ordered')::integer
-            WHERE inventory.sku = item_data->>'sku' AND inventory.company_id = p_company_id;
+            WHERE sku = item_data->>'sku' AND company_id = p_company_id;
             
             v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::bigint);
         END LOOP;
         
+        -- Update the PO with the correct total amount
         UPDATE public.purchase_orders
         SET total_amount = v_total_amount
         WHERE id = new_po_id;
 
         created_count := created_count + 1;
-
     END LOOP;
 
     RETURN created_count;
@@ -690,9 +736,9 @@ CREATE OR REPLACE FUNCTION public.delete_purchase_order(p_po_id uuid, p_company_
 RETURNS void
 LANGUAGE plpgsql
 AS $$
-declare
+DECLARE
   item_record record;
-begin
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.purchase_orders WHERE id = p_po_id AND company_id = p_company_id) THEN
     RAISE EXCEPTION 'Purchase order not found or permission denied';
   END IF;
@@ -702,11 +748,11 @@ begin
   LOOP
     UPDATE public.inventory
     SET on_order_quantity = on_order_quantity - item_record.quantity_ordered
-    WHERE inventory.sku = item_record.sku AND inventory.company_id = p_company_id;
+    WHERE sku = item_record.sku AND company_id = p_company_id;
   END LOOP;
   
   DELETE FROM public.purchase_orders WHERE id = p_po_id;
-end;
+END;
 $$;
 
 DROP FUNCTION IF EXISTS public.delete_supplier_and_catalogs(uuid, uuid);
@@ -714,13 +760,13 @@ CREATE OR REPLACE FUNCTION public.delete_supplier_and_catalogs(p_supplier_id uui
 RETURNS void
 LANGUAGE plpgsql
 AS $$
-begin
-  if exists (select 1 from public.purchase_orders where supplier_id = p_supplier_id and company_id = p_company_id) then
-    raise exception 'Cannot delete supplier with active purchase orders.';
-  end if;
-  delete from public.supplier_catalogs where supplier_id = p_supplier_id;
-  delete from public.vendors where id = p_supplier_id and company_id = p_company_id;
-end;
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.purchase_orders WHERE supplier_id = p_supplier_id AND company_id = p_company_id) THEN
+    RAISE EXCEPTION 'Cannot delete supplier with active purchase orders.';
+  END IF;
+  DELETE FROM public.supplier_catalogs WHERE supplier_id = p_supplier_id;
+  DELETE FROM public.vendors WHERE id = p_supplier_id AND company_id = p_company_id;
+END;
 $$;
 
 DROP FUNCTION IF EXISTS public.get_abc_analysis(uuid);
@@ -733,11 +779,11 @@ BEGIN
     WITH product_revenue AS (
         SELECT
             i.sku,
-            i.name as product_name,
+            i.name AS product_name,
             COALESCE(SUM(si.quantity * si.unit_price), 0) AS revenue
-        FROM public.inventory i
-        LEFT JOIN public.sale_items si ON i.sku = si.sku AND i.company_id = si.company_id
-        LEFT JOIN public.sales s ON si.sale_id = s.id AND s.created_at >= NOW() - interval '1 year'
+        FROM public.inventory AS i
+        LEFT JOIN public.sale_items AS si ON i.sku = si.sku AND i.company_id = si.company_id
+        LEFT JOIN public.sales AS s ON si.sale_id = s.id AND s.created_at >= NOW() - interval '1 year'
         WHERE i.company_id = p_company_id AND i.deleted_at IS NULL
         GROUP BY i.sku, i.name
     ),
@@ -751,7 +797,7 @@ BEGIN
             pr.revenue,
             (pr.revenue * 100.0 / NULLIF((SELECT total FROM total_revenue), 0)) AS percentage_of_total,
             SUM(pr.revenue) OVER (ORDER BY pr.revenue DESC) * 100.0 / NULLIF((SELECT total FROM total_revenue), 0) AS cumulative_percentage
-        FROM product_revenue pr
+        FROM product_revenue AS pr
     )
     SELECT
         rr.sku,
@@ -763,7 +809,7 @@ BEGIN
             WHEN rr.cumulative_percentage <= 95 THEN 'B'
             ELSE 'C'
         END::text AS abc_category
-    FROM ranked_revenue rr
+    FROM ranked_revenue AS rr
     WHERE rr.revenue > 0;
 END;
 $$;
@@ -789,8 +835,8 @@ BEGIN
             c.created_at,
             COUNT(s.id) as total_orders,
             COALESCE(SUM(s.total_amount), 0) as total_spent
-        FROM public.customers c
-        LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
+        FROM public.customers AS c
+        LEFT JOIN public.sales AS s ON c.email = s.customer_email AND c.company_id = s.company_id
         WHERE c.company_id = p_company_id AND c.deleted_at IS NULL
         GROUP BY c.id
     ),
@@ -826,7 +872,6 @@ BEGIN
 END;
 $$;
 
-
 DROP FUNCTION IF EXISTS public.get_customers_with_stats(uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
     p_company_id uuid,
@@ -853,8 +898,8 @@ BEGIN
             c.created_at,
             COUNT(s.id) as total_orders,
             COALESCE(SUM(s.total_amount), 0) as total_spent
-        FROM public.customers c
-        LEFT JOIN public.sales s ON c.email = s.customer_email AND c.company_id = s.company_id
+        FROM public.customers AS c
+        LEFT JOIN public.sales AS s ON c.email = s.customer_email AND c.company_id = s.company_id
         WHERE c.company_id = p_company_id
           AND c.deleted_at IS NULL
           AND (
@@ -870,7 +915,7 @@ BEGIN
     SELECT json_build_object(
         'items', COALESCE((SELECT json_agg(cs) FROM (
             SELECT * FROM customer_stats ORDER BY total_spent DESC LIMIT p_limit OFFSET p_offset
-        ) cs), '[]'::json),
+        ) AS cs), '[]'::json),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
     
@@ -892,7 +937,7 @@ DECLARE
     dead_stock_days integer;
 BEGIN
     SELECT COALESCE(cs.dead_stock_days, 90) INTO dead_stock_days
-    FROM public.company_settings cs
+    FROM public.company_settings AS cs
     WHERE cs.company_id = p_company_id;
 
     WITH date_series AS (
@@ -900,20 +945,20 @@ BEGIN
     ),
     sales_data AS (
         SELECT
-            date_trunc('day', s.created_at)::date as sale_day,
-            SUM(s.total_amount) as daily_revenue,
-            SUM(si.quantity * si.cost_at_time) as daily_cogs,
-            COUNT(DISTINCT s.id) as daily_orders
-        FROM public.sales s
-        JOIN public.sale_items si ON s.id = si.sale_id
+            date_trunc('day', s.created_at)::date AS sale_day,
+            SUM(s.total_amount) AS daily_revenue,
+            SUM(si.quantity * si.cost_at_time) AS daily_cogs,
+            COUNT(DISTINCT s.id) AS daily_orders
+        FROM public.sales AS s
+        JOIN public.sale_items AS si ON s.id = si.sale_id
         WHERE s.company_id = p_company_id AND s.created_at >= start_date AND si.cost_at_time IS NOT NULL
         GROUP BY 1
     ),
     totals AS (
         SELECT 
-            COALESCE(SUM(daily_revenue), 0) as total_revenue,
-            COALESCE(SUM(daily_revenue - daily_cogs), 0) as total_profit,
-            COALESCE(SUM(daily_orders), 0) as total_sales
+            COALESCE(SUM(daily_revenue), 0) AS total_revenue,
+            COALESCE(SUM(daily_revenue - daily_cogs), 0) AS total_profit,
+            COALESCE(SUM(daily_orders), 0) AS total_sales
         FROM sales_data
     )
     SELECT json_build_object(
@@ -929,8 +974,8 @@ BEGIN
         ),
         'salesTrendData', (
             SELECT json_agg(json_build_object('date', ds.date, 'Sales', COALESCE(sd.daily_revenue, 0)))
-            FROM date_series ds
-            LEFT JOIN sales_data sd ON ds.date = sd.sale_day
+            FROM date_series AS ds
+            LEFT JOIN sales_data AS sd ON ds.date = sd.sale_day
         ),
         'inventoryByCategoryData', (
             SELECT json_agg(json_build_object('name', COALESCE(category, 'Uncategorized'), 'value', category_value))
@@ -941,21 +986,21 @@ BEGIN
                 GROUP BY category
                 ORDER BY category_value DESC
                 LIMIT 5
-            ) cat_data
+            ) AS cat_data
         ),
         'topCustomersData', (
             SELECT json_agg(json_build_object('name', customer_name, 'value', customer_total))
             FROM (
                 SELECT c.customer_name, SUM(s.total_amount) as customer_total
-                FROM public.sales s
-                JOIN public.customers c ON s.customer_email = c.email AND s.company_id = c.company_id
+                FROM public.sales AS s
+                JOIN public.customers AS c ON s.customer_email = c.email AND s.company_id = c.company_id
                 WHERE s.company_id = p_company_id 
                     AND s.created_at >= start_date 
                     AND c.deleted_at IS NULL
                 GROUP BY c.customer_name
                 ORDER BY customer_total DESC
                 LIMIT 5
-            ) cust_data
+            ) AS cust_data
         )
     ) INTO result_json;
 
@@ -977,7 +1022,7 @@ BEGIN
         i.cost::numeric, 
         (i.quantity * i.cost)::numeric, 
         i.last_sold_date::date
-    FROM public.inventory i
+    FROM public.inventory AS i
     WHERE i.company_id = p_company_id
       AND i.quantity > 0
       AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval))
@@ -998,8 +1043,8 @@ BEGIN
             si.sku,
             date_trunc('month', s.created_at) AS sale_month,
             SUM(si.quantity) AS total_quantity
-        FROM public.sale_items si
-        JOIN public.sales s ON si.sale_id = s.id
+        FROM public.sale_items AS si
+        JOIN public.sales AS s ON si.sale_id = s.id
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '12 months'
         GROUP BY si.sku, sale_month
     ),
@@ -1022,8 +1067,8 @@ BEGIN
         rp.sku,
         i.name,
         GREATEST(0, (rp.slope * (EXTRACT(EPOCH FROM (NOW() + INTERVAL '1 month')) / (30.44 * 24 * 60 * 60)) + rp.intercept))::numeric
-    FROM regression_params rp
-    JOIN public.inventory i ON rp.sku = i.sku
+    FROM regression_params AS rp
+    JOIN public.inventory AS i ON rp.sku = i.sku
     WHERE i.company_id = p_company_id;
 END;
 $$;
@@ -1037,7 +1082,7 @@ BEGIN
     RETURN QUERY
     SELECT
         si.product_name,
-        s.payment_method as sales_channel,
+        s.payment_method AS sales_channel,
         SUM(si.quantity * si.unit_price) AS total_revenue,
         SUM(si.quantity * si.cost_at_time) AS total_cogs,
         CASE
@@ -1045,8 +1090,8 @@ BEGIN
                 (SUM(si.quantity * (si.unit_price - si.cost_at_time)) * 100) / SUM(si.quantity * si.unit_price)
             ELSE 0
         END AS gross_margin_percentage
-    FROM public.sale_items si
-    JOIN public.sales s ON si.sale_id = s.id
+    FROM public.sale_items AS si
+    JOIN public.sales AS s ON si.sale_id = s.id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
     GROUP BY si.product_name, s.payment_method;
 END;
@@ -1061,20 +1106,20 @@ BEGIN
     RETURN QUERY
     SELECT 
         s.sku,
-        jsonb_agg(jsonb_build_object('month', s.month, 'total_quantity', s.total_quantity)) as monthly_sales
+        jsonb_agg(jsonb_build_object('month', s.month, 'total_quantity', s.total_quantity)) AS monthly_sales
     FROM (
         SELECT
             si.sku,
             to_char(s.created_at, 'YYYY-MM') AS month,
             SUM(si.quantity) AS total_quantity
-        FROM public.sale_items si
-        JOIN public.sales s ON si.sale_id = s.id
+        FROM public.sale_items AS si
+        JOIN public.sales AS s ON si.sale_id = s.id
         WHERE s.company_id = p_company_id
           AND si.sku = ANY(p_skus)
           AND s.created_at >= NOW() - INTERVAL '24 months'
         GROUP BY si.sku, month
         ORDER BY si.sku, month
-    ) s
+    ) AS s
     GROUP BY s.sku;
 END;
 $$;
@@ -1088,7 +1133,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         l.id, l.company_id, l.sku, l.created_at::text, l.change_type, l.quantity_change, l.new_quantity, l.related_id, l.notes
-    FROM public.inventory_ledger l
+    FROM public.inventory_ledger AS l
     WHERE l.company_id = p_company_id AND l.sku = p_sku
     ORDER BY l.created_at DESC;
 END;
@@ -1103,13 +1148,13 @@ BEGIN
     RETURN QUERY
     WITH cogs_calc AS (
         SELECT SUM(si.quantity * si.cost_at_time) AS total_cogs
-        FROM public.sale_items si
-        JOIN public.sales s ON si.sale_id = s.id
+        FROM public.sale_items AS si
+        JOIN public.sales AS s ON si.sale_id = s.id
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
-        SELECT SUM(i.quantity * i.cost) as current_inventory_value
-        FROM public.inventory i
+        SELECT SUM(i.quantity * i.cost) AS current_inventory_value
+        FROM public.inventory AS i
         WHERE i.company_id = p_company_id AND i.deleted_at IS NULL
     )
     SELECT
@@ -1120,7 +1165,7 @@ BEGIN
         COALESCE(cc.total_cogs, 0),
         COALESCE(iv.current_inventory_value, 0),
         p_days
-    FROM cogs_calc cc, inventory_value_calc iv;
+    FROM cogs_calc AS cc, inventory_value_calc AS iv;
 END;
 $$;
 
@@ -1138,8 +1183,8 @@ BEGIN
                 (SUM(si.quantity * (si.unit_price - si.cost_at_time)) * 100) / SUM(si.quantity * si.unit_price)
             ELSE 0
         END AS gross_margin_percentage
-    FROM public.sales s
-    JOIN public.sale_items si ON s.id = si.sale_id
+    FROM public.sales AS s
+    JOIN public.sale_items AS si ON s.id = si.sale_id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
       AND s.created_at >= NOW() - INTERVAL '12 months'
     GROUP BY month
@@ -1152,6 +1197,8 @@ CREATE OR REPLACE FUNCTION public.get_net_margin_by_channel(p_company_id uuid, p
 RETURNS TABLE(sales_channel text, total_revenue numeric, total_cogs numeric, total_fees numeric, net_margin_percentage numeric)
 LANGUAGE plpgsql
 AS $$
+-- NOTE: This calculation assumes the percentage_fee in the channel_fees table
+-- is stored as a decimal (e.g., 2.9% is stored as 0.029).
 BEGIN
     RETURN QUERY
     WITH channel_sales AS (
@@ -1160,8 +1207,8 @@ BEGIN
             SUM(si.quantity * si.unit_price) AS revenue,
             SUM(si.quantity * si.cost_at_time) AS cogs,
             COUNT(s.id) as number_of_sales
-        FROM public.sales s
-        JOIN public.sale_items si ON s.id = s.id
+        FROM public.sales AS s
+        JOIN public.sale_items AS si ON s.id = si.sale_id
         WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
           AND s.payment_method = p_channel_name
         GROUP BY s.payment_method
@@ -1176,8 +1223,8 @@ BEGIN
                 ((cs.revenue - cs.cogs - (cs.revenue * cf.percentage_fee + cs.number_of_sales * cf.fixed_fee)) * 100) / cs.revenue
             ELSE 0
         END AS net_margin_percentage
-    FROM channel_sales cs
-    JOIN public.channel_fees cf ON cs.channel = cf.channel_name AND cf.company_id = p_company_id;
+    FROM channel_sales AS cs
+    JOIN public.channel_fees AS cf ON cs.channel = cf.channel_name AND cf.company_id = p_company_id;
 END;
 $$;
 
@@ -1191,8 +1238,8 @@ BEGIN
     SELECT 
         po.id, po.company_id, po.supplier_id, po.po_number, po.status,
         po.order_date::text, po.expected_date::text, po.total_amount, po.notes,
-        po.created_at::text, po.updated_at::text, v.vendor_name as supplier_name,
-        v.contact_info as supplier_email,
+        po.created_at::text, po.updated_at::text, v.vendor_name AS supplier_name,
+        v.contact_info AS supplier_email,
         (
             SELECT jsonb_agg(
                 jsonb_build_object(
@@ -1202,12 +1249,12 @@ BEGIN
                     'tax_rate', poi.tax_rate
                 )
             )
-            FROM public.purchase_order_items poi
-            LEFT JOIN public.inventory i ON i.sku = poi.sku AND i.company_id = po.company_id
+            FROM public.purchase_order_items AS poi
+            LEFT JOIN public.inventory AS i ON i.sku = poi.sku AND i.company_id = po.company_id
             WHERE poi.po_id = po.id
         ) as items
-    FROM public.purchase_orders po
-    LEFT JOIN public.vendors v ON po.supplier_id = v.id
+    FROM public.purchase_orders AS po
+    LEFT JOIN public.vendors AS v ON po.supplier_id = v.id
     WHERE po.id = p_po_id AND po.company_id = p_company_id;
 END;
 $$;
@@ -1231,8 +1278,8 @@ BEGIN
             po.expected_date::text, po.total_amount, po.notes, po.created_at::text, po.updated_at::text,
             v.vendor_name,
             v.contact_info as supplier_email
-        FROM public.purchase_orders po
-        LEFT JOIN public.vendors v ON po.supplier_id = v.id
+        FROM public.purchase_orders AS po
+        LEFT JOIN public.vendors AS v ON po.supplier_id = v.id
         WHERE po.company_id = p_company_id
           AND (
             p_query IS NULL OR
@@ -1246,7 +1293,7 @@ BEGIN
     SELECT json_build_object(
         'items', COALESCE((SELECT json_agg(t) FROM (
             SELECT * FROM filtered_pos ORDER BY order_date DESC LIMIT p_limit OFFSET p_offset
-        ) t), '[]'::json),
+        ) AS t), '[]'::json),
         'totalCount', (SELECT total FROM count_query)
     ) INTO result_json;
     
@@ -1265,35 +1312,36 @@ BEGIN
       SELECT
         si.sku,
         SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
-      FROM public.sale_items si
-      JOIN public.sales s ON si.sale_id = s.id
+      FROM public.sale_items AS si
+      JOIN public.sales AS s ON si.sale_id = s.id
       WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
       GROUP BY si.sku
     ),
     base_suggestions AS (
         SELECT
             i.sku,
-            i.name as product_name,
-            i.quantity as current_quantity,
+            i.name AS product_name,
+            i.quantity AS current_quantity,
             i.reorder_point,
-            GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * 30)) - i.quantity)::integer as base_quantity,
+            -- Core suggestion logic: order up to reorder point + safety stock (30 days of sales)
+            GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * 30)) - i.quantity)::integer AS base_quantity,
             v.vendor_name,
-            v.id as supplier_id,
+            v.id AS supplier_id,
             sc.unit_cost
-        FROM public.inventory i
-        LEFT JOIN sales_velocity sv ON i.sku = sv.sku
-        LEFT JOIN public.supplier_catalogs sc ON i.sku = sc.sku
-        LEFT JOIN public.vendors v ON sc.supplier_id = v.id
+        FROM public.inventory AS i
+        LEFT JOIN sales_velocity AS sv ON i.sku = sv.sku
+        LEFT JOIN public.supplier_catalogs AS sc ON i.sku = sc.sku
+        LEFT JOIN public.vendors AS v ON sc.supplier_id = v.id
         WHERE i.company_id = p_company_id
           AND i.quantity <= COALESCE(i.reorder_point, 0)
           AND i.deleted_at IS NULL
     )
     SELECT 
         bs.sku, bs.product_name, bs.current_quantity, bs.reorder_point, 
-        bs.base_quantity as suggested_reorder_quantity,
+        bs.base_quantity AS suggested_reorder_quantity, -- Initially, suggested is the same as base
         bs.supplier_name, bs.supplier_id, bs.unit_cost,
         bs.base_quantity
-    FROM base_suggestions bs;
+    FROM base_suggestions AS bs;
 END;
 $$;
 
@@ -1305,10 +1353,11 @@ AS $$
 BEGIN
     RETURN QUERY
     WITH po_delivery_dates AS (
+        -- Find the last receipt date for each PO based on ledger entries
         SELECT
             il.related_id AS po_id,
             MAX(il.created_at) AS actual_delivery_date
-        FROM public.inventory_ledger il
+        FROM public.inventory_ledger AS il
         WHERE il.company_id = p_company_id
           AND il.change_type = 'purchase_order_received'
           AND il.related_id IS NOT NULL
@@ -1321,14 +1370,15 @@ BEGIN
             po.order_date,
             po.expected_date,
             podd.actual_delivery_date
-        FROM public.purchase_orders po
-        JOIN po_delivery_dates podd ON po.id = podd.po_id
+        FROM public.purchase_orders AS po
+        JOIN po_delivery_dates AS podd ON po.id = podd.po_id
         WHERE po.company_id = p_company_id
           AND po.status IN ('received', 'partial')
     )
     SELECT
         v.vendor_name,
         COUNT(ps.*) AS total_completed_orders,
+        -- On-time rate: of fully received orders, how many were on or before expected date
         COALESCE(
             ROUND(
                 (COUNT(*) FILTER (WHERE ps.status = 'received' AND ps.expected_date IS NOT NULL AND ps.actual_delivery_date::date <= ps.expected_date))::numeric * 100
@@ -1337,6 +1387,7 @@ BEGIN
             ),
             0
         ) AS on_time_delivery_rate,
+        -- Avg variance: how early/late on average were deliveries
         COALESCE(
             ROUND(
                 AVG(EXTRACT(DAY FROM (ps.actual_delivery_date::date - ps.expected_date)))
@@ -1345,6 +1396,7 @@ BEGIN
             ),
             0
         ) AS average_delivery_variance_days,
+        -- Avg lead time: how long from order to delivery
         COALESCE(
             ROUND(
                 AVG(EXTRACT(DAY FROM (ps.actual_delivery_date::date - ps.order_date))),
@@ -1352,14 +1404,13 @@ BEGIN
             ),
             0
         ) AS average_lead_time_days
-    FROM public.vendors v
-    JOIN po_stats ps ON v.id = ps.supplier_id
+    FROM public.vendors AS v
+    JOIN po_stats AS ps ON v.id = ps.supplier_id
     WHERE v.company_id = p_company_id
     GROUP BY v.id, v.vendor_name
     ORDER BY total_completed_orders DESC;
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
@@ -1382,9 +1433,9 @@ BEGIN
     WITH filtered_inventory AS (
         SELECT 
             i.*,
-            l.name as location_name
-        FROM public.inventory i
-        LEFT JOIN public.locations l ON i.location_id = l.id
+            l.name AS location_name
+        FROM public.inventory AS i
+        LEFT JOIN public.locations AS l ON i.location_id = l.id
         WHERE i.company_id = p_company_id
             AND i.deleted_at IS NULL
             AND (p_query IS NULL OR (
@@ -1395,13 +1446,13 @@ BEGIN
             AND (p_category IS NULL OR i.category = p_category)
             AND (p_location_id IS NULL OR i.location_id = p_location_id)
             AND (p_supplier_id IS NULL OR EXISTS (
-                SELECT 1 FROM public.supplier_catalogs sc 
+                SELECT 1 FROM public.supplier_catalogs AS sc 
                 WHERE sc.sku = i.sku AND sc.supplier_id = p_supplier_id
             ))
             AND (p_sku_filter IS NULL OR i.sku = p_sku_filter)
     ),
     counted_inventory AS (
-        SELECT *, COUNT(*) OVER() as full_count FROM filtered_inventory
+        SELECT *, COUNT(*) OVER() AS full_count FROM filtered_inventory
     ),
     paginated_inventory AS (
         SELECT * FROM counted_inventory
@@ -1427,8 +1478,8 @@ BEGIN
                 'location_name', pi.location_name,
                 'monthly_units_sold', COALESCE(
                     (SELECT SUM(si.quantity) 
-                     FROM public.sales s 
-                     JOIN public.sale_items si ON s.id = si.sale_id 
+                     FROM public.sales AS s 
+                     JOIN public.sale_items AS si ON s.id = si.sale_id 
                      WHERE si.sku = pi.sku 
                        AND s.company_id = pi.company_id 
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
@@ -1436,8 +1487,8 @@ BEGIN
                 ),
                 'monthly_profit', COALESCE(
                     (SELECT SUM(si.quantity * (si.unit_price - si.cost_at_time))
-                     FROM public.sales s 
-                     JOIN public.sale_items si ON s.id = si.sale_id 
+                     FROM public.sales AS s 
+                     JOIN public.sale_items AS si ON s.id = si.sale_id 
                      WHERE si.sku = pi.sku 
                        AND s.company_id = pi.company_id 
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
@@ -1449,12 +1500,11 @@ BEGIN
         ),
         (SELECT full_count FROM counted_inventory LIMIT 1)
     INTO result_items, count_result
-    FROM paginated_inventory pi;
+    FROM paginated_inventory AS pi;
 
     RETURN QUERY SELECT COALESCE(result_items, '[]'::json), COALESCE(count_result, 0);
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.process_sales_order_inventory(uuid, uuid, jsonb);
 CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_company_id uuid, p_sale_id uuid, p_inventory_updates jsonb)
@@ -1467,7 +1517,7 @@ DECLARE
 BEGIN
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_inventory_updates) AS x(sku text, quantity int, expected_version int)
     LOOP
-        UPDATE public.inventory i
+        UPDATE public.inventory AS i
         SET 
             quantity = i.quantity - item_record.quantity,
             last_sold_date = CURRENT_DATE
@@ -1494,7 +1544,6 @@ BEGIN
 END;
 $$;
 
-
 DROP FUNCTION IF EXISTS public.receive_purchase_order_items(uuid, jsonb, uuid);
 CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
 RETURNS void
@@ -1513,9 +1562,10 @@ BEGIN
     END IF;
 
     FOR item IN SELECT * FROM jsonb_to_recordset(p_items_to_receive) AS x(sku TEXT, quantity_to_receive INTEGER) LOOP
+        -- Lock the row to prevent concurrent updates
         SELECT poi.quantity_ordered, COALESCE(poi.quantity_received, 0) 
         INTO v_ordered_quantity, v_already_received
-        FROM public.purchase_order_items poi WHERE poi.po_id = p_po_id AND poi.sku = item.sku FOR UPDATE;
+        FROM public.purchase_order_items AS poi WHERE poi.po_id = p_po_id AND poi.sku = item.sku FOR UPDATE;
         
         IF NOT FOUND THEN RAISE EXCEPTION 'SKU % not found in this purchase order.', item.sku; END IF;
         
@@ -1567,27 +1617,33 @@ DECLARE
     current_inventory record;
     inventory_updates jsonb := '[]'::jsonb;
 BEGIN
+    -- Check stock levels before proceeding
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int) LOOP
         SELECT quantity, version INTO current_inventory FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id AND deleted_at IS NULL FOR UPDATE;
         IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
             RAISE EXCEPTION 'Insufficient stock for SKU: %. Available: %, Requested: %', item_record.sku, COALESCE(current_inventory.quantity, 0), item_record.quantity;
         END IF;
+        -- Build payload for inventory update function, including expected version
         inventory_updates := inventory_updates || jsonb_build_object('sku', item_record.sku, 'quantity', item_record.quantity, 'expected_version', current_inventory.version);
     END LOOP;
 
+    -- Calculate total amount
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price bigint) LOOP
         total_amount := total_amount + (item_record.quantity * item_record.unit_price);
     END LOOP;
 
+    -- Create the sale record
     INSERT INTO public.sales (company_id, sale_number, customer_name, customer_email, total_amount, payment_method, notes, created_by, external_id)
     VALUES (p_company_id, 'SALE-' || nextval('sales_sale_number_seq'::regclass), p_customer_name, p_customer_email, total_amount, p_payment_method, p_notes, p_user_id, p_external_id)
     RETURNING * INTO new_sale;
 
+    -- Insert sale items and capture cost at time of sale
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price bigint, cost_at_time bigint) LOOP
         INSERT INTO public.sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
         VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
     END LOOP;
     
+    -- Decrement inventory (This function handles the ledger creation)
     PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id, inventory_updates);
 
     RETURN new_sale;
@@ -1648,25 +1704,29 @@ CREATE OR REPLACE FUNCTION public.update_purchase_order(
 RETURNS void
 LANGUAGE plpgsql
 AS $$
-declare
+DECLARE
   item_change record;
   new_total_amount bigint := 0;
-begin
+BEGIN
+  -- Calculate net changes to on_order_quantity
   FOR item_change IN 
-    SELECT
+    WITH old_items AS (
+        SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items AS oi WHERE oi.po_id = p_po_id
+    ), new_items AS (
+        SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
+    )
+    SELECT 
       COALESCE(oi.sku, ni.sku) as sku,
       COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
-    FROM
-      (SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id) AS oi
-    FULL OUTER JOIN
-      (SELECT sku, quantity_ordered FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int)) AS ni
-    ON oi.sku = ni.sku
+    FROM old_items AS oi
+    FULL OUTER JOIN new_items AS ni ON oi.sku = ni.sku
   LOOP
     UPDATE public.inventory
     SET on_order_quantity = on_order_quantity + item_change.quantity_diff
-    WHERE inventory.sku = item_change.sku AND inventory.company_id = p_company_id;
+    WHERE sku = item_change.sku AND company_id = p_company_id;
   END LOOP;
   
+  -- Now, clear old items and insert new ones
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
   FOR item_change IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost bigint)
@@ -1679,6 +1739,7 @@ begin
     new_total_amount := new_total_amount + (item_change.quantity_ordered * item_change.unit_cost);
   END LOOP;
 
+  -- Finally, update the main PO record
   UPDATE public.purchase_orders
   SET
     supplier_id = p_supplier_id,
@@ -1690,7 +1751,7 @@ begin
     status = p_status,
     updated_at = now()
   WHERE id = p_po_id AND company_id = p_company_id;
-end;
+END;
 $$;
 
 DROP FUNCTION IF EXISTS public.validate_same_company_reference() CASCADE;
@@ -1719,6 +1780,9 @@ BEGIN
 END;
 $$;
 
+
+-- Step 7: Final RLS Policies
+-- -----------------------------------------------------------------
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -1797,23 +1861,32 @@ CREATE POLICY "Users can manage their own company's supplier catalogs" ON public
 DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
 CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
 
+
+-- Step 8: Grant Permissions & Re-create Triggers
+-- -----------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
-DROP TRIGGER IF EXISTS validate_purchase_order_refs ON public.purchase_orders;
+-- Recreate triggers after all functions are defined
 CREATE TRIGGER validate_purchase_order_refs
     BEFORE INSERT OR UPDATE ON public.purchase_orders
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
 
-DROP TRIGGER IF EXISTS validate_inventory_location_ref ON public.inventory;
 CREATE TRIGGER validate_inventory_location_ref
     BEFORE INSERT OR UPDATE ON public.inventory
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
+
+
+-- =================================================================
+-- SCRIPT COMPLETE
+-- =================================================================
+-- New Analytics Functions Appended Below
+-- =================================================================
 
 DROP FUNCTION IF EXISTS public.get_inventory_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
@@ -1866,7 +1939,6 @@ BEGIN
     );
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_sales_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_sales_analytics(p_company_id uuid)
@@ -1925,8 +1997,8 @@ BEGIN
         p.on_time_delivery_rate,
         p.average_lead_time_days,
         p.total_completed_orders
-    FROM public.vendors v
-    LEFT JOIN public.get_supplier_performance(p_company_id) p ON v.vendor_name = p.supplier_name
+    FROM public.vendors AS v
+    LEFT JOIN public.get_supplier_performance(p_company_id) AS p ON v.vendor_name = p.supplier_name
     WHERE v.company_id = p_company_id;
 END;
 $$;
@@ -2000,11 +2072,13 @@ END;
 $$;
 
 ALTER TABLE public.sale_items
-DROP CONSTRAINT IF EXISTS fk_sale_items_company,
+DROP CONSTRAINT IF EXISTS fk_sale_items_company;
+ALTER TABLE public.sale_items
 ADD CONSTRAINT fk_sale_items_company
 FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 ALTER TABLE public.inventory
-DROP CONSTRAINT IF EXISTS fk_inventory_location,
+DROP CONSTRAINT IF EXISTS fk_inventory_location;
+ALTER TABLE public.inventory
 ADD CONSTRAINT fk_inventory_location
 FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
