@@ -910,7 +910,7 @@ BEGIN
             SUM(si.quantity * si.cost_at_time) AS daily_cogs,
             COUNT(DISTINCT s.id) AS daily_orders
         FROM public.sales AS s
-        JOIN public.sale_items AS si ON s.id = si.sale_id
+        JOIN public.sale_items AS si ON s.id = si.sale_id AND s.company_id = si.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= start_date AND si.cost_at_time IS NOT NULL AND s.company_id = si.company_id
         GROUP BY 1
     ),
@@ -1108,21 +1108,21 @@ BEGIN
     RETURN QUERY
     WITH cogs_calc AS (
         SELECT COALESCE(SUM(si.quantity * si.cost_at_time), 0) AS total_cogs
-        FROM public.sale_items AS si
-        JOIN public.sales AS s ON si.sale_id = s.id AND si.company_id = s.company_id
+        FROM public.sale_items si
+        JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval AND si.cost_at_time IS NOT NULL
     ),
     inventory_value_calc AS (
         SELECT COALESCE(SUM(i.quantity * i.cost), 1) AS current_inventory_value
-        FROM public.inventory AS i
+        FROM public.inventory i
         WHERE i.company_id = p_company_id AND i.deleted_at IS NULL
     )
     SELECT
-        (cc.total_cogs / NULLIF(iv.current_inventory_value, 0))::numeric AS turnover_rate,
+        (cc.total_cogs / NULLIF(iv.current_inventory_value, 0))::numeric,
         cc.total_cogs::numeric,
         iv.current_inventory_value::numeric,
         p_days
-    FROM cogs_calc AS cc, inventory_value_calc AS iv;
+    FROM cogs_calc cc, inventory_value_calc iv;
 END;
 $$;
 
