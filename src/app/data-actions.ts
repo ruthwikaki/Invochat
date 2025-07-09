@@ -197,11 +197,11 @@ export async function deleteInventoryItems(formData: FormData): Promise<{ succes
     try {
         const { companyId, userId } = await getAuthContext();
         validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
-        const skusString = formData.get('skus') as string;
-        if (!skusString) throw new Error('No SKUs provided for deletion.');
+        const productIdsString = formData.get('productIds') as string;
+        if (!productIdsString) throw new Error('No Product IDs provided for deletion.');
         
-        const skus = JSON.parse(skusString);
-        await softDeleteInventoryItemsFromDb(companyId, skus, userId);
+        const productIds = JSON.parse(productIdsString);
+        await softDeleteInventoryItemsFromDb(companyId, productIds, userId);
         
         revalidatePath('/inventory');
         return { success: true };

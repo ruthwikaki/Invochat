@@ -154,7 +154,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [selectedRows, setSelectedRows] = useState(new Set<string>());
   const [expandedRows, setExpandedRows] = useState(new Set<string>());
   const [isDeleting, startDeleteTransition] = useTransition();
-  const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
+  const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
   const [transferringItem, setTransferringItem] = useState<UnifiedInventoryItem | null>(null);
@@ -204,10 +204,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   };
   
   const handleDelete = () => {
-    if (!itemToDelete) return;
+    if (!itemsToDelete) return;
     startDeleteTransition(async () => {
       const formData = new FormData();
-      formData.append('productIds', JSON.stringify(itemToDelete));
+      formData.append('productIds', JSON.stringify(itemsToDelete));
       const csrfToken = getCookie('csrf_token');
       if (csrfToken) {
         formData.append(CSRF_FORM_NAME, csrfToken);
@@ -215,13 +215,13 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
       const result = await deleteInventoryItems(formData);
       if (result.success) {
-        toast({ title: 'Success', description: `${itemToDelete.length} item(s) deleted.` });
+        toast({ title: 'Success', description: `${itemsToDelete.length} item(s) deleted.` });
         refresh(); 
         setSelectedRows(new Set());
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.error });
       }
-      setItemToDelete(null);
+      setItemsToDelete(null);
     });
   };
 
@@ -322,12 +322,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
         </div>
       </div>
       
-      <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+      <AlertDialog open={!!itemsToDelete} onOpenChange={(open) => !open && setItemsToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action will attempt to permanently delete the selected {itemToDelete?.length} item(s). This will fail if an item is part of any past sales or purchase orders, to protect your data integrity.
+                    This action will attempt to permanently delete the selected {itemsToDelete?.length} item(s). This will fail if an item is part of any past sales or purchase orders, to protect your data integrity.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -357,7 +357,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
       />
 
        <InventoryHistoryDialog
-            sku={historySku}
+            productId={historySku}
             onClose={() => setHistorySku(null)}
        />
 
@@ -436,7 +436,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setTransferringItem(item)}><Replace className="mr-2 h-4 w-4" />Transfer Stock</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setItemToDelete([item.product_id])} className="text-destructive">
+                                                <DropdownMenuItem onSelect={() => setItemsToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -487,7 +487,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                 >
                     <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
                         <p className="text-sm font-medium">{numSelected} item(s) selected</p>
-                        <Button variant="destructive" size="sm" onClick={() => setItemToDelete(Array.from(selectedRows))}>Delete Selected</Button>
+                        <Button variant="destructive" size="sm" onClick={() => setItemsToDelete(Array.from(selectedRows))}>Delete Selected</Button>
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
