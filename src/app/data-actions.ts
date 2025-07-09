@@ -2,6 +2,14 @@
 
 'use server';
 
+import type { Message } from '@/types';
+import { universalChatFlow } from '@/ai/flows/universal-chat';
+import { createServerClient } from '@supabase/ssr';
+import { cookies, headers } from 'next/headers';
+import { logger } from '@/lib/logger';
+import { getErrorMessage, logError } from '@/lib/error-handler';
+import { rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
 import {
   getDashboardMetrics,
   getDeadStockPageData,
@@ -19,7 +27,6 @@ import {
   getReorderSuggestionsFromDB,
   createPurchaseOrderInDb,
   getPurchaseOrdersFromDB,
-  getSuppliersFromDB,
   getPurchaseOrderByIdFromDB,
   updatePurchaseOrderInDb,
   deletePurchaseOrderFromDb,
@@ -50,17 +57,13 @@ import {
   getInventoryAnalyticsFromDB,
   getPurchaseOrderAnalyticsFromDB,
   getSalesAnalyticsFromDB,
+  getSuppliersWithPerformanceFromDB,
 } from '@/services/database';
 import {
     generateAnomalyExplanation,
 } from '@/ai/flows/anomaly-explanation-flow';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, LocationFormData, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, SupplierFormData, SaleCreateInput } from '@/types';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { logger } from '@/lib/logger';
-import { getErrorMessage, logError } from '@/lib/error-handler';
-import { revalidatePath } from 'next/cache';
 import { sendPurchaseOrderEmail } from '@/services/email';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
@@ -325,7 +328,7 @@ export async function getPurchaseOrderAnalytics() {
 
 export async function getSuppliersData() {
     const { companyId } = await getAuthContext();
-    return getSuppliersFromDB(companyId);
+    return getSuppliersWithPerformanceFromDB(companyId);
 }
 
 export async function getPurchaseOrderById(id: string) {
@@ -600,4 +603,3 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
         return { success: false, error: getErrorMessage(e) };
     }
 }
-```

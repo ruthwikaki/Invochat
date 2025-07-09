@@ -10,7 +10,7 @@
  */
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -328,6 +328,23 @@ export async function getSuppliersFromDB(companyId: string) {
         }
 
         return result;
+    });
+}
+
+export async function getSuppliersWithPerformanceFromDB(companyId: string): Promise<Supplier[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getSuppliersWithPerformanceFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_suppliers_with_performance', {
+            p_company_id: companyId
+        });
+
+        if (error) {
+            logError(error, { context: `Error fetching suppliers with performance for company ${companyId}` });
+            throw new Error(`Could not load supplier data: ${error.message}`);
+        }
+
+        return z.array(SupplierSchema).parse(data || []);
     });
 }
 
@@ -1562,5 +1579,44 @@ export async function logSuccessfulLogin(userId: string, ipAddress: string): Pro
             logError(error, { context: `Failed to log login for user ${userId}`});
             // Do not throw, this is a non-critical audit log.
         }
+    });
+}
+
+export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getInventoryAnalyticsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: `Error fetching inventory analytics for company ${companyId}` });
+            throw error;
+        }
+        return data || { total_inventory_value: 0, total_skus: 0, low_stock_items: 0, potential_profit: 0 };
+    });
+}
+
+export async function getPurchaseOrderAnalyticsFromDB(companyId: string): Promise<PurchaseOrderAnalytics> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getPurchaseOrderAnalyticsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_purchase_order_analytics', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: `Error fetching PO analytics for company ${companyId}` });
+            throw error;
+        }
+        return data || { open_po_value: 0, overdue_po_count: 0, avg_lead_time: 0, status_distribution: [] };
+    });
+}
+
+export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getSalesAnalyticsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: `Error fetching sales analytics for company ${companyId}` });
+            throw error;
+        }
+        return data || { total_revenue: 0, average_sale_value: 0, payment_method_distribution: [] };
     });
 }
