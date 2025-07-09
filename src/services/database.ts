@@ -1138,9 +1138,9 @@ export async function updateInventoryItemInDb(companyId: string, productId: stri
 
         const { data: fullData } = await getUnifiedInventoryFromDB(companyId, { product_id: data.id, limit: 1 });
         if (!fullData || fullData.items.length === 0) {
-            throw new Error('Failed to retrieve updated item details.');
+             throw new Error("Could not refetch the updated product's inventory details.");
         }
-
+        
         return fullData.items[0];
     });
 }
@@ -1427,7 +1427,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
 }
 
 
-export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'>>[] {
+export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'>> {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   return withPerformanceTracking('searchProductsForSale', async () => {
     const supabase = getServiceRoleClient();
