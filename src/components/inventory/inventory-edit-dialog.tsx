@@ -6,8 +6,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { InventoryUpdateSchema, type InventoryUpdateData, type UnifiedInventoryItem, type Location } from '@/types';
-import { updateInventoryItem } from '@/app/data-actions';
+import { ProductUpdateSchema, type ProductUpdateData, type UnifiedInventoryItem, type Location } from '@/types';
+import { updateProduct } from '@/app/data-actions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,34 +19,30 @@ interface InventoryEditDialogProps {
   item: UnifiedInventoryItem | null;
   onClose: () => void;
   onSave: (updatedItem: UnifiedInventoryItem) => void;
-  locations: Location[];
 }
 
-export function InventoryEditDialog({ item, onClose, onSave, locations }: InventoryEditDialogProps) {
+export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDialogProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<InventoryUpdateData>({
-    resolver: zodResolver(InventoryUpdateSchema),
+  const form = useForm<ProductUpdateData>({
+    resolver: zodResolver(ProductUpdateSchema),
     values: item ? {
       name: item.product_name,
       category: item.category || '',
       cost: item.cost,
-      reorder_point: item.reorder_point,
-      landed_cost: item.landed_cost,
+      price: item.price,
       barcode: item.barcode,
-      location_id: item.location_id,
-      version: item.version,
     } : undefined,
   });
 
-  const onSubmit = (data: InventoryUpdateData) => {
+  const onSubmit = (data: ProductUpdateData) => {
     if (!item) return;
 
     startTransition(async () => {
-      const result = await updateInventoryItem(item.sku, data);
+      const result = await updateProduct(item.product_id, data);
       if (result.success && result.updatedItem) {
-        toast({ title: 'Item Updated', description: `${result.updatedItem.product_name} has been successfully updated.` });
+        toast({ title: 'Product Updated', description: `${result.updatedItem.product_name} has been successfully updated.` });
         onSave(result.updatedItem);
         onClose();
       } else {
@@ -61,26 +57,22 @@ export function InventoryEditDialog({ item, onClose, onSave, locations }: Invent
         name: item.product_name,
         category: item.category || '',
         cost: item.cost,
-        reorder_point: item.reorder_point,
-        landed_cost: item.landed_cost,
+        price: item.price,
         barcode: item.barcode,
-        location_id: item.location_id,
-        version: item.version,
       });
     }
   }, [item, form]);
 
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Edit: {item?.product_name}</DialogTitle>
+          <DialogTitle>Edit Product: {item?.product_name}</DialogTitle>
           <DialogDescription>
-            Update the details for this inventory item. Note: Quantity cannot be changed here.
+            Update the core details for this product. Stock levels are managed separately.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
-          <input type="hidden" {...form.register('version')} />
           <div className="space-y-2">
             <Label htmlFor="name">Product Name</Label>
             <Input id="name" {...form.register('name')} />
@@ -96,41 +88,17 @@ export function InventoryEditDialog({ item, onClose, onSave, locations }: Invent
                 <Input id="barcode" {...form.register('barcode')} />
             </div>
           </div>
-           <div className="grid grid-cols-3 gap-4">
+           <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="cost">Cost</Label>
-                <Input id="cost" type="number" step="0.01" {...form.register('cost')} />
+                <Label htmlFor="cost">Cost (in cents)</Label>
+                <Input id="cost" type="number" step="1" {...form.register('cost')} />
                 {form.formState.errors.cost && <p className="text-sm text-destructive">{form.formState.errors.cost.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="landed_cost">Landed Cost</Label>
-                <Input id="landed_cost" type="number" step="0.01" {...form.register('landed_cost')} />
+                <Label htmlFor="price">Price (in cents)</Label>
+                <Input id="price" type="number" step="1" {...form.register('price')} />
+                 {form.formState.errors.price && <p className="text-sm text-destructive">{form.formState.errors.price.message}</p>}
               </div>
-               <div className="space-y-2">
-                <Label htmlFor="reorder_point">Reorder Point</Label>
-                <Input id="reorder_point" type="number" {...form.register('reorder_point')} />
-                {form.formState.errors.reorder_point && <p className="text-sm text-destructive">{form.formState.errors.reorder_point.message}</p>}
-              </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="location_id">Location</Label>
-            <Controller
-                name="location_id"
-                control={form.control}
-                render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || ''}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Assign a location" />
-                        </SelectTrigger>
-                        <SelectContent>
-                             <SelectItem value="">Unassigned</SelectItem>
-                            {locations.map(loc => (
-                                <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                )}
-            />
           </div>
           <DialogFooter className="pt-4">
             <DialogClose asChild>

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Location, Supplier, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Replace } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { ExportButton } from '../ui/export-button';
+import { InventoryTransferDialog } from './inventory-transfer-dialog';
 
 
 interface InventoryClientPageProps {
@@ -155,6 +157,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [itemToDelete, setItemToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
+  const [transferringItem, setTransferringItem] = useState<UnifiedInventoryItem | null>(null);
 
   useEffect(() => {
     setInventory(initialInventory);
@@ -341,7 +344,16 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
         item={editingItem}
         onClose={() => setEditingItem(null)}
         onSave={handleSaveItem}
+      />
+      
+      <InventoryTransferDialog
+        item={transferringItem}
         locations={locations}
+        onClose={() => setTransferringItem(null)}
+        onTransferSuccess={() => {
+            setTransferringItem(null);
+            refresh();
+        }}
       />
 
        <InventoryHistoryDialog
@@ -423,6 +435,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setTransferringItem(item)}><Replace className="mr-2 h-4 w-4" />Transfer Stock</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemToDelete([item.sku])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>

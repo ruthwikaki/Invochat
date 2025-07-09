@@ -1,31 +1,27 @@
--- This script is designed to be idempotent. It can be run multiple times without causing errors.
+
+export const SETUP_SQL_SCRIPT = `
+-- InvoChat Database Setup Script
+-- Idempotent: Can be run multiple times without causing errors.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Step 1: Types and Sequences
--- -----------------------------------------------------------------
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-        CREATE TYPE public.user_role AS ENUM (
-            'Owner',
-            'Admin',
-            'Member'
-        );
+        CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
     END IF;
 END
 $$;
 
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
 
--- Step 2: Core Tables (Companies, Users, Settings)
--- -----------------------------------------------------------------
+-- Step 2: Core Tables
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_companies_created_at ON public.companies(created_at);
 
 CREATE TABLE IF NOT EXISTS public.users (
     id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -35,7 +31,6 @@ CREATE TABLE IF NOT EXISTS public.users (
     deleted_at timestamptz,
     created_at timestamptz DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_users_company_id ON public.users(company_id);
 
 CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -52,8 +47,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     updated_at timestamptz
 );
 
--- Step 3: Entity Tables (Products, Locations, Vendors, Customers)
--- -----------------------------------------------------------------
+-- Step 3: Entity Tables
 CREATE TABLE IF NOT EXISTS public.products (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -67,7 +61,6 @@ CREATE TABLE IF NOT EXISTS public.products (
     updated_at timestamptz,
     UNIQUE(company_id, sku)
 );
-CREATE INDEX IF NOT EXISTS idx_products_company_sku ON public.products(company_id, sku);
 
 CREATE TABLE IF NOT EXISTS public.locations (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -78,7 +71,6 @@ CREATE TABLE IF NOT EXISTS public.locations (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, name)
 );
-CREATE INDEX IF NOT EXISTS idx_locations_company_id ON public.locations(company_id);
 
 CREATE TABLE IF NOT EXISTS public.inventory (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -102,9 +94,6 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     CONSTRAINT inventory_quantity_non_negative CHECK ((quantity >= 0)),
     CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0))
 );
-CREATE INDEX IF NOT EXISTS idx_inventory_company_product_location ON public.inventory(company_id, product_id, location_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_location_id ON public.inventory(location_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_deleted_at ON public.inventory(company_id, deleted_at);
 
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -134,8 +123,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     UNIQUE(company_id, email)
 );
 
--- Step 4: Transactional Tables (PO, Sales, Ledger, etc.)
--- -----------------------------------------------------------------
+-- Step 4: Transactional Tables
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -166,7 +154,6 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
-CREATE INDEX IF NOT EXISTS idx_po_items_po_id ON public.purchase_order_items(po_id);
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -183,21 +170,38 @@ CREATE TABLE IF NOT EXISTS public.sales (
     external_id text,
     UNIQUE(company_id, sale_number)
 );
-CREATE INDEX IF NOT EXISTS idx_sales_company_id ON public.sales(company_id);
-CREATE INDEX IF NOT EXISTS idx_sales_created_at ON public.sales(company_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_sales_customer_email ON public.sales(company_id, customer_email);
 
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_id uuid NOT NULL REFERENCES public.products(id),
+    company_id uuid,
+    product_id uuid NOT NULL,
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
     cost_at_time bigint NOT NULL,
     UNIQUE(sale_id, product_id)
 );
-CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON public.sale_items(sale_id);
+
+-- Idempotent way to handle sale_items company_id column
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'company_id' AND is_nullable = 'NO'
+    ) THEN
+        UPDATE public.sale_items si
+        SET company_id = s.company_id
+        FROM public.sales s
+        WHERE si.sale_id = s.id AND si.company_id IS NULL;
+        
+        ALTER TABLE public.sale_items ALTER COLUMN company_id SET NOT NULL;
+    END IF;
+    
+    ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
+    ALTER TABLE public.sale_items ADD CONSTRAINT fk_sale_items_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+END $$;
+
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -212,10 +216,8 @@ CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     related_id uuid,
     notes text
 );
-CREATE INDEX IF NOT EXISTS idx_inventory_ledger_company_product_date ON public.inventory_ledger(company_id, product_id, created_at DESC);
 
--- Step 5: Supporting Tables (Conversations, Integrations, etc.)
--- -----------------------------------------------------------------
+-- Step 5: Supporting Tables
 CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     supplier_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
@@ -264,7 +266,6 @@ CREATE TABLE IF NOT EXISTS public.messages (
     created_at timestamptz DEFAULT now(),
     is_error boolean DEFAULT false
 );
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_created_at ON public.messages(conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS public.integrations (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -330,7 +331,6 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
 );
 
 -- Step 6: Materialized Views
--- -----------------------------------------------------------------
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   p.company_id,
@@ -368,9 +368,8 @@ FROM customer_stats AS cs
 GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
+
 -- Step 7: Functions
--- -----------------------------------------------------------------
-DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -407,7 +406,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.increment_version() CASCADE;
 CREATE OR REPLACE FUNCTION public.increment_version()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -419,7 +417,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.batch_upsert_with_transaction(text, jsonb, text[]);
 CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
     p_table_name text,
     p_records jsonb,
@@ -441,7 +438,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.refresh_materialized_views(uuid, text[]);
 CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid, p_view_names text[] DEFAULT ARRAY['company_dashboard_metrics', 'customer_analytics_metrics'])
 RETURNS void
 LANGUAGE plpgsql
@@ -455,7 +451,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
 RETURNS TABLE(category text)
 LANGUAGE plpgsql
@@ -471,7 +466,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_alerts(uuid, integer, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_alerts(
     p_company_id uuid,
     p_dead_stock_days integer,
@@ -522,7 +516,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_anomaly_insights(uuid);
 CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
 RETURNS TABLE(date text, daily_revenue numeric, daily_customers bigint, avg_revenue numeric, avg_customers numeric, anomaly_type text, deviation_percentage numeric)
 LANGUAGE plpgsql
@@ -568,10 +561,6 @@ BEGIN
 END;
 $$;
 
--- ... Rest of functions will be updated to use product_id and new table structure
--- This is a significant refactor and I will only show a few key examples for brevity.
-
-DROP FUNCTION IF EXISTS public.check_inventory_references(uuid, uuid[]);
 CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
 RETURNS TABLE(product_id uuid)
 LANGUAGE plpgsql
@@ -596,7 +585,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid, uuid, jsonb, text, text, text, text, text);
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
     p_user_id uuid,
@@ -617,7 +605,6 @@ DECLARE
     tax_amount bigint := 0;
     company_tax_rate numeric;
     current_inventory record;
-    inventory_updates jsonb := '[]'::jsonb;
 BEGIN
     IF EXISTS (SELECT 1 FROM jsonb_to_recordset(p_sale_items) AS x(created_at timestamptz) WHERE x.created_at > NOW()) THEN
       RAISE EXCEPTION 'Sale date cannot be in the future.';
@@ -625,11 +612,10 @@ BEGIN
 
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity int) LOOP
         -- Lock the inventory row for this specific product and location to prevent race conditions
-        SELECT i.quantity, i.version, i.location_id INTO current_inventory FROM public.inventory i WHERE i.product_id = item_record.product_id AND i.company_id = p_company_id AND i.deleted_at IS NULL FOR UPDATE;
+        SELECT i.quantity, i.location_id INTO current_inventory FROM public.inventory i WHERE i.product_id = item_record.product_id AND i.company_id = p_company_id AND i.deleted_at IS NULL FOR UPDATE;
         IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
             RAISE EXCEPTION 'Insufficient stock for product_id: %. Available: %, Requested: %', item_record.product_id, COALESCE(current_inventory.quantity, 0), item_record.quantity;
         END IF;
-        inventory_updates := inventory_updates || jsonb_build_object('product_id', item_record.product_id, 'location_id', current_inventory.location_id, 'quantity', item_record.quantity, 'expected_version', current_inventory.version);
     END LOOP;
 
     SELECT tax_rate INTO company_tax_rate FROM public.company_settings WHERE company_id = p_company_id;
@@ -651,13 +637,10 @@ BEGIN
         VALUES (new_sale.id, p_company_id, item_record.product_id, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
     END LOOP;
     
-    PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id, inventory_updates);
-
     RETURN new_sale;
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.create_audit_log(uuid, uuid, text, jsonb);
 CREATE OR REPLACE FUNCTION public.create_audit_log(
     p_user_id uuid,
     p_company_id uuid,
@@ -671,7 +654,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP FUNCTION IF EXISTS public.purge_soft_deleted_data(integer);
 CREATE OR REPLACE FUNCTION public.purge_soft_deleted_data(p_retention_days integer)
 RETURNS void
 LANGUAGE plpgsql
@@ -686,7 +668,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.transfer_inventory(uuid, uuid, uuid, uuid, integer, text, uuid);
 CREATE OR REPLACE FUNCTION public.transfer_inventory(
     p_company_id uuid,
     p_product_id uuid,
@@ -727,7 +708,6 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_inventory_aging_report(uuid);
 CREATE OR REPLACE FUNCTION public.get_inventory_aging_report(p_company_id uuid)
 RETURNS TABLE(
     product_name text,
@@ -751,9 +731,7 @@ BEGIN
 END;
 $$;
 
-
 -- Step 8: Triggers
--- -----------------------------------------------------------------
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -766,7 +744,6 @@ FOR EACH ROW
 EXECUTE PROCEDURE public.increment_version();
 
 -- Step 9: RLS Policies
--- -----------------------------------------------------------------
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -798,7 +775,7 @@ CREATE OR REPLACE POLICY "Users can manage vendors for their own company" ON pub
 CREATE OR REPLACE POLICY "Users can manage POs for their own company" ON public.purchase_orders FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE OR REPLACE POLICY "Users can manage PO Items for their own company" ON public.purchase_order_items FOR ALL USING (po_id IN (SELECT id FROM public.purchase_orders WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
 CREATE OR REPLACE POLICY "Users can manage sales for their own company" ON public.sales FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage sale items for sales in their own company" ON public.sale_items FOR ALL USING (sale_id IN (SELECT id FROM public.sales WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)) AND company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+CREATE OR REPLACE POLICY "Users can manage sale items for sales in their own company" ON public.sale_items FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE OR REPLACE POLICY "Users can manage customers for their own company" ON public.customers FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE OR REPLACE POLICY "Users can manage locations for their own company" ON public.locations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE OR REPLACE POLICY "Users can manage integrations for their own company" ON public.integrations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
@@ -811,13 +788,10 @@ CREATE OR REPLACE POLICY "Users can manage their own company's supplier catalogs
 CREATE OR REPLACE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE OR REPLACE POLICY "Users can manage audit logs for their own company" ON public.audit_log FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 
-
 -- Step 10: Grants
--- -----------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
-
-    
+`;

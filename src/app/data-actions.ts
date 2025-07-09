@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import type { Message } from '@/types';
@@ -221,11 +222,11 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     }
 }
 
-export async function updateInventoryItem(productId: string, data: InventoryUpdateData) {
+export async function updateInventoryItem(sku: string, data: InventoryUpdateData) {
     try {
         const { companyId, userId } = await getAuthContext();
-        const updatedItem = await updateInventoryItemInDb(companyId, productId, data);
-        await createAuditLogInDb(userId, companyId, 'inventory_item_updated', { product_id: productId, changes: data });
+        const updatedItem = await updateInventoryItemInDb(companyId, sku, data);
+        await createAuditLogInDb(userId, companyId, 'inventory_item_updated', { sku: sku, changes: data });
         revalidatePath('/inventory');
         return { success: true, updatedItem };
     } catch(e) {
@@ -233,9 +234,9 @@ export async function updateInventoryItem(productId: string, data: InventoryUpda
     }
 }
 
-export async function getInventoryLedger(productId: string) {
+export async function getInventoryLedger(sku: string) {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerForSkuFromDB(companyId, productId);
+    return getInventoryLedgerForSkuFromDB(companyId, sku);
 }
 
 export async function exportInventory(params: { query?: string; category?: string; location?: string, supplier?: string }) {
@@ -370,8 +371,8 @@ export async function getPurchaseOrderById(id: string) {
 
 export async function createPurchaseOrder(data: PurchaseOrderCreateInput) {
     try {
-        const { companyId, userId } = await getAuthContext();
-        await createPurchaseOrderInDb(companyId, userId, data);
+        const { companyId } = await getAuthContext();
+        await createPurchaseOrderInDb(companyId, data);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch(e) {
@@ -709,5 +710,3 @@ export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
 }
-
-    

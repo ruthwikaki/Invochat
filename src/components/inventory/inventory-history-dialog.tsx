@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -15,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
 
 interface InventoryHistoryDialogProps {
-  productId: string | null;
+  sku: string | null;
   onClose: () => void;
 }
 
@@ -25,6 +26,8 @@ function ChangeTypeBadge({ changeType }: { changeType: string }) {
         'sale': 'bg-red-500/10 text-red-700 border-red-500/20',
         'return': 'bg-green-500/10 text-green-700 border-green-500/20',
         'manual_adjustment': 'bg-gray-500/10 text-gray-700 border-gray-500/20',
+        'transfer_in': 'bg-green-500/10 text-green-700 border-green-500/20',
+        'transfer_out': 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
     };
     return (
         <Badge variant="outline" className={cn("capitalize", variants[changeType] || variants.manual_adjustment)}>
@@ -57,22 +60,22 @@ function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
                 </span>
             </TableCell>
             <TableCell className="text-right">{entry.new_quantity}</TableCell>
-            <TableCell>{entry.related_id || entry.notes || 'N/A'}</TableCell>
+            <TableCell>{entry.notes || 'N/A'}</TableCell>
         </TableRow>
     )
 }
 
-export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryDialogProps) {
+export function InventoryHistoryDialog({ sku, onClose }: InventoryHistoryDialogProps) {
   const [history, setHistory] = useState<InventoryLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (productId) {
+    if (sku) {
       const fetchHistory = async () => {
         setLoading(true);
         try {
-          const data = await getInventoryLedger(productId);
+          const data = await getInventoryLedger(sku);
           setHistory(data);
         } catch (error) {
           toast({
@@ -86,15 +89,15 @@ export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryD
       };
       fetchHistory();
     }
-  }, [productId, toast]);
+  }, [sku, toast]);
 
   return (
-    <Dialog open={!!productId} onOpenChange={onClose}>
+    <Dialog open={!!sku} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Inventory History for Product ID: {productId}
+            Inventory History for SKU: {sku}
           </DialogTitle>
           <DialogDescription>
             A complete audit trail of all stock movements for this item across all locations.
@@ -121,7 +124,7 @@ export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryD
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Change</TableHead>
                   <TableHead className="text-right">New Quantity</TableHead>
-                  <TableHead>Reference</TableHead>
+                  <TableHead>Reference/Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

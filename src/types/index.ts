@@ -54,6 +54,8 @@ export const ProductSchema = z.object({
     cost: z.number().int(), // In cents
     price: z.number().int().nullable(), // In cents
     barcode: z.string().nullable(),
+    created_at: z.string(),
+    updated_at: z.string().nullable(),
 });
 export type Product = z.infer<typeof ProductSchema>;
 
@@ -78,8 +80,26 @@ export const InventorySchema = z.object({
     version: z.number().int(),
     deleted_at: z.string().nullable(),
     deleted_by: z.string().uuid().nullable(),
+    created_at: z.string(),
+    updated_at: z.string().nullable(),
+    source_platform: z.string().nullable(),
+    external_product_id: z.string().nullable(),
+    external_variant_id: z.string().nullable(),
+    external_quantity: z.number().int().nullable(),
 });
 export type Inventory = z.infer<typeof InventorySchema>;
+
+export const InventoryUpdateSchema = z.object({
+    name: z.string().min(1, 'Product name is required'),
+    category: z.string().nullable(),
+    cost: z.coerce.number().nonnegative(),
+    reorder_point: z.coerce.number().int().nonnegative().nullable(),
+    landed_cost: z.coerce.number().nonnegative().nullable(),
+    barcode: z.string().nullable(),
+    location_id: z.string().uuid().nullable(),
+    version: z.number().int()
+});
+export type InventoryUpdateData = z.infer<typeof InventoryUpdateSchema>;
 
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
@@ -243,7 +263,7 @@ export const PurchaseOrderSchema = z.object({
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
 const POItemInputSchema = z.object({
-    product_id: z.string().uuid(),
+    sku: z.string().min(1, 'SKU is required.'),
     quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
     unit_cost: z.coerce.number().nonnegative('Cost cannot be negative (in cents).'),
 });
@@ -266,7 +286,8 @@ export type PurchaseOrderUpdateInput = z.infer<typeof PurchaseOrderUpdateSchema>
 export const ReceiveItemsFormSchema = z.object({
   poId: z.string().uuid(),
   items: z.array(z.object({
-    product_id: z.string(),
+    sku: z.string(),
+    product_name: z.string(),
     quantity_ordered: z.number(),
     quantity_already_received: z.number(),
     quantity_to_receive: z.coerce.number().int().min(0, 'Cannot be negative.'),
@@ -514,7 +535,7 @@ export type PurchaseOrderAnalytics = {
 export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int().nullable(), // In cents
     average_sale_value: z.number().int().nullable(), // In cents
-    payment_method_distribution: z.array(z.object({ name: string(), value: z.number() })).nullable().default([]),
+    payment_method_distribution: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
