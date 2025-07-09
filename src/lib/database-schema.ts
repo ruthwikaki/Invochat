@@ -1373,7 +1373,7 @@ BEGIN
         'Sale fulfillment'
     FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
-    JOIN inventory i ON si.sku = si.sku AND i.company_id = p_company_id
+    JOIN inventory i ON si.sku = i.sku AND i.company_id = p_company_id
     WHERE s.id = p_sale_id
     AND s.company_id = p_company_id;
 END;
@@ -1697,7 +1697,120 @@ CREATE TRIGGER validate_sale_items_company
 -- =================================================================
 -- SCRIPT COMPLETE
 -- =================================================================
+-- New Analytics Functions Appended Below
+-- =================================================================
+
+CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN (
+        SELECT json_build_object(
+            'total_inventory_value', COALESCE(SUM(quantity * cost), 0),
+            'total_skus', COUNT(DISTINCT sku),
+            'low_stock_items', COUNT(*) FILTER (WHERE quantity <= reorder_point),
+            'potential_profit', COALESCE(SUM((price - cost) * quantity), 0)
+        )
+        FROM inventory
+        WHERE company_id = p_company_id AND deleted_at IS NULL
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_purchase_order_analytics(p_company_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN (
+        WITH po_stats AS (
+            SELECT
+                status,
+                COUNT(*) as count,
+                SUM(CASE WHEN status IN ('draft', 'sent', 'partial') THEN total_amount ELSE 0 END) as open_value,
+                COUNT(*) FILTER (WHERE status IN ('draft', 'sent', 'partial') AND expected_date < NOW()) as overdue_count
+            FROM purchase_orders
+            WHERE company_id = p_company_id
+            GROUP BY status
+        ),
+        lead_time_stats AS (
+            SELECT AVG(updated_at::date - order_date::date) as avg_lead_time
+            FROM purchase_orders
+            WHERE company_id = p_company_id AND status = 'received' AND updated_at IS NOT NULL AND order_date IS NOT NULL
+        )
+        SELECT json_build_object(
+            'open_po_value', COALESCE(SUM(open_value), 0),
+            'overdue_po_count', COALESCE(SUM(overdue_count), 0),
+            'avg_lead_time', COALESCE((SELECT avg_lead_time FROM lead_time_stats), 0),
+            'status_distribution', (SELECT json_agg(json_build_object('name', status, 'value', count)) FROM po_stats)
+        )
+        FROM po_stats
+    );
+END;
+$$;
 
 
+CREATE OR REPLACE FUNCTION public.get_sales_analytics(p_company_id uuid)
+RETURNS json
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN (
+        WITH payment_methods AS (
+            SELECT
+                payment_method as name,
+                COUNT(*) as value
+            FROM sales
+            WHERE company_id = p_company_id
+            GROUP BY payment_method
+        )
+        SELECT json_build_object(
+            'total_revenue', COALESCE(SUM(total_amount), 0),
+            'average_sale_value', COALESCE(AVG(total_amount), 0),
+            'payment_method_distribution', (SELECT json_agg(payment_methods) FROM payment_methods)
+        )
+        FROM sales
+        WHERE company_id = p_company_id
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_suppliers_with_performance(p_company_id uuid)
+RETURNS TABLE (
+    id uuid,
+    company_id uuid,
+    vendor_name text,
+    contact_info text,
+    address text,
+    terms text,
+    account_number text,
+    created_at timestamptz,
+    on_time_delivery_rate numeric,
+    average_lead_time_days numeric,
+    total_completed_orders bigint
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        v.id,
+        v.company_id,
+        v.vendor_name,
+        v.contact_info,
+        v.address,
+        v.terms,
+        v.account_number,
+        v.created_at,
+        p.on_time_delivery_rate,
+        p.average_lead_time_days,
+        p.total_completed_orders
+    FROM vendors v
+    LEFT JOIN get_supplier_performance(p_company_id) p ON v.vendor_name = p.supplier_name
+    WHERE v.company_id = p_company_id;
+END;
+$$;
 
 
+```

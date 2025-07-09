@@ -49,6 +49,10 @@ export const SupplierSchema = z.object({
     address: z.string().nullable(),
     terms: z.string().nullable(),
     account_number: z.string().nullable(),
+    // Optional performance metrics
+    on_time_delivery_rate: z.number().nullable().optional(),
+    average_lead_time_days: z.number().nullable().optional(),
+    total_completed_orders: z.number().int().nullable().optional(),
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
 
@@ -367,10 +371,10 @@ export const CustomerSchema = z.object({
 export type Customer = z.infer<typeof CustomerSchema>;
 
 export const CustomerAnalyticsSchema = z.object({
-    total_customers: z.number(),
-    new_customers_last_30_days: z.number(),
-    average_lifetime_value: z.number(),
-    repeat_customer_rate: z.number(),
+    total_customers: z.number().nullable(),
+    new_customers_last_30_days: z.number().nullable(),
+    average_lifetime_value: z.number().nullable(),
+    repeat_customer_rate: z.number().nullable(),
     top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
     top_customers_by_sales: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
@@ -456,3 +460,25 @@ export const CsvMappingOutputSchema = z.object({
   unmappedColumns: z.array(z.string()).describe("A list of CSV columns that could not be confidently mapped."),
 });
 export type CsvMappingOutput = z.infer<typeof CsvMappingOutputSchema>;
+
+// Page-specific analytics types
+export type InventoryAnalytics = {
+    total_inventory_value: number;
+    total_skus: number;
+    low_stock_items: number;
+    potential_profit: number;
+};
+
+export type PurchaseOrderAnalytics = {
+    open_po_value: number;
+    overdue_po_count: number;
+    avg_lead_time: number;
+    status_distribution: { name: string; value: number }[];
+};
+
+export const SalesAnalyticsSchema = z.object({
+    total_revenue: z.number().nullable(),
+    average_sale_value: z.number().nullable(),
+    payment_method_distribution: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
+});
+export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;

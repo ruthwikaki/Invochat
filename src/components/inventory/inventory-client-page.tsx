@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
@@ -6,9 +7,9 @@ import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { UnifiedInventoryItem, Location, Supplier } from '@/types';
-import { Card, CardContent } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download } from 'lucide-react';
+import type { UnifiedInventoryItem, Location, Supplier, InventoryAnalytics } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -34,8 +35,28 @@ interface InventoryClientPageProps {
   categories: string[];
   locations: Location[];
   suppliers: Supplier[];
+  analyticsData: InventoryAnalytics;
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
+
+const formatCurrency = (value: number) => {
+    if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(value) >= 1_000) return `$${(value / 1_000).toFixed(1)}k`;
+    return `$${value.toFixed(2)}`;
+};
+
+const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, value: string | number, icon: React.ElementType, label?: string }) => (
+    <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+            <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{typeof value === 'number' && !Number.isInteger(value) ? formatCurrency(value) : value}</div>
+            {label && <p className="text-xs text-muted-foreground">{label}</p>}
+        </CardContent>
+    </Card>
+);
 
 const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
     const router = useRouter();
@@ -121,7 +142,7 @@ function EmptyInventoryState() {
 }
 
 
-export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, locations, suppliers, exportAction }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, locations, suppliers, analyticsData, exportAction }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace, refresh } = useRouter();
@@ -227,7 +248,14 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const showNoResultsState = totalCount === 0 && isFiltered;
   
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value} icon={DollarSign} />
+            <AnalyticsCard title="Total SKUs" value={analyticsData.total_skus} icon={PackageIcon} />
+            <AnalyticsCard title="Items Low on Stock" value={analyticsData.low_stock_items} icon={AlertTriangle} />
+            <AnalyticsCard title="Potential Profit" value={analyticsData.potential_profit} icon={TrendingUp} />
+        </div>
+
       <div className="flex flex-col md:flex-row items-center gap-2">
         <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -466,3 +494,4 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     </div>
   );
 }
+```

@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import {
@@ -46,8 +47,10 @@ import {
   createExportJobInDb,
   refreshMaterializedViews,
   getIntegrationsByCompanyId,
+  getInventoryAnalyticsFromDB,
+  getPurchaseOrderAnalyticsFromDB,
+  getSalesAnalyticsFromDB,
 } from '@/services/database';
-import { getServiceRoleClient } from '@/lib/supabase/admin';
 import {
     generateAnomalyExplanation,
 } from '@/ai/flows/anomaly-explanation-flow';
@@ -166,6 +169,11 @@ export async function getInsightsPageData() {
 export async function getUnifiedInventory(params: { query?: string; category?: string; location?: string, supplier?: string, page?: number, limit?: number }) {
     const { companyId } = await getAuthContext();
     return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
+}
+
+export async function getInventoryAnalytics() {
+    const { companyId } = await getAuthContext();
+    return getInventoryAnalyticsFromDB(companyId);
 }
 
 export async function getInventoryCategories() {
@@ -308,6 +316,11 @@ export async function getPurchaseOrders(params: { query?: string, page: number }
     const limit = 25;
     const offset = (params.page - 1) * limit;
     return getPurchaseOrdersFromDB(companyId, { ...params, limit, offset });
+}
+
+export async function getPurchaseOrderAnalytics() {
+    const { companyId } = await getAuthContext();
+    return getPurchaseOrderAnalyticsFromDB(companyId);
 }
 
 export async function getSuppliersData() {
@@ -558,6 +571,11 @@ export async function getSales(params: { query?: string, page: number, limit: nu
     return getSalesFromDB(companyId, { ...params, offset });
 }
 
+export async function getSalesAnalytics() {
+    const { companyId } = await getAuthContext();
+    return getSalesAnalyticsFromDB(companyId);
+}
+
 export async function exportSales(params: { query?: string }) {
     try {
         const { companyId } = await getAuthContext();
@@ -582,81 +600,4 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-// --- System Health Checks ---
-
-export async function testSupabaseConnection() {
-    const isConfigured = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!isConfigured) {
-        return { isConfigured, success: false, error: new Error('Supabase environment variables are not set.') };
-    }
-
-    try {
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            { cookies: () => cookies() }
-        );
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        return { isConfigured: true, success: true, user };
-    } catch (error) {
-        return { isConfigured: true, success: false, error: error as Error };
-    }
-}
-
-export async function testDatabaseQuery() {
-    try {
-        await getAuthContext(); // Ensures a user is logged in
-        const supabase = getServiceRoleClient();
-        const { error } = await supabase.from('inventory').select('id', { count: 'exact', head: true });
-        if (error) throw error;
-        return { success: true };
-    } catch (error) {
-        return { success: false, error: getErrorMessage(error) };
-    }
-}
-
-export async function testGenkitConnection() {
-    const isConfigured = !!process.env.GOOGLE_API_KEY;
-    if (!isConfigured) {
-        return { isConfigured, success: false, error: 'GOOGLE_API_KEY is not set.' };
-    }
-    try {
-        const { text } = await ai.generate({
-            model: 'googleai/gemini-1.5-flash',
-            prompt: `Test prompt`,
-            temperature: 0,
-        });
-        if(!text) throw new Error("Genkit test call returned no text.");
-        return { isConfigured: true, success: true };
-    } catch (error) {
-        return { isConfigured: true, success: false, error: getErrorMessage(error) };
-    }
-}
-
-export async function testMaterializedView() {
-    try {
-        await getAuthContext();
-        const supabase = getServiceRoleClient();
-        const { error } = await supabase.from('company_dashboard_metrics').select('company_id', { count: 'exact', head: true });
-        if (error) throw error;
-        return { success: true };
-    } catch(error) {
-        return { success: false, error: getErrorMessage(error) };
-    }
-}
-
-export async function testRedisConnection() {
-    const isEnabled = !!process.env.REDIS_URL;
-    if (!isEnabled) {
-        return { isEnabled, success: false, error: 'Redis is not configured.' };
-    }
-    try {
-        // The redis client initialization handles this, so we just check it.
-        // A more robust test could involve a PING command.
-        return { isEnabled: true, success: true };
-    } catch (error) {
-        return { isEnabled: true, success: false, error: getErrorMessage(error) };
-    }
-}
+```

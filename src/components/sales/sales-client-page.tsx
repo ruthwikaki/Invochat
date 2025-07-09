@@ -1,10 +1,11 @@
+
 'use client';
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
-import type { Sale } from '@/types';
-import { Card, CardContent } from '@/components/ui/card';
-import { Search, Plus, ShoppingCart, Download } from 'lucide-react';
+import type { Sale, SalesAnalytics } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Search, Plus, ShoppingCart, Download, DollarSign, BarChart } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,13 +14,52 @@ import { motion } from 'framer-motion';
 import { Input } from '../ui/input';
 import Link from 'next/link';
 import { ExportButton } from '../ui/export-button';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 interface SalesClientPageProps {
   initialSales: Sale[];
   totalCount: number;
   itemsPerPage: number;
+  analyticsData: SalesAnalytics;
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
+
+const formatCurrency = (value: number) => {
+    if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(value) >= 1_000) return `$${(value / 1_000).toFixed(1)}k`;
+    return `$${value.toFixed(2)}`;
+};
+
+const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, value: string | number, icon: React.ElementType, label?: string }) => (
+    <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+            <Icon className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{typeof value === 'number' && !Number.isInteger(value) ? formatCurrency(value) : value}</div>
+            {label && <p className="text-xs text-muted-foreground">{label}</p>}
+        </CardContent>
+    </Card>
+);
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const PaymentMethodChart = ({ data }: { data: { name: string; value: number }[] }) => {
+    if (!data || data.length === 0) return <div className="text-center text-muted-foreground">No payment data</div>;
+
+    return (
+        <ResponsiveContainer width="100%" height={100}>
+            <PieChart>
+                <Pie data={data} cx="50%" cy="50%" outerRadius={40} dataKey="value" nameKey="name">
+                    {data.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                </Pie>
+                <Tooltip />
+            </PieChart>
+        </ResponsiveContainer>
+    );
+};
 
 const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
     const router = useRouter();
@@ -65,7 +105,7 @@ function EmptySalesState() {
   );
 }
 
-export function SalesClientPage({ initialSales, totalCount, itemsPerPage, exportAction }: SalesClientPageProps) {
+export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyticsData, exportAction }: SalesClientPageProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -85,7 +125,19 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, export
   const showNoResultsState = totalCount === 0 && searchParams.get('query');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <AnalyticsCard title="Total Revenue" value={analyticsData.total_revenue} icon={DollarSign} />
+            <AnalyticsCard title="Average Sale Value" value={analyticsData.average_sale_value} icon={BarChart} />
+             <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Payment Methods</CardTitle>
+                </CardHeader>
+                <CardContent className="h-[100px] p-0">
+                    <PaymentMethodChart data={analyticsData.payment_method_distribution} />
+                </CardContent>
+            </Card>
+        </div>
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -130,3 +182,4 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, export
     </div>
   );
 }
+```

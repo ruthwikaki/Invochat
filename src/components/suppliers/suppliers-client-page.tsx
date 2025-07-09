@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { Supplier } from '@/types';
@@ -35,6 +36,9 @@ import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Mail, Briefcase, FileText, Truck, MoreHorizontal, Edit, Trash2, Search, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { Badge } from '../ui/badge';
+import { cn } from '@/lib/utils';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 function SupplierCard({
   supplier,
@@ -66,6 +70,13 @@ function SupplierCard({
       }
       setAlertOpen(false);
     });
+  };
+
+   const getOnTimeBadgeVariant = (rate: number | null | undefined) => {
+    if (rate === null || rate === undefined) return 'bg-muted/50';
+    if (rate >= 95) return 'bg-success/20 text-success-foreground border-success/30';
+    if (rate >= 85) return 'bg-warning/20 text-amber-600 dark:text-amber-400 border-warning/30';
+    return 'bg-destructive/20 text-destructive-foreground border-destructive/30';
   };
 
   return (
@@ -118,6 +129,28 @@ function SupplierCard({
             </div>
           )}
         </CardContent>
+         {supplier.total_completed_orders && (
+            <CardContent className="border-t pt-4 space-y-2">
+                <TooltipProvider>
+                    <div className="flex justify-between text-xs">
+                        <Tooltip>
+                            <TooltipTrigger asChild><span className="text-muted-foreground cursor-help">On-Time Rate</span></TooltipTrigger>
+                            <TooltipContent><p>Percentage of orders delivered on or before the expected date.</p></TooltipContent>
+                        </Tooltip>
+                        <Badge variant="outline" className={getOnTimeBadgeVariant(supplier.on_time_delivery_rate)}>
+                            {supplier.on_time_delivery_rate?.toFixed(1) ?? 'N/A'}%
+                        </Badge>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                         <Tooltip>
+                            <TooltipTrigger asChild><span className="text-muted-foreground cursor-help">Avg. Lead Time</span></TooltipTrigger>
+                            <TooltipContent><p>Average number of days from order to receipt.</p></TooltipContent>
+                        </Tooltip>
+                        <span className="font-medium">{supplier.average_lead_time_days?.toFixed(1) ?? 'N/A'} days</span>
+                    </div>
+                </TooltipProvider>
+            </CardContent>
+         )}
       </Card>
 
       <AlertDialog open={isAlertOpen} onOpenChange={setAlertOpen}>
@@ -202,3 +235,4 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
     </div>
   );
 }
+```

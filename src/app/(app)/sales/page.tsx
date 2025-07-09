@@ -1,4 +1,4 @@
-import { getSales, exportSales } from '@/app/data-actions';
+import { getSales, exportSales, getSalesAnalytics } from '@/app/data-actions';
 import { SalesClientPage } from '@/components/sales/sales-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,10 @@ export default async function SalesPage({
   const query = searchParams?.query || '';
   const page = Number(searchParams?.page) || 1;
 
-  const salesData = await getSales({ query, page, limit: ITEMS_PER_PAGE });
+  const [salesData, analyticsData] = await Promise.all([
+    getSales({ query, page, limit: ITEMS_PER_PAGE }),
+    getSalesAnalytics(),
+  ]);
 
   const handleExport = async () => {
     'use server';
@@ -42,8 +45,10 @@ export default async function SalesPage({
         initialSales={salesData.items}
         totalCount={salesData.totalCount}
         itemsPerPage={ITEMS_PER_PAGE}
+        analyticsData={analyticsData}
         exportAction={handleExport}
       />
     </AppPage>
   );
 }
+```

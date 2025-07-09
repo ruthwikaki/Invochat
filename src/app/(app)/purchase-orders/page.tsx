@@ -1,5 +1,6 @@
 
-import { getPurchaseOrders } from '@/app/data-actions';
+
+import { getPurchaseOrders, getPurchaseOrderAnalytics } from '@/app/data-actions';
 import { PurchaseOrderClientPage } from '@/components/purchase-orders/po-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
@@ -15,7 +16,10 @@ export default async function PurchaseOrdersPage({
 }) {
   const query = searchParams?.query || '';
   const currentPage = Number(searchParams?.page) || 1;
-  const poData = await getPurchaseOrders({ query, page: currentPage });
+  const [poData, analyticsData] = await Promise.all([
+    getPurchaseOrders({ query, page: currentPage }),
+    getPurchaseOrderAnalytics(),
+  ]);
 
   return (
     <AppPage className="flex flex-col h-full">
@@ -27,7 +31,9 @@ export default async function PurchaseOrdersPage({
         initialPurchaseOrders={poData.items}
         totalCount={poData.totalCount}
         itemsPerPage={ITEMS_PER_PAGE}
+        analyticsData={analyticsData}
       />
     </AppPage>
   );
 }
+```

@@ -1,4 +1,4 @@
-import { getUnifiedInventory, getInventoryCategories, getLocations, getSuppliersData, exportInventory } from '@/app/data-actions';
+import { getUnifiedInventory, getInventoryCategories, getLocations, getSuppliersData, exportInventory, getInventoryAnalytics } from '@/app/data-actions';
 import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
 import { Package } from 'lucide-react';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -23,11 +23,12 @@ export default async function InventoryPage({
   const currentPage = parseInt(searchParams?.page || '1', 10);
 
   // Fetch data in parallel
-  const [inventoryData, categories, locations, suppliers] = await Promise.all([
+  const [inventoryData, categories, locations, suppliers, analytics] = await Promise.all([
     getUnifiedInventory({ query, category, location, supplier, page: currentPage, limit: ITEMS_PER_PAGE }),
     getInventoryCategories(),
     getLocations(),
-    getSuppliersData()
+    getSuppliersData(),
+    getInventoryAnalytics(),
   ]);
 
   const handleExport = async () => {
@@ -49,7 +50,9 @@ export default async function InventoryPage({
         locations={locations}
         suppliers={suppliers}
         exportAction={handleExport}
+        analyticsData={analytics}
       />
     </AppPage>
   );
 }
+```
