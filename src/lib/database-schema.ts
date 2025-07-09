@@ -1,4 +1,3 @@
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DO $$
@@ -335,6 +334,7 @@ SELECT
 FROM customer_stats cs
 GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
+
 
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -1161,7 +1161,7 @@ BEGIN
             SUM(si.quantity * si.cost_at_time) AS cogs,
             COUNT(s.id) as number_of_sales
         FROM public.sales s
-        JOIN public.sale_items si ON s.id = si.sale_id
+        JOIN public.sale_items si ON s.id = s.id
         WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
           AND s.payment_method = p_channel_name
         GROUP BY s.payment_method
@@ -1652,17 +1652,15 @@ declare
   item_change record;
   new_total_amount bigint := 0;
 begin
-  WITH old_items AS (
-    SELECT oi.sku, oi.quantity_ordered FROM public.purchase_order_items oi WHERE oi.po_id = p_po_id
-  ), new_items AS (
-    SELECT ni.sku, ni.quantity_ordered FROM jsonb_to_recordset(p_items) AS ni(sku text, quantity_ordered int)
-  )
   FOR item_change IN 
-    SELECT 
+    SELECT
       COALESCE(oi.sku, ni.sku) as sku,
       COALESCE(ni.quantity_ordered, 0) - COALESCE(oi.quantity_ordered, 0) as quantity_diff
-    FROM old_items oi
-    FULL OUTER JOIN new_items ni ON oi.sku = ni.sku
+    FROM
+      (SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id) AS oi
+    FULL OUTER JOIN
+      (SELECT sku, quantity_ordered FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int)) AS ni
+    ON oi.sku = ni.sku
   LOOP
     UPDATE public.inventory
     SET on_order_quantity = on_order_quantity + item_change.quantity_diff
