@@ -1,4 +1,3 @@
-
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -27,4 +26,16 @@ export function linearRegression(data: { x: number; y: number }[]): { slope: num
   const intercept = (sumY - slope * sumX) / n;
 
   return { slope: isNaN(slope) ? 0 : slope, intercept: isNaN(intercept) ? 0 : intercept };
+}
+
+// Format currency from cents to a string like $1,234.56
+export function formatCentsAsCurrency(cents: number | null | undefined): string {
+    if (cents === null || cents === undefined) {
+        return '$0.00';
+    }
+    const dollars = cents / 100;
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+    }).format(dollars);
 }

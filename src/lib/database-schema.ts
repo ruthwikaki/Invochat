@@ -1,25 +1,6 @@
-
-
-export const SETUP_SQL_SCRIPT = `-- =================================================================
--- INVOCHAT - THE COMPLETE & IDEMPOTENT DATABASE SETUP SCRIPT
--- =================================================================
--- This script is designed to be run in its entirety. It sets up all
--- necessary tables, functions, triggers, and security policies for
--- the InvoChat application to function correctly. It is idempotent,
--- meaning it can be run multiple times without causing errors.
---
--- For production environments, it's recommended to set up a cron
--- job to periodically refresh the materialized views for optimal
--- dashboard performance. Example using pg_cron:
--- SELECT cron.schedule('refresh-views', '0 * * * *', 'SELECT public.refresh_materialized_views(company_id) FROM public.companies');
--- =================================================================
-
--- Step 1: Extensions
--- -----------------------------------------------------------------
+export const SETUP_SQL_SCRIPT = `
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Step 2: Custom Types
--- -----------------------------------------------------------------
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
@@ -31,9 +12,6 @@ BEGIN
     END IF;
 END$$;
 
--- Step 3: Tables and Indexes
--- This section includes ALL required tables for the application.
--- -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -322,8 +300,6 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     completed_at timestamptz
 );
 
--- Step 4: Materialized Views
--- -----------------------------------------------------------------
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT 
   company_id,
@@ -361,10 +337,6 @@ GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
 
--- Step 5: Trigger Functions & Triggers
--- -----------------------------------------------------------------
-
--- Use CASCADE to ensure dependent triggers are also dropped
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -376,25 +348,20 @@ DECLARE
   user_role public.user_role;
   company_name_text text;
 BEGIN
-  -- Validate company name
   company_name_text := trim(new.raw_user_meta_data->>'company_name');
   IF company_name_text IS NULL OR company_name_text = '' THEN
     RAISE EXCEPTION 'Company name cannot be empty.';
   END IF;
 
-  -- Create a new company for the user
   INSERT INTO public.companies (name)
   VALUES (company_name_text)
   RETURNING id INTO new_company_id;
 
-  -- The first user is the Owner
   user_role := 'Owner';
   
-  -- Insert a row into public.users
   INSERT INTO public.users (id, company_id, email, role)
   VALUES (new.id, new_company_id, new.email, user_role);
   
-  -- Update the user's app_metadata in auth.users
   UPDATE auth.users
   SET raw_app_meta_data = jsonb_set(
       COALESCE(raw_app_meta_data, '{}'::jsonb),
@@ -407,37 +374,35 @@ BEGIN
 END;
 $$;
 
--- Create the trigger to fire after a new user is created in auth.users
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Trigger for optimistic concurrency control
 DROP FUNCTION IF EXISTS increment_version() CASCADE;
 CREATE OR REPLACE FUNCTION increment_version()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
    NEW.version = OLD.version + 1;
    NEW.updated_at = now();
    RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$;
 
 CREATE TRIGGER handle_inventory_update
 BEFORE UPDATE ON inventory
 FOR EACH ROW
 EXECUTE PROCEDURE increment_version();
 
-
--- Step 6: All RPC Functions
--- -----------------------------------------------------------------
-
 DROP FUNCTION IF EXISTS public.batch_upsert_with_transaction(text, jsonb, text[]);
 CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
     p_table_name text,
     p_records jsonb,
     p_conflict_columns text[]
-) RETURNS void AS $$
+) RETURNS void 
+LANGUAGE plpgsql
+AS $$
 BEGIN
     EXECUTE format(
         'INSERT INTO %I SELECT * FROM jsonb_populate_recordset(null::%I, %L) ON CONFLICT (%s) DO UPDATE SET %s',
@@ -450,7 +415,7 @@ BEGIN
          WHERE table_name = p_table_name AND column_name NOT IN (SELECT unnest(p_conflict_columns)))
     );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP FUNCTION IF EXISTS public.refresh_materialized_views(uuid);
 CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid)
@@ -458,14 +423,10 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- This function is a placeholder. In a production environment, you would
-  -- likely refresh specific views based on which tables have changed.
-  -- For this application's scale, refreshing all is acceptable.
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.customer_analytics_metrics;
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
 CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
@@ -495,7 +456,6 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    -- Low Stock Alerts
     SELECT
         'low_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
@@ -504,7 +464,6 @@ BEGIN
 
     UNION ALL
 
-    -- Dead Stock Alerts (FIXED to include NULL last_sold_date)
     SELECT
         'dead_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
@@ -513,7 +472,6 @@ BEGIN
 
     UNION ALL
 
-    -- Predictive Stockout Alerts
     (
         WITH sales_velocity AS (
           SELECT
@@ -624,7 +582,6 @@ declare
   item_record record;
   v_total_amount bigint := 0;
 begin
-  -- Calculate total amount first
   FOR item_record IN SELECT * FROM jsonb_to_recordset(p_items) AS x(quantity_ordered int, unit_cost bigint)
   LOOP
     v_total_amount := v_total_amount + (item_record.quantity_ordered * item_record.unit_cost);
@@ -652,10 +609,11 @@ begin
 end;
 $$;
 
-DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions_tx(uuid, jsonb);
+DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions_tx(uuid, jsonb, jsonb);
 CREATE OR REPLACE FUNCTION public.create_purchase_orders_from_suggestions_tx(
     p_company_id uuid,
-    p_po_payload jsonb
+    p_po_payload jsonb,
+    p_business_profile jsonb
 )
 RETURNS integer
 LANGUAGE plpgsql
@@ -666,15 +624,31 @@ DECLARE
     new_po_id uuid;
     created_count integer := 0;
     v_total_amount bigint;
+    monthly_revenue bigint := (p_business_profile->>'monthly_revenue')::bigint;
+    outstanding_po_value bigint := (p_business_profile->>'outstanding_po_value')::bigint;
+    max_single_order_value bigint := monthly_revenue * 0.15;
+    max_total_exposure bigint := monthly_revenue * 0.35;
 BEGIN
     FOR po_data IN SELECT * FROM jsonb_array_elements(p_po_payload)
     LOOP
-        -- Check if supplier exists
+        v_total_amount := 0;
+        FOR item_data IN SELECT * FROM jsonb_array_elements(po_data->'items')
+        LOOP
+            v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::bigint);
+        END LOOP;
+
+        IF v_total_amount > max_single_order_value THEN
+            RAISE EXCEPTION 'Financial Circuit Breaker: Order value of % exceeds the single order safety limit of %.', v_total_amount, max_single_order_value;
+        END IF;
+
+        IF outstanding_po_value + v_total_amount > max_total_exposure THEN
+             RAISE EXCEPTION 'Financial Circuit Breaker: This order would exceed the total exposure limit of %.', max_total_exposure;
+        END IF;
+
         IF (po_data->>'supplier_id') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM vendors WHERE id = (po_data->>'supplier_id')::uuid) THEN
             RAISE EXCEPTION 'Supplier with ID % does not exist.', (po_data->>'supplier_id');
         END IF;
 
-        -- Create PO first
         INSERT INTO public.purchase_orders (company_id, supplier_id, po_number, order_date, status, total_amount)
         VALUES (
             p_company_id,
@@ -682,15 +656,11 @@ BEGIN
             'PO-' || (nextval('sales_sale_number_seq'::regclass)),
             CURRENT_DATE,
             'draft',
-            0 -- Initial total amount
+            v_total_amount
         ) RETURNING id INTO new_po_id;
         
-        v_total_amount := 0;
-
-        -- Loop through items for this PO
         FOR item_data IN SELECT * FROM jsonb_array_elements(po_data->'items')
         LOOP
-            -- Check if product exists
             IF NOT EXISTS (SELECT 1 FROM inventory WHERE sku = (item_data->>'sku') AND company_id = p_company_id AND deleted_at IS NULL) THEN
                 RAISE EXCEPTION 'Product with SKU % does not exist or is deleted.', (item_data->>'sku');
             END IF;
@@ -706,16 +676,11 @@ BEGIN
             UPDATE public.inventory
             SET on_order_quantity = on_order_quantity + (item_data->>'quantity_ordered')::integer
             WHERE sku = item_data->>'sku' AND company_id = p_company_id;
-            
-            v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::bigint);
         END LOOP;
         
-        -- Update the PO with the correct total amount
-        UPDATE public.purchase_orders
-        SET total_amount = v_total_amount
-        WHERE id = new_po_id;
-
         created_count := created_count + 1;
+        outstanding_po_value := outstanding_po_value + v_total_amount;
+
     END LOOP;
 
     RETURN created_count;
@@ -873,7 +838,6 @@ BEGIN
     RETURN result_json;
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_customers_with_stats(uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_customers_with_stats(
@@ -1202,8 +1166,6 @@ CREATE OR REPLACE FUNCTION public.get_net_margin_by_channel(p_company_id uuid, p
 RETURNS TABLE(sales_channel text, total_revenue numeric, total_cogs numeric, total_fees numeric, net_margin_percentage numeric)
 LANGUAGE plpgsql
 AS $$
--- NOTE: This calculation assumes the percentage_fee in the channel_fees table
--- is stored as a decimal (e.g., 2.9% is stored as 0.029).
 BEGIN
     RETURN QUERY
     WITH channel_sales AS (
@@ -1306,8 +1268,8 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.get_reorder_suggestions(uuid, integer);
-CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid, p_fast_moving_days integer)
+DROP FUNCTION IF EXISTS public.get_reorder_suggestions(uuid, text);
+CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid, p_timezone text)
 RETURNS TABLE(sku text, product_name text, current_quantity integer, reorder_point integer, suggested_reorder_quantity integer, supplier_name text, supplier_id uuid, unit_cost bigint, base_quantity integer)
 LANGUAGE plpgsql
 AS $$
@@ -1316,10 +1278,10 @@ BEGIN
     WITH sales_velocity AS (
       SELECT
         si.sku,
-        SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
+        SUM(si.quantity)::numeric / 30 as daily_sales
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
-      WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+      WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - INTERVAL '30 days')
       GROUP BY si.sku
     ),
     base_suggestions AS (
@@ -1328,7 +1290,6 @@ BEGIN
             i.name as product_name,
             i.quantity as current_quantity,
             i.reorder_point,
-            -- Core suggestion logic: order up to reorder point + safety stock (30 days of sales)
             GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * 30)) - i.quantity)::integer as base_quantity,
             v.vendor_name,
             v.id as supplier_id,
@@ -1343,7 +1304,7 @@ BEGIN
     )
     SELECT 
         bs.sku, bs.product_name, bs.current_quantity, bs.reorder_point, 
-        bs.base_quantity as suggested_reorder_quantity, -- Initially, suggested is the same as base
+        bs.base_quantity as suggested_reorder_quantity,
         bs.supplier_name, bs.supplier_id, bs.unit_cost,
         bs.base_quantity
     FROM base_suggestions bs;
@@ -1358,7 +1319,6 @@ AS $$
 BEGIN
     RETURN QUERY
     WITH po_delivery_dates AS (
-        -- Find the last receipt date for each PO based on ledger entries
         SELECT
             il.related_id AS po_id,
             MAX(il.created_at) AS actual_delivery_date
@@ -1383,7 +1343,6 @@ BEGIN
     SELECT
         v.vendor_name,
         COUNT(ps.*) AS total_completed_orders,
-        -- On-time rate: of fully received orders, how many were on or before expected date
         COALESCE(
             ROUND(
                 (COUNT(*) FILTER (WHERE ps.status = 'received' AND ps.expected_date IS NOT NULL AND ps.actual_delivery_date::date <= ps.expected_date))::numeric * 100
@@ -1392,7 +1351,6 @@ BEGIN
             ),
             0
         ) AS on_time_delivery_rate,
-        -- Avg variance: how early/late on average were deliveries
         COALESCE(
             ROUND(
                 AVG(EXTRACT(DAY FROM (ps.actual_delivery_date::date - ps.expected_date)))
@@ -1401,7 +1359,6 @@ BEGIN
             ),
             0
         ) AS average_delivery_variance_days,
-        -- Avg lead time: how long from order to delivery
         COALESCE(
             ROUND(
                 AVG(EXTRACT(DAY FROM (ps.actual_delivery_date::date - ps.order_date))),
@@ -1416,7 +1373,6 @@ BEGIN
     ORDER BY total_completed_orders DESC;
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer);
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
@@ -1512,7 +1468,6 @@ BEGIN
 END;
 $$;
 
-
 DROP FUNCTION IF EXISTS public.process_sales_order_inventory(uuid, uuid, jsonb);
 CREATE OR REPLACE FUNCTION public.process_sales_order_inventory(p_company_id uuid, p_sale_id uuid, p_inventory_updates jsonb)
 RETURNS void
@@ -1551,7 +1506,6 @@ BEGIN
 END;
 $$;
 
-
 DROP FUNCTION IF EXISTS public.receive_purchase_order_items(uuid, jsonb, uuid);
 CREATE OR REPLACE FUNCTION public.receive_purchase_order_items(p_po_id uuid, p_items_to_receive jsonb, p_company_id uuid)
 RETURNS void
@@ -1570,7 +1524,6 @@ BEGIN
     END IF;
 
     FOR item IN SELECT * FROM jsonb_to_recordset(p_items_to_receive) AS x(sku TEXT, quantity_to_receive INTEGER) LOOP
-        -- Lock the row to prevent concurrent updates
         SELECT poi.quantity_ordered, COALESCE(poi.quantity_received, 0) 
         INTO v_ordered_quantity, v_already_received
         FROM purchase_order_items poi WHERE poi.po_id = p_po_id AND poi.sku = item.sku FOR UPDATE;
@@ -1625,33 +1578,27 @@ DECLARE
     current_inventory record;
     inventory_updates jsonb := '[]'::jsonb;
 BEGIN
-    -- Check stock levels before proceeding
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int) LOOP
         SELECT quantity, version INTO current_inventory FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id AND deleted_at IS NULL FOR UPDATE;
         IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
             RAISE EXCEPTION 'Insufficient stock for SKU: %. Available: %, Requested: %', item_record.sku, COALESCE(current_inventory.quantity, 0), item_record.quantity;
         END IF;
-        -- Build payload for inventory update function, including expected version
         inventory_updates := inventory_updates || jsonb_build_object('sku', item_record.sku, 'quantity', item_record.quantity, 'expected_version', current_inventory.version);
     END LOOP;
 
-    -- Calculate total amount
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int, unit_price bigint) LOOP
         total_amount := total_amount + (item_record.quantity * item_record.unit_price);
     END LOOP;
 
-    -- Create the sale record
     INSERT INTO sales (company_id, sale_number, customer_name, customer_email, total_amount, payment_method, notes, created_by, external_id)
     VALUES (p_company_id, 'SALE-' || nextval('sales_sale_number_seq'::regclass), p_customer_name, p_customer_email, total_amount, p_payment_method, p_notes, p_user_id, p_external_id)
     RETURNING * INTO new_sale;
 
-    -- Insert sale items and capture cost at time of sale
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price bigint, cost_at_time bigint) LOOP
         INSERT INTO sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
         VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
     END LOOP;
     
-    -- Decrement inventory (This function handles the ledger creation)
     PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id, inventory_updates);
 
     RETURN new_sale;
@@ -1716,7 +1663,6 @@ declare
   item_change record;
   new_total_amount bigint := 0;
 begin
-  -- Calculate net changes to on_order_quantity
   WITH old_items AS (
     SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
   ), new_items AS (
@@ -1734,7 +1680,6 @@ begin
     WHERE sku = item_change.sku AND company_id = p_company_id;
   END LOOP;
   
-  -- Now, clear old items and insert new ones
   DELETE FROM public.purchase_order_items WHERE po_id = p_po_id;
 
   FOR item_change IN SELECT * FROM jsonb_to_recordset(p_items) AS x(sku text, quantity_ordered int, unit_cost bigint)
@@ -1747,7 +1692,6 @@ begin
     new_total_amount := new_total_amount + (item_change.quantity_ordered * item_change.unit_cost);
   END LOOP;
 
-  -- Finally, update the main PO record
   UPDATE public.purchase_orders
   SET
     supplier_id = p_supplier_id,
@@ -1788,9 +1732,6 @@ BEGIN
 END;
 $$;
 
-
--- Step 7: Final RLS Policies
--- -----------------------------------------------------------------
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -1870,31 +1811,23 @@ DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON pu
 CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
 
 
--- Step 8: Grant Permissions & Re-create Triggers
--- -----------------------------------------------------------------
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
--- Recreate triggers after all functions are defined
+DROP TRIGGER IF EXISTS validate_purchase_order_refs ON public.purchase_orders;
 CREATE TRIGGER validate_purchase_order_refs
     BEFORE INSERT OR UPDATE ON public.purchase_orders
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
 
+DROP TRIGGER IF EXISTS validate_inventory_location_ref ON public.inventory;
 CREATE TRIGGER validate_inventory_location_ref
     BEFORE INSERT OR UPDATE ON public.inventory
     FOR EACH ROW
     EXECUTE FUNCTION public.validate_same_company_reference();
-
-
--- =================================================================
--- SCRIPT COMPLETE
--- =================================================================
--- New Analytics Functions Appended Below
--- =================================================================
 
 DROP FUNCTION IF EXISTS public.get_inventory_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
@@ -1947,7 +1880,6 @@ BEGIN
     );
 END;
 $$;
-
 
 DROP FUNCTION IF EXISTS public.get_sales_analytics(uuid);
 CREATE OR REPLACE FUNCTION public.get_sales_analytics(p_company_id uuid)
@@ -2012,15 +1944,81 @@ BEGIN
 END;
 $$;
 
--- Add a foreign key to sale_items to ensure data integrity
-ALTER TABLE public.sale_items
-ADD CONSTRAINT fk_sale_items_company
-FOREIGN KEY (company_id) REFERENCES public.companies(id);
+DROP FUNCTION IF EXISTS public.get_business_profile(uuid);
+CREATE OR REPLACE FUNCTION public.get_business_profile(p_company_id uuid)
+RETURNS TABLE (monthly_revenue bigint, outstanding_po_value bigint, risk_tolerance text)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    WITH monthly_sales AS (
+        SELECT COALESCE(SUM(total_amount), 0) as revenue
+        FROM public.sales
+        WHERE company_id = p_company_id AND created_at >= NOW() - INTERVAL '30 days'
+    ),
+    open_pos AS (
+        SELECT COALESCE(SUM(total_amount), 0) as po_value
+        FROM public.purchase_orders
+        WHERE company_id = p_company_id AND status IN ('draft', 'sent', 'partial')
+    )
+    SELECT 
+        (SELECT revenue FROM monthly_sales),
+        (SELECT po_value FROM open_pos),
+        'moderate'::text as risk_tolerance;
+END;
+$$;
 
--- Add foreign key for inventory location
+DROP FUNCTION IF EXISTS public.health_check_inventory_consistency(uuid);
+CREATE OR REPLACE FUNCTION public.health_check_inventory_consistency(p_company_id uuid)
+RETURNS TABLE (healthy boolean, metric numeric, message text)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    negative_count int;
+BEGIN
+    SELECT COUNT(*) INTO negative_count
+    FROM inventory
+    WHERE company_id = p_company_id AND quantity < 0 AND deleted_at IS NULL;
+    
+    RETURN QUERY SELECT 
+        negative_count = 0, 
+        negative_count,
+        CASE 
+            WHEN negative_count = 0 THEN 'Inventory levels are consistent.'
+            ELSE negative_count || ' item(s) have negative stock, indicating data corruption.'
+        END;
+END;
+$$;
+
+DROP FUNCTION IF EXISTS public.health_check_financial_consistency(uuid);
+CREATE OR REPLACE FUNCTION public.health_check_financial_consistency(p_company_id uuid)
+RETURNS TABLE (healthy boolean, metric numeric, message text)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    mismatch_count int;
+BEGIN
+    SELECT COUNT(*) INTO mismatch_count
+    FROM sale_items si
+    WHERE si.company_id = p_company_id AND si.cost_at_time IS NULL;
+
+    RETURN QUERY SELECT
+        mismatch_count = 0,
+        mismatch_count,
+        CASE
+            WHEN mismatch_count = 0 THEN 'All sales have recorded costs, financial data is consistent.'
+            ELSE mismatch_count || ' sale line items are missing cost data, affecting profit reports.'
+        END;
+END;
+$$;
+
+ALTER TABLE public.sale_items
+DROP CONSTRAINT IF EXISTS fk_sale_items_company,
+ADD CONSTRAINT fk_sale_items_company
+FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
 ALTER TABLE public.inventory
+DROP CONSTRAINT IF EXISTS fk_inventory_location,
 ADD CONSTRAINT fk_inventory_location
 FOREIGN KEY (location_id) REFERENCES public.locations(id) ON DELETE SET NULL;
-
-
-    
+`;

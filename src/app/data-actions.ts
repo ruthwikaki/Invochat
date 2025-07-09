@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import type { Message } from '@/types';
@@ -62,8 +60,8 @@ import {
   testDatabaseQuery as dbTestQuery,
   testMaterializedView as dbTestMView,
   getBusinessProfile,
-  getInventoryConsistencyReport,
-  getFinancialConsistencyReport
+  healthCheckInventoryConsistency,
+  healthCheckFinancialConsistency
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -77,8 +75,8 @@ import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { ai } from '@/ai/genkit';
+import { createPurchaseOrderInDb } from '@/services/database';
 
-// Helper function to get company and user IDs
 async function getAuthContext() {
     const cookieStore = cookies();
     const supabase = createServerClient(
@@ -95,31 +93,26 @@ async function getAuthContext() {
     return { companyId, userId: user.id };
 }
 
-// Dashboard
 export async function getDashboardData(dateRange: string) {
     const { companyId } = await getAuthContext();
     return getDashboardMetrics(companyId, dateRange);
 }
 
-// Dead Stock
 export async function getDeadStockData() {
     const { companyId } = await getAuthContext();
     return getDeadStockPageData(companyId);
 }
 
-// Alerts
 export async function getAlertsData(): Promise<Alert[]> {
     const { companyId } = await getAuthContext();
     return getAlertsFromDB(companyId);
 }
 
-// Database Explorer
 export async function getDatabaseSchemaAndData() {
     const { companyId } = await getAuthContext();
     return getDbSchemaAndData(companyId);
 }
 
-// Settings
 export async function getCompanySettings() {
     const { companyId } = await getAuthContext();
     return getSettings(companyId);
@@ -137,7 +130,6 @@ export async function updateCompanySettings(formData: FormData) {
   return updateSettingsInDb(companyId, settings);
 }
 
-// Insights
 export async function getInsightsPageData() {
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
@@ -154,8 +146,8 @@ export async function getInsightsPageData() {
                 dateContext: {
                     dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
                     month: date.toLocaleDateString('en-US', { month: 'long' }),
-                    season: 'Summer', // This is a placeholder
-                    knownHoliday: undefined, // This would require a holiday API
+                    season: 'Summer',
+                    knownHoliday: undefined,
                 },
             });
             return { ...anomaly, ...explanation };
@@ -176,7 +168,6 @@ export async function getInsightsPageData() {
     };
 }
 
-// Inventory
 export async function getUnifiedInventory(params: { query?: string; category?: string; location?: string, supplier?: string, page?: number, limit?: number }) {
     const { companyId } = await getAuthContext();
     return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
@@ -227,7 +218,6 @@ export async function getInventoryLedger(sku: string) {
 export async function exportInventory(params: { query?: string; category?: string; location?: string, supplier?: string }) {
     try {
         const { companyId } = await getAuthContext();
-        // Fetch all items that match the filter, without pagination limits
         const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
@@ -236,7 +226,6 @@ export async function exportInventory(params: { query?: string; category?: strin
     }
 }
 
-// Team Management
 export async function getTeamMembers() {
     const { companyId } = await getAuthContext();
     return getTeamMembersFromDB(companyId);
@@ -246,7 +235,6 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
     try {
         const { companyId } = await getAuthContext();
         const email = formData.get('email') as string;
-        // In a real app, we'd fetch the company name from the DB
         await inviteUserToCompanyInDb(companyId, 'Your Company', email);
         return { success: true };
     } catch (e) {
@@ -279,7 +267,6 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
     }
 }
 
-// Reordering Suggestions
 export async function getReorderSuggestions(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
     const settings = await getSettings(companyId);
@@ -290,7 +277,6 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
   try {
     const { companyId } = await getAuthContext();
     
-    // Group suggestions by supplier_id
     const suggestionsBySupplier = suggestions.reduce((acc, s) => {
         const supplierId = s.supplier_id || 'unknown';
         if (!acc[supplierId]) {
@@ -321,7 +307,6 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
   }
 }
 
-// Purchase Orders
 export async function getPurchaseOrders(params: { query?: string, page: number }) {
     const { companyId } = await getAuthContext();
     const limit = 25;
@@ -347,7 +332,14 @@ export async function getPurchaseOrderById(id: string) {
 export async function createPurchaseOrder(data: PurchaseOrderCreateInput) {
     try {
         const { companyId } = await getAuthContext();
-        await createPurchaseOrderInDb(companyId, data);
+        const poDataWithCents = {
+            ...data,
+            items: data.items.map(item => ({
+                ...item,
+                unit_cost: Math.round(item.unit_cost * 100)
+            }))
+        };
+        await createPurchaseOrderInDb(companyId, poDataWithCents);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch(e) {
@@ -358,7 +350,14 @@ export async function createPurchaseOrder(data: PurchaseOrderCreateInput) {
 export async function updatePurchaseOrder(id: string, data: PurchaseOrderUpdateInput) {
     try {
         const { companyId } = await getAuthContext();
-        await updatePurchaseOrderInDb(id, companyId, data);
+        const poDataWithCents = {
+            ...data,
+            items: data.items.map(item => ({
+                ...item,
+                unit_cost: Math.round(item.unit_cost * 100)
+            }))
+        };
+        await updatePurchaseOrderInDb(id, companyId, poDataWithCents);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch(e) {
@@ -403,7 +402,6 @@ export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Pr
     }
 }
 
-// Channel Fees
 export async function getChannelFees() {
     const { companyId } = await getAuthContext();
     return getChannelFeesFromDB(companyId);
@@ -415,7 +413,7 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         const feeData = {
             channel_name: formData.get('channel_name') as string,
             percentage_fee: parseFloat(formData.get('percentage_fee') as string),
-            fixed_fee: parseFloat(formData.get('fixed_fee') as string),
+            fixed_fee: Math.round(parseFloat(formData.get('fixed_fee') as string) * 100),
         };
         await upsertChannelFeeInDB(companyId, feeData);
         revalidatePath('/settings');
@@ -425,7 +423,6 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     }
 }
 
-// Locations
 export async function getLocations() {
     const { companyId } = await getAuthContext();
     return getLocationsFromDB(companyId);
@@ -464,7 +461,6 @@ export async function deleteLocation(formData: FormData) {
     }
 }
 
-// Suppliers
 export async function getSupplierById(id: string) {
     const { companyId } = await getAuthContext();
     return getSupplierByIdFromDB(id, companyId);
@@ -499,7 +495,6 @@ export async function deleteSupplier(formData: FormData) {
     }
 }
 
-// Integrations
 export async function getIntegrations() {
     const { companyId } = await getAuthContext();
     return getIntegrationsByCompanyId(companyId);
@@ -521,7 +516,6 @@ export async function disconnectIntegration(formData: FormData) {
     }
 }
 
-// Customers
 export async function getCustomersData(params: { query?: string, page: number }) {
     const { companyId } = await getAuthContext();
     const limit = 25;
@@ -557,7 +551,6 @@ export async function exportCustomers(params: { query?: string }) {
     }
 }
 
-// Sales
 export async function searchProductsForSale(query: string) {
     const { companyId } = await getAuthContext();
     return searchProductsForSaleInDB(companyId, query);
@@ -572,8 +565,16 @@ export async function recordSale(formData: FormData): Promise<{ success: boolean
         const { companyId, userId } = await getAuthContext();
         const saleDataString = formData.get('saleData') as string;
         const saleData: SaleCreateInput = JSON.parse(saleDataString);
+        
+        const saleDataWithCents = {
+            ...saleData,
+            items: saleData.items.map(item => ({
+                ...item,
+                unit_price: Math.round(item.unit_price * 100),
+            })),
+        };
 
-        const sale = await recordSaleInDB(companyId, userId, saleData);
+        const sale = await recordSaleInDB(companyId, userId, saleDataWithCents);
         revalidatePath('/sales');
         return { success: true, sale };
     } catch (e) {
@@ -603,13 +604,10 @@ export async function exportSales(params: { query?: string }) {
     }
 }
 
-// Export
 export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
         const job = await createExportJobInDb(companyId, userId);
-        // In a real app, this would trigger a background worker.
-        // For now, we just log it.
         logger.info(`[Export] Job ${job.id} created for company ${companyId}.`);
         return { success: true, jobId: job.id };
     } catch (e) {
@@ -617,7 +615,6 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
     }
 }
 
-// System Health Actions (for the test page)
 export async function testSupabaseConnection() {
     return dbTestSupabase();
 }
@@ -635,4 +632,13 @@ export async function testRedisConnection() {
         isEnabled: isRedisEnabled,
         ...await redisTest()
     };
+}
+export async function getInventoryConsistencyReport() {
+    const { companyId } = await getAuthContext();
+    return healthCheckInventoryConsistency(companyId);
+}
+
+export async function getFinancialConsistencyReport() {
+    const { companyId } = await getAuthContext();
+    return healthCheckFinancialConsistency(companyId);
 }

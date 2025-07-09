@@ -2,13 +2,6 @@
 
 'use server';
 
-/**
- * @fileoverview
- * This file is the single source of truth for all direct database queries.
- * It uses the Supabase Admin client (service_role) to bypass Row Level Security (RLS).
- * SECURITY: All functions in this file MUST manually filter queries by `companyId`.
- */
-
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionBaseSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema } from '@/types';
@@ -26,7 +19,6 @@ import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
 
 
-// Simple regex to validate a string is in UUID format.
 export const isValidUuid = (uuid: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
 
 export async function withPerformanceTracking<T>(
@@ -51,7 +43,6 @@ export async function refreshMaterializedViews(companyId: string): Promise<void>
         });
         if (error) {
             logError(error, { context: `Failed to refresh materialized views for company ${companyId}` });
-            // Don't throw, as this is a background optimization, not a critical failure
         } else {
             logger.info(`[DB Service] Refreshed materialized views for company ${companyId}`);
         }
@@ -75,7 +66,6 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
         }
 
         if (data) {
-            // Validate data against the Zod schema before returning
             return CompanySettingsSchema.parse(data);
         }
 
@@ -171,7 +161,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
   const fetchAndCacheMetrics = async (): Promise<DashboardMetrics> => {
     return withPerformanceTracking('getDashboardMetricsOptimized', async () => {
         const supabase = getServiceRoleClient();
-        const days = parseInt(dateRange.replace('d', ''), 10) || 30; // Parse days from string
+        const days = parseInt(dateRange.replace('d', ''), 10) || 30;
         
         const { data: mvData, error: mvError } = await supabase
             .from('company_dashboard_metrics')
@@ -604,9 +594,8 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
     return withPerformanceTracking('getDatabaseSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
 
-        // Fetch data for all main tables in parallel
         const tablePromises = USER_FACING_TABLES
-            .filter(tableName => tableName !== 'purchase_order_items' && tableName !== 'sale_items') // Handle these one separately
+            .filter(tableName => tableName !== 'purchase_order_items' && tableName !== 'sale_items')
             .map(async (tableName) => {
                 const { data, error } = await supabase
                     .from(tableName)
@@ -625,7 +614,6 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
 
         const allTableData = await Promise.all(tablePromises);
 
-        // Fetch PO Items
         const purchaseOrders = allTableData.find(d => d.tableName === 'purchase_orders')?.rows as PurchaseOrder[] ?? [];
         const poIds = purchaseOrders.map(po => po.id).filter(Boolean);
 
@@ -637,7 +625,6 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
         }
         allTableData.push({ tableName: 'purchase_order_items', rows: poItems });
 
-        // Fetch Sale Items
         const sales = allTableData.find(d => d.tableName === 'sales')?.rows as Sale[] ?? [];
         const saleIds = sales.map(s => s.id).filter(Boolean);
 
@@ -650,7 +637,6 @@ export async function getDbSchemaAndData(companyId: string): Promise<{ tableName
         allTableData.push({ tableName: 'sale_items', rows: saleItems });
 
 
-        // Ensure the final array is in the original, intended order
         return USER_FACING_TABLES.map(tableName => 
             allTableData.find(d => d.tableName === tableName) ?? { tableName, rows: [] }
         );
@@ -701,7 +687,7 @@ export async function getTeamMembersFromDB(companyId: string): Promise<TeamMembe
             .from('users')
             .select('id, email, role')
             .eq('company_id', companyId)
-            .is('deleted_at', null); // Only fetch active members
+            .is('deleted_at', null);
 
         if (error) {
             logError(error, { context: `Error fetching team members for company ${companyId}` });
@@ -719,7 +705,7 @@ export async function inviteUserToCompanyInDb(companyId: string, companyName: st
             data: {
                 company_id: companyId,
                 company_name: companyName,
-                role: 'Member' // Default role for invites
+                role: 'Member'
             },
             redirectTo: `${config.app.url}/dashboard`,
         });
@@ -748,7 +734,6 @@ export async function removeTeamMemberFromDb(
     return withPerformanceTracking('removeTeamMemberFromDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // Soft-delete the user's association with the company
         const { error } = await supabase
             .from('users')
             .update({ deleted_at: new Date().toISOString() })
@@ -773,7 +758,6 @@ export async function updateTeamMemberRoleInDb(
      return withPerformanceTracking('updateTeamMemberRoleInDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // You can't change the role of the Owner
         const { data: memberData } = await supabase.from('users').select('role').eq('id', memberIdToUpdate).single();
         if (memberData?.role === 'Owner') {
             return { success: false, error: "The Company Owner's role cannot be changed." };
@@ -790,14 +774,12 @@ export async function updateTeamMemberRoleInDb(
             return { success: false, error: updateError.message };
         }
         
-        // Also update the role in auth.users for the JWT
         const { error: authUpdateError } = await supabase.auth.admin.updateUserById(memberIdToUpdate, {
             app_metadata: { role: newRole }
         });
         
         if (authUpdateError) {
             logError(authUpdateError, { context: `Failed to auth role for ${memberIdToUpdate}` });
-            // This is a problem, but the primary DB is updated. We'll log it but not fail the whole op.
         }
 
         return { success: true };
@@ -813,7 +795,7 @@ export async function getReorderSuggestionsFromDB(companyId: string, timezone: s
 
         const { data, error } = await supabase.rpc('get_reorder_suggestions', {
             p_company_id: companyId,
-            p_fast_moving_days: settings.fast_moving_days
+            p_fast_moving_days: settings.fast_moving_days,
         });
         
         if (error) {
@@ -834,12 +816,10 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('createPurchaseOrdersFromSuggestionsInDb', async () => {
         const supabase = getServiceRoleClient();
-        const businessProfile = await getBusinessProfile(companyId);
 
         const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions_tx', {
             p_company_id: companyId,
-            p_po_payload: poPayload,
-            p_business_profile: businessProfile,
+            p_po_payload: poPayload
         });
 
         if (error) {
@@ -860,7 +840,6 @@ export async function getHistoricalSalesForSkus(
     return withPerformanceTracking('getHistoricalSalesForSkus', async () => {
         const supabase = getServiceRoleClient();
 
-        // Use the new, secure RPC function
         const { data, error } = await supabase.rpc('get_historical_sales', {
             p_company_id: companyId,
             p_skus: skus
@@ -922,7 +901,6 @@ export async function upsertChannelFeeInDB(companyId: string, fee: { channel_nam
     });
 }
 
-// Location DB Functions
 export async function getLocationsFromDB(companyId: string): Promise<Location[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getLocationsFromDB', async () => {
@@ -1012,7 +990,6 @@ export async function deleteLocationFromDB(id: string, companyId: string): Promi
     });
 }
 
-// Supplier DB Functions
 export async function getSupplierByIdFromDB(id: string, companyId: string): Promise<Supplier | null> {
     if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('getSupplierByIdFromDB', async () => {
@@ -1081,7 +1058,6 @@ export async function deleteSupplierFromDb(id: string, companyId: string): Promi
 
         if (error) {
             logError(error, { context: `deleteSupplierFromDb: ${id}` });
-            // Make the error message more user-friendly
             if (error.message.includes('Cannot delete supplier with active purchase orders')) {
                 throw new Error('Cannot delete supplier. They are associated with active purchase orders. Please reassign or delete the POs first.');
             }
@@ -1096,7 +1072,6 @@ export async function softDeleteInventoryItemsFromDb(companyId: string, skus: st
     return withPerformanceTracking('softDeleteInventoryItemsFromDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // Data integrity check: ensure these SKUs are not in use.
         const { data: activeReferences, error: refError } = await supabase.rpc('check_inventory_references', {
             p_company_id: companyId,
             p_skus: skus
@@ -1166,7 +1141,6 @@ export async function updateInventoryItemInDb(companyId: string, sku: string, it
 }
 
 
-// Integration Functions
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   return withPerformanceTracking('getIntegrationsByCompanyId', async () => {
@@ -1385,7 +1359,6 @@ export async function deleteCustomerFromDb(id: string, companyId: string): Promi
     return withPerformanceTracking('deleteCustomerFromDb', async () => {
         const supabase = getServiceRoleClient();
         
-        // Check for existing sales
         const { count, error: countError } = await supabase
             .from('sales')
             .select('id', { count: 'exact', head: true })
@@ -1398,7 +1371,6 @@ export async function deleteCustomerFromDb(id: string, companyId: string): Promi
         }
 
         if (count && count > 0) {
-            // Soft delete
             const { error: updateError } = await supabase
                 .from('customers')
                 .update({ status: 'deleted', deleted_at: new Date().toISOString() })
@@ -1409,7 +1381,6 @@ export async function deleteCustomerFromDb(id: string, companyId: string): Promi
                 throw updateError;
             }
         } else {
-            // Hard delete
             const { error: deleteError } = await supabase
                 .from('customers')
                 .delete()
@@ -1420,27 +1391,6 @@ export async function deleteCustomerFromDb(id: string, companyId: string): Promi
                 throw deleteError;
             }
         }
-    });
-}
-
-export async function createExportJobInDb(companyId: string, userId: string): Promise<ExportJob> {
-    if (!isValidUuid(companyId) || !isValidUuid(userId)) throw new Error('Invalid ID format.');
-    return withPerformanceTracking('createExportJobInDb', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase
-            .from('export_jobs')
-            .insert({
-                company_id: companyId,
-                requested_by_user_id: userId,
-                status: 'pending',
-            })
-            .select()
-            .single();
-        if (error) {
-            logError(error, { context: 'createExportJobInDb' });
-            throw error;
-        }
-        return ExportJobSchema.parse(data);
     });
 }
 
@@ -1491,7 +1441,6 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
 }
 
 
-// --- Sales Recording ---
 export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>[]> {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   return withPerformanceTracking('searchProductsForSale', async () => {
@@ -1517,11 +1466,10 @@ export async function searchProductsForSaleInDB(companyId: string, query: string
   });
 }
 
-export async function recordSaleInDB(companyId: string, userId: string, saleData: SaleCreateInput): Promise<Sale> {
+export async function recordSaleInDB(companyId: string, userId: string, saleData: Omit<SaleCreateInput, 'items'> & { items: { sku: string; product_name: string; quantity: number; unit_price: number }[] }): Promise<Sale> {
   return withPerformanceTracking('recordSaleInDB', async () => {
     const supabase = getServiceRoleClient();
     
-    // Prepare items for RPC, ensuring we fetch the current cost to store it historically.
     const itemsForRpc = await Promise.all(saleData.items.map(async (item) => {
         const { data: inventoryItem, error } = await supabase
             .from('inventory')
@@ -1588,31 +1536,6 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
   });
 }
 
-// Supabase has no method for logging in a user by their id, but it does allow for a user to be created.
-// This is a workaround for that.
-export async function logSuccessfulLogin(userId: string, ipAddress: string): Promise<void> {
-    if (!isValidUuid(userId)) return;
-
-    return withPerformanceTracking('logSuccessfulLogin', async () => {
-        const supabase = getServiceRoleClient();
-        const { error } = await supabase
-            .from('audit_log')
-            .insert({
-                user_id: userId,
-                action: 'user_login',
-                details: {
-                    ip_address: ipAddress,
-                    user_agent: 'unknown'
-                }
-            });
-        
-        if (error) {
-            logError(error, { context: `Failed to log login for user ${userId}`});
-            // Do not throw, this is a non-critical audit log.
-        }
-    });
-}
-
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getInventoryAnalyticsFromDB', async () => {
@@ -1652,8 +1575,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
     });
 }
 
-// Health Check Functions
-export async function getInventoryConsistencyReport(companyId: string): Promise<HealthCheckResult> {
+export async function healthCheckInventoryConsistency(companyId: string): Promise<HealthCheckResult> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getInventoryConsistencyReport', async () => {
         const supabase = getServiceRoleClient();
@@ -1666,7 +1588,7 @@ export async function getInventoryConsistencyReport(companyId: string): Promise<
     });
 }
 
-export async function getFinancialConsistencyReport(companyId: string): Promise<HealthCheckResult> {
+export async function healthCheckFinancialConsistency(companyId: string): Promise<HealthCheckResult> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getFinancialConsistencyReport', async () => {
         const supabase = getServiceRoleClient();
@@ -1686,10 +1608,29 @@ export async function getBusinessProfile(companyId: string): Promise<BusinessPro
         const { data, error } = await supabase.rpc('get_business_profile', { p_company_id: companyId });
         if (error) {
             logError(error, { context: `Error fetching business profile for company ${companyId}` });
-            // Return a default conservative profile on error
             return { monthly_revenue: 0, outstanding_po_value: 0, risk_tolerance: 'conservative' };
         }
         return BusinessProfileSchema.parse(data?.[0] || {});
      });
 }
     
+export async function createExportJobInDb(companyId: string, userId: string): Promise<ExportJob> {
+    if (!isValidUuid(companyId) || !isValidUuid(userId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('createExportJobInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('export_jobs')
+            .insert({
+                company_id: companyId,
+                requested_by_user_id: userId,
+                status: 'pending',
+            })
+            .select()
+            .single();
+        if (error) {
+            logError(error, { context: 'createExportJobInDb' });
+            throw error;
+        }
+        return ExportJobSchema.parse(data);
+    });
+}

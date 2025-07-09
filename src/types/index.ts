@@ -174,14 +174,12 @@ export const AnomalySchema = z.object({
     avg_customers: z.coerce.number().int(),
     anomaly_type: z.string(),
     deviation_percentage: z.coerce.number().optional(), // Make sure this is part of the schema if used
-    // Added fields for AI explanation
     explanation: z.string().optional(),
     confidence: z.enum(['high', 'medium', 'low']).optional(),
     suggestedAction: z.string().optional(),
 });
 export type Anomaly = z.infer<typeof AnomalySchema>;
 
-// New types for Purchase Orders
 export const PurchaseOrderItemSchema = z.object({
   id: z.string().uuid(),
   po_id: z.string().uuid(),
@@ -206,7 +204,6 @@ export const PurchaseOrderSchema = z.object({
   notes: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string().nullable(),
-  // For UI display
   supplier_name: z.string().optional().nullable(),
   supplier_email: z.string().email().optional().nullable(),
   items: z.array(PurchaseOrderItemSchema).optional(),
@@ -216,7 +213,7 @@ export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 const POItemInputSchema = z.object({
     sku: z.string().min(1, 'SKU is required.'),
     quantity_ordered: z.coerce.number().positive('Quantity must be greater than 0.'),
-    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'), // This will be dollars in UI, converted to cents in action
+    unit_cost: z.coerce.number().nonnegative('Cost cannot be negative.'),
 });
 
 export const PurchaseOrderCreateSchema = z.object({
@@ -246,7 +243,6 @@ export const ReceiveItemsFormSchema = z.object({
 export type ReceiveItemsFormInput = z.infer<typeof ReceiveItemsFormSchema>;
 
 
-// New types for Supplier Catalogs and Reordering
 export const SupplierCatalogSchema = z.object({
   id: z.string().uuid(),
   supplier_id: z.string().uuid(),
@@ -271,7 +267,6 @@ export const ReorderRuleSchema = z.object({
 });
 export type ReorderRule = z.infer<typeof ReorderRuleSchema>;
 
-// Base suggestion from the DB
 export const ReorderSuggestionBaseSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
@@ -280,17 +275,15 @@ export const ReorderSuggestionBaseSchema = z.object({
     suggested_reorder_quantity: z.number(),
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
-    unit_cost: z.number().int().nullable(), // In cents
+    unit_cost: z.number().int().nullable(),
 });
 
-// The final, enriched suggestion object after AI and validation
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
     base_quantity: z.number().int().optional(),
     adjustment_reason: z.string().optional(),
     seasonality_factor: z.number().optional(),
     confidence: z.number().optional(),
-    // Added for SMB Safeguards
-    validationStatus: z.enum(['approved', 'warning', 'blocked']).default('approved'),
+    validationStatus: z.enum(['approved', 'warning', 'blocked']).optional(),
     warnings: z.array(z.string()).optional(),
 });
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
@@ -389,7 +382,6 @@ export const CustomerAnalyticsSchema = z.object({
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
-// === Sales Recording ===
 export const SaleItemSchema = z.object({
     id: z.string().uuid(),
     sale_id: z.string().uuid(),
@@ -419,7 +411,7 @@ export const SaleCreateItemSchema = z.object({
   sku: z.string().min(1),
   product_name: z.string(),
   quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
-  unit_price: z.coerce.number().min(0), // In dollars in UI, converted to cents in action
+  unit_price: z.coerce.number().min(0),
 });
 export type SaleCreateItemInput = z.infer<typeof SaleCreateItemSchema>;
 
@@ -433,7 +425,6 @@ export const SaleCreateSchema = z.object({
 export type SaleCreateInput = z.infer<typeof SaleCreateSchema>;
 
 
-// Schemas for AI Flows moved from flow files
 export const AnomalyExplanationInputSchema = z.object({
   anomaly: z.custom<Anomaly>(),
   dateContext: z.object({
@@ -469,7 +460,6 @@ export const CsvMappingOutputSchema = z.object({
 });
 export type CsvMappingOutput = z.infer<typeof CsvMappingOutputSchema>;
 
-// Page-specific analytics types
 export type InventoryAnalytics = {
     total_inventory_value: number; // In cents
     total_skus: number;
@@ -491,7 +481,6 @@ export const SalesAnalyticsSchema = z.object({
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
-// SMB Safeguards
 export const BusinessProfileSchema = z.object({
   monthly_revenue: z.number().int().default(0),
   outstanding_po_value: z.number().int().default(0),
