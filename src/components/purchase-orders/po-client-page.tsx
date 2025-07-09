@@ -358,4 +358,3 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders, totalCount, ite
     </div>
   );
 }
-```
