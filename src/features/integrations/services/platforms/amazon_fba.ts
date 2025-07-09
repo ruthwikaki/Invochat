@@ -10,8 +10,8 @@ import { getSecret } from '../encryption';
 
 // Since this is a simulation, we'll create some mock data.
 const MOCK_FBA_PRODUCTS = [
-    { sku: 'FBA-PROD-001', name: 'Premium FBA Widget', stock: 150, price: 29.99, category: 'Widgets' },
-    { sku: 'FBA-PROD-002', name: 'Standard FBA Gadget', stock: 300, price: 19.99, category: 'Gadgets' },
+    { sku: 'FBA-PROD-001', name: 'Premium FBA Widget', stock: 150, price: 29.99, cost: 15.00, category: 'Widgets' },
+    { sku: 'FBA-PROD-002', name: 'Standard FBA Gadget', stock: 300, price: 19.99, cost: 10.00, category: 'Gadgets' },
 ];
 
 const MOCK_FBA_ORDERS = [
@@ -28,7 +28,7 @@ async function syncProducts(integration: Integration, credentials: { sellerId: s
         sku: product.sku,
         name: product.name,
         quantity: product.stock,
-        cost: product.price * 0.5, // Assume 50% cost for demo
+        cost: product.cost,
         price: product.price,
         category: product.category,
         source_platform: 'amazon_fba',
@@ -51,6 +51,15 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
     let totalRecordsSynced = 0;
 
     for (const order of MOCK_FBA_ORDERS) {
+        // Find the cost for each item at the time of sync
+        const itemsWithCost = order.items.map(item => {
+            const product = MOCK_FBA_PRODUCTS.find(p => p.sku === item.sku);
+            return {
+                ...item,
+                cost_at_time: product?.cost, // Use the cost from our mock product list
+            };
+        });
+
         const { error } = await supabase.rpc('record_sale_transaction', {
             p_company_id: integration.company_id,
             p_user_id: null,
@@ -58,12 +67,12 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
             p_customer_email: order.customer.email,
             p_payment_method: 'amazon_fba',
             p_notes: `Amazon Order #${order.id}`,
-            p_sale_items: order.items.map(item => ({
+            p_sale_items: itemsWithCost.map(item => ({
                 sku: item.sku,
                 product_name: item.name,
                 quantity: item.quantity,
                 unit_price: item.price,
-                cost_at_time: null,
+                cost_at_time: item.cost_at_time,
             })),
             p_external_id: order.id
         });
@@ -108,3 +117,4 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         throw e;
     }
 }
+

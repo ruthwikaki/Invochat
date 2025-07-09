@@ -372,10 +372,17 @@ AS $$
 DECLARE
   new_company_id uuid;
   user_role public.user_role;
+  company_name_text text;
 BEGIN
+  -- Validate company name
+  company_name_text := trim(new.raw_user_meta_data->>'company_name');
+  IF company_name_text IS NULL OR company_name_text = '' THEN
+    RAISE EXCEPTION 'Company name cannot be empty.';
+  END IF;
+
   -- Create a new company for the user
   INSERT INTO public.companies (name)
-  VALUES (new.raw_user_meta_data->>'company_name')
+  VALUES (company_name_text)
   RETURNING id INTO new_company_id;
 
   -- The first user is the Owner
@@ -491,7 +498,7 @@ BEGIN
 
     UNION ALL
 
-    -- Dead Stock Alerts
+    -- Dead Stock Alerts (FIXED to include NULL last_sold_date)
     SELECT
         'dead_stock'::text, i.sku, i.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost), NULL::numeric
@@ -642,20 +649,36 @@ DECLARE
     item_data jsonb;
     new_po_id uuid;
     created_count integer := 0;
+    v_total_amount numeric;
 BEGIN
     FOR po_data IN SELECT * FROM jsonb_array_elements(p_po_payload)
     LOOP
-        INSERT INTO public.purchase_orders (company_id, supplier_id, po_number, order_date, status)
+        -- Check if supplier exists
+        IF (po_data->>'supplier_id') IS NOT NULL AND NOT EXISTS (SELECT 1 FROM vendors WHERE id = (po_data->>'supplier_id')::uuid) THEN
+            RAISE EXCEPTION 'Supplier with ID % does not exist.', (po_data->>'supplier_id');
+        END IF;
+
+        -- Create PO first
+        INSERT INTO public.purchase_orders (company_id, supplier_id, po_number, order_date, status, total_amount)
         VALUES (
             p_company_id,
             (po_data->>'supplier_id')::uuid,
             'PO-' || (nextval('sales_sale_number_seq'::regclass)),
             CURRENT_DATE,
-            'draft'
+            'draft',
+            0 -- Initial total amount
         ) RETURNING id INTO new_po_id;
+        
+        v_total_amount := 0;
 
+        -- Loop through items for this PO
         FOR item_data IN SELECT * FROM jsonb_array_elements(po_data->'items')
         LOOP
+            -- Check if product exists
+            IF NOT EXISTS (SELECT 1 FROM inventory WHERE sku = (item_data->>'sku') AND company_id = p_company_id AND deleted_at IS NULL) THEN
+                RAISE EXCEPTION 'Product with SKU % does not exist or is deleted.', (item_data->>'sku');
+            END IF;
+
             INSERT INTO public.purchase_order_items (po_id, sku, quantity_ordered, unit_cost)
             VALUES (
                 new_po_id,
@@ -667,10 +690,13 @@ BEGIN
             UPDATE public.inventory
             SET on_order_quantity = on_order_quantity + (item_data->>'quantity_ordered')::integer
             WHERE sku = item_data->>'sku' AND company_id = p_company_id;
+            
+            v_total_amount := v_total_amount + ((item_data->>'quantity_ordered')::integer * (item_data->>'unit_cost')::numeric);
         END LOOP;
         
+        -- Update the PO with the correct total amount
         UPDATE public.purchase_orders
-        SET total_amount = (SELECT SUM(quantity_ordered * unit_cost) FROM purchase_order_items WHERE po_id = new_po_id)
+        SET total_amount = v_total_amount
         WHERE id = new_po_id;
 
         created_count := created_count + 1;
@@ -735,8 +761,8 @@ BEGIN
     WITH product_revenue AS (
         SELECT
             i.sku,
-            i.name,
-            SUM(si.quantity * si.unit_price) AS revenue
+            i.name as product_name,
+            COALESCE(SUM(si.quantity * si.unit_price), 0) AS revenue
         FROM inventory i
         JOIN sale_items si ON i.sku = si.sku AND i.company_id = si.company_id
         WHERE i.company_id = p_company_id
@@ -748,20 +774,20 @@ BEGIN
     ranked_revenue AS (
         SELECT
             pr.sku,
-            pr.name,
+            pr.product_name,
             pr.revenue,
-            pr.revenue * 100 / NULLIF(tr.total, 0) AS percentage_of_total,
-            SUM(pr.revenue * 100 / NULLIF(tr.total, 0)) OVER (ORDER BY pr.revenue DESC) AS cumulative_percentage
-        FROM product_revenue pr, total_revenue tr
+            (pr.revenue * 100.0 / NULLIF((SELECT total FROM total_revenue), 0)) AS percentage_of_total,
+            SUM(pr.revenue) OVER (ORDER BY pr.revenue DESC) * 100.0 / NULLIF((SELECT total FROM total_revenue), 0) AS cumulative_percentage
+        FROM product_revenue pr
     )
     SELECT
         rr.sku,
-        rr.name,
+        rr.product_name,
         rr.revenue,
         rr.percentage_of_total,
         CASE
-            WHEN rr.cumulative_percentage <= 70 THEN 'A'
-            WHEN rr.cumulative_percentage <= 90 THEN 'B'
+            WHEN rr.cumulative_percentage <= 80 THEN 'A'
+            WHEN rr.cumulative_percentage <= 95 THEN 'B'
             ELSE 'C'
         END::text AS abc_category
     FROM ranked_revenue rr;
@@ -1040,7 +1066,7 @@ BEGIN
             ELSE 0
         END AS gross_margin_percentage
     FROM sale_items si
-    JOIN sales s ON si.sale_id = s.id
+    JOIN sales s ON si.sale_id = si.sale_id
     WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
     GROUP BY si.product_name, s.payment_method;
 END;
@@ -1263,6 +1289,10 @@ BEGIN
         i.name,
         i.quantity,
         i.reorder_point,
+        -- Corrected Logic:
+        -- 1. Use COALESCE to handle NULL reorder_point, defaulting to 0.
+        -- 2. Use GREATEST with 0 to prevent suggesting negative quantities.
+        -- 3. Use p_fast_moving_days consistently for the calculation window.
         GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * p_fast_moving_days) - i.quantity))::integer as suggested_reorder_quantity,
         v.vendor_name,
         v.id as supplier_id,
@@ -1470,7 +1500,11 @@ BEGIN
         
         IF item.quantity_to_receive > 0 THEN
             UPDATE public.purchase_order_items SET quantity_received = quantity_received + item.quantity_to_receive WHERE po_id = p_po_id AND sku = item.sku;
-            UPDATE public.inventory SET quantity = quantity + item.quantity_to_receive, on_order_quantity = on_order_quantity - item.quantity_to_receive WHERE company_id = p_company_id AND sku = item.sku;
+            UPDATE public.inventory 
+            SET 
+                quantity = quantity + item.quantity_to_receive, 
+                on_order_quantity = GREATEST(0, on_order_quantity - item.quantity_to_receive) -- Prevent on_order from going negative
+            WHERE company_id = p_company_id AND sku = item.sku;
             INSERT INTO inventory_ledger (company_id, sku, change_type, quantity_change, new_quantity, related_id)
             VALUES (p_company_id, item.sku, 'purchase_order_received', item.quantity_to_receive, (SELECT quantity FROM inventory WHERE sku=item.sku AND company_id=p_company_id), p_po_id);
         END IF;
@@ -1531,7 +1565,7 @@ BEGIN
         VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, v_cost_at_time);
     END LOOP;
     
-    -- Decrement inventory
+    -- Decrement inventory (This function handles the ledger creation)
     PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id);
 
     RETURN new_sale;
@@ -1599,7 +1633,7 @@ begin
     SELECT sku, quantity_ordered FROM public.purchase_order_items WHERE po_id = p_po_id
   LOOP
     UPDATE public.inventory
-    SET on_order_quantity = on_order_quantity - old_item.quantity_ordered
+    SET on_order_quantity = GREATEST(0, on_order_quantity - old_item.quantity_ordered) -- Prevent negative on_order
     WHERE sku = old_item.sku AND company_id = p_company_id;
   END LOOP;
   
@@ -1878,6 +1912,8 @@ BEGIN
     WHERE v.company_id = p_company_id;
 END;
 $$;
+
+
 
 
 

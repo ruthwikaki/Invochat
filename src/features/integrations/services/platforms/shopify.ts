@@ -79,7 +79,7 @@ export async function syncProducts(integration: Integration, accessToken: string
                         sku: variant.sku || `SHOPIFY-${variant.id}`,
                         name: variant.title === 'Default Title' ? product.title : `${product.title} - ${variant.title}`,
                         quantity: variant.inventory_quantity, // Direct sync from Shopify
-                        cost: parseFloat(variant.price),
+                        cost: parseFloat(variant.inventory_item?.cost) || 0,
                         price: parseFloat(variant.price),
                         category: product.product_type,
                         barcode: variant.barcode,
@@ -100,7 +100,7 @@ export async function syncProducts(integration: Integration, accessToken: string
             
             nextUrl = parseLinkHeader(response.headers.get('Link'));
             
-            // Checkpoint progress
+            // Checkpoint progress: Only update cursor on successful batch processing
             await supabase.from('sync_state').upsert({
                 integration_id: integration.id,
                 sync_type: syncType,
@@ -117,6 +117,7 @@ export async function syncProducts(integration: Integration, accessToken: string
     } catch (e: any) {
         logError(e, { context: `Shopify product sync failed for integration ${integration.id}` });
         if (logId) await supabase.from('sync_logs').update({ status: 'failed', completed_at: new Date().toISOString(), error_message: e.message }).eq('id', logId);
+        // Do NOT clear the sync_state on failure, so it can be retried
         throw e;
     }
 }
@@ -164,7 +165,7 @@ export async function syncSales(integration: Integration, accessToken: string) {
                     product_name: item.name,
                     quantity: item.quantity,
                     unit_price: parseFloat(item.price),
-                    cost_at_time: null, // We can't know cost at time of sale from here easily
+                    cost_at_time: null,
                 })),
                 p_external_id: String(order.id)
             });
@@ -222,3 +223,4 @@ export async function runShopifyFullSync(integration: Integration) {
         throw e;
     }
 }
+
