@@ -1521,12 +1521,26 @@ export async function recordSaleInDB(companyId: string, userId: string, saleData
   return withPerformanceTracking('recordSaleInDB', async () => {
     const supabase = getServiceRoleClient();
     
-    const itemsForRpc = saleData.items.map(item => ({
-        sku: item.sku,
-        product_name: item.product_name,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        cost_at_time: item.cost_at_time,
+    // Prepare items for RPC, ensuring we fetch the current cost to store it historically.
+    const itemsForRpc = await Promise.all(saleData.items.map(async (item) => {
+        const { data: inventoryItem, error } = await supabase
+            .from('inventory')
+            .select('cost')
+            .eq('company_id', companyId)
+            .eq('sku', item.sku)
+            .single();
+
+        if (error || !inventoryItem) {
+            throw new Error(`Could not find current cost for SKU: ${item.sku}`);
+        }
+
+        return {
+            sku: item.sku,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            cost_at_time: inventoryItem.cost,
+        };
     }));
     
     const { data, error } = await supabase.rpc('record_sale_transaction', {
@@ -1637,3 +1651,4 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         return data || { total_revenue: 0, average_sale_value: 0, payment_method_distribution: [] };
     });
 }
+

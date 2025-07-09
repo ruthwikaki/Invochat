@@ -274,7 +274,7 @@ export const ReorderSuggestionBaseSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
     current_quantity: z.number(),
-    reorder_point: z.number(),
+    reorder_point: z.number().nullable(),
     suggested_reorder_quantity: z.number(),
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
@@ -288,6 +288,7 @@ export const ReorderSuggestionBaseSchema = z.object({
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.transform((data) => ({
     ...data,
     // Provide default values for nullable fields to prevent downstream errors
+    reorder_point: data.reorder_point ?? 0,
     supplier_name: data.supplier_name ?? 'Unknown Supplier',
     supplier_id: data.supplier_id ?? null,
     unit_cost: data.unit_cost ?? 0,
@@ -411,7 +412,6 @@ export const SaleCreateItemSchema = z.object({
   product_name: z.string(),
   quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
   unit_price: z.coerce.number().min(0),
-  cost_at_time: z.coerce.number().min(0).optional().nullable(),
 });
 export type SaleCreateItemInput = z.infer<typeof SaleCreateItemSchema>;
 
@@ -482,3 +482,4 @@ export const SalesAnalyticsSchema = z.object({
     payment_method_distribution: z.array(z.object({ name: z.string(), value: z.number() })).nullable().default([]),
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
+

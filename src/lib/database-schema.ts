@@ -103,7 +103,6 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     UNIQUE(company_id, sku)
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_company_sku ON public.inventory(company_id, sku);
--- Performance Indexes Added
 CREATE INDEX IF NOT EXISTS idx_inventory_category ON public.inventory(company_id, category);
 CREATE INDEX IF NOT EXISTS idx_inventory_deleted_at ON public.inventory(company_id, deleted_at);
 
@@ -203,7 +202,6 @@ CREATE TABLE IF NOT EXISTS public.sales (
     UNIQUE(company_id, sale_number)
 );
 CREATE INDEX IF NOT EXISTS idx_sales_company_id ON public.sales(company_id);
--- Performance Indexes Added
 CREATE INDEX IF NOT EXISTS idx_sales_created_at ON public.sales(company_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_sales_customer_email ON public.sales(company_id, customer_email);
 
@@ -244,7 +242,6 @@ CREATE TABLE IF NOT EXISTS public.messages (
     created_at timestamptz DEFAULT now(),
     is_error boolean DEFAULT false
 );
--- Performance Index Added
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_created_at ON public.messages(conversation_id, created_at);
 
 
@@ -450,6 +447,9 @@ RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
+  -- This function is a placeholder. In a production environment, you would
+  -- likely refresh specific views based on which tables have changed.
+  -- For this application's scale, refreshing all is acceptable.
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.company_dashboard_metrics;
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.customer_analytics_metrics;
 END;
@@ -738,9 +738,8 @@ BEGIN
             i.name,
             SUM(si.quantity * si.unit_price) AS revenue
         FROM inventory i
-        JOIN sale_items si ON i.sku = si.sku
-        JOIN sales s ON si.sale_id = s.id
-        WHERE i.company_id = p_company_id AND s.company_id = p_company_id
+        JOIN sale_items si ON i.sku = si.sku AND i.company_id = si.company_id
+        WHERE i.company_id = p_company_id
         GROUP BY i.sku, i.name
     ),
     total_revenue AS (
@@ -900,11 +899,10 @@ BEGIN
         SELECT
             date_trunc('day', s.created_at)::date as sale_day,
             SUM(s.total_amount) as daily_revenue,
-            SUM(si.quantity * (si.unit_price - COALESCE(i.cost, 0))) as daily_profit,
+            SUM(si.quantity * si.cost_at_time) as daily_profit,
             COUNT(DISTINCT s.id) as daily_orders
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
-        LEFT JOIN inventory i ON si.sku = i.sku AND s.company_id = i.company_id
         WHERE s.company_id = p_company_id AND s.created_at >= start_date
         GROUP BY 1
     ),
@@ -924,7 +922,7 @@ BEGIN
             SELECT COUNT(*) 
             FROM inventory 
             WHERE company_id = p_company_id AND deleted_at IS NULL
-            AND last_sold_date < now() - (dead_stock_days || ' days')::interval
+            AND (last_sold_date IS NULL OR last_sold_date < now() - (dead_stock_days || ' days')::interval)
         ),
         'salesTrendData', (
             SELECT json_agg(json_build_object('date', ds.date, 'Sales', COALESCE(sd.daily_revenue, 0)))
@@ -1032,20 +1030,19 @@ AS $$
 BEGIN
     RETURN QUERY
     SELECT
-        i.name,
-        s.payment_method,
+        si.product_name,
+        s.payment_method as sales_channel,
         SUM(si.quantity * si.unit_price) AS total_revenue,
-        SUM(si.quantity * i.cost) AS total_cogs,
+        SUM(si.quantity * si.cost_at_time) AS total_cogs,
         CASE
             WHEN SUM(si.quantity * si.unit_price) > 0 THEN
-                (SUM(si.quantity * (si.unit_price - i.cost)) * 100) / SUM(si.quantity * si.unit_price)
+                (SUM(si.quantity * (si.unit_price - si.cost_at_time)) * 100) / SUM(si.quantity * si.unit_price)
             ELSE 0
         END AS gross_margin_percentage
-    FROM inventory i
-    JOIN sale_items si ON i.sku = si.sku
+    FROM sale_items si
     JOIN sales s ON si.sale_id = s.id
-    WHERE i.company_id = p_company_id AND s.created_at >= NOW() - INTERVAL '90 days'
-    GROUP BY i.name, s.payment_method;
+    WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL AND s.created_at >= NOW() - INTERVAL '90 days'
+    GROUP BY si.product_name, s.payment_method;
 END;
 $$;
 
@@ -1096,12 +1093,10 @@ AS $$
 BEGIN
     RETURN QUERY
     WITH cogs_calc AS (
-        SELECT SUM(si.quantity * i.cost) AS total_cogs
+        SELECT SUM(si.quantity * si.cost_at_time) AS total_cogs
         FROM sale_items si
         JOIN sales s ON si.sale_id = s.id
-        JOIN inventory i ON si.sku = si.sku
         WHERE s.company_id = p_company_id AND s.created_at >= NOW() - (p_days || ' day')::interval
-          AND i.company_id = p_company_id
     ),
     inventory_value_calc AS (
         SELECT SUM(quantity * cost) AS current_inventory_value
@@ -1110,10 +1105,10 @@ BEGIN
     )
     SELECT
         CASE
-            WHEN iv.current_inventory_value > 0 THEN cc.total_cogs / iv.current_inventory_value
+            WHEN iv.current_inventory_value > 0 THEN COALESCE(cc.total_cogs, 0) / iv.current_inventory_value
             ELSE 0
         END,
-        cc.total_cogs,
+        COALESCE(cc.total_cogs, 0),
         iv.current_inventory_value,
         p_days
     FROM cogs_calc cc, inventory_value_calc iv;
@@ -1130,13 +1125,12 @@ BEGIN
         to_char(date_trunc('month', s.created_at), 'YYYY-MM') AS month,
         CASE
             WHEN SUM(si.quantity * si.unit_price) > 0 THEN
-                (SUM(si.quantity * (si.unit_price - i.cost)) * 100) / SUM(si.quantity * si.unit_price)
+                (SUM(si.quantity * (si.unit_price - si.cost_at_time)) * 100) / SUM(si.quantity * si.unit_price)
             ELSE 0
         END AS gross_margin_percentage
     FROM sales s
     JOIN sale_items si ON s.id = si.sale_id
-    JOIN inventory i ON si.sku = si.sku
-    WHERE s.company_id = p_company_id AND i.company_id = p_company_id
+    WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
       AND s.created_at >= NOW() - INTERVAL '12 months'
     GROUP BY month
     ORDER BY month;
@@ -1147,18 +1141,19 @@ CREATE OR REPLACE FUNCTION public.get_net_margin_by_channel(p_company_id uuid, p
 RETURNS TABLE(sales_channel text, total_revenue numeric, total_cogs numeric, total_fees numeric, net_margin_percentage numeric)
 LANGUAGE plpgsql
 AS $$
+-- NOTE: This calculation assumes the percentage_fee in the channel_fees table
+-- is stored as a decimal (e.g., 2.9% is stored as 0.029).
 BEGIN
     RETURN QUERY
     WITH channel_sales AS (
         SELECT
             s.payment_method AS channel,
             SUM(si.quantity * si.unit_price) AS revenue,
-            SUM(si.quantity * i.cost) AS cogs,
+            SUM(si.quantity * si.cost_at_time) AS cogs,
             COUNT(s.id) as number_of_sales
         FROM sales s
         JOIN sale_items si ON s.id = si.sale_id
-        JOIN inventory i ON si.sku = si.sku
-        WHERE s.company_id = p_company_id AND i.company_id = p_company_id
+        WHERE s.company_id = p_company_id AND si.cost_at_time IS NOT NULL
           AND s.payment_method = p_channel_name
         GROUP BY s.payment_method
     )
@@ -1268,7 +1263,7 @@ BEGIN
         i.name,
         i.quantity,
         i.reorder_point,
-        GREATEST(0, (CEIL(COALESCE(sv.daily_sales, 0) * p_fast_moving_days) - i.quantity))::integer as suggested_reorder_quantity,
+        GREATEST(0, (COALESCE(i.reorder_point, 0) + CEIL(COALESCE(sv.daily_sales, 0) * p_fast_moving_days) - i.quantity))::integer as suggested_reorder_quantity,
         v.vendor_name,
         v.id as supplier_id,
         sc.unit_cost
@@ -1391,12 +1386,13 @@ BEGIN
                     ), 0
                 ),
                 'monthly_profit', COALESCE(
-                    (SELECT SUM(si.quantity * (si.unit_price - pi.cost))
+                    (SELECT SUM(si.quantity * (si.unit_price - si.cost_at_time))
                      FROM sales s 
                      JOIN sale_items si ON s.id = si.sale_id 
                      WHERE si.sku = pi.sku 
                        AND s.company_id = pi.company_id 
                        AND s.created_at >= CURRENT_DATE - interval '30 days'
+                       AND si.cost_at_time IS NOT NULL
                     ), 0
                 ),
                 'version', pi.version
@@ -1507,10 +1503,11 @@ DECLARE
     item_record record;
     total_amount numeric := 0;
     current_stock integer;
+    v_cost_at_time numeric;
 BEGIN
-    -- [FIX] Check stock levels before proceeding
+    -- Check stock levels before proceeding
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, quantity int) LOOP
-        SELECT quantity INTO current_stock FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id;
+        SELECT quantity INTO current_stock FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id AND deleted_at IS NULL;
         IF NOT FOUND OR current_stock < item_record.quantity THEN
             RAISE EXCEPTION 'Insufficient stock for SKU: %. Available: %, Requested: %', item_record.sku, COALESCE(current_stock, 0), item_record.quantity;
         END IF;
@@ -1526,13 +1523,15 @@ BEGIN
     VALUES (p_company_id, 'SALE-' || nextval('sales_sale_number_seq'::regclass), p_customer_name, p_customer_email, total_amount, p_payment_method, p_notes, p_user_id, p_external_id)
     RETURNING * INTO new_sale;
 
-    -- Insert sale items
-    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric, cost_at_time numeric) LOOP
+    -- Insert sale items and capture cost at time of sale
+    FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price numeric) LOOP
+        SELECT cost INTO v_cost_at_time FROM public.inventory WHERE sku = item_record.sku AND company_id = p_company_id;
+        
         INSERT INTO sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
-        VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
+        VALUES (new_sale.id, p_company_id, item_record.sku, item_record.product_name, item_record.quantity, item_record.unit_price, v_cost_at_time);
     END LOOP;
     
-    -- [FIX] Decrement inventory
+    -- Decrement inventory
     PERFORM public.process_sales_order_inventory(new_sale.company_id, new_sale.id);
 
     RETURN new_sale;
@@ -1879,6 +1878,7 @@ BEGIN
     WHERE v.company_id = p_company_id;
 END;
 $$;
+
 
 
 
