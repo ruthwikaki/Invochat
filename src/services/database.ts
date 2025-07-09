@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, ChannelFee, Location, LocationFormData, SupplierFormData, Supplier, InventoryUpdateData, SupplierPerformanceReport, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, PurchaseOrderAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, PurchaseOrderSchema, ReorderSuggestionBaseSchema, ChannelFeeSchema, LocationSchema, LocationFormSchema, SupplierFormSchema, InventoryUpdateSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -476,6 +476,7 @@ export async function deletePurchaseOrderFromDb(poId: string, companyId: string)
 export async function receivePurchaseOrderItemsInDB(
     poId: string,
     companyId: string,
+    userId: string,
     items: ReceiveItemsFormInput['items']
 ): Promise<void> {
     if (!isValidUuid(poId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
@@ -495,6 +496,7 @@ export async function receivePurchaseOrderItemsInDB(
 
         const { error } = await supabase.rpc('receive_purchase_order_items', {
             p_po_id: poId,
+            p_user_id: userId,
             p_items_to_receive: itemsToReceive,
             p_company_id: companyId
         });
@@ -812,14 +814,15 @@ export async function getReorderSuggestionsFromDB(companyId: string, timezone: s
     });
 }
 
-export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, poPayload: any): Promise<number> {
+export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, poPayload: any, userId: string): Promise<number> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('createPurchaseOrdersFromSuggestionsInDb', async () => {
         const supabase = getServiceRoleClient();
 
         const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions_tx', {
             p_company_id: companyId,
-            p_po_payload: poPayload
+            p_po_payload: poPayload,
+            p_user_id: userId
         });
 
         if (error) {
@@ -1106,7 +1109,7 @@ export async function softDeleteInventoryItemsFromDb(companyId: string, skus: st
 }
 
 export async function updateInventoryItemInDb(companyId: string, sku: string, itemData: InventoryUpdateData): Promise<UnifiedInventoryItem> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    if (!isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('updateInventoryItemInDb', async () => {
         const supabase = getServiceRoleClient();
         
@@ -1301,25 +1304,6 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             throw new Error(`Could not load inventory data: ${error.message}`);
         }
         
-        const UnifiedInventoryItemSchema = z.object({
-            sku: z.string(),
-            product_name: z.string(),
-            category: z.string().nullable(),
-            quantity: z.number(),
-            cost: z.number(),
-            price: z.number().nullable(),
-            total_value: z.number(),
-            reorder_point: z.number().nullable(),
-            on_order_quantity: z.number(),
-            landed_cost: z.number().nullable(),
-            barcode: z.string().nullable(),
-            location_id: z.string().uuid().nullable(),
-            location_name: z.string().nullable(),
-            monthly_units_sold: z.number(),
-            monthly_profit: z.number(),
-            version: z.number(),
-        });
-
         const RpcResponseSchema = z.object({
             items: z.array(UnifiedInventoryItemSchema).nullable().default([]),
             total_count: z.coerce.number().default(0),
@@ -1441,7 +1425,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
 }
 
 
-export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>[]> {
+export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity'>>[] {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   return withPerformanceTracking('searchProductsForSale', async () => {
     const supabase = getServiceRoleClient();
@@ -1632,5 +1616,24 @@ export async function createExportJobInDb(companyId: string, userId: string): Pr
             throw error;
         }
         return ExportJobSchema.parse(data);
+    });
+}
+
+export async function updateProductInDb(companyId: string, productId: string, productData: ProductUpdateData): Promise<Product> {
+    if (!isValidUuid(productId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('updateProductInDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('products')
+            .update({ ...productData, updated_at: new Date().toISOString() })
+            .eq('id', productId)
+            .eq('company_id', companyId)
+            .select()
+            .single();
+        if (error) {
+            logError(error, { context: `updateProductInDb: ${productId}` });
+            throw error;
+        }
+        return data as Product;
     });
 }
