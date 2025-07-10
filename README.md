@@ -21,10 +21,10 @@ This project requires a few environment variables to connect to its services.
 
 For the application to function correctly, you must run a one-time setup script in your Supabase project.
 
-1. Navigate to the **SQL Editor** in your Supabase project dashboard.
-2. In this project, open the file at `src/lib/database-schema.sql`.
-3. Copy the **entire contents** of this file.
-4. Paste the copied SQL code into the Supabase SQL Editor and click **"Run"**.
+1.  In this project, find the file located at `src/lib/database-schema.sql`.
+2.  Copy the **entire contents** of this file.
+3.  Navigate to the **SQL Editor** in your Supabase project dashboard.
+4.  Paste the copied SQL code into the editor and click **"Run"**.
 
 After running the script, you will need to sign out and sign up with a **new user account**. This new account will be correctly configured by the database trigger you just created.
 
@@ -32,8 +32,8 @@ After running the script, you will need to sign out and sign up with a **new use
 
 For securely storing integration API keys, this project uses Supabase Vault.
 
-1. Navigate to the **Vault** section in your Supabase project dashboard (it has a keyhole icon).
-2. Follow the on-screen instructions to **Enable the Vault**. You will be asked to create a new encryption key, which Supabase will then manage for you.
+1.  Navigate to the **Vault** section in your Supabase project dashboard (it has a keyhole icon).
+2.  Follow the on-screen instructions to **Enable the Vault**. You will be asked to create a new encryption key, which Supabase will then manage for you.
 
 ### 4. Install Dependencies
 
