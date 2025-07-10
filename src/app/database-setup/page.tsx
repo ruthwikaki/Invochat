@@ -38,3 +38,7 @@ export default function DatabaseSetupPage() {
                 <Link href="/signup">Go to Sign Up Page</Link>
             </Button>
         </CardFooter>
+      </Card>
+    </div>
+  );
+}
