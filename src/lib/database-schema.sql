@@ -1,10 +1,10 @@
 -- InvoChat Database Setup Script for Supabase
--- Idempotent: Can be run multiple times without causing errors.
+-- Idempotent & Simplified for Fresh Installs
 
--- Enable UUID extension
+-- Enable UUID extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Step 1: Create user_role enum type if it doesn't exist
+-- Step 1: Types and Sequences
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
@@ -12,7 +12,6 @@ BEGIN
     END IF;
 END$$;
 
--- Create sequence for sales
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
 
 -- Step 2: Core Tables
@@ -97,7 +96,6 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0)),
     CONSTRAINT price_non_negative CHECK ((price IS NULL OR price >= 0))
 );
-
 CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
 CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
 
@@ -125,7 +123,6 @@ CREATE TABLE IF NOT EXISTS public.customers (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, email)
 );
-
 CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
 
 -- Step 4: Transactional Tables
@@ -160,7 +157,6 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
-
 CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
 CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
 
@@ -179,10 +175,9 @@ CREATE TABLE IF NOT EXISTS public.sales (
     external_id text,
     UNIQUE(company_id, sale_number)
 );
-
 CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
 
--- Create sale_items table with proper structure from the start
+-- CORRECTED AND SIMPLIFIED SALE_ITEMS TABLE CREATION
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
@@ -190,10 +185,9 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
-    cost_at_time bigint NOT NULL DEFAULT 0,
+    cost_at_time bigint NOT NULL,
     UNIQUE(sale_id, product_id)
 );
-
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
 
@@ -345,7 +339,6 @@ FROM public.products p
 JOIN public.inventory i ON p.id = i.product_id AND p.company_id = i.company_id
 WHERE i.deleted_at IS NULL
 GROUP BY p.company_id;
-
 CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.company_dashboard_metrics(company_id);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.customer_analytics_metrics AS
@@ -371,7 +364,6 @@ SELECT
     ELSE 0 END as repeat_customer_rate
 FROM customer_stats AS cs
 GROUP BY cs.company_id;
-
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
 -- Step 7: Functions
@@ -471,7 +463,6 @@ BEGIN
 END;
 $$;
 
--- CORRECTED get_alerts FUNCTION
 CREATE OR REPLACE FUNCTION public.get_alerts(
     p_company_id uuid,
     p_dead_stock_days integer,
@@ -482,7 +473,7 @@ RETURNS TABLE(type text, product_id uuid, product_name text, current_stock integ
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    -- Query for low stock alerts
+    -- Low Stock Alerts
     RETURN QUERY 
     SELECT
         'low_stock'::text AS type, p.id, p.name::text, i.quantity, i.reorder_point,
@@ -491,8 +482,8 @@ BEGIN
     JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
     WHERE i.company_id = p_company_id AND i.reorder_point IS NOT NULL AND i.quantity <= i.reorder_point AND i.quantity > 0 AND i.deleted_at IS NULL;
 
-    -- Query for dead stock alerts
-    RETURN QUERY 
+    -- Dead Stock Alerts
+    RETURN QUERY
     SELECT
         'dead_stock'::text, p.id, p.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost)::numeric, NULL::numeric
@@ -500,15 +491,16 @@ BEGIN
     JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
     WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0 AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval));
 
-    -- Query for predictive alerts
-    RETURN QUERY 
+    -- Predictive Stockout Alerts
+    RETURN QUERY
     WITH sales_velocity AS (
       SELECT
         si.product_id,
         SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
       FROM public.sale_items si
       JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
-      WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+      WHERE s.company_id = p_company_id 
+      AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
       GROUP BY si.product_id
     )
     SELECT
@@ -520,7 +512,6 @@ BEGIN
     WHERE i.company_id = p_company_id AND sv.daily_sales > 0 AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days AND i.deleted_at IS NULL;
 END;
 $$;
-
 
 CREATE OR REPLACE FUNCTION public.get_anomaly_insights(p_company_id uuid)
 RETURNS TABLE(date text, daily_revenue numeric, daily_customers bigint, avg_revenue numeric, avg_customers numeric, anomaly_type text, deviation_percentage numeric)
@@ -567,27 +558,22 @@ BEGIN
 END;
 $$;
 
--- Drop function if exists to avoid conflicts
 DROP FUNCTION IF EXISTS public.check_inventory_references(uuid, uuid[]);
-
 CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
 RETURNS TABLE(product_id uuid)
 LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT si.product_id::uuid
-    FROM public.sale_items si
-    WHERE si.company_id = p_company_id 
-    AND si.product_id = ANY(p_product_ids)
-    
-    UNION
-    
-    SELECT DISTINCT poi.product_id::uuid
-    FROM public.purchase_order_items poi
-    JOIN public.purchase_orders po ON poi.po_id = po.id
-    WHERE po.company_id = p_company_id 
-    AND poi.product_id = ANY(p_product_ids);
+    SELECT DISTINCT t.product_id
+    FROM (
+        SELECT si.product_id FROM public.sale_items si
+        WHERE si.company_id = p_company_id AND si.product_id = ANY(p_product_ids)
+        UNION ALL
+        SELECT poi.product_id FROM public.purchase_order_items poi
+        JOIN public.purchase_orders po ON poi.po_id = po.id
+        WHERE po.company_id = p_company_id AND poi.product_id = ANY(p_product_ids)
+    ) t;
 END;
 $$;
 
