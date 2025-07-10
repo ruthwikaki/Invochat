@@ -212,8 +212,7 @@ BEGIN
         WHERE si.sale_id = s.id AND si.company_id IS NULL;
     END IF;
     
-    -- Update existing NULL cost_at_time to prevent NOT NULL violation
-    -- Corrected UPDATE statement using a subquery
+    -- Correctly update existing NULL cost_at_time to prevent NOT NULL violation
     UPDATE public.sale_items si
     SET cost_at_time = (
         SELECT i.cost
