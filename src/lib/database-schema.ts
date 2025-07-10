@@ -337,6 +337,16 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     completed_at timestamptz
 );
 
+CREATE TABLE IF NOT EXISTS public.user_feedback (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id uuid NOT NULL REFERENCES auth.users(id),
+    company_id uuid NOT NULL REFERENCES public.companies(id),
+    subject_id text NOT NULL,
+    subject_type text NOT NULL,
+    feedback text NOT NULL,
+    created_at timestamptz DEFAULT now()
+);
+
 -- Step 6: Materialized Views
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
@@ -612,16 +622,23 @@ DECLARE
     tax_amount bigint := 0;
     company_tax_rate numeric;
     current_inventory record;
+    min_stock_level integer;
 BEGIN
     IF EXISTS (SELECT 1 FROM jsonb_to_recordset(p_sale_items) AS x(created_at timestamptz) WHERE x.created_at > NOW()) THEN
       RAISE EXCEPTION 'Sale date cannot be in the future.';
     END IF;
 
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity int) LOOP
-        -- Lock the inventory row for this specific product and location to prevent race conditions
         SELECT i.quantity, i.location_id INTO current_inventory FROM public.inventory i WHERE i.product_id = item_record.product_id AND i.company_id = p_company_id AND i.deleted_at IS NULL FOR UPDATE;
+        
         IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
             RAISE EXCEPTION 'Insufficient stock for product_id: %. Available: %, Requested: %', item_record.product_id, COALESCE(current_inventory.quantity, 0), item_record.quantity;
+        END IF;
+
+        SELECT rr.min_stock INTO min_stock_level FROM public.reorder_rules rr WHERE rr.product_id = item_record.product_id AND rr.company_id = p_company_id;
+
+        IF min_stock_level IS NOT NULL AND (current_inventory.quantity - item_record.quantity) < min_stock_level THEN
+            RAISE EXCEPTION 'This sale would bring stock for product_id % below its minimum level of %.', item_record.product_id, min_stock_level;
         END IF;
     END LOOP;
 
@@ -774,6 +791,7 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.supplier_catalogs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reorder_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_feedback ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE POLICY "Users can only see their own company" ON public.companies FOR SELECT USING (id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE OR REPLACE POLICY "Users can only see users in their own company" ON public.users FOR SELECT USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
@@ -796,6 +814,7 @@ CREATE OR REPLACE POLICY "Users can manage their own messages" ON public.message
 CREATE OR REPLACE POLICY "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs FOR ALL USING (supplier_id IN (SELECT id FROM public.vendors WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
 CREATE OR REPLACE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE OR REPLACE POLICY "Users can manage audit logs for their own company" ON public.audit_log FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+CREATE OR REPLACE POLICY "Users can manage their own feedback" ON public.user_feedback FOR ALL USING (user_id = auth.uid());
 
 -- Step 10: Grants
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
@@ -804,3 +823,4 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authentic
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 `;
+
