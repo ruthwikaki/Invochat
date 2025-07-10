@@ -1,10 +1,11 @@
--- InvoChat Database Setup Script for Supabase
--- Idempotent & Simplified for Fresh Installs
+-- InvoChat Database Setup Script - v6 (Definitive Final)
+-- Idempotent: Can be run multiple times without causing errors.
+-- This version corrects all dependency and ordering issues.
 
--- Enable UUID extension if not already enabled
+-- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Step 1: Types and Sequences
+-- Step 1: Create user_role enum type if it doesn't exist
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
@@ -12,9 +13,10 @@ BEGIN
     END IF;
 END$$;
 
+-- Create sequence for sales
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
 
--- Step 2: Core Tables
+-- Step 2: All Tables (Created first to resolve all dependencies)
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -45,7 +47,6 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     updated_at timestamptz
 );
 
--- Step 3: Entity Tables
 CREATE TABLE IF NOT EXISTS public.products (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -96,8 +97,6 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0)),
     CONSTRAINT price_non_negative CHECK ((price IS NULL OR price >= 0))
 );
-CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
-CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
 
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -123,9 +122,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, email)
 );
-CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
 
--- Step 4: Transactional Tables
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -157,8 +154,6 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
-CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
-CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -175,9 +170,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
     external_id text,
     UNIQUE(company_id, sale_number)
 );
-CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
 
--- CORRECTED AND SIMPLIFIED SALE_ITEMS TABLE CREATION
+-- CLEANED UP: Create sale_items table with all columns and constraints from the start.
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
@@ -185,11 +179,9 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
-    cost_at_time bigint NOT NULL,
+    cost_at_time bigint NOT NULL DEFAULT 0,
     UNIQUE(sale_id, product_id)
 );
-CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
-CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -205,7 +197,6 @@ CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     notes text
 );
 
--- Step 5: Supporting Tables
 CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     supplier_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
@@ -328,7 +319,18 @@ CREATE TABLE IF NOT EXISTS public.user_feedback (
     created_at timestamptz DEFAULT now()
 );
 
--- Step 6: Materialized Views
+-- Step 3: Indexes
+CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
+CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
+CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
+CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
+CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
+CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
+CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
+CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
+
+
+-- Step 4: Materialized Views
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   p.company_id,
@@ -339,6 +341,7 @@ FROM public.products p
 JOIN public.inventory i ON p.id = i.product_id AND p.company_id = i.company_id
 WHERE i.deleted_at IS NULL
 GROUP BY p.company_id;
+
 CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.company_dashboard_metrics(company_id);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.customer_analytics_metrics AS
@@ -364,9 +367,10 @@ SELECT
     ELSE 0 END as repeat_customer_rate
 FROM customer_stats AS cs
 GROUP BY cs.company_id;
+
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
--- Step 7: Functions
+-- Step 5: Functions (Created AFTER all tables are defined)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -474,7 +478,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     -- Low Stock Alerts
-    RETURN QUERY 
+    RETURN QUERY
     SELECT
         'low_stock'::text AS type, p.id, p.name::text, i.quantity, i.reorder_point,
         i.last_sold_date, (i.quantity * i.cost)::numeric AS value, NULL::numeric AS days_of_stock_remaining
@@ -491,7 +495,7 @@ BEGIN
     JOIN public.products p ON i.product_id = p.id AND i.company_id = p.company_id
     WHERE i.company_id = p_company_id AND i.deleted_at IS NULL AND i.quantity > 0 AND (i.last_sold_date IS NULL OR i.last_sold_date < (NOW() - (p_dead_stock_days || ' day')::interval));
 
-    -- Predictive Stockout Alerts
+    -- Predictive Alerts
     RETURN QUERY
     WITH sales_velocity AS (
       SELECT
@@ -499,8 +503,7 @@ BEGIN
         SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
       FROM public.sale_items si
       JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
-      WHERE s.company_id = p_company_id 
-      AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+      WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
       GROUP BY si.product_id
     )
     SELECT
@@ -558,22 +561,24 @@ BEGIN
 END;
 $$;
 
-DROP FUNCTION IF EXISTS public.check_inventory_references(uuid, uuid[]);
 CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
 RETURNS TABLE(product_id uuid)
 LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT t.product_id
-    FROM (
-        SELECT si.product_id FROM public.sale_items si
-        WHERE si.company_id = p_company_id AND si.product_id = ANY(p_product_ids)
-        UNION ALL
-        SELECT poi.product_id FROM public.purchase_order_items poi
-        JOIN public.purchase_orders po ON poi.po_id = po.id
-        WHERE po.company_id = p_company_id AND poi.product_id = ANY(p_product_ids)
-    ) t;
+    SELECT DISTINCT si.product_id::uuid
+    FROM public.sale_items si
+    WHERE si.company_id = p_company_id 
+    AND si.product_id = ANY(p_product_ids)
+    
+    UNION
+    
+    SELECT DISTINCT poi.product_id::uuid
+    FROM public.purchase_order_items poi
+    JOIN public.purchase_orders po ON poi.po_id = po.id
+    WHERE po.company_id = p_company_id 
+    AND poi.product_id = ANY(p_product_ids);
 END;
 $$;
 
@@ -736,7 +741,7 @@ BEGIN
 END;
 $$;
 
--- Step 8: Triggers
+-- Step 6: Triggers
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -748,7 +753,7 @@ BEFORE UPDATE ON public.inventory
 FOR EACH ROW
 EXECUTE PROCEDURE public.increment_version();
 
--- Step 9: RLS Policies
+-- Step 7: RLS Policies
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -772,7 +777,6 @@ ALTER TABLE public.reorder_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_feedback ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
 DROP POLICY IF EXISTS "Users can only see their own company" ON public.companies;
 CREATE POLICY "Users can only see their own company" ON public.companies FOR SELECT USING (id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
 
@@ -839,9 +843,11 @@ CREATE POLICY "Users can manage audit logs for their own company" ON public.audi
 DROP POLICY IF EXISTS "Users can manage their own feedback" ON public.user_feedback;
 CREATE POLICY "Users can manage their own feedback" ON public.user_feedback FOR ALL USING (user_id = auth.uid());
 
--- Step 10: Grants
+-- Step 8: Grants
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+  

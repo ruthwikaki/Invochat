@@ -22,8 +22,8 @@ This project requires a few environment variables to connect to its services.
 For the application to function correctly, you must run a one-time setup script in your Supabase project.
 
 1. Navigate to the **SQL Editor** in your Supabase project dashboard.
-2. Open the file `src/lib/database-schema.ts` in this project.
-3. Copy the entire content of the `SETUP_SQL_SCRIPT` constant.
+2. In this project, open the file at `src/lib/database-schema.sql`.
+3. Copy the **entire contents** of this file.
 4. Paste the SQL code into the Supabase SQL Editor and click **"Run"**.
 
 After running the script, you will need to sign out and sign up with a **new user account**. This new account will be correctly configured by the database trigger you just created.
@@ -80,3 +80,5 @@ runConfig:
 ### Database Performance
 
 The application's dashboard has been optimized to perform expensive calculations at the database level, and it uses a Redis-based caching layer to reduce redundant queries. For even larger datasets, consider implementing materialized views for your most frequent and complex analytical queries.
+
+  
