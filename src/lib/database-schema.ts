@@ -143,7 +143,8 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
     approved_at timestamptz,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(company_id, po_number)
+    UNIQUE(company_id, po_number),
+    CONSTRAINT order_date_before_expected CHECK (expected_date IS NULL OR order_date <= expected_date)
 );
 
 CREATE TABLE IF NOT EXISTS public.purchase_order_items (

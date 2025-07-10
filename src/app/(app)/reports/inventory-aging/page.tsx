@@ -1,5 +1,4 @@
 
-
 import { getInventoryAgingData } from '@/app/data-actions';
 import { InventoryAgingClientPage } from '@/components/reports/inventory-aging-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
