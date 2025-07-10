@@ -1,18 +1,19 @@
--- InvoChat Database Setup Script for Supabase
+-- InvoChat Database Setup Script
+-- Version: 3.0 (Clean Install)
 -- Idempotent: Can be run multiple times without causing errors.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Step 1: Create user_role enum type if it doesn't exist
+-- Step 1: Types and Sequences
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
         CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
     END IF;
-END$$;
+END
+$$;
 
--- Create sequence for sales
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
 
 -- Step 2: Core Tables
@@ -97,9 +98,9 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0)),
     CONSTRAINT price_non_negative CHECK ((price IS NULL OR price >= 0))
 );
-
 CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
 CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
+
 
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -125,8 +126,8 @@ CREATE TABLE IF NOT EXISTS public.customers (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, email)
 );
-
 CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
+
 
 -- Step 4: Transactional Tables
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
@@ -160,9 +161,9 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
-
 CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
 CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
+
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -179,10 +180,9 @@ CREATE TABLE IF NOT EXISTS public.sales (
     external_id text,
     UNIQUE(company_id, sale_number)
 );
-
 CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
 
--- Create sale_items table with proper structure from the start
+-- CORRECT: sale_items table created with proper, non-nullable columns from the start.
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
@@ -193,7 +193,6 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     cost_at_time bigint NOT NULL DEFAULT 0,
     UNIQUE(sale_id, product_id)
 );
-
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
 
@@ -373,6 +372,7 @@ FROM customer_stats AS cs
 GROUP BY cs.company_id;
 
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
+
 
 -- Step 7: Functions
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -566,7 +566,7 @@ BEGIN
 END;
 $$;
 
--- Drop function if exists to avoid conflicts
+-- Drop function if it exists to avoid conflicts
 DROP FUNCTION IF EXISTS public.check_inventory_references(uuid, uuid[]);
 
 CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
