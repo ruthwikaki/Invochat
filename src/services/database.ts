@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -1425,14 +1426,15 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
 }
 
 
-export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'>> {
+export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<(Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'> & {min_stock: number | null})[]> {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   return withPerformanceTracking('searchProductsForSale', async () => {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('inventory')
-        .select('product_id, sku:products!inner(sku, name), price, quantity')
+        .select('product_id, products!inner(sku, name), price, quantity, reorder_rules!left(min_stock)')
         .eq('company_id', companyId)
+        .is('deleted_at', null)
         .or(`products.name.ilike.%${query}%,products.sku.ilike.%${query}%`)
         .limit(10);
     
@@ -1441,16 +1443,14 @@ export async function searchProductsForSaleInDB(companyId: string, query: string
         return [];
     }
 
-    return (data || []).map(item => {
-        const product = Array.isArray(item.products) ? item.products[0] : item.products;
-        return {
-            product_id: item.product_id,
-            sku: product.sku,
-            product_name: product.name,
-            price: item.price,
-            quantity: item.quantity
-        }
-    });
+    return (data || []).map((item: any) => ({
+        product_id: item.product_id,
+        sku: item.products.sku,
+        product_name: item.products.name,
+        price: item.price,
+        quantity: item.quantity,
+        min_stock: item.reorder_rules?.min_stock,
+    }));
   });
 }
 

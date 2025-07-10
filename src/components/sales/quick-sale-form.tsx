@@ -16,10 +16,11 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Loader2, Plus, Trash2, Search, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, Search, X, AlertTriangle } from 'lucide-react';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { cn } from '@/lib/utils';
 
-type ProductSearchResult = Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'>;
+type ProductSearchResult = Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'> & { min_stock: number | null };
 
 export function QuickSaleForm() {
   const router = useRouter();
@@ -77,8 +78,11 @@ export function QuickSaleForm() {
     } else {
       append({
         product_id: product.product_id,
+        product_name: product.product_name,
         quantity: 1,
         unit_price: product.price || 0,
+        max_quantity: product.quantity,
+        min_stock: product.min_stock
       });
     }
     setSearchTerm('');
@@ -104,6 +108,11 @@ export function QuickSaleForm() {
   
   const watchedItems = form.watch('items');
   const totalAmount = watchedItems.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+
+  const cartHasErrors = watchedItems.some(item => {
+    const remainingStock = item.max_quantity - item.quantity;
+    return (item.min_stock !== null && remainingStock < item.min_stock) || item.quantity > item.max_quantity;
+  });
   
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -126,15 +135,21 @@ export function QuickSaleForm() {
                 {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />}
                  {searchResults.length > 0 && (
                     <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                        {searchResults.map(product => (
-                            <div key={product.sku} onClick={() => addProductToCart(product)} className="p-2 hover:bg-accent cursor-pointer flex justify-between items-center">
-                                <div>
-                                    <p className="font-medium">{product.product_name}</p>
-                                    <p className="text-xs text-muted-foreground">SKU: {product.sku} | Stock: {product.quantity}</p>
+                        {searchResults.map(product => {
+                            const wouldBreachMinStock = product.min_stock !== null && (product.quantity - 1 < product.min_stock);
+                            return (
+                                <div key={product.sku} onClick={() => addProductToCart(product)} className="p-2 hover:bg-accent cursor-pointer flex justify-between items-center">
+                                    <div>
+                                        <p className="font-medium flex items-center gap-2">
+                                            {product.product_name}
+                                            {wouldBreachMinStock && <AlertTriangle className="h-4 w-4 text-warning" title={`Selling this item will breach the minimum stock of ${product.min_stock}`} />}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">SKU: {product.sku} | Stock: {product.quantity} {product.min_stock !== null ? `(Min: ${product.min_stock})` : ''}</p>
+                                    </div>
+                                    <p className="font-semibold">${((product.price || 0) / 100).toFixed(2)}</p>
                                 </div>
-                                <p className="font-semibold">${((product.price || 0) / 100).toFixed(2)}</p>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
               </div>
@@ -163,15 +178,33 @@ export function QuickSaleForm() {
                             </TableRow>
                         ) : fields.map((field, index) => {
                              const lineTotal = field.quantity * field.unit_price;
+                             const remainingStock = field.max_quantity - field.quantity;
+                             const exceedsMax = field.quantity > field.max_quantity;
+                             const belowMin = field.min_stock !== null && remainingStock < field.min_stock;
+                             const hasError = exceedsMax || belowMin;
+                             let errorMessage = '';
+                             if (exceedsMax) errorMessage = `Not enough stock. Only ${field.max_quantity} available.`;
+                             else if (belowMin) errorMessage = `Sale would bring stock to ${remainingStock}, which is below the minimum of ${field.min_stock}.`;
+
                             return (
-                            <TableRow key={field.fieldId}>
-                                <TableCell>{field.product_id}</TableCell>
-                                <TableCell><Input type="number" {...form.register(`items.${index}.quantity`)} min={1} /></TableCell>
-                                <TableCell><Input type="number" step="0.01" {...form.register(`items.${index}.unit_price`, { valueAsNumber: true })} /></TableCell>
-                                <TableCell className="text-right font-medium">${(lineTotal/100).toFixed(2)}</TableCell>
-                                <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell>
-                            </TableRow>
-                        )})}
+                                <>
+                                    <TableRow key={field.fieldId} className={cn(hasError && "bg-destructive/10")}>
+                                        <TableCell>{field.product_name}</TableCell>
+                                        <TableCell><Input type="number" {...form.register(`items.${index}.quantity`)} min={1} max={field.max_quantity} /></TableCell>
+                                        <TableCell><Input type="number" step="0.01" {...form.register(`items.${index}.unit_price`, { valueAsNumber: true })} /></TableCell>
+                                        <TableCell className="text-right font-medium">${(lineTotal/100).toFixed(2)}</TableCell>
+                                        <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell>
+                                    </TableRow>
+                                    {hasError && (
+                                        <TableRow className="bg-destructive/10">
+                                            <TableCell colSpan={5} className="py-1 px-4 text-xs text-destructive font-medium">
+                                                {errorMessage}
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </>
+                            )
+                        })}
                     </TableBody>
                 </Table>
                 {form.formState.errors.items && <p className="text-sm text-destructive mt-2">{form.formState.errors.items.message || form.formState.errors.items.root?.message}</p>}
@@ -220,7 +253,7 @@ export function QuickSaleForm() {
                </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit" size="lg" className="w-full" disabled={isPending || fields.length === 0}>
+              <Button type="submit" size="lg" className="w-full" disabled={isPending || fields.length === 0 || cartHasErrors}>
                   {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Complete Sale
               </Button>
@@ -231,4 +264,3 @@ export function QuickSaleForm() {
     </form>
   )
 }
-

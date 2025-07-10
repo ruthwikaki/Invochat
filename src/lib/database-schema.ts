@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     product_id uuid NOT NULL,
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
-    cost_at_time bigint NOT NULL,
+    cost_at_time bigint,
     UNIQUE(sale_id, product_id)
 );
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
@@ -203,7 +203,16 @@ BEGIN
         WHERE si.sale_id = s.id AND si.company_id IS NULL;
     END IF;
     
+    -- Update existing NULL cost_at_time to prevent NOT NULL violation
+    IF EXISTS (SELECT 1 FROM public.sale_items WHERE cost_at_time IS NULL) THEN
+        UPDATE public.sale_items si
+        SET cost_at_time = i.cost
+        FROM public.inventory i
+        WHERE si.product_id = i.product_id AND si.company_id = i.company_id AND si.cost_at_time IS NULL;
+    END IF;
+
     ALTER TABLE public.sale_items ALTER COLUMN company_id SET NOT NULL;
+    ALTER TABLE public.sale_items ALTER COLUMN cost_at_time SET NOT NULL;
 END $$;
 
 ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
@@ -629,14 +638,15 @@ BEGIN
     END IF;
 
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity int) LOOP
+        -- Lock the inventory row to prevent race conditions
         SELECT i.quantity, i.location_id INTO current_inventory FROM public.inventory i WHERE i.product_id = item_record.product_id AND i.company_id = p_company_id AND i.deleted_at IS NULL FOR UPDATE;
         
         IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
             RAISE EXCEPTION 'Insufficient stock for product_id: %. Available: %, Requested: %', item_record.product_id, COALESCE(current_inventory.quantity, 0), item_record.quantity;
         END IF;
 
+        -- Enforce minimum stock level
         SELECT rr.min_stock INTO min_stock_level FROM public.reorder_rules rr WHERE rr.product_id = item_record.product_id AND rr.company_id = p_company_id;
-
         IF min_stock_level IS NOT NULL AND (current_inventory.quantity - item_record.quantity) < min_stock_level THEN
             RAISE EXCEPTION 'This sale would bring stock for product_id % below its minimum level of %.', item_record.product_id, min_stock_level;
         END IF;
@@ -823,4 +833,3 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authentic
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 `;
-
