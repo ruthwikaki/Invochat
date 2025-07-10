@@ -606,23 +606,25 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    WITH referenced_products AS (
+    SELECT DISTINCT t.product_id::uuid
+    FROM (
         -- Get all product_ids from sales for the given company
-        SELECT si.product_id AS prod_id
+        SELECT si.product_id
         FROM public.sale_items si
-        WHERE si.company_id = p_company_id AND si.product_id = ANY(p_product_ids)
-        UNION ALL
+        WHERE si.company_id = p_company_id 
+        AND si.product_id = ANY(p_product_ids)
+        
+        UNION
+        
         -- Get all product_ids from purchase orders for the given company
-        SELECT poi.product_id AS prod_id
+        SELECT poi.product_id
         FROM public.purchase_order_items poi
         JOIN public.purchase_orders po ON poi.po_id = po.id
-        WHERE po.company_id = p_company_id AND poi.product_id = ANY(p_product_ids)
-    )
-    SELECT DISTINCT rp.prod_id::uuid AS product_id
-    FROM referenced_products rp;
+        WHERE po.company_id = p_company_id 
+        AND poi.product_id = ANY(p_product_ids)
+    ) t;
 END;
 $$;
-
 
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
