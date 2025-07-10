@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     CONSTRAINT price_non_negative CHECK ((price IS NULL OR price >= 0))
 );
 CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
+CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
+
 
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -124,6 +126,8 @@ CREATE TABLE IF NOT EXISTS public.customers (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, email)
 );
+CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
+
 
 -- Step 4: Transactional Tables
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
@@ -158,6 +162,8 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     UNIQUE(po_id, product_id)
 );
 CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
+CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
+
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -174,6 +180,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     external_id text,
     UNIQUE(company_id, sale_number)
 );
+CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
 
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -186,6 +193,8 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     UNIQUE(sale_id, product_id)
 );
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
+CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
+
 
 DO $$
 BEGIN
@@ -204,12 +213,17 @@ BEGIN
     END IF;
     
     -- Update existing NULL cost_at_time to prevent NOT NULL violation
-    IF EXISTS (SELECT 1 FROM public.sale_items WHERE cost_at_time IS NULL) THEN
-        UPDATE public.sale_items si
-        SET cost_at_time = i.cost
+    -- Corrected UPDATE statement using a subquery
+    UPDATE public.sale_items si
+    SET cost_at_time = (
+        SELECT i.cost
         FROM public.inventory i
-        WHERE si.product_id = i.product_id AND si.company_id = i.company_id AND si.cost_at_time IS NULL;
-    END IF;
+        WHERE i.product_id = si.product_id
+          AND i.company_id = si.company_id
+          AND i.deleted_at IS NULL
+        LIMIT 1
+    )
+    WHERE si.cost_at_time IS NULL;
 
     ALTER TABLE public.sale_items ALTER COLUMN company_id SET NOT NULL;
     ALTER TABLE public.sale_items ALTER COLUMN cost_at_time SET NOT NULL;
@@ -357,7 +371,8 @@ CREATE TABLE IF NOT EXISTS public.user_feedback (
 );
 
 -- Step 6: Materialized Views
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
+DROP MATERIALIZED VIEW IF EXISTS public.company_dashboard_metrics;
+CREATE MATERIALIZED VIEW public.company_dashboard_metrics AS
 SELECT
   p.company_id,
   COUNT(DISTINCT p.id) as total_skus,
@@ -369,7 +384,8 @@ WHERE i.deleted_at IS NULL
 GROUP BY p.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.company_dashboard_metrics(company_id);
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.customer_analytics_metrics AS
+DROP MATERIALIZED VIEW IF EXISTS public.customer_analytics_metrics;
+CREATE MATERIALIZED VIEW public.customer_analytics_metrics AS
 WITH customer_stats AS (
     SELECT
         c.company_id,
@@ -855,3 +871,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authentic
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 `;
+
+    
