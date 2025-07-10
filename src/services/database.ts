@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -1768,3 +1769,41 @@ export async function getInventoryAgingReportFromDB(companyId: string): Promise<
         return z.array(InventoryAgingReportItemSchema).parse(data || []);
     });
 }
+
+export async function getFinancialImpactOfPoFromDB(companyId: string, items: { sku: string; quantity: number }[]): Promise<any> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getFinancialImpactOfPoFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_financial_impact_of_po', {
+            p_company_id: companyId,
+            p_items: items,
+        });
+
+        if (error) {
+            logError(error, { context: 'getFinancialImpactOfPoFromDB RPC failed' });
+            throw error;
+        }
+        return data;
+    });
+}
+
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful'): Promise<void> {
+  if (!isValidUuid(userId) || !isValidUuid(companyId)) {
+    throw new Error('Invalid UUID format for user or company ID.');
+  }
+
+  const supabase = getServiceRoleClient();
+  const { error } = await supabase.from('user_feedback').insert({
+    user_id: userId,
+    company_id: companyId,
+    subject_id: subjectId,
+    subject_type: subjectType,
+    feedback: feedback,
+  });
+
+  if (error) {
+    logError(error, { context: 'logUserFeedbackInDb failed' });
+    throw error;
+  }
+}
+    

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -100,6 +101,14 @@ const availableAnalyses = [
       description: 'Analyze your gross profit margin trends over the last 12 months.',
       prompt: 'Show me my gross margin trend over the last 12 months, aggregated by month.',
       details: "This report calculates your gross margin month-over-month to help you identify trends in profitability. It uses `(SUM(selling_price * quantity) - SUM(cost_of_good * quantity)) / SUM(selling_price * quantity)`."
+    },
+    {
+        key: 'what_if',
+        title: '"What If" Scenario',
+        icon: Sparkles,
+        description: 'Analyze the financial impact of a potential purchase order before you create it.',
+        prompt: 'What is the financial impact of ordering 100 units of SKU-123 and 50 units of SKU-456?',
+        details: 'Use the chat interface to ask specific "what if" questions. The AI will use the financial impact tool to give you an analysis of cost, inventory value change, and more.'
     }
 ];
 
@@ -111,6 +120,13 @@ function StrategicReports() {
     const [conversationId, setConversationId] = useState<string | null>(null);
 
     const handleRunAnalysis = (prompt: string, key: string) => {
+        // Special case for 'what_if' which should be handled in chat
+        if (key === 'what_if') {
+            const router = (window as any).next.router;
+            router.push(`/chat?q=${encodeURIComponent(prompt)}`);
+            return;
+        }
+
         setCurrentAnalysisKey(key);
         setAnalysisResult(null);
         setError(null);
@@ -207,7 +223,7 @@ function StrategicReports() {
                         <CardFooter>
                             <Button className="w-full" onClick={() => handleRunAnalysis(analysis.prompt, analysis.key)} disabled={isPending}>
                                {isPending && currentAnalysisKey === analysis.key ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Run Analysis
+                                {analysis.key === 'what_if' ? 'Go to Chat' : 'Run Analysis'}
                             </Button>
                         </CardFooter>
                     </Card>
@@ -229,4 +245,4 @@ export default function AnalyticsPage() {
         </AppPage>
     );
 }
-
+    

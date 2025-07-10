@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -8,9 +9,9 @@ import {
   CardTitle,
   CardFooter,
 } from '@/components/ui/card';
-import { getInsightsPageData } from '@/app/data-actions';
-import { Lightbulb, AlertTriangle, CheckCircle, Bot, TrendingDown, Package, ArrowRight, ServerCrash, BrainCircuit } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { getInsightsPageData, logUserFeedback } from '@/app/data-actions';
+import { Lightbulb, AlertTriangle, CheckCircle, Bot, TrendingDown, Package, ArrowRight, ServerCrash, BrainCircuit, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { useState, useEffect, useTransition } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
@@ -31,6 +32,27 @@ interface InsightsData {
 }
 
 function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
+  const [feedback, setFeedback] = useState<'helpful' | 'unhelpful' | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const { toast } = useToast();
+
+  const handleFeedback = (userFeedback: 'helpful' | 'unhelpful') => {
+    startTransition(async () => {
+        const formData = new FormData();
+        formData.append('subjectId', anomaly.id!);
+        formData.append('subjectType', 'anomaly_explanation');
+        formData.append('feedback', userFeedback);
+        
+        const result = await logUserFeedback(formData);
+        if (result.success) {
+            setFeedback(userFeedback);
+            toast({ title: 'Feedback Submitted', description: 'Thank you for helping us improve!' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+        }
+    });
+  };
+
   const isRevenue = anomaly.anomaly_type === 'Revenue Anomaly';
   const currentValue = isRevenue ? anomaly.daily_revenue : anomaly.daily_customers;
   const averageValue = isRevenue ? anomaly.avg_revenue : anomaly.avg_customers;
@@ -61,6 +83,27 @@ function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
                 <Link href={`/chat?q=${encodeURIComponent(anomaly.suggestedAction)}`}>{anomaly.suggestedAction}</Link>
               </Button>
             }
+        </div>
+        <div className="flex items-center justify-end gap-2 pt-2 border-t mt-2">
+            <p className="text-xs text-muted-foreground mr-auto">Was this explanation helpful?</p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-6 w-6", feedback === 'helpful' && "bg-success/20 text-success")}
+              onClick={() => handleFeedback('helpful')}
+              disabled={isPending || feedback !== null}
+            >
+              <ThumbsUp className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-6 w-6", feedback === 'unhelpful' && "bg-destructive/20 text-destructive")}
+              onClick={() => handleFeedback('unhelpful')}
+              disabled={isPending || feedback !== null}
+            >
+              <ThumbsDown className="h-4 w-4" />
+            </Button>
         </div>
       </div>
     </div>
@@ -331,3 +374,4 @@ export default function InsightsPage() {
     </AppPage>
   );
 }
+    
