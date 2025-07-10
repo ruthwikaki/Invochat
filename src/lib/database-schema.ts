@@ -1,11 +1,11 @@
 
 export const SETUP_SQL_SCRIPT = `
--- InvoChat Database Setup Script
--- Idempotent: Can be run multiple times without causing errors.
+-- InvoChat Database Setup Script v2.0
+-- A complete, idempotent, and corrected schema.
 
+-- Step 1: Extensions & Types
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Step 1: Types and Sequences
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
@@ -14,9 +14,12 @@ BEGIN
 END
 $$;
 
+-- Step 2: Sequences for Auto-incrementing Human-Readable IDs
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
+CREATE SEQUENCE IF NOT EXISTS purchase_orders_po_number_seq;
 
--- Step 2: Core Tables
+
+-- Step 3: Core Tables
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -47,7 +50,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     updated_at timestamptz
 );
 
--- Step 3: Entity Tables
+-- Step 4: Entity Tables
 CREATE TABLE IF NOT EXISTS public.products (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -129,7 +132,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
 CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
 
 
--- Step 4: Transactional Tables
+-- Step 5: Transactional Tables
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -185,8 +188,8 @@ CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid, -- Allow NULL initially
-    product_id uuid NOT NULL,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
     cost_at_time bigint,
@@ -194,43 +197,6 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
 );
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
-
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'company_id'
-    ) THEN
-        ALTER TABLE public.sale_items ADD COLUMN company_id uuid;
-    END IF;
-    
-    IF EXISTS (SELECT 1 FROM public.sale_items WHERE company_id IS NULL) THEN
-        UPDATE public.sale_items si
-        SET company_id = s.company_id
-        FROM public.sales s
-        WHERE si.sale_id = s.id AND si.company_id IS NULL;
-    END IF;
-    
-    -- Correctly update existing NULL cost_at_time to prevent NOT NULL violation
-    UPDATE public.sale_items si
-    SET cost_at_time = (
-        SELECT i.cost
-        FROM public.inventory i
-        WHERE i.product_id = si.product_id
-          AND i.company_id = si.company_id
-          AND i.deleted_at IS NULL
-        LIMIT 1
-    )
-    WHERE si.cost_at_time IS NULL;
-
-    ALTER TABLE public.sale_items ALTER COLUMN company_id SET NOT NULL;
-    ALTER TABLE public.sale_items ALTER COLUMN cost_at_time SET NOT NULL;
-END $$;
-
-ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
-ALTER TABLE public.sale_items ADD CONSTRAINT fk_sale_items_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -246,7 +212,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     notes text
 );
 
--- Step 5: Supporting Tables
+-- Step 6: Supporting Tables
 CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     supplier_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
@@ -369,7 +335,7 @@ CREATE TABLE IF NOT EXISTS public.user_feedback (
     created_at timestamptz DEFAULT now()
 );
 
--- Step 6: Materialized Views
+-- Step 7: Materialized Views
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   p.company_id,
@@ -408,7 +374,7 @@ GROUP BY cs.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
 
--- Step 7: Functions
+-- Step 8: Functions (All functions are created after tables are defined)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -649,10 +615,6 @@ DECLARE
     min_stock_level integer;
     v_product_id uuid;
 BEGIN
-    IF EXISTS (SELECT 1 FROM jsonb_to_recordset(p_sale_items) AS x(created_at timestamptz) WHERE x.created_at > NOW()) THEN
-      RAISE EXCEPTION 'Sale date cannot be in the future.';
-    END IF;
-
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity int) LOOP
         v_product_id := item_record.product_id;
         
@@ -785,7 +747,7 @@ BEGIN
 END;
 $$;
 
--- Step 8: Triggers
+-- Step 9: Triggers
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -797,7 +759,7 @@ BEFORE UPDATE ON public.inventory
 FOR EACH ROW
 EXECUTE PROCEDURE public.increment_version();
 
--- Step 9: RLS Policies
+-- Step 10: RLS Policies
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -866,12 +828,10 @@ CREATE POLICY "Users can manage audit logs for their own company" ON public.audi
 DROP POLICY IF EXISTS "Users can manage their own feedback" ON public.user_feedback;
 CREATE POLICY "Users can manage their own feedback" ON public.user_feedback FOR ALL USING (user_id = auth.uid());
 
--- Step 10: Grants
+-- Step 11: Grants
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
-`
-
-I need this script to be implemented in `src/lib/database-schema.ts`. Please make sure the code is correct and free of syntax errors this time.
+"
