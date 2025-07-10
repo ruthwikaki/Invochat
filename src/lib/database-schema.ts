@@ -607,21 +607,20 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT i.product_id
-    FROM public.inventory i
-    WHERE i.company_id = p_company_id
-    AND i.product_id = ANY(p_product_ids)
-    AND (
-        EXISTS (
-            SELECT 1 FROM public.sale_items si
-            WHERE si.product_id = i.product_id AND si.company_id = p_company_id
-        )
-        OR EXISTS (
-            SELECT 1 FROM public.purchase_order_items poi
-            JOIN public.purchase_orders po ON poi.po_id = po.id
-            WHERE poi.product_id = i.product_id AND po.company_id = p_company_id
-        )
-    );
+    WITH referenced_products AS (
+        -- Get all product_ids from sales for the given company
+        SELECT si.product_id
+        FROM public.sale_items si
+        WHERE si.company_id = p_company_id AND si.product_id = ANY(p_product_ids)
+        UNION ALL
+        -- Get all product_ids from purchase orders for the given company
+        SELECT poi.product_id
+        FROM public.purchase_order_items poi
+        JOIN public.purchase_orders po ON poi.po_id = po.id
+        WHERE po.company_id = p_company_id AND poi.product_id = ANY(p_product_ids)
+    )
+    SELECT DISTINCT rp.product_id::uuid
+    FROM referenced_products rp;
 END;
 $$;
 
@@ -872,5 +871,3 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authentic
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 `;
-
-    
