@@ -460,7 +460,7 @@ export const SaleSchema = z.object({
     payment_method: z.string(),
     notes: z.string().nullable(),
     created_at: z.string(),
-    created_by: z.string().uuid(),
+    created_by: z.string().uuid().nullable(),
 });
 export type Sale = z.infer<typeof SaleSchema>;
 
@@ -559,3 +559,4 @@ export const InventoryAgingReportItemSchema = z.object({
     total_value: z.number().int(), // in cents
 });
 export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
+

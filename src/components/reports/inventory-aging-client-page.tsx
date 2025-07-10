@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState } from 'react';
@@ -86,3 +85,4 @@ export function InventoryAgingClientPage({ initialData }: InventoryAgingClientPa
     </div>
   );
 }
+

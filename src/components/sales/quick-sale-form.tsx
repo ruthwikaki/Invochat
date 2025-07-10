@@ -132,7 +132,7 @@ export function QuickSaleForm() {
                                     <p className="font-medium">{product.product_name}</p>
                                     <p className="text-xs text-muted-foreground">SKU: {product.sku} | Stock: {product.quantity}</p>
                                 </div>
-                                <p className="font-semibold">${(product.price || 0 / 100).toFixed(2)}</p>
+                                <p className="font-semibold">${((product.price || 0) / 100).toFixed(2)}</p>
                             </div>
                         ))}
                     </div>
@@ -231,3 +231,4 @@ export function QuickSaleForm() {
     </form>
   )
 }
+

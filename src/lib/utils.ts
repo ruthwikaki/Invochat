@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -39,3 +40,4 @@ export function formatCentsAsCurrency(cents: number | null | undefined): string 
         currency: 'USD',
     }).format(dollars);
 }
+
