@@ -162,7 +162,7 @@ CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    sale_number text NOT NULL,
+    sale_number text NOT NULL UNIQUE,
     customer_name text,
     customer_email text,
     total_amount bigint NOT NULL,
@@ -178,11 +178,11 @@ CREATE TABLE IF NOT EXISTS public.sales (
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL,
+    company_id uuid, -- Allow NULL initially
     product_id uuid NOT NULL,
     quantity integer NOT NULL,
     unit_price bigint NOT NULL,
-    cost_at_time bigint NOT NULL,
+    cost_at_time bigint,
     UNIQUE(sale_id, product_id)
 );
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
@@ -190,12 +190,33 @@ CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.table_constraints
-        WHERE table_schema = 'public' AND table_name = 'sale_items' AND constraint_name = 'fk_sale_items_company'
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'company_id'
     ) THEN
-        ALTER TABLE public.sale_items ADD CONSTRAINT fk_sale_items_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+        ALTER TABLE public.sale_items ADD COLUMN company_id uuid;
     END IF;
+    
+    IF EXISTS (SELECT 1 FROM public.sale_items WHERE company_id IS NULL) THEN
+        UPDATE public.sale_items si
+        SET company_id = s.company_id
+        FROM public.sales s
+        WHERE si.sale_id = s.id AND si.company_id IS NULL;
+    END IF;
+    
+    -- Update existing NULL cost_at_time to prevent NOT NULL violation
+    IF EXISTS (SELECT 1 FROM public.sale_items WHERE cost_at_time IS NULL) THEN
+        UPDATE public.sale_items si
+        SET cost_at_time = i.cost
+        FROM public.inventory i
+        WHERE si.product_id = i.product_id AND si.company_id = i.company_id AND si.cost_at_time IS NULL;
+    END IF;
+
+    ALTER TABLE public.sale_items ALTER COLUMN company_id SET NOT NULL;
+    ALTER TABLE public.sale_items ALTER COLUMN cost_at_time SET NOT NULL;
 END $$;
+
+ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS fk_sale_items_company;
+ALTER TABLE public.sale_items ADD CONSTRAINT fk_sale_items_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
@@ -782,28 +803,71 @@ ALTER TABLE public.reorder_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_feedback ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE POLICY "Users can only see their own company" ON public.companies FOR SELECT USING (id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can only see users in their own company" ON public.users FOR SELECT USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage settings for their own company" ON public.company_settings FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage products for their own company" ON public.products FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage inventory for their own company" ON public.inventory FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage vendors for their own company" ON public.vendors FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage POs for their own company" ON public.purchase_orders FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage PO Items for their own company" ON public.purchase_order_items FOR ALL USING (po_id IN (SELECT id FROM public.purchase_orders WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
-CREATE OR REPLACE POLICY "Users can manage sales for their own company" ON public.sales FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage sale items for sales in their own company" ON public.sale_items FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage customers for their own company" ON public.customers FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage locations for their own company" ON public.locations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage integrations for their own company" ON public.integrations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage ledger for their own company" ON public.inventory_ledger FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage fees for their own company" ON public.channel_fees FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage export jobs for their own company" ON public.export_jobs FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage their own conversations" ON public.conversations FOR ALL USING (user_id = COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage their own messages" ON public.messages FOR ALL USING (conversation_id IN (SELECT id FROM public.conversations WHERE user_id = COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid)));
-CREATE OR REPLACE POLICY "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs FOR ALL USING (supplier_id IN (SELECT id FROM public.vendors WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
-CREATE OR REPLACE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage audit logs for their own company" ON public.audit_log FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
-CREATE OR REPLACE POLICY "Users can manage their own feedback" ON public.user_feedback FOR ALL USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "Users can only see their own company" ON public.companies;
+CREATE POLICY "Users can only see their own company" ON public.companies FOR SELECT USING (id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can only see users in their own company" ON public.users;
+CREATE POLICY "Users can only see users in their own company" ON public.users FOR SELECT USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage settings for their own company" ON public.company_settings;
+CREATE POLICY "Users can manage settings for their own company" ON public.company_settings FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage products for their own company" ON public.products;
+CREATE POLICY "Users can manage products for their own company" ON public.products FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage inventory for their own company" ON public.inventory;
+CREATE POLICY "Users can manage inventory for their own company" ON public.inventory FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage vendors for their own company" ON public.vendors;
+CREATE POLICY "Users can manage vendors for their own company" ON public.vendors FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage POs for their own company" ON public.purchase_orders;
+CREATE POLICY "Users can manage POs for their own company" ON public.purchase_orders FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage PO Items for their own company" ON public.purchase_order_items;
+CREATE POLICY "Users can manage PO Items for their own company" ON public.purchase_order_items FOR ALL USING (po_id IN (SELECT id FROM public.purchase_orders WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
+
+DROP POLICY IF EXISTS "Users can manage sales for their own company" ON public.sales;
+CREATE POLICY "Users can manage sales for their own company" ON public.sales FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage sale items for sales in their own company" ON public.sale_items;
+CREATE POLICY "Users can manage sale items for sales in their own company" ON public.sale_items FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage customers for their own company" ON public.customers;
+CREATE POLICY "Users can manage customers for their own company" ON public.customers FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage locations for their own company" ON public.locations;
+CREATE POLICY "Users can manage locations for their own company" ON public.locations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage integrations for their own company" ON public.integrations;
+CREATE POLICY "Users can manage integrations for their own company" ON public.integrations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage ledger for their own company" ON public.inventory_ledger;
+CREATE POLICY "Users can manage ledger for their own company" ON public.inventory_ledger FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage fees for their own company" ON public.channel_fees;
+CREATE POLICY "Users can manage fees for their own company" ON public.channel_fees FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage export jobs for their own company" ON public.export_jobs;
+CREATE POLICY "Users can manage export jobs for their own company" ON public.export_jobs FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage their own conversations" ON public.conversations;
+CREATE POLICY "Users can manage their own conversations" ON public.conversations FOR ALL USING (user_id = COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage their own messages" ON public.messages;
+CREATE POLICY "Users can manage their own messages" ON public.messages FOR ALL USING (conversation_id IN (SELECT id FROM public.conversations WHERE user_id = COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid)));
+
+DROP POLICY IF EXISTS "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs;
+CREATE POLICY "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs FOR ALL USING (supplier_id IN (SELECT id FROM public.vendors WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
+
+DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
+CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage audit logs for their own company" ON public.audit_log;
+CREATE POLICY "Users can manage audit logs for their own company" ON public.audit_log FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
+DROP POLICY IF EXISTS "Users can manage their own feedback" ON public.user_feedback;
+CREATE POLICY "Users can manage their own feedback" ON public.user_feedback FOR ALL USING (user_id = auth.uid());
 
 -- Step 10: Grants
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
@@ -812,4 +876,3 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authentic
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 `;
-    
