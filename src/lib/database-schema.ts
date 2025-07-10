@@ -1,20 +1,18 @@
 
 export const SETUP_SQL_SCRIPT = `
 -- InvoChat Database Setup Script for Supabase
--- Idempotent: Can be run multiple times without causing errors.
+-- Idempotent & Simplified for Fresh Installs
 
--- Enable UUID extension
+-- Enable UUID extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Step 1: Create user_role enum type if it doesn't exist
+-- Step 1: Types and Sequences
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
         CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
     END IF;
 END$$;
-
--- Create sequence for sales
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
 
 -- Step 2: Core Tables
@@ -73,8 +71,8 @@ CREATE TABLE IF NOT EXISTS public.locations (
 
 CREATE TABLE IF NOT EXISTS public.inventory (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL,
-    product_id uuid NOT NULL,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     location_id uuid REFERENCES public.locations(id) ON DELETE SET NULL,
     quantity integer NOT NULL DEFAULT 0,
     reorder_point integer,
@@ -92,14 +90,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_product_id text,
     external_variant_id text,
     external_quantity integer,
-    CONSTRAINT fk_inventory_company FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
-    CONSTRAINT fk_inventory_product FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE,
-    UNIQUE(company_id, product_id, location_id),
-    CONSTRAINT inventory_quantity_non_negative CHECK ((quantity >= 0)),
-    CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0)),
-    CONSTRAINT price_non_negative CHECK ((price IS NULL OR price >= 0))
+    UNIQUE(company_id, product_id, location_id)
 );
-
 CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
 CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
 
@@ -127,7 +119,6 @@ CREATE TABLE IF NOT EXISTS public.customers (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, email)
 );
-
 CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
 
 -- Step 4: Transactional Tables
@@ -148,21 +139,19 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
     approved_at timestamptz,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(company_id, po_number),
-    CONSTRAINT order_date_before_expected CHECK (expected_date IS NULL OR order_date <= expected_date)
+    UNIQUE(company_id, po_number)
 );
 
 CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     po_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
-    product_id uuid NOT NULL REFERENCES public.products(id),
+    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     quantity_ordered integer NOT NULL,
     quantity_received integer DEFAULT 0 NOT NULL,
     unit_cost bigint,
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
-
 CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
 CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
 
@@ -181,50 +170,21 @@ CREATE TABLE IF NOT EXISTS public.sales (
     external_id text,
     UNIQUE(company_id, sale_number)
 );
-
 CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
 
--- Handle sale_items table - either create new or migrate existing
-DO $$
-BEGIN
-    -- Check if sale_items table exists
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sale_items') THEN
-        -- Table exists, check if it has product_id column
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'product_id') THEN
-            -- Add product_id column if it doesn't exist
-            ALTER TABLE public.sale_items ADD COLUMN product_id uuid;
-            RAISE NOTICE 'Added product_id column to sale_items table. You might need to populate it manually if you have existing data.';
-        END IF;
-
-        -- Check and add company_id column
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'company_id') THEN
-            ALTER TABLE public.sale_items ADD COLUMN company_id uuid;
-        END IF;
-
-        -- Check and add cost_at_time column
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'cost_at_time') THEN
-            ALTER TABLE public.sale_items ADD COLUMN cost_at_time bigint;
-        END IF;
-
-    ELSE
-        -- Table doesn't exist, create it with the correct final structure
-        CREATE TABLE public.sale_items (
-            id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-            sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-            company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-            product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-            quantity integer NOT NULL,
-            unit_price bigint NOT NULL,
-            cost_at_time bigint NOT NULL DEFAULT 0,
-            UNIQUE(sale_id, product_id)
-        );
-    END IF;
-END$$;
-
--- Create indexes if they don't exist
+-- CORRECTED: sale_items table created with all columns from the start.
+CREATE TABLE IF NOT EXISTS public.sale_items (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    quantity integer NOT NULL,
+    unit_price bigint NOT NULL,
+    cost_at_time bigint NOT NULL,
+    UNIQUE(sale_id, product_id)
+);
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
-
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -536,9 +496,7 @@ BEGIN
             SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
           FROM public.sale_items si
           JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
-          WHERE s.company_id = p_company_id 
-          AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
-          AND si.product_id IS NOT NULL
+          WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
           GROUP BY si.product_id
         )
         SELECT
@@ -597,7 +555,6 @@ BEGIN
 END;
 $$;
 
--- Drop function if exists to avoid conflicts
 DROP FUNCTION IF EXISTS public.check_inventory_references(uuid, uuid[]);
 
 CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
