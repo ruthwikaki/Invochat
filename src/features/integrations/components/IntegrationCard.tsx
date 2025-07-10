@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Integration, Platform } from '../types';
 import { formatDistanceToNow } from 'date-fns';
-import { Loader2, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, RefreshCw, TestTube2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,10 +15,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PlatformLogo } from './platform-logos';
 import { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui/badge';
 
 interface IntegrationCardProps {
     integration: Integration;
@@ -36,6 +36,8 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
         }
     }, [integration.last_sync_at]);
     
+    const isDemo = integration.platform === 'amazon_fba';
+
     const renderStatus = () => {
         switch (integration.sync_status) {
             case 'syncing':
@@ -67,7 +69,10 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
             <div className="p-6 flex flex-col md:flex-row items-center gap-6">
                  <PlatformLogo platform={integration.platform} className="h-16 w-16" />
                 <div className="flex-1 text-center md:text-left">
-                    <h3 className="text-lg font-semibold">{integration.shop_name}</h3>
+                    <div className="flex items-center gap-2 justify-center md:justify-start">
+                        <h3 className="text-lg font-semibold">{integration.shop_name}</h3>
+                        {isDemo && <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600"><TestTube2 className="h-3 w-3 mr-1" />Demo Mode</Badge>}
+                    </div>
                     <p className="text-sm text-muted-foreground">{integration.shop_domain?.replace('https://', '') || 'Integration'}</p>
                     {renderStatus()}
                 </div>
@@ -97,6 +102,11 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
                     </AlertDialog>
                 </div>
             </div>
+             {isDemo && (
+                <div className="border-t bg-amber-500/5 px-6 py-2 text-xs text-amber-700 dark:text-amber-400">
+                    <strong>Demo Mode:</strong> This integration uses sample data and does not connect to a real Amazon account. Syncing will import pre-defined mock products and sales.
+                </div>
+            )}
         </Card>
     );
 }

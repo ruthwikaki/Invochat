@@ -29,6 +29,9 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Authentication required: User or company not found.' }, { status: 401 });
         }
         
+        // TODO: Implement WooCommerce Webhook signature validation.
+        // This is crucial for production to ensure requests are legitimate.
+
         const body = await request.json();
         const parsed = syncSchema.safeParse(body);
 

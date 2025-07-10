@@ -32,6 +32,12 @@ export async function POST(request: Request) {
         }
         // --- End Authentication ---
         
+        // TODO: Implement Shopify Webhook HMAC validation
+        // const isValid = await validateWebhook(...)
+        // if (!isValid) { 
+        //     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
+        // }
+        
         const body = await request.json();
         const parsed = syncSchema.safeParse(body);
 
@@ -53,16 +59,6 @@ export async function POST(request: Request) {
     } catch (e: any) {
         logError(e, { context: 'Shopify Sync API' });
         const errorMessage = e.message || "An unexpected error occurred.";
-        const signatureHeader = request.headers.get('X-Shopify-Hmac-Sha256');
-        if (!signatureHeader) {
-            return NextResponse.json({ error: "This endpoint is for Shopify webhooks only." }, { status: 403 });
-        }
-        
-        // TODO: Implement webhook signature validation
-        // const isValid = await validateWebhook(...)
-        // if (!isValid) { 
-        //     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-        // }
         
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }

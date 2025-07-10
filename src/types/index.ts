@@ -214,13 +214,14 @@ export type TeamMember = {
 };
 
 export const AnomalySchema = z.object({
+    id: z.string().optional(), // Added for unique key prop in React
     date: z.string(),
     daily_revenue: z.coerce.number().int(),
     daily_customers: z.coerce.number().int(),
     avg_revenue: z.coerce.number().int(),
     avg_customers: z.coerce.number().int(),
     anomaly_type: z.string(),
-    deviation_percentage: z.coerce.number().optional(), // Make sure this is part of the schema if used
+    deviation_percentage: z.coerce.number().optional(),
     explanation: z.string().optional(),
     confidence: z.enum(['high', 'medium', 'low']).optional(),
     suggestedAction: z.string().optional(),

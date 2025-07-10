@@ -68,7 +68,9 @@ import {
   approvePurchaseOrderInDb,
   transferInventoryInDb,
   reconcileInventoryInDb,
-  getInventoryAgingReportFromDB
+  getInventoryAgingReportFromDB,
+  getFinancialImpactOfPoFromDB as dbGetFinancialImpact,
+  logUserFeedbackInDb
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -159,7 +161,7 @@ export async function getInsightsPageData() {
                     knownHoliday: undefined,
                 },
             });
-            return { ...anomaly, ...explanation };
+            return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
         })
     );
     
@@ -711,4 +713,30 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> {
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
+}
+
+
+export async function getFinancialImpactOfPo(items: { sku: string; quantity: number }[]) {
+    const { companyId } = await getAuthContext();
+    return dbGetFinancialImpact(companyId, items);
+}
+
+export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { companyId, userId } = await getAuthContext();
+    const subjectId = formData.get('subjectId') as string;
+    const subjectType = formData.get('subjectType') as string;
+    const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
+
+    if (!subjectId || !subjectType || !feedback) {
+      throw new Error('Missing required feedback data.');
+    }
+    
+    await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
+    
+    return { success: true };
+  } catch(e) {
+    logError(e, { context: 'logUserFeedback action failed' });
+    return { success: false, error: getErrorMessage(e) };
+  }
 }
