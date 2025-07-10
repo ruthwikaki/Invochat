@@ -1,25 +1,23 @@
 
 export const SETUP_SQL_SCRIPT = `
--- InvoChat Database Setup Script v2.0
--- A complete, idempotent, and corrected schema.
+-- InvoChat Database Setup Script for Supabase
+-- Idempotent: Can be run multiple times without causing errors.
 
--- Step 1: Extensions & Types
+-- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Step 1: Create user_role enum type if it doesn't exist
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
         CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
     END IF;
-END
-$$;
+END$$;
 
--- Step 2: Sequences for Auto-incrementing Human-Readable IDs
+-- Create sequence for sales
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
-CREATE SEQUENCE IF NOT EXISTS purchase_orders_po_number_seq;
 
-
--- Step 3: Core Tables
+-- Step 2: Core Tables
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -50,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     updated_at timestamptz
 );
 
--- Step 4: Entity Tables
+-- Step 3: Entity Tables
 CREATE TABLE IF NOT EXISTS public.products (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -101,9 +99,9 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     CONSTRAINT on_order_quantity_non_negative CHECK ((on_order_quantity >= 0)),
     CONSTRAINT price_non_negative CHECK ((price IS NULL OR price >= 0))
 );
+
 CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
 CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
-
 
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -129,10 +127,10 @@ CREATE TABLE IF NOT EXISTS public.customers (
     created_at timestamptz DEFAULT now(),
     UNIQUE(company_id, email)
 );
+
 CREATE INDEX IF NOT EXISTS customers_email_idx ON public.customers(email);
 
-
--- Step 5: Transactional Tables
+-- Step 4: Transactional Tables
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -164,9 +162,9 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     tax_rate numeric(5,4),
     UNIQUE(po_id, product_id)
 );
+
 CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
 CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
-
 
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -183,20 +181,50 @@ CREATE TABLE IF NOT EXISTS public.sales (
     external_id text,
     UNIQUE(company_id, sale_number)
 );
+
 CREATE INDEX IF NOT EXISTS sales_created_at_idx ON public.sales(created_at);
 
-CREATE TABLE IF NOT EXISTS public.sale_items (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    quantity integer NOT NULL,
-    unit_price bigint NOT NULL,
-    cost_at_time bigint,
-    UNIQUE(sale_id, product_id)
-);
+-- Handle sale_items table - either create new or migrate existing
+DO $$
+BEGIN
+    -- Check if sale_items table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sale_items') THEN
+        -- Table exists, check if it has product_id column
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'product_id') THEN
+            -- Add product_id column if it doesn't exist
+            ALTER TABLE public.sale_items ADD COLUMN product_id uuid;
+            RAISE NOTICE 'Added product_id column to sale_items table. You might need to populate it manually if you have existing data.';
+        END IF;
+
+        -- Check and add company_id column
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'company_id') THEN
+            ALTER TABLE public.sale_items ADD COLUMN company_id uuid;
+        END IF;
+
+        -- Check and add cost_at_time column
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sale_items' AND column_name = 'cost_at_time') THEN
+            ALTER TABLE public.sale_items ADD COLUMN cost_at_time bigint;
+        END IF;
+
+    ELSE
+        -- Table doesn't exist, create it with the correct final structure
+        CREATE TABLE public.sale_items (
+            id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+            sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
+            company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+            product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+            quantity integer NOT NULL,
+            unit_price bigint NOT NULL,
+            cost_at_time bigint NOT NULL DEFAULT 0,
+            UNIQUE(sale_id, product_id)
+        );
+    END IF;
+END$$;
+
+-- Create indexes if they don't exist
 CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
 CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
+
 
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -212,7 +240,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     notes text
 );
 
--- Step 6: Supporting Tables
+-- Step 5: Supporting Tables
 CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     supplier_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
@@ -335,7 +363,7 @@ CREATE TABLE IF NOT EXISTS public.user_feedback (
     created_at timestamptz DEFAULT now()
 );
 
--- Step 7: Materialized Views
+-- Step 6: Materialized Views
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   p.company_id,
@@ -346,6 +374,7 @@ FROM public.products p
 JOIN public.inventory i ON p.id = i.product_id AND p.company_id = i.company_id
 WHERE i.deleted_at IS NULL
 GROUP BY p.company_id;
+
 CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.company_dashboard_metrics(company_id);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.customer_analytics_metrics AS
@@ -371,10 +400,10 @@ SELECT
     ELSE 0 END as repeat_customer_rate
 FROM customer_stats AS cs
 GROUP BY cs.company_id;
+
 CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_pkey ON public.customer_analytics_metrics(company_id);
 
-
--- Step 8: Functions (All functions are created after tables are defined)
+-- Step 7: Functions
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -507,7 +536,9 @@ BEGIN
             SUM(si.quantity)::numeric / p_fast_moving_days as daily_sales
           FROM public.sale_items si
           JOIN public.sales s ON si.sale_id = s.id AND si.company_id = s.company_id
-          WHERE s.company_id = p_company_id AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+          WHERE s.company_id = p_company_id 
+          AND s.created_at >= (NOW() - (p_fast_moving_days || ' day')::interval)
+          AND si.product_id IS NOT NULL
           GROUP BY si.product_id
         )
         SELECT
@@ -566,29 +597,27 @@ BEGIN
 END;
 $$;
 
+-- Drop function if exists to avoid conflicts
+DROP FUNCTION IF EXISTS public.check_inventory_references(uuid, uuid[]);
+
 CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
 RETURNS TABLE(product_id uuid)
 LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT t.product_id::uuid
-    FROM (
-        -- Get all product_ids from sales for the given company
-        SELECT si.product_id
-        FROM public.sale_items si
-        WHERE si.company_id = p_company_id 
-        AND si.product_id = ANY(p_product_ids)
-        
-        UNION
-        
-        -- Get all product_ids from purchase orders for the given company
-        SELECT poi.product_id
-        FROM public.purchase_order_items poi
-        JOIN public.purchase_orders po ON poi.po_id = po.id
-        WHERE po.company_id = p_company_id 
-        AND poi.product_id = ANY(p_product_ids)
-    ) t;
+    SELECT DISTINCT si.product_id::uuid
+    FROM public.sale_items si
+    WHERE si.company_id = p_company_id 
+    AND si.product_id = ANY(p_product_ids)
+    
+    UNION
+    
+    SELECT DISTINCT poi.product_id::uuid
+    FROM public.purchase_order_items poi
+    JOIN public.purchase_orders po ON poi.po_id = po.id
+    WHERE po.company_id = p_company_id 
+    AND poi.product_id = ANY(p_product_ids);
 END;
 $$;
 
@@ -615,6 +644,10 @@ DECLARE
     min_stock_level integer;
     v_product_id uuid;
 BEGIN
+    IF EXISTS (SELECT 1 FROM jsonb_to_recordset(p_sale_items) AS x(created_at timestamptz) WHERE x.created_at > NOW()) THEN
+      RAISE EXCEPTION 'Sale date cannot be in the future.';
+    END IF;
+
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity int) LOOP
         v_product_id := item_record.product_id;
         
@@ -747,7 +780,7 @@ BEGIN
 END;
 $$;
 
--- Step 9: Triggers
+-- Step 8: Triggers
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -759,7 +792,7 @@ BEFORE UPDATE ON public.inventory
 FOR EACH ROW
 EXECUTE PROCEDURE public.increment_version();
 
--- Step 10: RLS Policies
+-- Step 9: RLS Policies
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
@@ -783,55 +816,76 @@ ALTER TABLE public.reorder_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_feedback ENABLE ROW LEVEL SECURITY;
 
+-- RLS Policies
 DROP POLICY IF EXISTS "Users can only see their own company" ON public.companies;
 CREATE POLICY "Users can only see their own company" ON public.companies FOR SELECT USING (id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can only see users in their own company" ON public.users;
 CREATE POLICY "Users can only see users in their own company" ON public.users FOR SELECT USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage settings for their own company" ON public.company_settings;
 CREATE POLICY "Users can manage settings for their own company" ON public.company_settings FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage products for their own company" ON public.products;
 CREATE POLICY "Users can manage products for their own company" ON public.products FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage inventory for their own company" ON public.inventory;
 CREATE POLICY "Users can manage inventory for their own company" ON public.inventory FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage vendors for their own company" ON public.vendors;
 CREATE POLICY "Users can manage vendors for their own company" ON public.vendors FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage POs for their own company" ON public.purchase_orders;
 CREATE POLICY "Users can manage POs for their own company" ON public.purchase_orders FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage PO Items for their own company" ON public.purchase_order_items;
 CREATE POLICY "Users can manage PO Items for their own company" ON public.purchase_order_items FOR ALL USING (po_id IN (SELECT id FROM public.purchase_orders WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
+
 DROP POLICY IF EXISTS "Users can manage sales for their own company" ON public.sales;
 CREATE POLICY "Users can manage sales for their own company" ON public.sales FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage sale items for sales in their own company" ON public.sale_items;
 CREATE POLICY "Users can manage sale items for sales in their own company" ON public.sale_items FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage customers for their own company" ON public.customers;
 CREATE POLICY "Users can manage customers for their own company" ON public.customers FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage locations for their own company" ON public.locations;
 CREATE POLICY "Users can manage locations for their own company" ON public.locations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage integrations for their own company" ON public.integrations;
 CREATE POLICY "Users can manage integrations for their own company" ON public.integrations FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage ledger for their own company" ON public.inventory_ledger;
 CREATE POLICY "Users can manage ledger for their own company" ON public.inventory_ledger FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage fees for their own company" ON public.channel_fees;
 CREATE POLICY "Users can manage fees for their own company" ON public.channel_fees FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage export jobs for their own company" ON public.export_jobs;
 CREATE POLICY "Users can manage export jobs for their own company" ON public.export_jobs FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage their own conversations" ON public.conversations;
 CREATE POLICY "Users can manage their own conversations" ON public.conversations FOR ALL USING (user_id = COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage their own messages" ON public.messages;
 CREATE POLICY "Users can manage their own messages" ON public.messages FOR ALL USING (conversation_id IN (SELECT id FROM public.conversations WHERE user_id = COALESCE(auth.uid(), '00000000-0000-0000-0000-000000000000'::uuid)));
+
 DROP POLICY IF EXISTS "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs;
 CREATE POLICY "Users can manage their own company's supplier catalogs" ON public.supplier_catalogs FOR ALL USING (supplier_id IN (SELECT id FROM public.vendors WHERE company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)));
+
 DROP POLICY IF EXISTS "Users can manage their own company's reorder rules" ON public.reorder_rules;
 CREATE POLICY "Users can manage their own company's reorder rules" ON public.reorder_rules FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage audit logs for their own company" ON public.audit_log;
 CREATE POLICY "Users can manage audit logs for their own company" ON public.audit_log FOR ALL USING (company_id = COALESCE((SELECT company_id FROM public.users WHERE id = auth.uid() LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid));
+
 DROP POLICY IF EXISTS "Users can manage their own feedback" ON public.user_feedback;
 CREATE POLICY "Users can manage their own feedback" ON public.user_feedback FOR ALL USING (user_id = auth.uid());
 
--- Step 11: Grants
+-- Step 10: Grants
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
-"
