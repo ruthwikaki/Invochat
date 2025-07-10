@@ -559,4 +559,3 @@ export const InventoryAgingReportItemSchema = z.object({
     total_value: z.number().int(), // in cents
 });
 export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
-
