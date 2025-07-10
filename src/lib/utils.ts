@@ -40,4 +40,3 @@ export function formatCentsAsCurrency(cents: number | null | undefined): string 
         currency: 'USD',
     }).format(dollars);
 }
-

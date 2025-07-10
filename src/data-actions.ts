@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import type { Message } from '@/types';
@@ -257,10 +256,11 @@ export async function getTeamMembers() {
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
         validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
         const email = formData.get('email') as string;
         await inviteUserToCompanyInDb(companyId, 'Your Company', email);
+        await createAuditLogInDb(userId, companyId, 'user_invited', { invited_email: email });
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -274,6 +274,7 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
+        await createAuditLogInDb(userId, companyId, 'user_removed', { removed_user_id: memberId });
         return await removeTeamMemberFromDb(memberId, companyId, userId);
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -282,12 +283,13 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
 
 export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
         validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
         
+        await createAuditLogInDb(userId, companyId, 'user_role_changed', { target_user_id: memberId, new_role: newRole });
         return await updateTeamMemberRoleInDb(memberId, companyId, newRole);
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
