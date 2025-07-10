@@ -371,8 +371,7 @@ CREATE TABLE IF NOT EXISTS public.user_feedback (
 );
 
 -- Step 6: Materialized Views
-DROP MATERIALIZED VIEW IF EXISTS public.company_dashboard_metrics;
-CREATE MATERIALIZED VIEW public.company_dashboard_metrics AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
   p.company_id,
   COUNT(DISTINCT p.id) as total_skus,
@@ -384,8 +383,7 @@ WHERE i.deleted_at IS NULL
 GROUP BY p.company_id;
 CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_pkey ON public.company_dashboard_metrics(company_id);
 
-DROP MATERIALIZED VIEW IF EXISTS public.customer_analytics_metrics;
-CREATE MATERIALIZED VIEW public.customer_analytics_metrics AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS public.customer_analytics_metrics AS
 WITH customer_stats AS (
     SELECT
         c.company_id,
@@ -648,23 +646,26 @@ DECLARE
     company_tax_rate numeric;
     current_inventory record;
     min_stock_level integer;
+    v_product_id uuid;
 BEGIN
     IF EXISTS (SELECT 1 FROM jsonb_to_recordset(p_sale_items) AS x(created_at timestamptz) WHERE x.created_at > NOW()) THEN
       RAISE EXCEPTION 'Sale date cannot be in the future.';
     END IF;
 
     FOR item_record IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity int) LOOP
+        v_product_id := item_record.product_id;
+        
         -- Lock the inventory row to prevent race conditions
-        SELECT i.quantity, i.location_id INTO current_inventory FROM public.inventory i WHERE i.product_id = item_record.product_id AND i.company_id = p_company_id AND i.deleted_at IS NULL FOR UPDATE;
+        SELECT i.quantity, i.location_id INTO current_inventory FROM public.inventory i WHERE i.product_id = v_product_id AND i.company_id = p_company_id AND i.deleted_at IS NULL FOR UPDATE;
         
         IF NOT FOUND OR current_inventory.quantity < item_record.quantity THEN
-            RAISE EXCEPTION 'Insufficient stock for product_id: %. Available: %, Requested: %', item_record.product_id, COALESCE(current_inventory.quantity, 0), item_record.quantity;
+            RAISE EXCEPTION 'Insufficient stock for product_id: %. Available: %, Requested: %', v_product_id, COALESCE(current_inventory.quantity, 0), item_record.quantity;
         END IF;
 
         -- Enforce minimum stock level
-        SELECT rr.min_stock INTO min_stock_level FROM public.reorder_rules rr WHERE rr.product_id = item_record.product_id AND rr.company_id = p_company_id;
+        SELECT rr.min_stock INTO min_stock_level FROM public.reorder_rules rr WHERE rr.product_id = v_product_id AND rr.company_id = p_company_id;
         IF min_stock_level IS NOT NULL AND (current_inventory.quantity - item_record.quantity) < min_stock_level THEN
-            RAISE EXCEPTION 'This sale would bring stock for product_id % below its minimum level of %.', item_record.product_id, min_stock_level;
+            RAISE EXCEPTION 'This sale would bring stock for product_id % below its minimum level of %.', v_product_id, min_stock_level;
         END IF;
     END LOOP;
 
