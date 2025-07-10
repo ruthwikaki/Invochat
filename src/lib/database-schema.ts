@@ -608,20 +608,21 @@ BEGIN
     RETURN QUERY
     WITH referenced_products AS (
         -- Get all product_ids from sales for the given company
-        SELECT si.product_id
+        SELECT si.product_id AS prod_id
         FROM public.sale_items si
         WHERE si.company_id = p_company_id AND si.product_id = ANY(p_product_ids)
         UNION ALL
         -- Get all product_ids from purchase orders for the given company
-        SELECT poi.product_id
+        SELECT poi.product_id AS prod_id
         FROM public.purchase_order_items poi
         JOIN public.purchase_orders po ON poi.po_id = po.id
         WHERE po.company_id = p_company_id AND poi.product_id = ANY(p_product_ids)
     )
-    SELECT DISTINCT rp.product_id::uuid
+    SELECT DISTINCT rp.prod_id::uuid AS product_id
     FROM referenced_products rp;
 END;
 $$;
+
 
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
@@ -870,3 +871,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authentic
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public to authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 `;
+
+    
