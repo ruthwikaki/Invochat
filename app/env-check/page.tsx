@@ -50,5 +50,3 @@ export default function EnvCheckPage() {
         </div>
     );
 }
-
-  
