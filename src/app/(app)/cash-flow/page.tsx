@@ -1,6 +1,6 @@
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { getCashFlowInsights } from '@/app/data-actions';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { DollarSign, AlertCircle, Clock, TrendingDown, Package, Bot } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
