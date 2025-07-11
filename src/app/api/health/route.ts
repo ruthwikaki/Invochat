@@ -1,15 +1,16 @@
 
-
 import { NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { redisClient } from '@/lib/redis';
 import { logger } from '@/lib/logger';
+import { testGenkitConnection } from '@/services/genkit';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   let dbStatus: 'healthy' | 'unhealthy' = 'unhealthy';
   let redisStatus: 'healthy' | 'unhealthy' | 'disabled' = 'unhealthy';
+  let aiStatus: 'healthy' | 'unhealthy' = 'unhealthy';
 
   // Check Database Connection
   try {
@@ -38,7 +39,20 @@ export async function GET() {
     }
   }
 
-  const isHealthy = dbStatus === 'healthy' && (redisStatus === 'healthy' || redisStatus === 'disabled');
+  // Check AI Service Connection
+  try {
+    const aiResult = await testGenkitConnection();
+    if (aiResult.success) {
+      aiStatus = 'healthy';
+    } else {
+      throw new Error(aiResult.error || 'AI service check failed.');
+    }
+  } catch(error: any) {
+    logger.error('[Health Check] AI service connection failed:', error.message);
+  }
+
+
+  const isHealthy = dbStatus === 'healthy' && (redisStatus === 'healthy' || redisStatus === 'disabled') && aiStatus === 'healthy';
 
   return NextResponse.json(
     {
@@ -46,6 +60,7 @@ export async function GET() {
       checks: {
         database: dbStatus,
         cache: redisStatus,
+        ai_service: aiStatus,
       },
       timestamp: new Date().toISOString(),
     },

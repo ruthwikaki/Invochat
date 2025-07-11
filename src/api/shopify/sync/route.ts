@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -8,14 +7,49 @@ import { runSync } from '@/features/integrations/services/sync-service';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import crypto from 'crypto';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
 });
 
+/**
+ * Validates the HMAC signature of a Shopify webhook request.
+ * @param request The incoming NextRequest.
+ * @returns A promise that resolves to true if the signature is valid, false otherwise.
+ */
+async function validateShopifyWebhook(request: Request): Promise<boolean> {
+  const shopifyHmac = request.headers.get('x-shopify-hmac-sha256');
+  if (!shopifyHmac) {
+    return false; // No signature header present
+  }
+
+  const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
+  if (!shopifyWebhookSecret) {
+    logError(new Error('SHOPIFY_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
+    return false; // Cannot validate without the secret
+  }
+  
+  const body = await request.text();
+
+  const hash = crypto
+    .createHmac('sha256', shopifyWebhookSecret)
+    .update(body)
+    .digest('base64');
+  
+  // Use a timing-safe comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(shopifyHmac));
+  } catch (error) {
+    // This can happen if the buffers have different lengths
+    return false;
+  }
+}
+
+
 export async function POST(request: Request) {
     try {
-        // --- Server-side Authentication ---
+        // --- Server-side Authentication & Authorization ---
         const cookieStore = cookies();
         const authSupabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,16 +61,14 @@ export async function POST(request: Request) {
         const { data: { user } } = await authSupabase.auth.getUser();
         const companyId = user?.app_metadata?.company_id;
 
-        if (!user || !companyId) {
-            return NextResponse.json({ error: 'Authentication required: User or company not found.' }, { status: 401 });
-        }
-        // --- End Authentication ---
+        // An action can be triggered by an authenticated user OR a valid webhook
+        const isUserTriggered = !!(user && companyId);
+        // The clone is needed because the body can only be read once.
+        const isWebhookTriggered = await validateShopifyWebhook(request.clone());
         
-        // TODO: Implement Shopify Webhook HMAC validation
-        // const isValid = await validateShopifyWebhook(...)
-        // if (!isValid) { 
-        //     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
-        // }
+        if (!isUserTriggered && !isWebhookTriggered) {
+             return NextResponse.json({ error: 'Authentication required: User or valid webhook signature not found.' }, { status: 401 });
+        }
         
         const body = await request.json();
         const parsed = syncSchema.safeParse(body);
@@ -63,4 +95,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
-    

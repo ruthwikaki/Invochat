@@ -3,7 +3,7 @@
 
 /**
  * @fileoverview
- * This file contains the email service for sending alerts and purchase orders.
+ * This file contains the email service for sending transactional and notification emails.
  * It uses the Resend email platform.
  */
 
@@ -13,8 +13,43 @@ import { Resend } from 'resend';
 
 // Initialize Resend with the API key from environment variables.
 // The key is checked at startup, but we add a fallback for safety.
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+
+const canSendEmails = !!resendApiKey && !!fromEmail;
+
+if (!canSendEmails) {
+    logger.warn('[Email Service] RESEND_API_KEY or EMAIL_FROM not set. Email sending is disabled. Emails will be logged to the console.');
+}
+
+/**
+ * A generic email sending wrapper that either uses Resend or logs to the console.
+ * @param to Recipient's email address.
+ * @param subject Email subject.
+ * @param text The plain text body of the email.
+ * @param context A description of the email being sent for logging.
+ */
+async function sendEmail(to: string, subject: string, text: string, context: string): Promise<void> {
+    if (!canSendEmails) {
+        logger.info(`[Email Simulation] TO: ${to} | SUBJECT: ${subject} | CONTEXT: ${context}`);
+        logger.debug(`[Email Simulation] BODY:\n${text}`);
+        return;
+    }
+
+    try {
+        await resend!.emails.send({
+            from: fromEmail,
+            to: to,
+            subject: subject,
+            text: text,
+        });
+        logger.info(`[Email Service] Successfully sent email. TO: ${to}, CONTEXT: ${context}`);
+    } catch (error) {
+        logger.error(`[Email Service] Failed to send email via Resend. TO: ${to}, CONTEXT: ${context}`, error);
+        // In a production app, you might add this to a retry queue.
+    }
+}
 
 
 /**
@@ -43,18 +78,8 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     You can view this alert in your InvoChat dashboard.
   `.trim();
 
-  try {
-    await resend.emails.send({
-        from: fromEmail,
-        to: 'user@example.com', // In a real app, this would be the user's email
-        subject: subject,
-        text: body,
-    });
-    logger.info(`Successfully sent email alert for: ${alert.title}`);
-  } catch (error) {
-    logger.error('Failed to send email alert via Resend:', error);
-    // In a production app, you might want to add this to a retry queue.
-  }
+  // In a real app, this would fetch the user's actual email address.
+  await sendEmail('user@example.com', subject, body, `Alert: ${alert.type}`);
 }
 
 
@@ -69,6 +94,7 @@ export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
         return;
     }
     
+    // In a real app, you would fetch the company name dynamically.
     const subject = `Purchase Order #${po.po_number} from Your Company`;
 
     let body = `
@@ -103,17 +129,46 @@ export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
         Your Company
     `.trim();
 
-    try {
-         await resend.emails.send({
-            from: fromEmail,
-            to: toEmail,
-            subject: subject,
-            text: body,
-        });
-        logger.info(`Successfully sent PO #${po.po_number} to ${toEmail}`);
-    } catch(error) {
-        logger.error(`Failed to send PO email to ${toEmail} via Resend:`, error);
-    }
+    await sendEmail(toEmail, subject, body, `Purchase Order: ${po.po_number}`);
 }
 
-// TODO: Add functions for other email types like password reset, welcome, etc.
+/**
+ * Sends a password reset email.
+ * @param email The user's email address.
+ * @param resetLink The password reset link.
+ */
+export async function sendPasswordResetEmail(email: string, resetLink: string): Promise<void> {
+    const subject = "Reset Your InvoChat Password";
+    const body = `
+        Hello,
+
+        You requested a password reset for your InvoChat account. Please click the link below to set a new password:
+        ${resetLink}
+
+        If you did not request this, you can safely ignore this email.
+
+        Thanks,
+        The InvoChat Team
+    `.trim();
+    await sendEmail(email, subject, body, "Password Reset");
+}
+
+/**
+ * Sends a welcome email to a new user.
+ * @param email The new user's email address.
+ */
+export async function sendWelcomeEmail(email: string): Promise<void> {
+    const subject = "Welcome to InvoChat!";
+    const body = `
+        Hi there,
+
+        Welcome to InvoChat! We're excited to have you on board.
+        Your account is all set up. You can log in and start exploring your AI-powered inventory dashboard now.
+
+        If you have any questions, just reply to this email.
+
+        Best,
+        The InvoChat Team
+    `.trim();
+    await sendEmail(email, subject, body, "Welcome Email");
+}
