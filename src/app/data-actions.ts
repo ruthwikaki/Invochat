@@ -78,7 +78,7 @@ import {
     generateAnomalyExplanation,
 } from '@/ai/flows/anomaly-explanation-flow';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, LocationFormData, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, SupplierFormData, SaleCreateInput, ProductUpdateData, InventoryAgingReportItem } from '@/types';
+import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, LocationFormData, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, SupplierFormData, SaleCreateInput, ProductUpdateData, InventoryAgingReportItem, HealthCheckResult } from '@/types';
 import { sendPurchaseOrderEmail } from '@/services/email';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
@@ -640,30 +640,30 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
     }
 }
 
-export async function testSupabaseConnection() {
+export async function testSupabaseConnection(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
     return dbTestSupabase();
 }
-export async function testDatabaseQuery() {
+export async function testDatabaseQuery(): Promise<{ success: boolean; error?: string; }> {
     return dbTestQuery();
 }
-export async function testMaterializedView() {
+export async function testMaterializedView(): Promise<{ success: boolean; error?: string; }> {
     return dbTestMView();
 }
-export async function testGenkitConnection() {
+export async function testGenkitConnection(): Promise<{ isConfigured: boolean; success: boolean; error?: string; }> {
     return genkitTest();
 }
-export async function testRedisConnection() {
+export async function testRedisConnection(): Promise<{ isEnabled: boolean; success: boolean; error?: string; }> {
     return {
         isEnabled: isRedisEnabled,
         ...await redisTest()
     };
 }
-export async function getInventoryConsistencyReport() {
+export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> {
     const { companyId } = await getAuthContext();
     return healthCheckInventoryConsistency(companyId);
 }
 
-export async function getFinancialConsistencyReport() {
+export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> {
     const { companyId } = await getAuthContext();
     return healthCheckFinancialConsistency(companyId);
 }
@@ -714,7 +714,6 @@ export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
 }
-
 
 export async function getFinancialImpactOfPo(items: { sku: string; quantity: number }[]) {
     const { companyId } = await getAuthContext();

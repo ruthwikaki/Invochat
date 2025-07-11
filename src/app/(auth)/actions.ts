@@ -12,6 +12,7 @@ import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import { logSuccessfulLogin } from '@/services/database';
+import { config } from '@/config/app-config';
 
 const AUTH_TIMEOUT = 15000; // 15 seconds
 
@@ -58,7 +59,7 @@ export async function login(formData: FormData) {
     const { email, password } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'auth', 5, 60);
+    const { limited } = await rateLimit(ip, 'auth', config.ratelimit.auth, 60);
     if (limited) {
       throw new Error('Too many requests. Please try again in a minute.');
     }
@@ -116,7 +117,7 @@ export async function signup(formData: FormData) {
     const { email, password, companyName } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'auth', 5, 60);
+    const { limited } = await rateLimit(ip, 'auth', config.ratelimit.auth, 60);
     if (limited) {
       logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
       throw new Error('Too many requests. Please try again in a minute.');

@@ -7,10 +7,36 @@ import { runSync } from '@/features/integrations/services/sync-service';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import crypto from 'crypto';
+
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
 });
+
+/**
+ * Validates the signature of a WooCommerce webhook request.
+ * @param request The incoming NextRequest.
+ * @returns A promise that resolves to true if the signature is valid, false otherwise.
+ */
+async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
+    const signature = request.headers.get('x-wc-webhook-signature');
+    if (!signature) {
+        return false;
+    }
+
+    const webhookSecret = process.env.WOOCOMMERCE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+        logError(new Error('WOOCOMMERCE_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
+        return false;
+    }
+    
+    const body = await request.text();
+    const hash = crypto.createHmac('sha256', webhookSecret).update(body).digest('base64');
+    
+    return hash === signature;
+}
+
 
 export async function POST(request: Request) {
     try {
@@ -25,13 +51,13 @@ export async function POST(request: Request) {
         const { data: { user } } = await authSupabase.auth.getUser();
         const companyId = user?.app_metadata?.company_id;
 
-        if (!user || !companyId) {
-            return NextResponse.json({ error: 'Authentication required: User or company not found.' }, { status: 401 });
+        const isUserTriggered = !!(user && companyId);
+        const isWebhookTriggered = await validateWooCommerceWebhook(request.clone());
+
+        if (!isUserTriggered && !isWebhookTriggered) {
+             return NextResponse.json({ error: 'Authentication required: User or valid webhook signature not found.' }, { status: 401 });
         }
         
-        // TODO: Implement WooCommerce Webhook signature validation.
-        // This is crucial for production to ensure requests are legitimate.
-
         const body = await request.json();
         const parsed = syncSchema.safeParse(body);
 
