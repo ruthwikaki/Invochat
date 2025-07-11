@@ -44,6 +44,8 @@ import {
   getCustomerAnalyticsFromDB,
   getInventoryAgingReportFromDB,
   getProductLifecycleAnalysisFromDB,
+  getInventoryRiskReportFromDB,
+  getCustomerSegmentAnalysisFromDB,
   getTeamMembersFromDB,
   inviteUserToCompanyInDb,
   removeTeamMemberFromDb,
@@ -53,8 +55,6 @@ import {
   getCashFlowInsightsFromDB,
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
-  getInventoryRiskReportFromDB,
-  getCustomerSegmentAnalysisFromDB,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';

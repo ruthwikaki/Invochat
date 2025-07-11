@@ -376,16 +376,6 @@ export const ChannelFeeSchema = z.object({
 });
 export type ChannelFee = z.infer<typeof ChannelFee>;
 
-export const ProductLifecycleStageSchema = z.object({
-    sku: z.string(),
-    product_name: z.string(),
-    stage: z.enum(['Launch', 'Growth', 'Maturity', 'Decline']),
-    total_revenue: z.number(),
-    total_sales: z.number(),
-    age_in_days: z.number(),
-});
-export type ProductLifecycleStage = z.infer<typeof ProductLifecycleStageSchema>;
-
 export const ProductLifecycleAnalysisSchema = z.object({
     summary: z.object({
         launch_count: z.number().int(),
@@ -393,7 +383,7 @@ export const ProductLifecycleAnalysisSchema = z.object({
         maturity_count: z.number().int(),
         decline_count: z.number().int(),
     }),
-    products: z.array(ProductLifecycleStageSchema),
+    products: z.array(z.any()),
 });
 export type ProductLifecycleAnalysis = z.infer<typeof ProductLifecycleAnalysisSchema>;
 

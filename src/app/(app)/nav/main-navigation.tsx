@@ -43,9 +43,6 @@ const menuItems = [
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
   { href: '/locations', label: 'Locations', icon: Warehouse },
   { href: '/reports/inventory-aging', label: 'Inventory Aging', icon: Archive },
-  { href: '/reports/product-lifecycle', label: 'Product Lifecycle', icon: Recycle },
-  { href: '/reports/inventory-risk', label: 'Inventory Risk', icon: ShieldAlert },
-  { href: '/reports/customer-segments', label: 'Customer Segments', icon: Users2 },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
 ];
 
