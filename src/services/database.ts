@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder, SupplierPerformanceReport } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema, InventoryAnalyticsSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -665,11 +665,38 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
 // --- System & Test Actions ---
 
 export async function testSupabaseConnection(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
-    return dbTestSupabase();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+        return { isConfigured: false, success: false, user: null, error: new Error('Supabase URL or Anon Key is not configured.') };
+    }
+
+    try {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        });
+        const { data, error } = await supabase.auth.getUser();
+        if (error && error.message !== 'Auth session missing!') throw error;
+        
+        return { isConfigured: true, success: true, user: data?.user || null };
+    } catch (e: any) {
+        return { isConfigured: true, success: false, user: null, error: e };
+    }
 }
 
 export async function testDatabaseQuery(): Promise<{ success: boolean; error?: string; }> {
-    return dbTestQuery();
+    try {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.from('inventory').select('id').limit(1);
+        if (error) throw error;
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
 }
 
 export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
@@ -729,8 +756,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
         const settings = await getSettings(companyId);
         
         const { data, error } = await supabase.rpc('get_reorder_suggestions', {
-            p_company_id: companyId,
-            p_timezone: settings.timezone
+            p_company_id: companyId
         });
         
         if (error) {

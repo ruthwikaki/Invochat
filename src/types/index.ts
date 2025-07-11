@@ -270,6 +270,15 @@ export const AnomalyExplanationOutputSchema = z.object({
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 
+export const InventoryAnalyticsSchema = z.object({
+  total_inventory_value: z.number().default(0),
+  total_skus: z.number().int().default(0),
+  low_stock_items: z.number().int().default(0),
+  potential_profit: z.number().default(0),
+});
+export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
+
+
 export type DashboardMetrics = {
     totalSalesValue: number;
     totalProfit: number;
@@ -291,15 +300,6 @@ export type TeamMember = {
   email: string;
   role: 'Owner' | 'Admin' | 'Member';
 };
-
-
-export const InventoryAnalyticsSchema = z.object({
-  total_inventory_value: z.number().default(0),
-  total_skus: z.number().int().default(0),
-  low_stock_items: z.number().int().default(0),
-  potential_profit: z.number().default(0),
-});
-export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
 
 
 export const SalesAnalyticsSchema = z.object({
