@@ -396,3 +396,13 @@ export const ProductLifecycleAnalysisSchema = z.object({
     products: z.array(ProductLifecycleStageSchema),
 });
 export type ProductLifecycleAnalysis = z.infer<typeof ProductLifecycleAnalysisSchema>;
+
+export const InventoryRiskItemSchema = z.object({
+  sku: z.string(),
+  product_name: z.string(),
+  risk_score: z.number(),
+  risk_level: z.string(),
+  total_value: z.number(),
+  reason: z.string(),
+});
+export type InventoryRiskItem = z.infer<typeof InventoryRiskItemSchema>;

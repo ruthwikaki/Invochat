@@ -53,10 +53,11 @@ import {
   getCashFlowInsightsFromDB,
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
+  getInventoryRiskReportFromDB,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -560,7 +561,7 @@ export async function getInventoryTurnover() {
 }
 
 
-export async function sendDigestEmailAction(): Promise<{ success: boolean; error?: string }> {
+export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> {
     try {
         const { userEmail } = await getAuthContext();
         const insights = await getInsightsPageData();
@@ -574,4 +575,9 @@ export async function sendDigestEmailAction(): Promise<{ success: boolean; error
 export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> {
     const { companyId } = await getAuthContext();
     return getProductLifecycleAnalysisFromDB(companyId);
+}
+
+export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> {
+    const { companyId } = await getAuthContext();
+    return getInventoryRiskReportFromDB(companyId);
 }
