@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, DragEvent, useRef, useEffect, ChangeEvent } from 'react';
@@ -20,10 +21,10 @@ const CSRF_FORM_NAME = 'csrf_token';
 const CSRF_COOKIE_NAME = 'csrf_token';
 
 const importOptions = {
-    inventory: {
-        label: 'Inventory',
-        description: 'Import your core inventory data, including SKU, name, quantity, and cost.',
-        columns: ['sku', 'name', 'quantity', 'cost', 'reorder_point', 'category', 'last_sold_date'],
+    products: {
+        label: 'Products',
+        description: 'Import your core product data, including SKU, name, cost, and price.',
+        columns: ['sku', 'name', 'cost', 'price', 'category', 'barcode'],
     },
     suppliers: {
         label: 'Suppliers / Vendors',
@@ -136,7 +137,7 @@ function ImportResultsCard({ results, onClear }: { results: Omit<ImportResult, '
 }
 
 export function ImporterClientPage() {
-    const [dataType, setDataType] = useState<DataType>('inventory');
+    const [dataType, setDataType] = useState<DataType>('products');
     const [results, setResults] = useState<Omit<ImportResult, 'success'> | null>(null);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
@@ -169,7 +170,7 @@ export function ImporterClientPage() {
         formData.append('file', file);
         formData.append('dataType', dataType);
         formData.append('dryRun', String(dryRun));
-        formData.append(CSRF_COOKIE_NAME, csrfToken);
+        formData.append(CSRF_FORM_NAME, csrfToken);
         formData.append('mappings', JSON.stringify(mappings));
 
         setResults(null);
@@ -194,7 +195,7 @@ export function ImporterClientPage() {
         
         const formData = new FormData();
         formData.append('file', file);
-        formData.append(CSRF_COOKIE_NAME, csrfToken);
+        formData.append(CSRF_FORM_NAME, csrfToken);
 
         setResults(null);
         setMappingSuggestions(null);
