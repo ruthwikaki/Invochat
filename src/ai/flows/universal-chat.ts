@@ -25,6 +25,7 @@ import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMargin
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import { getBundleSuggestions } from './suggest-bundles-flow';
 import { getPriceOptimizationSuggestions } from './price-optimization-flow';
+import { getMarkdownSuggestions } from './markdown-optimizer-flow';
 
 // List of all available tools for the AI to use.
 const allTools = [
@@ -42,6 +43,7 @@ const allTools = [
     getSalesVelocity,
     getBundleSuggestions,
     getPriceOptimizationSuggestions,
+    getMarkdownSuggestions,
 ];
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
