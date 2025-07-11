@@ -1,10 +1,26 @@
--- InvoChat: Database Migration & Simplification Script
--- This script transforms the database to the new, focused "Inventory Intelligence" schema.
--- It is designed to be idempotent and can be run safely on the existing database.
 
--- STEP 1: Drop all functions that depend on the tables we are about to remove.
--- This must be done first to avoid dependency errors.
+-- InvoChat: Simplified Schema Migration Script
+
+-- This script will remove all operational features like Purchase Orders and Multi-Location
+-- and focus the schema on pure Inventory Intelligence.
+
+BEGIN;
+
+-- =================================================================
+-- Step 1: Drop dependent objects (Functions and Triggers)
+-- This must be done before dropping the tables they reference.
+-- =================================================================
+
+-- Drop triggers first
+DROP TRIGGER IF EXISTS handle_inventory_update ON public.inventory;
+DROP TRIGGER IF EXISTS validate_inventory_location_ref ON public.inventory;
+DROP TRIGGER IF EXISTS validate_purchase_order_refs ON public.purchase_orders;
+
+-- Now drop the functions that were used by triggers or are no longer needed
+DROP FUNCTION IF EXISTS public.increment_version();
+DROP FUNCTION IF EXISTS public.validate_same_company_reference();
 DROP FUNCTION IF EXISTS public.create_purchase_order_and_update_inventory(uuid,uuid,text,date,date,text,numeric,jsonb);
+DROP FUNCTION IF EXISTS public.create_purchase_order_and_update_inventory(uuid,uuid,text,date,date,text,p_items jsonb);
 DROP FUNCTION IF EXISTS public.create_purchase_orders_from_suggestions_tx(uuid, jsonb);
 DROP FUNCTION IF EXISTS public.delete_location(uuid, uuid, uuid);
 DROP FUNCTION IF EXISTS public.delete_purchase_order(uuid, uuid);
@@ -12,116 +28,130 @@ DROP FUNCTION IF EXISTS public.delete_supplier_and_catalogs(uuid, uuid);
 DROP FUNCTION IF EXISTS public.get_purchase_order_analytics(uuid);
 DROP FUNCTION IF EXISTS public.get_purchase_order_details(uuid, uuid);
 DROP FUNCTION IF EXISTS public.get_purchase_orders(uuid, text, integer, integer);
-DROP FUNCTION IF EXISTS public.get_suppliers_with_performance(uuid);
+DROP FUNCTION IF EXISTS public.get_supplier_performance(uuid);
 DROP FUNCTION IF EXISTS public.receive_purchase_order_items(uuid, jsonb, uuid, uuid);
 DROP FUNCTION IF EXISTS public.update_inventory_item_with_lock(uuid,text,integer,text,text,numeric,integer,numeric,text,uuid);
-DROP FUNCTION IF EXISTS public.update_inventory_item_with_lock(uuid,text,integer,text,text,bigint,integer,bigint,text,uuid);
 DROP FUNCTION IF EXISTS public.update_po_status(uuid, uuid);
 DROP FUNCTION IF EXISTS public.update_purchase_order(uuid,uuid,uuid,text,text,date,date,text,jsonb);
 DROP FUNCTION IF EXISTS public.validate_po_financials(uuid, bigint);
+DROP FUNCTION IF EXISTS public.batch_upsert_with_transaction(text, jsonb, text[]);
 
--- STEP 2: Drop the now-unused tables. CASCADE handles dependent indexes and constraints.
-DROP TABLE IF EXISTS public.purchase_order_items CASCADE;
-DROP TABLE IF EXISTS public.purchase_orders CASCADE;
-DROP TABLE IF EXISTS public.reorder_rules CASCADE;
-DROP TABLE IF EXISTS public.supplier_catalogs CASCADE;
-DROP TABLE IF EXISTS public.vendors CASCADE;
-DROP TABLE IF EXISTS public.locations CASCADE;
-
--- STEP 3: Alter existing tables to remove obsolete columns.
--- We use a function to safely drop columns only if they exist.
-CREATE OR REPLACE FUNCTION drop_column_if_exists(table_name TEXT, column_name TEXT)
-RETURNS VOID AS $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-        AND columns.table_name = drop_column_if_exists.table_name
-        AND columns.column_name = drop_column_if_exists.column_name
-    ) THEN
-        EXECUTE 'ALTER TABLE public.' || quote_ident(table_name) || ' DROP COLUMN ' || quote_ident(column_name);
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
-
--- Remove location and PO-related columns from the inventory table
-SELECT drop_column_if_exists('inventory', 'location_id');
-SELECT drop_column_if_exists('inventory', 'on_order_quantity');
-SELECT drop_column_if_exists('inventory', 'landed_cost');
-SELECT drop_column_if_exists('inventory', 'expiration_date');
-SELECT drop_column_if_exists('inventory', 'lot_number');
-SELECT drop_column_if_exists('inventory', 'conflict_status');
-SELECT drop_column_if_exists('inventory', 'manual_override');
-
--- Remove external platform references from customers table
-SELECT drop_column_if_exists('customers', 'platform');
-SELECT drop_column_if_exists('customers', 'external_id');
-SELECT drop_column_if_exists('customers', 'status');
-
--- Remove unnecessary user_id from sales table (will use audit log instead)
-SELECT drop_column_if_exists('sales', 'created_by');
-
--- Drop the helper function as it's no longer needed
-DROP FUNCTION drop_column_if_exists(TEXT, TEXT);
+-- =================================================================
+-- Step 2: Drop unnecessary tables in the correct order
+-- =================================================================
+DROP TABLE IF EXISTS public.purchase_order_items;
+DROP TABLE IF EXISTS public.purchase_orders;
+DROP TABLE IF EXISTS public.reorder_rules;
+DROP TABLE IF EXISTS public.supplier_catalogs;
+DROP TABLE IF EXISTS public.vendors; -- Old name for suppliers
+DROP TABLE IF EXISTS public.locations;
 
 
--- STEP 4: Alter the inventory_ledger table to use product_id instead of SKU
--- First, drop the old SKU column if it exists
-DO $$
-BEGIN
-   IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name='inventory_ledger' AND column_name='sku'
-   ) THEN
-      ALTER TABLE public.inventory_ledger DROP COLUMN sku;
-   END IF;
-END;
-$$;
+-- =================================================================
+-- Step 3: Alter existing tables to remove obsolete columns
+-- =================================================================
 
--- Add the product_id column if it doesn't exist
-DO $$
-BEGIN
-   IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name='inventory_ledger' AND column_name='product_id'
-   ) THEN
-      ALTER TABLE public.inventory_ledger ADD COLUMN product_id uuid;
-   END IF;
-END;
-$$;
-
--- Add the foreign key constraint safely
-ALTER TABLE public.inventory_ledger DROP CONSTRAINT IF EXISTS inventory_ledger_product_id_fkey;
-ALTER TABLE public.inventory_ledger ADD CONSTRAINT inventory_ledger_product_id_fkey
-   FOREIGN KEY (product_id) REFERENCES public.inventory(id);
-
--- Make the column not nullable after ensuring it exists
-ALTER TABLE public.inventory_ledger ALTER COLUMN product_id SET NOT NULL;
-ALTER TABLE public.inventory_ledger ALTER COLUMN new_quantity SET NOT NULL;
-
-
--- STEP 5: Add supplier_id to the inventory table if it doesn't exist
-DO $$
-BEGIN
-   IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'inventory' AND column_name = 'supplier_id'
-   ) THEN
-      ALTER TABLE public.inventory ADD COLUMN supplier_id uuid;
-   END IF;
-END;
-$$;
-
--- Add the foreign key constraint safely
+-- Simplify Inventory table
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS on_order_quantity;
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS landed_cost;
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS location_id;
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS conflict_status;
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS last_external_sync;
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS manual_override;
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS expiration_date;
+ALTER TABLE public.inventory DROP COLUMN IF EXISTS lot_number;
+ALTER TABLE public.inventory ADD COLUMN IF NOT EXISTS supplier_id uuid;
 ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS inventory_supplier_id_fkey;
-ALTER TABLE public.inventory ADD CONSTRAINT inventory_supplier_id_fkey
-  FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id) ON DELETE SET NULL;
 
+-- Simplify Customers table
+ALTER TABLE public.customers DROP COLUMN IF EXISTS platform;
+ALTER TABLE public.customers DROP COLUMN IF EXISTS external_id;
+ALTER TABLE public.customers DROP COLUMN IF EXISTS status;
 
--- STEP 6: Re-create and update necessary functions for the new schema.
--- This ensures all functions are up-to-date with the simplified structure.
-DROP FUNCTION IF EXISTS public.get_unified_inventory(uuid, text, text, uuid, uuid, text, integer, integer);
+-- Simplify Sales table
+ALTER TABLE public.sales DROP COLUMN IF EXISTS created_by;
+
+-- Rename 'vendors' to 'suppliers' if it exists
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'vendors') THEN
+        ALTER TABLE public.vendors RENAME TO suppliers;
+    END IF;
+END$$;
+
+-- Add any missing columns to suppliers table just in case
+ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS notes text;
+ALTER TABLE public.suppliers RENAME COLUMN IF EXISTS vendor_name TO name;
+ALTER TABLE public.suppliers RENAME COLUMN IF EXISTS contact_info TO email;
+
+-- =================================================================
+-- Step 4: Re-create and update necessary tables and constraints
+-- =================================================================
+
+-- Create Inventory Ledger table (if it doesn't exist)
+CREATE TABLE IF NOT EXISTS public.inventory_ledger (
+    id uuid NOT NULL DEFAULT extensions.uuid_generate_v4(),
+    company_id uuid NOT NULL,
+    product_id uuid NOT NULL,
+    change_type text NOT NULL,
+    quantity_change integer NOT NULL,
+    new_quantity integer NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    related_id uuid,
+    notes text,
+    CONSTRAINT inventory_ledger_pkey PRIMARY KEY (id),
+    CONSTRAINT inventory_ledger_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
+    CONSTRAINT inventory_ledger_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.inventory(id) ON DELETE CASCADE
+);
+
+-- Ensure inventory has a foreign key to suppliers
+ALTER TABLE public.inventory ADD CONSTRAINT inventory_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id) ON DELETE SET NULL;
+
+-- Ensure inventory sku is unique per company
+ALTER TABLE public.inventory DROP CONSTRAINT IF EXISTS inventory_company_id_sku_key;
+ALTER TABLE public.inventory ADD CONSTRAINT inventory_company_id_sku_key UNIQUE (company_id, sku);
+
+-- =================================================================
+-- Step 5: Create or Replace updated, simplified functions
+-- =================================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- Create a new company for the new user
+    INSERT INTO public.companies (name)
+    VALUES (NEW.raw_user_meta_data->>'company_name');
+
+    -- Update the user's app_metadata with the new company_id and role
+    UPDATE auth.users
+    SET app_metadata = jsonb_set(
+        jsonb_set(COALESCE(app_metadata, '{}'::jsonb), '{company_id}', (SELECT id FROM public.companies WHERE name = NEW.raw_user_meta_data->>'company_name')::jsonb),
+        '{role}',
+        '"Owner"'::jsonb
+    )
+    WHERE id = NEW.id;
+
+    -- Add user to the public users table
+    INSERT INTO public.users (id, company_id, email, role)
+    VALUES (
+        NEW.id,
+        (SELECT id FROM public.companies WHERE name = NEW.raw_user_meta_data->>'company_name'),
+        NEW.email,
+        'Owner'
+    );
+    RETURN NEW;
+END;
+$$;
+
+-- Ensure handle_new_user trigger exists and is correct
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
 CREATE OR REPLACE FUNCTION public.get_unified_inventory(
     p_company_id uuid,
     p_query text DEFAULT NULL,
@@ -138,51 +168,35 @@ BEGIN
     RETURN QUERY
     WITH filtered_inventory AS (
         SELECT
-            i.id,
+            i.id as product_id,
             i.sku,
-            i.name,
+            i.name as product_name,
             i.category,
             i.quantity,
             i.cost,
             i.price,
+            (i.quantity * i.cost) as total_value,
             i.reorder_point,
-            s.name AS supplier_name,
-            s.id AS supplier_id
+            s.name as supplier_name,
+            s.id as supplier_id
         FROM public.inventory i
         LEFT JOIN public.suppliers s ON i.supplier_id = s.id AND i.company_id = s.company_id
-        WHERE
-            i.company_id = p_company_id
-            AND i.deleted_at IS NULL
-            AND (p_query IS NULL OR i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%')
-            AND (p_category IS NULL OR i.category = p_category)
-            AND (p_supplier_id IS NULL OR i.supplier_id = p_supplier_id)
-            AND (p_product_id_filter IS NULL OR i.id = p_product_id_filter)
+        WHERE i.company_id = p_company_id
+          AND i.deleted_at IS NULL
+          AND (p_query IS NULL OR i.name ILIKE '%' || p_query || '%' OR i.sku ILIKE '%' || p_query || '%')
+          AND (p_category IS NULL OR i.category = p_category)
+          AND (p_supplier_id IS NULL OR i.supplier_id = p_supplier_id)
+          AND (p_product_id_filter IS NULL OR i.id = p_product_id_filter)
     )
     SELECT
-        (SELECT json_agg(
-            json_build_object(
-                'product_id', fi.id,
-                'sku', fi.sku,
-                'product_name', fi.name,
-                'category', fi.category,
-                'quantity', fi.quantity,
-                'cost', fi.cost,
-                'price', fi.price,
-                'total_value', fi.quantity * fi.cost,
-                'reorder_point', fi.reorder_point,
-                'supplier_name', fi.supplier_name,
-                'supplier_id', fi.supplier_id
-            )
-        ) FROM (SELECT * FROM filtered_inventory ORDER BY name LIMIT p_limit OFFSET p_offset) AS fi) AS items,
-        (SELECT COUNT(*) FROM filtered_inventory) AS total_count;
+        (SELECT json_agg(fi.*) FROM (SELECT * FROM filtered_inventory ORDER BY product_name LIMIT p_limit OFFSET p_offset) fi) as items,
+        (SELECT count(*) FROM filtered_inventory) as total_count;
 END;
 $$;
 
 
-DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid, uuid, jsonb, text, text, text, text, text);
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
-    p_user_id uuid,
     p_sale_items jsonb,
     p_customer_name text DEFAULT NULL,
     p_customer_email text DEFAULT NULL,
@@ -190,76 +204,163 @@ CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_notes text DEFAULT NULL,
     p_external_id text DEFAULT NULL
 )
-RETURNS sales AS $$
+RETURNS sales
+LANGUAGE plpgsql
+AS $$
 DECLARE
-    new_sale sales;
+    new_sale_id uuid;
+    new_sale_number text;
+    total_sale_amount numeric := 0;
     sale_item jsonb;
-    inv_id uuid;
-    inv_version integer;
+    inv_record RECORD;
+    new_sale record;
 BEGIN
-    INSERT INTO sales (company_id, sale_number, customer_name, customer_email, total_amount, payment_method, notes, created_by, external_id)
-    VALUES (
-        p_company_id,
-        'SALE-' || nextval('sales_sale_number_seq'),
-        p_customer_name,
-        p_customer_email,
-        (SELECT sum((item->>'quantity')::int * (item->>'unit_price')::numeric) FROM jsonb_array_elements(p_sale_items) item),
-        p_payment_method,
-        p_notes,
-        p_user_id,
-        p_external_id
-    ) RETURNING * INTO new_sale;
+    -- Generate a unique sale number
+    new_sale_number := 'SALE-' || to_char(now(), 'YYMMDD') || '-' || (
+        SELECT lpad( (count(*) + 1)::text, 4, '0')
+        FROM sales
+        WHERE created_at::date = current_date AND company_id = p_company_id
+    );
 
+    -- Calculate total sale amount
     FOR sale_item IN SELECT * FROM jsonb_array_elements(p_sale_items)
     LOOP
-        SELECT id, version INTO inv_id, inv_version
-        FROM inventory
-        WHERE company_id = p_company_id AND sku = sale_item->>'sku' AND deleted_at IS NULL;
-
-        IF inv_id IS NOT NULL THEN
-            UPDATE inventory
-            SET
-                quantity = quantity - (sale_item->>'quantity')::int,
-                last_sold_date = CURRENT_DATE,
-                version = version + 1
-            WHERE id = inv_id AND company_id = p_company_id;
-
-            INSERT INTO sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
-            VALUES (new_sale.id, p_company_id, sale_item->>'sku', sale_item->>'product_name', (sale_item->>'quantity')::int, (sale_item->>'unit_price')::numeric, (SELECT cost FROM inventory WHERE id = inv_id));
-            
-            INSERT INTO inventory_ledger (company_id, product_id, change_type, quantity_change, new_quantity, related_id, notes)
-            SELECT p_company_id, inv_id, 'sale', -(sale_item->>'quantity')::int, quantity, new_sale.id, 'Sale #' || new_sale.sale_number
-            FROM inventory WHERE id = inv_id;
-        END IF;
+        total_sale_amount := total_sale_amount + ((sale_item->>'quantity')::numeric * (sale_item->>'unit_price')::numeric);
     END LOOP;
 
+    -- Create the sale record
+    INSERT INTO public.sales (company_id, sale_number, customer_name, customer_email, total_amount, payment_method, notes, external_id)
+    VALUES (p_company_id, new_sale_number, p_customer_name, p_customer_email, total_sale_amount, p_payment_method, p_notes, p_external_id)
+    RETURNING id INTO new_sale_id;
+
+    -- Process each sale item
+    FOR sale_item IN SELECT * FROM jsonb_array_elements(p_sale_items)
+    LOOP
+        -- Find the inventory record by SKU
+        SELECT * INTO inv_record FROM public.inventory
+        WHERE company_id = p_company_id AND sku = sale_item->>'sku';
+
+        IF inv_record IS NULL THEN
+            RAISE EXCEPTION 'Product with SKU % not found.', sale_item->>'sku';
+        END IF;
+
+        -- Insert into sale_items
+        INSERT INTO public.sale_items (sale_id, company_id, sku, product_name, quantity, unit_price, cost_at_time)
+        VALUES (new_sale_id, p_company_id, sale_item->>'sku', sale_item->>'product_name', (sale_item->>'quantity')::int, (sale_item->>'unit_price')::numeric, inv_record.cost);
+
+        -- Update inventory quantity and log the change
+        UPDATE public.inventory
+        SET
+            quantity = quantity - (sale_item->>'quantity')::int,
+            last_sold_date = current_date
+        WHERE id = inv_record.id;
+
+        INSERT INTO public.inventory_ledger (company_id, product_id, change_type, quantity_change, new_quantity, related_id)
+        VALUES (p_company_id, inv_record.id, 'sale', -(sale_item->>'quantity')::int, inv_record.quantity - (sale_item->>'quantity')::int, new_sale_id);
+
+    END LOOP;
+    
+    SELECT * INTO new_sale FROM public.sales WHERE id = new_sale_id;
     RETURN new_sale;
 END;
-$$ LANGUAGE plpgsql;
-
-DROP FUNCTION IF EXISTS public.get_business_profile(uuid);
-CREATE OR REPLACE FUNCTION public.get_business_profile(p_company_id uuid)
-RETURNS TABLE(monthly_revenue bigint)
-LANGUAGE sql
-AS $$
-    SELECT
-        COALESCE(SUM(total_amount), 0)::bigint AS monthly_revenue
-    FROM public.sales
-    WHERE
-        company_id = p_company_id
-        AND created_at >= now() - interval '30 days';
 $$;
 
--- STEP 7: Final cleanup of any other old functions that may have been missed.
-DROP FUNCTION IF EXISTS public.batch_upsert_with_transaction(text,jsonb,text[]);
-DROP FUNCTION IF EXISTS public.check_inventory_references(uuid,text[]);
-DROP FUNCTION IF EXISTS public.delete_supplier_and_catalogs(uuid,uuid);
-DROP FUNCTION IF EXISTS public.update_inventory_item_with_lock(uuid,text,integer,text,text,bigint,integer,bigint,text);
-DROP FUNCTION IF EXISTS public.validate_same_company_reference();
 
--- Drop trigger that relied on validate_same_company_reference
-DROP TRIGGER IF EXISTS validate_inventory_location_ref ON public.inventory;
-DROP TRIGGER IF EXISTS validate_purchase_order_refs ON public.purchase_orders;
+CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(
+    p_company_id uuid,
+    p_timezone text DEFAULT 'UTC'
+)
+RETURNS TABLE(
+    product_id uuid,
+    sku text,
+    product_name text,
+    current_quantity integer,
+    reorder_point integer,
+    suggested_reorder_quantity integer,
+    supplier_name text,
+    supplier_id uuid,
+    unit_cost integer,
+    base_quantity integer
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    WITH sales_velocity AS (
+        SELECT
+            si.sku,
+            (SUM(si.quantity)::decimal / 30) as daily_sales_velocity
+        FROM public.sale_items si
+        JOIN public.sales s ON si.sale_id = s.id
+        WHERE si.company_id = p_company_id
+          AND s.created_at >= (now() at time zone p_timezone) - interval '30 days'
+        GROUP BY si.sku
+    )
+    SELECT
+        i.id as product_id,
+        i.sku,
+        i.name as product_name,
+        i.quantity as current_quantity,
+        i.reorder_point,
+        -- Suggested reorder quantity logic
+        GREATEST(
+            i.reorder_point,
+            (COALESCE(sv.daily_sales_velocity, 0) * 30)::integer -- default to 30 days of stock
+        ) as suggested_reorder_quantity,
+        s.name as supplier_name,
+        s.id as supplier_id,
+        (i.cost)::integer as unit_cost,
+        i.reorder_point as base_quantity
+    FROM public.inventory i
+    LEFT JOIN public.suppliers s ON i.supplier_id = s.id
+    LEFT JOIN sales_velocity sv ON i.sku = sv.sku
+    WHERE i.company_id = p_company_id
+      AND i.deleted_at IS NULL
+      AND i.quantity < i.reorder_point;
+END;
+$$;
 
--- Log completion
-SELECT 'Database migration to simplified schema is complete.' as status;
+
+CREATE OR REPLACE FUNCTION public.get_historical_sales(p_company_id uuid, p_skus text[])
+RETURNS TABLE(sku text, monthly_sales jsonb)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        s.sku,
+        jsonb_agg(s.sales_data)
+    FROM (
+        SELECT
+            si.sku,
+            jsonb_build_object(
+                'month', to_char(date_trunc('month', s.created_at), 'YYYY-MM'),
+                'total_quantity', SUM(si.quantity)
+            ) as sales_data
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE si.company_id = p_company_id AND si.sku = ANY(p_skus)
+        GROUP BY si.sku, date_trunc('month', s.created_at)
+        ORDER BY date_trunc('month', s.created_at) DESC
+        LIMIT 24
+    ) as s
+    GROUP BY s.sku;
+END;
+$$;
+
+
+CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
+RETURNS json
+LANGUAGE sql STABLE
+AS $$
+    SELECT json_build_object(
+        'total_inventory_value', COALESCE(SUM(i.quantity * i.cost), 0),
+        'total_skus', COUNT(i.id),
+        'low_stock_items', COUNT(i.id) FILTER (WHERE i.quantity < i.reorder_point),
+        'potential_profit', COALESCE(SUM(i.quantity * (i.price - i.cost)), 0)
+    )
+    FROM public.inventory i
+    WHERE i.company_id = p_company_id AND i.deleted_at IS NULL;
+$$;
+
+COMMIT;
