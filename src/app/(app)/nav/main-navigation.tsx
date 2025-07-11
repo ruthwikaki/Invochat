@@ -11,23 +11,25 @@ import {
   TrendingDown,
   Truck,
   BarChart,
+  Users,
   ShoppingCart,
-  ClipboardList,
-  HeartPulse,
+  Archive,
+  AlertCircle
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/chat', label: 'Chat', icon: MessageSquare, exact: false },
+  { href: '/analytics', label: 'Strategic Reports', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
-  { href: '/reports/reordering', label: 'Reorder Report', icon: ClipboardList },
-  { href: '/reports/dead-stock', label: 'Dead Stock', icon: TrendingDown },
-  { href: '/reports/abc-analysis', label: 'ABC Analysis', icon: BarChart },
-  { href: '/reports/profit-leaks', label: 'Profit Leaks', icon: Lightbulb },
-   { href: '/reports/health-score', label: 'Health Score', icon: HeartPulse },
+  { href: '/insights', label: 'Insights', icon: Lightbulb },
+  { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
+  { href: '/reports/inventory-aging', label: 'Inventory Aging', icon: Archive },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
+  { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/alerts', label: 'Alerts', icon: AlertCircle },
 ];
 
 export function MainNavigation() {

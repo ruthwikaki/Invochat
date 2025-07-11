@@ -1,20 +1,16 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import type { ReorderSuggestion } from '@/types';
-import { createPurchaseOrdersFromSuggestions } from '@/app/data-actions';
-import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit } from 'lucide-react';
+import { RefreshCw, AlertTriangle, BrainCircuit } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { cn } from '@/lib/utils';
-import { Badge } from '../ui/badge';
+import { ExportButton } from '../ui/export-button';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -56,10 +52,13 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     )
 }
 
-export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: ReorderSuggestion[] }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [isPending, startTransition] = useTransition();
+export function ReorderClientPage({ 
+    initialSuggestions,
+    exportAction
+}: { 
+    initialSuggestions: ReorderSuggestion[];
+    exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
+}) {
   const [selectedSuggestions, setSelectedSuggestions] = useState<ReorderSuggestion[]>(initialSuggestions);
 
   const handleSelect = (suggestion: ReorderSuggestion, checked: boolean) => {
@@ -70,25 +69,6 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
 
   const handleSelectAll = (checked: boolean) => {
     setSelectedSuggestions(checked ? initialSuggestions : []);
-  };
-
-  const handleCreatePOs = () => {
-    startTransition(async () => {
-      const result = await createPurchaseOrdersFromSuggestions(selectedSuggestions);
-      if (result.success) {
-        toast({
-          title: 'Purchase Orders Created!',
-          description: `${result.createdPoCount} new PO(s) have been generated.`,
-        });
-        router.push('/purchase-orders');
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Error Creating POs',
-          description: result.error,
-        });
-      }
-    });
   };
   
   const isAllSelected = initialSuggestions.length > 0 && selectedSuggestions.length === initialSuggestions.length;
@@ -116,9 +96,12 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>AI-Enhanced Reorder Suggestions</CardTitle>
-          <CardDescription>Select items to automatically generate purchase orders. The AI has adjusted quantities based on historical sales data and seasonality.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>AI-Enhanced Reorder Suggestions</CardTitle>
+            <CardDescription>Select items to export for your purchasing team. The AI has adjusted quantities based on historical sales data and seasonality.</CardDescription>
+          </div>
+          <ExportButton exportAction={exportAction} filename={`reorder-report-${new Date().toISOString().split('T')[0]}.csv`} />
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[65vh] overflow-auto">
@@ -178,10 +161,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                 >
                     <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
                         <p className="text-sm font-medium">{selectedSuggestions.length} item(s) selected</p>
-                        <Button onClick={handleCreatePOs} disabled={isPending}>
-                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                             <ShoppingCart className="mr-2 h-4 w-4" /> Create Purchase Order(s)
-                        </Button>
+                        <ExportButton exportAction={exportAction} filename={`reorder-report-${new Date().toISOString().split('T')[0]}.csv`} />
                     </div>
                 </motion.div>
             )}

@@ -34,15 +34,32 @@ import {
   getReorderReportFromDB,
   getInventoryHealthScoreFromDB,
   findProfitLeaksFromDB,
-  getAbcAnalysisFromDB
+  getAbcAnalysisFromDB,
+  getAnomalyInsightsFromDB,
+  getDbSchemaAndData,
+  healthCheckFinancialConsistency,
+  healthCheckInventoryConsistency,
+  createExportJobInDb,
+  getAlertsFromDB,
+  getCustomerAnalyticsFromDB,
+  getInventoryAgingReportFromDB,
+  getTeamMembersFromDB,
+  inviteUserToCompanyInDb,
+  removeTeamMemberFromDb,
+  updateTeamMemberRoleInDb,
+  getChannelFeesFromDB,
+  upsertChannelFeeInDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
+import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
+import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
+
 
 async function getAuthContext() {
     const cookieStore = cookies();
@@ -78,6 +95,9 @@ export async function updateCompanySettings(formData: FormData) {
   const settings = {
     dead_stock_days: Number(formData.get('dead_stock_days')),
     fast_moving_days: Number(formData.get('fast_moving_days')),
+    overstock_multiplier: Number(formData.get('overstock_multiplier')),
+    high_value_threshold: Number(formData.get('high_value_threshold')),
+    predictive_stock_days: Number(formData.get('predictive_stock_days')),
   };
   return updateSettingsInDb(companyId, settings);
 }
@@ -245,9 +265,14 @@ export async function getSalesAnalytics() {
     return getSalesAnalyticsFromDB(companyId);
 }
 
+export async function getCustomerAnalytics() {
+    const { companyId } = await getAuthContext();
+    return getCustomerAnalyticsFromDB(companyId);
+}
+
 // --- Report Actions ---
 
-export async function getDeadStockReport() {
+export async function getDeadStockData() {
     const { companyId } = await getAuthContext();
     return getDeadStockReportFromDB(companyId);
 }
@@ -270,6 +295,44 @@ export async function getProfitLeaks() {
 export async function getAbcAnalysis(metric: 'revenue' | 'units' | 'profit', period: 'last30' | 'last90' | 'last365') {
     const { companyId } = await getAuthContext();
     return getAbcAnalysisFromDB(companyId, metric, period);
+}
+
+export async function getInsightsPageData() {
+    const { companyId } = await getAuthContext();
+    const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
+        getAnomalyInsightsFromDB(companyId),
+        getDeadStockReportFromDB(companyId),
+        getAlertsFromDB(companyId),
+    ]);
+
+    const explainedAnomalies = await Promise.all(
+        rawAnomalies.map(async (anomaly) => {
+            const date = new Date(anomaly.date);
+            const explanation = await generateAnomalyExplanation({
+                anomaly,
+                dateContext: {
+                    dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
+                    month: date.toLocaleDateString('en-US', { month: 'long' }),
+                    season: 'Summer',
+                    knownHoliday: undefined,
+                },
+            });
+            return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
+        })
+    );
+    
+    const summary = await generateInsightsSummary({
+        anomalies: explainedAnomalies,
+        lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
+        deadStockCount: topDeadStockData.deadStockItems.length,
+    });
+
+    return {
+        summary,
+        anomalies: explainedAnomalies,
+        topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
+        topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
+    };
 }
 
 
@@ -310,4 +373,149 @@ export async function logUserFeedback(formData: FormData): Promise<{ success: bo
     logError(e, { context: 'logUserFeedback action failed' });
     return { success: false, error: getErrorMessage(e) };
   }
+}
+
+
+export async function getAlertsData(): Promise<Alert[]> {
+    const { companyId } = await getAuthContext();
+    return getAlertsFromDB(companyId);
+}
+
+export async function getDatabaseSchemaAndData() {
+    const { companyId } = await getAuthContext();
+    return getDbSchemaAndData(companyId);
+}
+
+export async function getTeamMembers() {
+    const { companyId } = await getAuthContext();
+    return getTeamMembersFromDB(companyId);
+}
+
+export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        const email = formData.get('email') as string;
+        await inviteUserToCompanyInDb(companyId, 'Your Company', email);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        const memberId = formData.get('memberId') as string;
+        if (userId === memberId) throw new Error("You cannot remove yourself.");
+        
+        return await removeTeamMemberFromDb(memberId, companyId, userId);
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        const memberId = formData.get('memberId') as string;
+        const newRole = formData.get('newRole') as 'Admin' | 'Member';
+        if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
+        
+        return await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function getChannelFees() {
+    const { companyId } = await getAuthContext();
+    return getChannelFeesFromDB(companyId);
+}
+
+export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        
+        const percentageFee = parseFloat(formData.get('percentage_fee') as string);
+        if (isNaN(percentageFee) || percentageFee < 0 || percentageFee > 1) {
+            throw new Error('Percentage fee must be a decimal between 0 and 1 (e.g., 0.029 for 2.9%).');
+        }
+
+        const feeData = {
+            channel_name: formData.get('channel_name') as string,
+            percentage_fee: percentageFee,
+            fixed_fee: Math.round(parseFloat(formData.get('fixed_fee') as string) * 100),
+        };
+        await upsertChannelFeeInDB(companyId, feeData);
+        revalidatePath('/settings');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+
+export async function exportCustomers(params: { query?: string }) {
+    try {
+        const { companyId } = await getAuthContext();
+        const { items } = await getCustomersFromDB(companyId, { ...params, limit: 10000, offset: 0 });
+        const csv = Papa.unparse(items);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+
+export async function exportSales(params: { query?: string }) {
+    try {
+        const { companyId } = await getAuthContext();
+        const { items } = await getSalesFromDB(companyId, { ...params, limit: 10000, page: 1 });
+        const csv = Papa.unparse(items);
+        return { success: true, data: csv };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const job = await createExportJobInDb(companyId, userId);
+        logger.info(`[Export] Job ${job.id} created for company ${companyId}.`);
+        return { success: true, jobId: job.id };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+
+export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> {
+    const { companyId } = await getAuthContext();
+    return healthCheckInventoryConsistency(companyId);
+}
+
+export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> {
+    const { companyId } = await getAuthContext();
+    return healthCheckFinancialConsistency(companyId);
+}
+
+export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> {
+    const { companyId } = await getAuthContext();
+    return getInventoryAgingReportFromDB(companyId);
+}
+
+export async function exportInventory(params: { query?: string; category?: string; supplier?: string }) {
+    try {
+        const { companyId } = await getAuthContext();
+        const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
+        const csv = Papa.unparse(items);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
 }

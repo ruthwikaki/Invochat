@@ -157,6 +157,9 @@ export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
   dead_stock_days: z.number().default(90),
   fast_moving_days: z.number().default(30),
+  overstock_multiplier: z.number().default(3),
+  high_value_threshold: z.number().default(1000),
+  predictive_stock_days: z.number().default(7),
   currency: z.string().nullable().optional().default('USD'),
   timezone: z.string().nullable().optional().default('UTC'),
   created_at: z.string().datetime({ offset: true }),
@@ -177,6 +180,7 @@ export const UnifiedInventoryItemSchema = z.object({
     reorder_point: z.number().nullable(),
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
+    barcode: z.string().nullable(),
 });
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
@@ -345,3 +349,26 @@ export const InventoryAgingReportItemSchema = z.object({
     days_since_last_sale: z.number().int(),
 });
 export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
+
+
+export const InventoryLedgerEntrySchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    product_id: z.string().uuid(),
+    change_type: z.string(),
+    quantity_change: z.number().int(),
+    new_quantity: z.number().int(),
+    created_at: z.string(),
+    related_id: z.string().uuid().nullable(),
+    notes: z.string().nullable(),
+});
+export type InventoryLedgerEntry = z.infer<typeof InventoryLedgerEntrySchema>;
+
+export const ChannelFeeSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    channel_name: z.string(),
+    percentage_fee: z.number(),
+    fixed_fee: z.number(), // in cents
+});
+export type ChannelFee = z.infer<typeof ChannelFeeSchema>;

@@ -7,7 +7,7 @@
  * It uses the Resend email platform.
  */
 
-import type { Alert, PurchaseOrder } from '@/types';
+import type { Alert } from '@/types';
 import { logger } from '@/lib/logger';
 import { Resend } from 'resend';
 import { config } from '@/config/app-config';
@@ -86,55 +86,6 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
   await sendEmail('user@example.com', subject, body, `Alert: ${alert.type}`);
 }
 
-
-/**
- * Sends a purchase order email to a supplier.
- * @param po The purchase order object.
- */
-export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
-    const toEmail = po.supplier_email || null;
-    if (!toEmail) {
-        logger.warn(`Cannot send PO email for PO #${po.po_number} because supplier email is missing.`);
-        throw new Error('Supplier email is missing.');
-    }
-    
-    // In a real app, you would fetch the company name dynamically.
-    const subject = `Purchase Order #${po.po_number} from Your Company`;
-
-    let body = `
-        Hello ${po.supplier_name},
-
-        Please find our Purchase Order #${po.po_number} attached.
-
-        Order Date: ${new Date(po.order_date).toLocaleDateString()}
-        Expected Delivery Date: ${po.expected_date ? new Date(po.expected_date).toLocaleDateString() : 'N/A'}
-
-        Items Requested:
-        ------------------------------------------------------------
-    `.trim();
-
-    po.items?.forEach(item => {
-        body += `
-        - SKU: ${item.sku}
-          Product: ${item.product_name || 'N/A'}
-          Quantity: ${item.quantity_ordered}
-          Unit Cost: $${(item.unit_cost / 100).toFixed(2)}
-        `;
-    });
-
-    body += `
-        ------------------------------------------------------------
-        Total Amount: $${(po.total_amount / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-
-        Notes:
-        ${po.notes || 'No notes provided.'}
-
-        Thank you,
-        Your Company
-    `.trim();
-
-    await sendEmail(toEmail, subject, body, `Purchase Order: ${po.po_number}`);
-}
 
 /**
  * Sends a password reset email.

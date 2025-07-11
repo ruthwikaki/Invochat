@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Supplier, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Replace } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -23,10 +23,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { InventoryEditDialog } from './inventory-edit-dialog';
 import { Package } from 'lucide-react';
 import { InventoryHistoryDialog } from './inventory-history-dialog';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { ExportButton } from '../ui/export-button';
-
+import { Loader2 } from 'lucide-react';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
@@ -153,7 +152,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [isDeleting, startDeleteTransition] = useTransition();
   const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
-  const [historySku, setHistorySku] = useState<string | null>(null);
+  const [historyProductId, setHistoryProductId] = useState<string | null>(null);
 
   useEffect(() => {
     setInventory(initialInventory);
@@ -313,8 +312,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             <AlertDialogFooter>
                 <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Yes, delete
+                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Yes, delete
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
@@ -327,8 +326,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
       />
       
        <InventoryHistoryDialog
-            sku={historySku}
-            onClose={() => setHistorySku(null)}
+            productId={historyProductId}
+            onClose={() => setHistoryProductId(null)}
        />
 
         {showEmptyState ? <EmptyInventoryState /> : (
@@ -396,7 +395,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setHistoryProductId(item.product_id)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemsToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
@@ -419,7 +418,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                             <div><strong className="text-muted-foreground">Category:</strong> {item.category || 'N/A'}</div>
                                             <div><strong className="text-muted-foreground">Unit Cost:</strong> ${(item.cost/100).toFixed(2)}</div>
-                                            <div><strong className="text-muted-foreground">Landed Cost:</strong> {item.landed_cost ? `$${(item.landed_cost/100).toFixed(2)}` : 'N/A'}</div>
+                                            <div><strong className="text-muted-foreground">Supplier:</strong> {item.supplier_name || 'N/A'}</div>
                                             <div><strong className="text-muted-foreground">Barcode:</strong> {item.barcode || 'N/A'}</div>
                                         </div>
                                     </TableCell>
@@ -447,18 +446,9 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                     <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
                         <p className="text-sm font-medium">{numSelected} item(s) selected</p>
                         <Button variant="destructive" size="sm" onClick={() => setItemsToDelete(Array.from(selectedRows))}>Delete Selected</Button>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
-                                        <X className="h-4 w-4"/>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Deselect All</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
+                           <X className="h-4 w-4"/>
+                        </Button>
                     </div>
                 </motion.div>
             )}
