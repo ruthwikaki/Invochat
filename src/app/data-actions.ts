@@ -31,7 +31,7 @@ import {
   updateProductInDb,
   logUserFeedbackInDb,
   getDeadStockReportFromDB,
-  getReorderReportFromDB,
+  getReorderSuggestionsFromDB,
   getInventoryHealthScoreFromDB,
   findProfitLeaksFromDB,
   getAbcAnalysisFromDB,
@@ -281,7 +281,7 @@ export async function getDeadStockData() {
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    return getReorderReportFromDB(companyId);
+    return getReorderSuggestionsFromDB(companyId);
 }
 
 export async function getInventoryHealthScore() {
@@ -488,7 +488,15 @@ export async function exportSales(params: { query?: string }) {
 
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
     try {
-        const csv = Papa.unparse(suggestions);
+        const dataToExport = suggestions.map(s => ({
+            SKU: s.sku,
+            ProductName: s.product_name,
+            Supplier: s.supplier_name,
+            QuantityToOrder: s.suggested_reorder_quantity,
+            UnitCost: s.unit_cost ? (s.unit_cost / 100).toFixed(2) : 'N/A',
+            TotalCost: s.unit_cost ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : 'N/A'
+        }));
+        const csv = Papa.unparse(dataToExport);
         return { success: true, data: csv };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };

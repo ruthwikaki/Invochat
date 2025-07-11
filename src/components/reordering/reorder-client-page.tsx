@@ -1,15 +1,19 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import type { ReorderSuggestion } from '@/types';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { RefreshCw, AlertTriangle, BrainCircuit } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { cn } from '@/lib/utils';
+import { Badge } from '../ui/badge';
 import { ExportButton } from '../ui/export-button';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
@@ -149,23 +153,6 @@ export function ReorderClientPage({
           </div>
         </CardContent>
       </Card>
-      
-       <AnimatePresence>
-            {selectedSuggestions.length > 0 && (
-                <motion.div
-                    initial={{ y: 100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 100, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 w-auto"
-                >
-                    <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
-                        <p className="text-sm font-medium">{selectedSuggestions.length} item(s) selected</p>
-                        <ExportButton exportAction={exportAction} filename={`reorder-report-${new Date().toISOString().split('T')[0]}.csv`} />
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
     </div>
   );
 }
