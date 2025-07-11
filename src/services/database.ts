@@ -4,18 +4,14 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder, SupplierPerformanceReport } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema, InventoryAnalyticsSchema } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
-import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
-import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
-import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
 
 
 export const isValidUuid = (uuid: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
@@ -29,7 +25,6 @@ export async function withPerformanceTracking<T>(
         return await fn();
     } finally {
         const endTime = performance.now();
-        trackDbQueryPerformance(functionName, endTime - startTime);
     }
 }
 
@@ -71,10 +66,6 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
         logger.info(`[DB Service] No settings found for company ${companyId}. Creating defaults.`);
         const defaultSettingsData = {
             company_id: companyId,
-            dead_stock_days: config.businessLogic.deadStockDays,
-            overstock_multiplier: config.businessLogic.overstockMultiplier,
-            high_value_threshold: config.businessLogic.highValueThreshold,
-            fast_moving_days: config.businessLogic.fastMovingDays,
         };
         
         const { data: newData, error: insertError } = await supabase
@@ -141,11 +132,9 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
       const cachedData = await redisClient.get(cacheKey);
       if (cachedData) {
         logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
-        await incrementCacheHit('dashboard');
         return JSON.parse(cachedData);
       }
       logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
-      await incrementCacheMiss('dashboard');
     } catch (error) {
         logError(error, { context: `Redis error getting cache for ${cacheKey}` });
     }
@@ -201,7 +190,7 @@ export async function getDashboardMetrics(companyId: string, dateRange: string =
         
         if (isRedisEnabled) {
             try {
-                await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', config.redis.ttl.dashboard);
+                await redisClient.set(cacheKey, JSON.stringify(finalMetrics), 'EX', 300);
                 logger.info(`[Cache] SET for dashboard metrics: ${cacheKey}`);
             } catch (error) {
                 logError(error, { context: `Redis error setting cache for ${cacheKey}` });
@@ -260,7 +249,7 @@ export async function inviteUserToCompanyInDb(companyId: string, companyName: st
                 company_name: companyName,
                 role: 'Member'
             },
-            redirectTo: `${config.app.url}/dashboard`,
+            redirectTo: `http://localhost:3000/dashboard`,
         });
 
         if (error) {
@@ -354,36 +343,25 @@ export async function getSuppliersDataFromDB(companyId: string): Promise<Supplie
     });
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; supplier?: string; limit?: number; offset?: number; product_id?: string }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; category?: string; supplier?: string; limit?: number; offset?: number; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_unified_inventory', {
-            p_company_id: companyId,
-            p_query: params.query || null,
-            p_category: params.category || null,
-            p_supplier_id: params.supplier ? (isValidUuid(params.supplier) ? params.supplier : null) : null,
-            p_product_id_filter: params.product_id || null,
-            p_limit: params.limit || 50,
-            p_offset: params.offset || 0,
-        });
-
+        const { data, count, error } = await supabase
+            .from('inventory_view')
+            .select('*', { count: 'exact' })
+            .eq('company_id', companyId)
+            .ilike('product_name', `%${params.query || ''}%`)
+            .range(params.offset || 0, (params.offset || 0) + (params.limit || 50) - 1);
+        
         if (error) {
-            logError(error, { context: 'getUnifiedInventoryFromDB RPC failed' });
+            logError(error, { context: 'getUnifiedInventoryFromDB failed' });
             throw new Error(`Could not load inventory data: ${error.message}`);
         }
         
-        const RpcResponseSchema = z.object({
-            items: z.array(UnifiedInventoryItemSchema).nullable().default([]),
-            total_count: z.coerce.number().default(0),
-        });
-        
-        const responseData = data && data.length > 0 ? data[0] : { items: [], total_count: 0 };
-        const parsedData = RpcResponseSchema.parse(responseData);
-        
         return {
-            items: parsedData.items || [],
-            totalCount: parsedData.total_count,
+            items: z.array(UnifiedInventoryItemSchema).parse(data || []),
+            totalCount: count || 0,
         };
     });
 }
@@ -1099,5 +1077,23 @@ export async function getSupplierPerformanceFromDB(companyId: string): Promise<S
             throw new Error(`Could not fetch supplier performance data: ${error.message}`);
         }
         return z.array(SupplierPerformanceReportSchema).parse(data || []);
+    });
+}
+
+export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getSalesVelocityFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_sales_velocity', {
+            p_company_id: companyId,
+            p_days: days,
+            p_limit: limit,
+        });
+
+        if (error) {
+            logError(error, { context: `Failed to run sales velocity RPC for company ${companyId}` });
+            throw error;
+        }
+        return data;
     });
 }
