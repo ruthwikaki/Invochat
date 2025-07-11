@@ -62,6 +62,7 @@ import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
 import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
+import { sendInventoryDigestEmail } from '@/services/email';
 
 
 async function getAuthContext() {
@@ -77,7 +78,7 @@ async function getAuthContext() {
     if (!user) throw new Error('User not authenticated.');
     const companyId = user.app_metadata?.company_id;
     if (!companyId) throw new Error('Company ID not found for user.');
-    return { companyId, userId: user.id };
+    return { companyId, userId: user.id, userEmail: user.email! };
 }
 
 // --- Simplified Core Actions ---
@@ -555,4 +556,16 @@ export async function getInventoryTurnover() {
     const { companyId } = await getAuthContext();
     const settings = await getSettings(companyId);
     return getInventoryTurnoverFromDB(companyId, settings.fast_moving_days);
+}
+
+
+export async function sendDigestEmailAction(): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { userEmail } = await getAuthContext();
+        const insights = await getInsightsPageData();
+        await sendInventoryDigestEmail(userEmail, insights);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
 }

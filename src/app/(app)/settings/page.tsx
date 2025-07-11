@@ -15,9 +15,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import type { CompanySettings, ChannelFee } from '@/types';
-import { getCompanySettings, updateCompanySettings, getChannelFees, upsertChannelFee } from '@/app/data-actions';
+import { getCompanySettings, updateCompanySettings, getChannelFees, upsertChannelFee, sendDigestEmailAction } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2, DollarSign, Percent, Save, CreditCard, Download, Undo2 } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Palette, Briefcase, Image as ImageIcon, Info, Loader2, DollarSign, Percent, Save, CreditCard, Download, Undo2, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -123,6 +123,42 @@ function ChannelFeeManager({ csrfToken }: { csrfToken: string | null }) {
                  </form>
             </div>
         </div>
+    );
+}
+
+function DigestSenderCard() {
+    const [isPending, startTransition] = useTransition();
+    const { toast } = useToast();
+
+    const handleSendDigest = () => {
+        startTransition(async () => {
+            const result = await sendDigestEmailAction();
+            if (result.success) {
+                toast({ title: 'Digest Sent', description: 'Check your email for the example digest.' });
+            } else {
+                toast({ variant: 'destructive', title: 'Error', description: result.error });
+            }
+        });
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Email Notifications</CardTitle>
+                <CardDescription>Get a summary of your key business insights delivered to your inbox.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <p className="text-sm text-muted-foreground">
+                    In a production environment, this can be configured to run daily or weekly. For now, you can send an example digest to your email address.
+                </p>
+            </CardContent>
+            <CardFooter>
+                <Button onClick={handleSendDigest} disabled={isPending}>
+                    {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Send Example Digest Now
+                </Button>
+            </CardFooter>
+        </Card>
     );
 }
 
@@ -251,6 +287,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="space-y-6 lg:col-span-1">
+                    <DigestSenderCard />
                      <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">

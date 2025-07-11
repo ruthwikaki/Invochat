@@ -7,7 +7,7 @@
  * It uses the Resend email platform.
  */
 
-import type { Alert } from '@/types';
+import type { Alert, Anomaly } from '@/types';
 import { logger } from '@/lib/logger';
 import { Resend } from 'resend';
 import { config } from '@/config/app-config';
@@ -126,4 +126,72 @@ export async function sendWelcomeEmail(email: string): Promise<void> {
         The InvoChat Team
     `.trim();
     await sendEmail(email, subject, body, "Welcome Email");
+}
+
+/**
+ * Sends a daily or weekly inventory digest email.
+ * @param to The recipient's email address.
+ * @param insights An object containing the data for the digest.
+ */
+export async function sendInventoryDigestEmail(to: string, insights: {
+    summary: string;
+    anomalies: Anomaly[];
+    topDeadStock: { product_name: string; total_value: number; }[];
+    topLowStock: Alert[];
+}): Promise<void> {
+    const subject = "Your Weekly Inventory Digest from InvoChat";
+    let body = `
+Hello,
+
+Here's your weekly summary of key inventory insights from InvoChat.
+
+---
+AI Business Summary
+---
+${insights.summary}
+
+`;
+
+    if (insights.anomalies.length > 0) {
+        body += `
+---
+Recent Anomalies Detected
+---
+`;
+        insights.anomalies.forEach(anomaly => {
+            body += `- ${anomaly.anomaly_type} on ${new Date(anomaly.date).toLocaleDateString()}: ${anomaly.explanation}\n`;
+        });
+    }
+
+    if (insights.topLowStock.length > 0) {
+        body += `
+---
+Top Items Low on Stock
+---
+`;
+        insights.topLowStock.forEach(item => {
+            body += `- ${item.metadata.productName} (${item.metadata.currentStock} units left)\n`;
+        });
+    }
+    
+    if (insights.topDeadStock.length > 0) {
+        body += `
+---
+Top Dead Stock Items
+---
+`;
+        insights.topDeadStock.forEach(item => {
+            body += `- ${item.product_name} ($${item.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })} in tied-up capital)\n`;
+        });
+    }
+
+    body += `
+    
+View more details on your dashboard: ${config.app.url}/insights
+
+Best,
+The InvoChat Team
+    `.trim();
+    
+    await sendEmail(to, subject, body, 'Inventory Digest');
 }
