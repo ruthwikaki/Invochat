@@ -95,7 +95,7 @@ const getStatusColor = (status: PurchaseOrder['status']) => {
   if (!status) return 'border-gray-400 text-gray-500';
   switch (status) {
     case 'draft':
-      return 'border-gray-400 text-gray-500';
+      return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
     case 'pending_approval':
       return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
     case 'sent':
@@ -262,7 +262,7 @@ export function PurchaseOrderClientPage({ initialPurchaseOrders, totalCount, ite
                             {po.po_number}
                         </div>
                       </TableCell>
-                      <TableCell>{po.supplier_name}</TableCell>
+                      <TableCell>{po.supplier_name || 'N/A'}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusVariant(po.status)} className={getStatusColor(po.status)}>
                           {po.status ? po.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Unknown'}

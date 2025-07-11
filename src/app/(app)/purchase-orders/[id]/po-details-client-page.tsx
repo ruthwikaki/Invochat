@@ -89,7 +89,7 @@ export function PurchaseOrderDetailsClientPage({ initialPurchaseOrder }: { initi
                         </Badge>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <InfoCard icon={Truck} title="Supplier" value={purchaseOrder.supplier_name} />
+                        <InfoCard icon={Truck} title="Supplier" value={purchaseOrder.supplier_name || 'Not Assigned'} />
                         <InfoCard icon={Calendar} title="Order Date" value={format(new Date(purchaseOrder.order_date), 'PP')} />
                         <InfoCard icon={Calendar} title="Expected Date" value={purchaseOrder.expected_date ? format(new Date(purchaseOrder.expected_date), 'PP') : 'Not set'} />
                         <Separator />

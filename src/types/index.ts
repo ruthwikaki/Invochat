@@ -1,5 +1,4 @@
 
-
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -390,8 +389,8 @@ export const PurchaseOrderSchema = z.object({
     id: z.string().uuid(),
     po_number: z.string(),
     company_id: z.string().uuid(),
-    supplier_id: z.string().uuid(),
-    supplier_name: z.string(),
+    supplier_id: z.string().uuid().nullable(),
+    supplier_name: z.string().nullable(),
     status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled', 'pending_approval']),
     order_date: z.string().datetime({ offset: true }),
     expected_date: z.string().datetime({ offset: true }).nullable(),
@@ -401,4 +400,3 @@ export const PurchaseOrderSchema = z.object({
     items: z.array(PurchaseOrderItemSchema),
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
-
