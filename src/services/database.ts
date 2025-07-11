@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder } from '@/types';
 import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
@@ -668,33 +668,11 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
 // --- System & Test Actions ---
 
 export async function testSupabaseConnection(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-        return { isConfigured: false, success: false, user: null, error: new Error('One or more Supabase environment variables are missing.') };
-    }
-
-    try {
-        const supabase = getServiceRoleClient();
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) throw error;
-        return { isConfigured: true, success: true, user };
-    } catch (e: any) {
-        return { isConfigured: true, success: false, user: null, error: e };
-    }
+    return dbTestSupabase();
 }
 
 export async function testDatabaseQuery(): Promise<{ success: boolean; error?: string; }> {
-    try {
-        const supabase = getServiceRoleClient();
-        const { error } = await supabase.from('inventory').select('id').limit(1);
-        if (error) throw error;
-        return { success: true };
-    } catch (e: any) {
-        return { success: false, error: e.message };
-    }
+    return dbTestQuery();
 }
 
 export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
@@ -798,7 +776,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             product_name: z.string(),
             current_stock: z.number().int(),
             reorder_point: z.number().int().nullable(),
-            last_sold_date: z.string().datetime().nullable(),
+            last_sold_date: z.string().datetime({ offset: true }).nullable(),
             value: z.number(),
             days_of_stock_remaining: z.number().nullable(),
         });

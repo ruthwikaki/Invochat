@@ -54,7 +54,6 @@ import {
   refreshMaterializedViews,
   getIntegrationsByCompanyId,
   getInventoryAnalyticsFromDB,
-  getPurchaseOrderAnalyticsFromDB,
   getSalesAnalyticsFromDB,
   getSuppliersWithPerformanceFromDB,
   testSupabaseConnection as dbTestSupabase,
@@ -356,11 +355,6 @@ export async function getPurchaseOrders(params: { query?: string, page: number }
     const limit = 25;
     const offset = (params.page - 1) * limit;
     return getPurchaseOrdersFromDB(companyId, { ...params, limit, offset });
-}
-
-export async function getPurchaseOrderAnalytics() {
-    const { companyId } = await getAuthContext();
-    return getPurchaseOrderAnalyticsFromDB(companyId);
 }
 
 export async function getSuppliersData() {
