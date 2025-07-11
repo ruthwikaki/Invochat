@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -44,6 +43,7 @@ import {
   getAlertsFromDB,
   getCustomerAnalyticsFromDB,
   getInventoryAgingReportFromDB,
+  getProductLifecycleAnalysisFromDB,
   getTeamMembersFromDB,
   inviteUserToCompanyInDb,
   removeTeamMemberFromDb,
@@ -56,7 +56,7 @@ import {
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -569,4 +569,9 @@ export async function sendDigestEmailAction(): Promise<{ success: boolean; error
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> {
+    const { companyId } = await getAuthContext();
+    return getProductLifecycleAnalysisFromDB(companyId);
 }

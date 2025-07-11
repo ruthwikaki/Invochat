@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Archive,
   CircleDollarSign,
+  Recycle,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -40,6 +41,7 @@ const menuItems = [
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
   { href: '/locations', label: 'Locations', icon: Warehouse },
   { href: '/reports/inventory-aging', label: 'Inventory Aging', icon: Archive },
+  { href: '/reports/product-lifecycle', label: 'Product Lifecycle', icon: Recycle },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
 ];
 
