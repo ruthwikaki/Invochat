@@ -134,7 +134,7 @@ export const getMarginTrends = ai.defineTool(
 export const getFinancialImpactAnalysis = ai.defineTool(
   {
       name: 'getFinancialImpactAnalysis',
-      description: "Use for 'what-if' scenarios. Analyzes the financial impact of a potential purchase order without actually creating it. Calculates the cost and its effect on key business metrics.",
+      description: "Use for 'what-if' scenarios related to purchasing. Analyzes the financial impact of a potential purchase order without actually creating it. Calculates the cost and its effect on key business metrics.",
       inputSchema: z.object({
         companyId: z.string().uuid(),
         items: z.array(z.object({
@@ -151,6 +151,30 @@ export const getFinancialImpactAnalysis = ai.defineTool(
     } catch (e) {
         logError(e, { context: `[Analytics Tool] Financial impact analysis failed for company ${companyId}`});
         throw new Error('An error occurred while trying to run the financial impact analysis.');
+    }
+  }
+);
+
+
+export const getPromotionalImpactAnalysis = ai.defineTool(
+  {
+      name: 'getPromotionalImpactAnalysis',
+      description: "Use for 'what-if' scenarios related to sales promotions. Analyzes the financial impact of a potential discount or sale. Calculates the estimated impact on sales volume, revenue, and profit.",
+      inputSchema: z.object({
+        companyId: z.string().uuid(),
+        skus: z.array(z.string()).describe("An array of product SKUs to include in the promotion."),
+        discountPercentage: z.number().min(0.01).max(0.99).describe("The promotional discount as a decimal (e.g., 0.2 for 20%)."),
+        durationDays: z.number().int().positive().describe("The number of days the promotion will run."),
+      }),
+      outputSchema: z.any(),
+  },
+  async ({ companyId, skus, discountPercentage, durationDays }) => {
+    try {
+        logger.info(`[Analytics Tool] Running promotional impact analysis for company: ${companyId}`);
+        return await db.getFinancialImpactOfPromotionFromDB(companyId, skus, discountPercentage, durationDays);
+    } catch (e) {
+        logError(e, { context: `[Analytics Tool] Promotional impact analysis failed for company ${companyId}`});
+        throw new Error('An error occurred while trying to run the promotional impact analysis.');
     }
   }
 );

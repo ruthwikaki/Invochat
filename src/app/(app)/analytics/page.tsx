@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive, Truck, PackagePlus, Tags } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive, Truck, PackagePlus, Tags, BarChartHorizontal } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -111,14 +111,6 @@ const availableAnalyses = [
       details: "This report calculates your gross margin month-over-month to help you identify trends in profitability. It uses `(SUM(selling_price * quantity) - SUM(cost_of_good * quantity)) / SUM(selling_price * quantity)`."
     },
     {
-        key: 'what_if',
-        title: '"What If" Scenario',
-        icon: Sparkles,
-        description: 'Analyze the financial impact of a potential purchase order before you create it.',
-        prompt: 'What is the financial impact of ordering 100 units of SKU-123 and 50 units of SKU-456?',
-        details: 'Use the chat interface to ask specific "what if" questions. The AI will use the financial impact tool to give you an analysis of cost, inventory value change, and more.'
-    },
-     {
       key: 'bundle_suggestions',
       title: 'Smart Bundles',
       icon: PackagePlus,
@@ -133,6 +125,22 @@ const availableAnalyses = [
       description: 'Get AI-powered suggestions for price adjustments to maximize profit.',
       prompt: 'Suggest price optimizations for my top products.',
       details: "This tool analyzes your product costs and sales data to suggest new prices that could increase your overall profitability, balancing margin and sales volume."
+    },
+    {
+        key: 'what_if_po',
+        title: '"What If" PO Scenario',
+        icon: Sparkles,
+        description: 'Analyze the financial impact of a potential purchase order before you create it.',
+        prompt: 'What is the financial impact of ordering 100 units of SKU-123 and 50 units of SKU-456?',
+        details: 'Use the chat interface to ask specific "what if" questions about purchase orders. The AI will use the financial impact tool to give you an analysis of cost, inventory value change, and more.'
+    },
+    {
+        key: 'what_if_promo',
+        title: 'Promotion Analyzer',
+        icon: BarChartHorizontal,
+        description: 'Analyze the financial impact of a potential sales promotion before you run it.',
+        prompt: "What's the impact of a 20% discount on all items in the 'Widgets' category for one week?",
+        details: 'Use the chat interface to ask specific "what if" questions about promotions. The AI will analyze past sales velocity to predict the impact on revenue and profit.'
     }
 ];
 
@@ -145,8 +153,8 @@ function StrategicReports() {
     const router = useRouter();
 
     const handleRunAnalysis = (prompt: string, key: string) => {
-        // Special case for 'what_if' which should be handled in chat
-        if (key === 'what_if') {
+        // Special cases for scenarios that should be handled in chat
+        if (key === 'what_if_po' || key === 'what_if_promo') {
             router.push(`/chat?q=${encodeURIComponent(prompt)}`);
             return;
         }
@@ -247,7 +255,7 @@ function StrategicReports() {
                         <CardFooter>
                             <Button className="w-full" onClick={() => handleRunAnalysis(analysis.prompt, analysis.key)} disabled={isPending}>
                                {isPending && currentAnalysisKey === analysis.key ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {analysis.key === 'what_if' ? 'Go to Chat' : 'Run Analysis'}
+                                {analysis.key.startsWith('what_if') ? 'Go to Chat' : 'Run Analysis'}
                             </Button>
                         </CardFooter>
                     </Card>
