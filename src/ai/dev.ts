@@ -17,4 +17,5 @@ import '@/ai/flows/csv-mapping-flow.ts';
 import '@/ai/flows/suggest-bundles-flow.ts';
 import '@/ai/flows/price-optimization-flow.ts';
 import '@/ai/flows/markdown-optimizer-flow.ts';
+import '@/ai/flows/hidden-money-finder-flow.ts';
 

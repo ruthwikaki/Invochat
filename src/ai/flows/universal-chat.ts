@@ -26,6 +26,7 @@ import { logError, getErrorMessage } from '@/lib/error-handler';
 import { getBundleSuggestions } from './suggest-bundles-flow';
 import { getPriceOptimizationSuggestions } from './price-optimization-flow';
 import { getMarkdownSuggestions } from './markdown-optimizer-flow';
+import { findHiddenMoney } from './hidden-money-finder-flow';
 
 // List of all available tools for the AI to use.
 const allTools = [
@@ -45,6 +46,7 @@ const allTools = [
     getPriceOptimizationSuggestions,
     getMarkdownSuggestions,
     getPromotionalImpactAnalysis,
+    findHiddenMoney,
 ];
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
