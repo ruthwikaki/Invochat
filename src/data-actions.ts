@@ -36,7 +36,7 @@ import {
   getLocationByIdFromDB,
   createLocationInDB,
   updateLocationInDB,
-  deleteLocationFromDB,
+  deleteLocationFromDb,
   getSupplierByIdFromDB,
   createSupplierInDb,
   updateSupplierInDb,
@@ -68,7 +68,9 @@ import {
   approvePurchaseOrderInDb,
   transferInventoryInDb,
   reconcileInventoryInDb,
-  getInventoryAgingReportFromDB
+  getInventoryAgingReportFromDB,
+  getFinancialImpactOfPoFromDB as dbGetFinancialImpact,
+  logUserFeedbackInDb
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -76,7 +78,7 @@ import {
     generateAnomalyExplanation,
 } from '@/ai/flows/anomaly-explanation-flow';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, LocationFormData, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, SupplierFormData, SaleCreateInput, ProductUpdateData, InventoryAgingReportItem } from '@/types';
+import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, LocationFormData, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, SupplierFormData, SaleCreateInput, ProductUpdateData, InventoryAgingReportItem, HealthCheckResult } from '@/types';
 import { sendPurchaseOrderEmail } from '@/services/email';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
@@ -159,7 +161,7 @@ export async function getInsightsPageData() {
                     knownHoliday: undefined,
                 },
             });
-            return { ...anomaly, ...explanation };
+            return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
         })
     );
     
@@ -432,6 +434,11 @@ export async function receivePurchaseOrderItems(data: ReceiveItemsFormInput): Pr
     }
 }
 
+export async function getChannelFees() {
+    const { companyId } = await getAuthContext();
+    return getChannelFeesFromDB(companyId);
+}
+
 export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId } = await getAuthContext();
@@ -638,30 +645,30 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
     }
 }
 
-export async function testSupabaseConnection() {
+export async function testSupabaseConnection(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
     return dbTestSupabase();
 }
-export async function testDatabaseQuery() {
+export async function testDatabaseQuery(): Promise<{ success: boolean; error?: string; }> {
     return dbTestQuery();
 }
-export async function testMaterializedView() {
+export async function testMaterializedView(): Promise<{ success: boolean; error?: string; }> {
     return dbTestMView();
 }
-export async function testGenkitConnection() {
+export async function testGenkitConnection(): Promise<{ isConfigured: boolean; success: boolean; error?: string; }> {
     return genkitTest();
 }
-export async function testRedisConnection() {
+export async function testRedisConnection(): Promise<{ isEnabled: boolean; success: boolean; error?: string; }> {
     return {
         isEnabled: isRedisEnabled,
         ...await redisTest()
     };
 }
-export async function getInventoryConsistencyReport() {
+export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> {
     const { companyId } = await getAuthContext();
     return healthCheckInventoryConsistency(companyId);
 }
 
-export async function getFinancialConsistencyReport() {
+export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> {
     const { companyId } = await getAuthContext();
     return healthCheckFinancialConsistency(companyId);
 }
@@ -711,4 +718,29 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> {
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
+}
+
+export async function getFinancialImpactOfPo(items: { sku: string; quantity: number }[]) {
+    const { companyId } = await getAuthContext();
+    return dbGetFinancialImpact(companyId, items);
+}
+
+export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { companyId, userId } = await getAuthContext();
+    const subjectId = formData.get('subjectId') as string;
+    const subjectType = formData.get('subjectType') as string;
+    const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
+
+    if (!subjectId || !subjectType || !feedback) {
+      throw new Error('Missing required feedback data.');
+    }
+    
+    await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
+    
+    return { success: true };
+  } catch(e) {
+    logError(e, { context: 'logUserFeedback action failed' });
+    return { success: false, error: getErrorMessage(e) };
+  }
 }

@@ -10,12 +10,13 @@
 import type { Alert, PurchaseOrder } from '@/types';
 import { logger } from '@/lib/logger';
 import { Resend } from 'resend';
+import { config } from '@/config/app-config';
 
 // Initialize Resend with the API key from environment variables.
-// The key is checked at startup, but we add a fallback for safety.
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+const isProduction = config.app.environment === 'production';
 
 const canSendEmails = !!resendApiKey && !!fromEmail;
 
@@ -37,16 +38,19 @@ async function sendEmail(to: string, subject: string, text: string, context: str
         return;
     }
 
+    // In a non-production environment, always send to a test address if available
+    const recipient = isProduction ? to : process.env.EMAIL_TEST_RECIPIENT || to;
+
     try {
         await resend!.emails.send({
             from: fromEmail,
-            to: to,
+            to: recipient,
             subject: subject,
             text: text,
         });
-        logger.info(`[Email Service] Successfully sent email. TO: ${to}, CONTEXT: ${context}`);
+        logger.info(`[Email Service] Successfully sent email. TO: ${recipient}, CONTEXT: ${context}`);
     } catch (error) {
-        logger.error(`[Email Service] Failed to send email via Resend. TO: ${to}, CONTEXT: ${context}`, error);
+        logger.error(`[Email Service] Failed to send email via Resend. TO: ${recipient}, CONTEXT: ${context}`, error);
         // In a production app, you might add this to a retry queue.
     }
 }
@@ -73,7 +77,7 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     - Current Stock: ${alert.metadata.currentStock ?? 'N/A'}
     - Reorder Point: ${alert.metadata.reorderPoint ?? 'N/A'}
     - Last Sold Date: ${alert.metadata.lastSoldDate ? new Date(alert.metadata.lastSoldDate).toLocaleDateString() : 'N/A'}
-    - Current Value: $${alert.metadata.value?.toLocaleString() || 'N/A'}
+    - Current Value: $${(alert.metadata.value ?? 0).toLocaleString()}
 
     You can view this alert in your InvoChat dashboard.
   `.trim();
@@ -91,7 +95,7 @@ export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
     const toEmail = po.supplier_email || null;
     if (!toEmail) {
         logger.warn(`Cannot send PO email for PO #${po.po_number} because supplier email is missing.`);
-        return;
+        throw new Error('Supplier email is missing.');
     }
     
     // In a real app, you would fetch the company name dynamically.
