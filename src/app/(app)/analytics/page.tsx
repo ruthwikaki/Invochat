@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive, Truck } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive, Truck, PackagePlus } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -117,6 +117,14 @@ const availableAnalyses = [
         description: 'Analyze the financial impact of a potential purchase order before you create it.',
         prompt: 'What is the financial impact of ordering 100 units of SKU-123 and 50 units of SKU-456?',
         details: 'Use the chat interface to ask specific "what if" questions. The AI will use the financial impact tool to give you an analysis of cost, inventory value change, and more.'
+    },
+     {
+      key: 'bundle_suggestions',
+      title: 'Smart Bundles',
+      icon: PackagePlus,
+      description: 'Get AI-powered suggestions for product bundles to increase average order value.',
+      prompt: 'Suggest some product bundles based on my sales history and product categories.',
+      details: "This tool analyzes your product catalog and sales data to find complementary items that can be sold together, helping you create compelling offers for your customers."
     }
 ];
 

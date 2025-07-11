@@ -14,3 +14,5 @@ import '@/ai/flows/insights-summary-flow.ts';
 import '@/ai/flows/analytics-tools.ts';
 import '@/ai/flows/anomaly-explanation-flow.ts';
 import '@/ai/flows/csv-mapping-flow.ts';
+import '@/ai/flows/suggest-bundles-flow.ts';
+

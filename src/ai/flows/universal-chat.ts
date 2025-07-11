@@ -23,6 +23,7 @@ import { getDeadStockReport } from './dead-stock-tool';
 import { getInventoryTurnoverReport } from './inventory-turnover-tool';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getFinancialImpactAnalysis, getSalesVelocity } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
+import { getBundleSuggestions } from './suggest-bundles-flow';
 
 // List of all available tools for the AI to use.
 const allTools = [
@@ -37,7 +38,8 @@ const allTools = [
     getNetMarginByChannel,
     getMarginTrends,
     getFinancialImpactAnalysis,
-    getSalesVelocity
+    getSalesVelocity,
+    getBundleSuggestions
 ];
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
