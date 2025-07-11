@@ -16,6 +16,28 @@ const CompanyIdInputSchema = z.object({
   companyId: z.string().uuid().describe("The ID of the company to get the report for."),
 });
 
+export const getSalesVelocity = ai.defineTool(
+    {
+        name: 'getSalesVelocity',
+        description: "Identifies the fastest and slowest-selling products over a specified period (default 90 days) based on total units sold. Use this for 'best sellers', 'worst sellers', 'fast movers', or 'slow movers' queries.",
+        inputSchema: z.object({
+            companyId: z.string().uuid(),
+            days: z.number().int().positive().default(90),
+            limit: z.number().int().positive().default(10),
+        }),
+        outputSchema: z.any(),
+    },
+    async ({ companyId, days, limit }) => {
+        try {
+            logger.info(`[Analytics Tool] Getting sales velocity for company: ${companyId}`);
+            return await db.getSalesVelocityFromDB(companyId, days, limit);
+        } catch (e) {
+            logError(e, { context: `[Analytics Tool] Sales velocity failed for company ${companyId}` });
+            throw new Error('An error occurred while trying to generate the sales velocity report.');
+        }
+    }
+);
+
 export const getDemandForecast = ai.defineTool(
   {
     name: 'getDemandForecast',
