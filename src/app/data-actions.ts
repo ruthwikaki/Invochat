@@ -49,11 +49,13 @@ import {
   updateTeamMemberRoleInDb,
   getChannelFeesFromDB,
   upsertChannelFeeInDB,
-  getCashFlowInsightsFromDB
+  getCashFlowInsightsFromDB,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -98,7 +100,6 @@ export async function updateCompanySettings(formData: FormData) {
     fast_moving_days: Number(formData.get('fast_moving_days')),
     overstock_multiplier: Number(formData.get('overstock_multiplier')),
     high_value_threshold: Number(formData.get('high_value_threshold')),
-    predictive_stock_days: Number(formData.get('predictive_stock_days')),
   };
   return updateSettingsInDb(companyId, settings);
 }
@@ -278,7 +279,7 @@ export async function getDeadStockData() {
     return getDeadStockReportFromDB(companyId);
 }
 
-export async function getReorderReport() {
+export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
     return getReorderReportFromDB(companyId);
 }
@@ -288,14 +289,14 @@ export async function getInventoryHealthScore() {
     return getInventoryHealthScoreFromDB(companyId);
 }
 
-export async function getProfitLeaks() {
+export async function findProfitLeaks() {
     const { companyId } = await getAuthContext();
     return findProfitLeaksFromDB(companyId);
 }
 
-export async function getAbcAnalysis(metric: 'revenue' | 'units' | 'profit', period: 'last30' | 'last90' | 'last365') {
+export async function getAbcAnalysis() {
     const { companyId } = await getAuthContext();
-    return getAbcAnalysisFromDB(companyId, metric, period);
+    return getAbcAnalysisFromDB(companyId);
 }
 
 export async function getInsightsPageData() {
@@ -314,8 +315,8 @@ export async function getInsightsPageData() {
                 dateContext: {
                     dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
                     month: date.toLocaleDateString('en-US', { month: 'long' }),
-                    season: 'Summer',
-                    knownHoliday: undefined,
+                    season: 'Summer', // This is a placeholder; a real app might use a date library for this
+                    knownHoliday: undefined, // Placeholder; would need a holiday calendar
                 },
             });
             return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
@@ -342,6 +343,7 @@ export async function getInsightsPageData() {
 export async function testSupabaseConnection(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
     return dbTestSupabase();
 }
+
 export async function testDatabaseQuery(): Promise<{ success: boolean; error?: string; }> {
     return dbTestQuery();
 }
@@ -349,6 +351,7 @@ export async function testDatabaseQuery(): Promise<{ success: boolean; error?: s
 export async function testGenkitConnection(): Promise<{ isConfigured: boolean; success: boolean; error?: string; }> {
     return genkitTest();
 }
+
 export async function testRedisConnection(): Promise<{ isEnabled: boolean; success: boolean; error?: string; }> {
     return {
         isEnabled: isRedisEnabled,
@@ -483,6 +486,15 @@ export async function exportSales(params: { query?: string }) {
     }
 }
 
+export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
+    try {
+        const csv = Papa.unparse(suggestions);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
 export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
@@ -524,4 +536,15 @@ export async function exportInventory(params: { query?: string; category?: strin
 export async function getCashFlowInsights() {
     const { companyId } = await getAuthContext();
     return getCashFlowInsightsFromDB(companyId);
+}
+
+export async function getSupplierPerformance() {
+    const { companyId } = await getAuthContext();
+    return getSupplierPerformanceFromDB(companyId);
+}
+
+export async function getInventoryTurnover() {
+    const { companyId } = await getAuthContext();
+    const settings = await getSettings(companyId);
+    return getInventoryTurnoverFromDB(companyId, settings.fast_moving_days);
 }

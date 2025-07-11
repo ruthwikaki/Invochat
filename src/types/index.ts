@@ -117,12 +117,12 @@ export const SaleSchema = z.object({
     id: z.string().uuid(),
     company_id: z.string().uuid(),
     sale_number: z.string(),
-    customer_id: z.string().uuid().nullable(),
+    customer_name: z.string().nullable(),
+    customer_email: z.string().nullable(),
     total_amount: z.number().int(), // In cents
     payment_method: z.string(),
     notes: z.string().nullable(),
     created_at: z.string(),
-    created_by: z.string().uuid().nullable(),
 });
 export type Sale = z.infer<typeof SaleSchema>;
 
@@ -160,7 +160,6 @@ export const CompanySettingsSchema = z.object({
   fast_moving_days: z.number().default(30),
   overstock_multiplier: z.number().default(3),
   high_value_threshold: z.number().default(1000),
-  predictive_stock_days: z.number().default(7),
   currency: z.string().nullable().optional().default('USD'),
   timezone: z.string().nullable().optional().default('UTC'),
   created_at: z.string().datetime({ offset: true }),
@@ -217,10 +216,8 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
-    total_revenue: z.number(),
     total_profit: z.number(),
     avg_margin: z.number(),
-    total_skus: z.number().int(),
     sell_through_rate: z.number(),
 });
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
@@ -242,10 +239,10 @@ export const AnomalySchema = z.object({
     id: z.string().optional(),
     date: z.string(),
     anomaly_type: z.string(),
-    daily_revenue: z.number().optional(),
-    avg_revenue: z.number().optional(),
-    daily_customers: z.number().optional(),
-    avg_customers: z.number().optional(),
+    daily_revenue: z.number().optional().nullable(),
+    avg_revenue: z.number().optional().nullable(),
+    daily_customers: z.number().int().optional().nullable(),
+    avg_customers: z.number().int().optional().nullable(),
     deviation_percentage: z.number(),
     explanation: z.string().optional(),
     confidence: z.enum(['high', 'medium', 'low']).optional(),
@@ -312,14 +309,15 @@ export const SalesAnalyticsSchema = z.object({
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
 
-export type CustomerAnalytics = {
-  total_customers: number;
-  new_customers_last_30_days: number;
-  repeat_customer_rate: number;
-  average_lifetime_value: number;
-  top_customers_by_spend: { name: string; value: number }[];
-  top_customers_by_sales: { name: string; value: number }[];
-};
+export const CustomerAnalyticsSchema = z.object({
+    total_customers: z.number().int(),
+    new_customers_last_30_days: z.number().int(),
+    repeat_customer_rate: z.number(),
+    average_lifetime_value: z.number(),
+    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number() })),
+    top_customers_by_sales: z.array(z.object({ name: z.string(), value: z.number() })),
+});
+export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
 export const CsvMappingInputSchema = z.object({
     csvHeaders: z.array(z.string()),
@@ -375,32 +373,3 @@ export const ChannelFeeSchema = z.object({
     fixed_fee: z.number(), // in cents
 });
 export type ChannelFee = z.infer<typeof ChannelFeeSchema>;
-
-export const PurchaseOrderSchema = z.object({
-    id: z.string().uuid(),
-    company_id: z.string().uuid(),
-    po_number: z.string(),
-    supplier_id: z.string().uuid(),
-    supplier_name: z.string(),
-    status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']),
-    order_date: z.string(),
-    expected_date: z.string().nullable(),
-    total_amount: z.number(),
-    items: z.array(z.object({
-        id: z.string().uuid(),
-        product_id: z.string().uuid(),
-        sku: z.string(),
-        name: z.string(),
-        quantity_ordered: z.number(),
-        quantity_received: z.number(),
-        unit_cost: z.number(),
-    })),
-});
-export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
-
-export const BusinessProfileSchema = z.object({
-    monthly_revenue: z.number(),
-    outstanding_po_value: z.number(),
-    risk_tolerance: z.string().nullable(),
-});
-export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;

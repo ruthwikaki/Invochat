@@ -54,8 +54,8 @@ function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
   };
 
   const isRevenue = anomaly.anomaly_type === 'Revenue Anomaly';
-  const currentValue = isRevenue ? anomaly.daily_revenue : anomaly.daily_customers;
-  const averageValue = isRevenue ? anomaly.avg_revenue : anomaly.avg_customers;
+  const currentValue = isRevenue ? anomaly.daily_revenue || 0 : anomaly.daily_customers || 0;
+  const averageValue = isRevenue ? anomaly.avg_revenue || 0 : anomaly.avg_customers || 0;
   const deviation = Math.abs(currentValue - averageValue);
   const direction = currentValue > averageValue ? 'higher' : 'lower';
   const confidenceColor = anomaly.confidence === 'high' ? 'text-success' : anomaly.confidence === 'medium' ? 'text-amber-500' : 'text-destructive';
@@ -374,4 +374,3 @@ export default function InsightsPage() {
     </AppPage>
   );
 }
-    
