@@ -3,8 +3,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder, SupplierPerformanceReport } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, PurchaseOrderSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -849,6 +849,7 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Omit<Chan
     });
 }
 
+
 export async function getCashFlowInsightsFromDB(companyId: string) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getCashFlowInsightsFromDB', async () => {
@@ -871,6 +872,25 @@ export async function getCashFlowInsightsFromDB(companyId: string) {
         return CashFlowSchema.parse(data);
     });
 }
+
+export async function getPurchaseOrderByIdFromDB(poId: string, companyId: string): Promise<PurchaseOrder | null> {
+    if (!isValidUuid(poId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+
+    return withPerformanceTracking('getPurchaseOrderByIdFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .rpc('get_purchase_order_details', { p_po_id: poId, p_company_id: companyId })
+            .single();
+
+        if (error) {
+            if (error.code === 'PGRST116') return null; // Not found, return null
+            logError(error, { context: `Failed to fetch PO details for po_id: ${poId}` });
+            throw error;
+        }
+        return PurchaseOrderSchema.parse(data);
+    });
+}
+
 
 export async function getFinancialImpactOfPoFromDB(companyId: string, items: { sku: string; quantity: number }[]) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');

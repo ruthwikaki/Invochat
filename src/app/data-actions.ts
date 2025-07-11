@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -53,11 +54,12 @@ import {
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
   createPurchaseOrdersFromSuggestionsInDb,
-  getPurchaseOrdersFromDB
+  getPurchaseOrdersFromDB,
+  getPurchaseOrderByIdFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, PurchaseOrder } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -597,4 +599,9 @@ export async function getPurchaseOrders(params: { query?: string, page: number, 
     const { companyId } = await getAuthContext();
     const offset = (params.page - 1) * params.limit;
     return getPurchaseOrdersFromDB(companyId, { ...params, offset });
+}
+
+export async function getPurchaseOrderById(poId: string): Promise<PurchaseOrder | null> {
+    const { companyId } = await getAuthContext();
+    return getPurchaseOrderByIdFromDB(poId, companyId);
 }

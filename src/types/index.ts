@@ -374,4 +374,31 @@ export const ChannelFeeSchema = z.object({
     percentage_fee: z.number(),
     fixed_fee: z.number(), // in cents
 });
-export type ChannelFee = z.infer<typeof ChannelFeeSchema>;
+export type ChannelFee = z.infer<typeof ChannelFee>;
+
+const PurchaseOrderItemSchema = z.object({
+    id: z.string().uuid(),
+    product_id: z.string().uuid(),
+    sku: z.string(),
+    product_name: z.string(),
+    quantity: z.number().int(),
+    unit_cost: z.number().int(),
+    total_cost: z.number().int(),
+});
+
+export const PurchaseOrderSchema = z.object({
+    id: z.string().uuid(),
+    po_number: z.string(),
+    company_id: z.string().uuid(),
+    supplier_id: z.string().uuid(),
+    supplier_name: z.string(),
+    status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled', 'pending_approval']),
+    order_date: z.string().datetime({ offset: true }),
+    expected_date: z.string().datetime({ offset: true }).nullable(),
+    total_amount: z.number().int(),
+    notes: z.string().nullable(),
+    created_at: z.string().datetime({ offset: true }),
+    items: z.array(PurchaseOrderItemSchema),
+});
+export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
+
