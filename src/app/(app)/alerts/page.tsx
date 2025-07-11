@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle, Info, Bot, Settings, History, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Bot, Settings, History, Clock, TrendingDown } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAlertsData } from '@/app/data-actions';
@@ -37,16 +37,37 @@ function AlertCard({ alert }: { alert: Alert }) {
     setFormattedDate(formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true }));
   }, [alert.timestamp]);
 
-  const isPredictive = alert.type === 'predictive';
-  const isWarning = alert.severity === 'warning';
+  const getIcon = () => {
+    switch(alert.type) {
+        case 'predictive': return Clock;
+        case 'low_stock': return AlertCircle;
+        case 'profit_warning': return TrendingDown;
+        default: return Info;
+    }
+  }
+
+  const getCardClass = () => {
+     switch(alert.type) {
+        case 'predictive': return 'border-amber-500/50 bg-amber-500/5';
+        case 'low_stock': return 'border-warning/50 bg-warning/5';
+        case 'profit_warning': return 'border-destructive/50 bg-destructive/5';
+        default: return 'border-blue-500/50 bg-blue-500/5';
+    }
+  }
   
-  const Icon = isPredictive ? Clock : (isWarning ? AlertCircle : Info);
-  const cardClass = isPredictive ? 'border-amber-500/50 bg-amber-500/5' : (isWarning ? 'border-warning/50 bg-warning/5' : 'border-blue-500/50 bg-blue-500/5');
-  const iconColor = isPredictive ? 'text-amber-500' : (isWarning ? 'text-warning' : 'text-blue-500');
+  const getIconColor = () => {
+     switch(alert.type) {
+        case 'predictive': return 'text-amber-500';
+        case 'low_stock': return 'text-warning';
+        case 'profit_warning': return 'text-destructive';
+        default: return 'text-blue-500';
+    }
+  }
   
   const getBadgeVariant = () => {
     switch(alert.type) {
       case 'low_stock':
+      case 'profit_warning':
         return 'destructive';
       case 'predictive':
         return 'default';
@@ -54,6 +75,8 @@ function AlertCard({ alert }: { alert: Alert }) {
         return 'secondary';
     }
   }
+
+  const Icon = getIcon();
   
   return (
     <motion.div
@@ -61,11 +84,11 @@ function AlertCard({ alert }: { alert: Alert }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <Card className={cn("transition-all duration-300 hover:shadow-xl hover:-translate-y-1", cardClass)}>
+      <Card className={cn("transition-all duration-300 hover:shadow-xl hover:-translate-y-1", getCardClass())}>
         <CardHeader>
           <div className="flex justify-between items-start gap-4">
             <div className="flex items-start gap-4">
-               <Icon className={cn("h-6 w-6 mt-1 shrink-0", iconColor)} />
+               <Icon className={cn("h-6 w-6 mt-1 shrink-0", getIconColor())} />
                <div>
                   <CardTitle>{alert.title}</CardTitle>
                   <CardDescription>
@@ -85,6 +108,8 @@ function AlertCard({ alert }: { alert: Alert }) {
               {alert.metadata.daysOfStockRemaining !== undefined && <p><strong>Est. Days of Stock Remaining:</strong> {Math.round(alert.metadata.daysOfStockRemaining)}</p>}
               {alert.metadata.lastSoldDate && <p><strong>Last Sold:</strong> {new Date(alert.metadata.lastSoldDate).toLocaleDateString()}</p>}
               {alert.metadata.value !== undefined && <p><strong>Value:</strong> ${alert.metadata.value.toLocaleString()}</p>}
+              {alert.metadata.recent_margin !== undefined && <p><strong>Recent Margin:</strong> {`${(alert.metadata.recent_margin * 100).toFixed(1)}%`}</p>}
+              {alert.metadata.previous_margin !== undefined && <p><strong>Previous Margin:</strong> {`${(alert.metadata.previous_margin * 100).toFixed(1)}%`}</p>}
            </div>
         </CardContent>
         {alert.metadata.productId && (
@@ -144,6 +169,7 @@ export default function AlertsPage() {
             <SelectItem value="predictive">Predictive</SelectItem>
             <SelectItem value="low_stock">Low Stock</SelectItem>
             <SelectItem value="dead_stock">Dead Stock</SelectItem>
+            <SelectItem value="profit_warning">Profit Warning</SelectItem>
           </SelectContent>
         </Select>
       </AppPageHeader>

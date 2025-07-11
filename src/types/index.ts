@@ -227,7 +227,7 @@ export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReport
 
 export const AlertSchema = z.object({
     id: z.string(),
-    type: z.enum(['low_stock', 'dead_stock', 'predictive']),
+    type: z.enum(['low_stock', 'dead_stock', 'predictive', 'profit_warning']),
     title: z.string(),
     message: z.string(),
     severity: z.enum(['info', 'warning', 'critical']),
