@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   ShieldCheck,
   Archive,
+  CircleDollarSign,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -28,6 +29,7 @@ const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/chat', label: 'Chat', icon: MessageSquare, exact: false },
   { href: '/analytics', label: 'Strategic Reports', icon: BarChart },
+  { href: '/cash-flow', label: 'Cash Flow', icon: CircleDollarSign },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
   { href: '/purchase-orders', label: 'Purchase Orders', icon: ClipboardList },

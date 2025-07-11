@@ -937,3 +937,26 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Omit<Chan
         }
     });
 }
+
+export async function getCashFlowInsightsFromDB(companyId: string) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getCashFlowInsightsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .rpc('get_cash_flow_insights', { p_company_id: companyId })
+            .single();
+
+        if (error) {
+            logError(error, { context: `Failed to get cash flow insights for company ${companyId}` });
+            throw error;
+        }
+        
+        const CashFlowSchema = z.object({
+            dead_stock_value: z.number().default(0),
+            slow_mover_value: z.number().default(0),
+            dead_stock_threshold_days: z.number().int().default(90),
+        });
+
+        return CashFlowSchema.parse(data);
+    });
+}

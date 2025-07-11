@@ -48,7 +48,8 @@ import {
   removeTeamMemberFromDb,
   updateTeamMemberRoleInDb,
   getChannelFeesFromDB,
-  upsertChannelFeeInDB
+  upsertChannelFeeInDB,
+  getCashFlowInsightsFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -518,4 +519,9 @@ export async function exportInventory(params: { query?: string; category?: strin
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function getCashFlowInsights() {
+    const { companyId } = await getAuthContext();
+    return getCashFlowInsightsFromDB(companyId);
 }
