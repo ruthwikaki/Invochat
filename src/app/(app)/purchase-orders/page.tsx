@@ -1,29 +1,34 @@
 
-'use client';
+import { getPurchaseOrders } from '@/app/data-actions';
+import { PurchaseOrderClientPage } from './po-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
-import Link from 'next/link';
 
-// This is a placeholder as the data fetching and client page will be implemented later.
-export default function PurchaseOrdersPage() {
-    return (
-        <AppPage>
-            <AppPageHeader 
-                title="Purchase Orders"
-                description="Create, manage, and track your incoming inventory."
-            >
-                 <Button asChild>
-                    <Link href="/purchase-orders/new">
-                        <Plus className="mr-2 h-4 w-4" />
-                        New PO
-                    </Link>
-                </Button>
-            </AppPageHeader>
-            <div className="text-center text-muted-foreground p-8 border-2 border-dashed rounded-lg">
-                <h3 className="text-lg font-semibold">Coming Soon</h3>
-                <p>Purchase Order management is under construction.</p>
-            </div>
-        </AppPage>
-    );
+const ITEMS_PER_PAGE = 25;
+
+export default async function PurchaseOrdersPage({
+    searchParams,
+}: {
+    searchParams?: {
+        query?: string;
+        page?: string;
+    };
+}) {
+  const query = searchParams?.query || '';
+  const currentPage = Number(searchParams?.page) || 1;
+
+  const { items, totalCount } = await getPurchaseOrders({ query, page: currentPage, limit: ITEMS_PER_PAGE });
+
+  return (
+    <AppPage>
+      <AppPageHeader 
+        title="Purchase Orders"
+        description="Create, manage, and track your incoming inventory."
+      />
+      <PurchaseOrderClientPage 
+        initialPurchaseOrders={items}
+        totalCount={totalCount}
+        itemsPerPage={ITEMS_PER_PAGE}
+      />
+    </AppPage>
+  );
 }

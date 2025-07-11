@@ -51,7 +51,9 @@ import {
   upsertChannelFeeInDB,
   getCashFlowInsightsFromDB,
   getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB
+  getInventoryTurnoverFromDB,
+  createPurchaseOrdersFromSuggestionsInDb,
+  getPurchaseOrdersFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -568,4 +570,31 @@ export async function sendDigestEmailAction(): Promise<{ success: boolean; error
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function createPurchaseOrdersFromSuggestions(
+  suggestions: ReorderSuggestion[]
+): Promise<{ success: boolean; error?: string, createdPoCount?: number }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        if (suggestions.length === 0) {
+            return { success: false, error: "No suggestions were provided to create purchase orders from." };
+        }
+        
+        const result = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
+        
+        revalidatePath('/purchase-orders');
+        
+        return { success: true, createdPoCount: result.length };
+
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions server action failed' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function getPurchaseOrders(params: { query?: string, page: number, limit: number }) {
+    const { companyId } = await getAuthContext();
+    const offset = (params.page - 1) * params.limit;
+    return getPurchaseOrdersFromDB(companyId, { ...params, offset });
 }
