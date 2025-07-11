@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition, DragEvent, useRef, useEffect, ChangeEvent } from 'react';
+import { useState, useTransition, DragEvent, useEffect, ChangeEvent } from 'react';
 import { handleDataImport, getMappingSuggestions, type ImportResult } from '@/app/import/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,35 +22,26 @@ const CSRF_COOKIE_NAME = 'csrf_token';
 
 const importOptions = {
     products: {
-        label: 'Products',
-        description: 'Import your core product data, including SKU, name, cost, and price.',
-        columns: ['sku', 'name', 'cost', 'price', 'category', 'barcode'],
+        label: 'Product Costs & Rules',
+        description: 'Import core product costs, suppliers, and reorder rules.',
     },
     suppliers: {
         label: 'Suppliers / Vendors',
-        description: 'Import your supplier information.',
-        columns: ['vendor_name', 'contact_info', 'address', 'terms', 'account_number'],
+        description: 'Bulk import or update your supplier information.',
     },
-    supplier_catalogs: {
-        label: 'Supplier Catalogs',
-        description: "Import supplier-specific product info like cost, MOQ, and lead times.",
-        columns: ['supplier_id', 'sku', 'supplier_sku', 'product_name', 'unit_cost', 'moq', 'lead_time_days'],
-    },
-    reorder_rules: {
-        label: 'Reorder Rules',
-        description: "Import your custom reorder rules for products.",
-        columns: ['sku', 'rule_type', 'min_stock', 'max_stock', 'reorder_quantity'],
+    'historical-sales': {
+        label: 'Historical Sales',
+        description: "Import past sales data to train the AI and improve analytics.",
     },
     locations: {
-        label: 'Locations',
-        description: "Import your warehouses or other stock locations.",
-        columns: ['name', 'address', 'is_default'],
+        label: 'Locations & Stock Levels',
+        description: "Import warehouses and initial stock levels for each location.",
     },
 };
 
 type DataType = keyof typeof importOptions;
 
-function MappingSuggestions({ suggestions, onConfirm }: { suggestions: CsvMappingOutput, onConfirm: (mappings: Record<string, string>) => void }) {
+function MappingSuggestions({ suggestions, onConfirm, onCancel }: { suggestions: CsvMappingOutput, onConfirm: (mappings: Record<string, string>) => void, onCancel: () => void }) {
     const confirmedMappings = suggestions.mappings.reduce((acc, m) => {
         acc[m.csvColumn] = m.dbField;
         return acc;
@@ -90,7 +81,8 @@ function MappingSuggestions({ suggestions, onConfirm }: { suggestions: CsvMappin
                     </div>
                 )}
             </CardContent>
-            <CardFooter>
+            <CardFooter className="justify-end gap-2">
+                <Button variant="ghost" onClick={onCancel}>Cancel</Button>
                 <Button onClick={() => onConfirm(confirmedMappings)}>Confirm Mappings &amp; Start Import</Button>
             </CardFooter>
         </Card>
@@ -195,6 +187,7 @@ export function ImporterClientPage() {
         
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('dataType', dataType);
         formData.append(CSRF_FORM_NAME, csrfToken);
 
         setResults(null);
@@ -238,6 +231,12 @@ export function ImporterClientPage() {
             processDroppedFile(files[0]);
         }
     };
+    
+    const clearState = () => {
+        setFile(null);
+        setResults(null);
+        setMappingSuggestions(null);
+    }
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
@@ -299,7 +298,7 @@ export function ImporterClientPage() {
                             />
                         </div>
                     </div>
-                     {file && (
+                     {file && !mappingSuggestions && (
                         <div className="space-y-4 rounded-lg border p-4">
                              <div className="flex items-center space-x-2">
                                 <Checkbox id="dryRun" checked={dryRun} onCheckedChange={(checked) => setDryRun(!!checked)} />
@@ -340,9 +339,9 @@ export function ImporterClientPage() {
                         </CardDescription>
                     </Card>
                 ) : results ? (
-                    <ImportResultsCard results={results} onClear={() => { setResults(null); setFile(null); setMappingSuggestions(null); }} />
+                    <ImportResultsCard results={results} onClear={clearState} />
                 ) : mappingSuggestions ? (
-                     <MappingSuggestions suggestions={mappingSuggestions} onConfirm={handleFormSubmit} />
+                     <MappingSuggestions suggestions={mappingSuggestions} onConfirm={handleFormSubmit} onCancel={clearState} />
                 ) : (
                      <Card className="h-full flex flex-col items-center justify-center text-center p-8 border-dashed">
                         <UploadCloud className="h-12 w-12 text-muted-foreground" />

@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
-import { ProductImportSchema, SupplierImportSchema, SupplierCatalogImportSchema, ReorderRuleImportSchema, LocationImportSchema } from './schemas';
+import { ProductImportSchema, SupplierImportSchema, LocationImportSchema, HistoricalSalesImportSchema, ReorderRuleImportSchema } from './schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
@@ -18,22 +18,23 @@ import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-// Lenient check as MIME types can be inconsistent across browsers/OS
-const ALLOWED_MIME_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
+const ALLOWED_MIME_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain', 'application/csv'];
+const BATCH_SIZE = 500;
 
-// Define a type for the structure of our import results.
 export type ImportResult = {
   success: boolean;
   isDryRun: boolean;
+  importId?: string;
   processedCount?: number;
   errorCount?: number;
-  errors?: { row: number; message: string }[];
+  errors?: { row: number; message: string; data: Record<string, any> }[];
+  summary?: Record<string, any>;
   summaryMessage: string;
 };
 
+
 type UserRole = 'Owner' | 'Admin' | 'Member';
 
-// A helper function to get the current user's company ID.
 async function getAuthContextForImport(): Promise<{ user: User, companyId: string, userRole: UserRole }> {
   const cookieStore = cookies();
   const supabase = createServerClient(
@@ -52,28 +53,55 @@ async function getAuthContextForImport(): Promise<{ user: User, companyId: strin
   return { user, companyId, userRole };
 }
 
-// A generic function to process any CSV file with a given schema and table name.
+async function createImportJob(companyId: string, userId: string, importType: string, fileName: string, totalRows: number) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('imports').insert({
+        company_id: companyId,
+        created_by: userId,
+        import_type: importType,
+        file_name: fileName,
+        total_rows: totalRows,
+        status: 'processing'
+    }).select('id').single();
+
+    if (error) throw new Error('Could not create import job entry in database.');
+    return data.id;
+}
+
+async function updateImportJob(importId: string, updates: Partial<ImportResult>) {
+    const supabase = getServiceRoleClient();
+    await supabase.from('imports').update({
+        processed_rows: updates.processedCount,
+        failed_rows: updates.errorCount,
+        errors: updates.errors,
+        summary: updates.summary,
+        status: (updates.errorCount ?? 0) > 0 ? 'completed_with_errors' : 'completed',
+        completed_at: new Date().toISOString()
+    }).eq('id', importId);
+}
+
+
 async function processCsv<T extends z.ZodType>(
     fileContent: string,
     schema: T,
     tableName: string,
     companyId: string,
+    userId: string,
     isDryRun: boolean,
-    mappings: Record<string, string>
+    mappings: Record<string, string>,
+    importType: string,
+    importId?: string
 ): Promise<Omit<ImportResult, 'success' | 'isDryRun'>> {
     
     let contentToParse = fileContent;
 
-    // Only remap headers if a mapping object is provided and is not empty.
     if (mappings && Object.keys(mappings).length > 0) {
         contentToParse = Papa.unparse(
             Papa.parse(fileContent, { header: true, skipEmptyLines: true }).data.map((row: any) => {
                 const newRow: Record<string, any> = {};
-                // Iterate over the original row's keys to build the new row based on mappings
                 for (const originalHeader in row) {
-                    const newHeader = mappings[originalHeader];
-                    if (newHeader) {
-                        newRow[newHeader] = row[originalHeader];
+                    if (mappings[originalHeader]) {
+                        newRow[mappings[originalHeader]] = row[originalHeader];
                     }
                 }
                 return newRow;
@@ -84,30 +112,28 @@ async function processCsv<T extends z.ZodType>(
     const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(contentToParse, {
         header: true,
         skipEmptyLines: true,
-        transformHeader: header => header.trim(),
+        transformHeader: header => header.trim().toLowerCase(),
     });
 
-    const validationErrors: { row: number; message: string }[] = [];
-
-    // Add parsing errors to the list of validation errors
-    if (parsingErrors.length > 0) {
-        parsingErrors.forEach(e => validationErrors.push({ row: e.row, message: e.message }));
+    if (rows.length > 10000) {
+        throw new Error('File exceeds the maximum of 10,000 rows per import.');
     }
 
+    const validationErrors: { row: number; message: string; data: Record<string, any> }[] = [];
+    parsingErrors.forEach(e => validationErrors.push({ row: e.row, message: e.message, data: e.row ? rows[e.row] : {} }));
+    
     const validRows: z.infer<T>[] = [];
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        // Securely inject the company_id before validation.
         row.company_id = companyId;
-
         const result = schema.safeParse(row);
 
         if (result.success) {
             validRows.push(result.data);
         } else {
             const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
-            validationErrors.push({ row: i + 2, message: errorMessage }); // +2 because of header and 0-indexing
+            validationErrors.push({ row: i + 2, message: errorMessage, data: row });
         }
     }
 
@@ -123,55 +149,56 @@ async function processCsv<T extends z.ZodType>(
     }
 
     let processedCount = 0;
-
     if (validRows.length > 0) {
         const supabase = getServiceRoleClient();
         if (!supabase) throw new Error('Supabase admin client not initialized.');
 
-        // Define what makes a row unique for upserting.
-        let conflictTarget: string[] = [];
-        if (tableName === 'products') conflictTarget = ['company_id', 'sku'];
-        if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
-        if (tableName === 'supplier_catalogs') conflictTarget = ['supplier_id', 'product_id'];
-        if (tableName === 'reorder_rules') conflictTarget = ['company_id', 'product_id'];
-        if (tableName === 'locations') conflictTarget = ['company_id', 'name'];
+        const rpcMap = {
+            'products': 'batch_upsert_products',
+            'suppliers': 'batch_upsert_suppliers',
+            'reorder-rules': 'batch_upsert_reorder_rules',
+            'locations': 'batch_upsert_locations',
+            'historical-sales': 'batch_import_sales',
+        };
 
+        const rpcToCall = rpcMap[importType as keyof typeof rpcMap];
+        if (!rpcToCall) throw new Error(`Unsupported import type for batch processing: ${importType}`);
 
-        // Use a transactional RPC to ensure all-or-nothing import.
-        const { error: dbError } = await supabase.rpc('batch_upsert_with_transaction', {
-            p_table_name: tableName,
-            p_records: validRows,
-            p_conflict_columns: conflictTarget,
-        });
+        for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+            const batch = validRows.slice(i, i + BATCH_SIZE);
+            const { error: dbError } = await supabase.rpc(rpcToCall, {
+                p_records: batch,
+                p_company_id: companyId,
+                p_user_id: userId,
+            });
 
-        if (dbError) {
-            logError(dbError, { context: `Transactional database error for ${tableName}` });
-            const errorMessage = dbError.message.includes('unique constraint') 
-              ? `Database error: A row in your CSV has a value that must be unique but already exists (e.g., a duplicate SKU or name). ${dbError.message}`
-              : `Database error: ${dbError.message}. The import was rolled back.`;
-              
-            return {
-                processedCount: 0,
-                errorCount: rows.length,
-                errors: [{ row: 0, message: errorMessage }],
-                summaryMessage: 'A database error occurred during import. No data was saved.'
-            };
+            if (dbError) {
+                logError(dbError, { context: `Transactional database error for ${importType}` });
+                validationErrors.push({ row: 0, message: `Database error during batch import: ${dbError.message}`, data: {} });
+            } else {
+                processedCount += batch.length;
+            }
         }
-        processedCount = validRows.length;
     }
-    
+
     const hadErrors = validationErrors.length > 0;
     const summaryMessage = hadErrors
         ? `Partial import complete. ${processedCount} rows imported, ${validationErrors.length} rows had errors.`
         : `Import complete. ${processedCount} rows imported successfully.`;
 
+    if (importId) {
+        await updateImportJob(importId, { processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
+    }
+
     return {
+        importId,
         processedCount,
         errorCount: validationErrors.length,
         errors: validationErrors,
         summaryMessage: summaryMessage
     };
 }
+
 
 export async function getMappingSuggestions(formData: FormData): Promise<CsvMappingOutput> {
     const file = formData.get('file') as File | null;
@@ -183,13 +210,23 @@ export async function getMappingSuggestions(formData: FormData): Promise<CsvMapp
     const { data: rows, meta } = Papa.parse<Record<string, unknown>>(fileContent, {
         header: true,
         skipEmptyLines: true,
-        preview: 5, // Use first 5 rows as a sample
+        preview: 5,
     });
 
     const csvHeaders = (meta.fields || []);
     
-    // This is a placeholder for getting the DB fields based on import type
-    const expectedDbFields = ['sku', 'name', 'quantity', 'cost', 'category', 'supplier_name', 'location'];
+    const importType = formData.get('dataType') as string;
+    const schemas = {
+        products: ProductImportSchema,
+        suppliers: SupplierImportSchema,
+        'reorder-rules': ReorderRuleImportSchema,
+        'historical-sales': HistoricalSalesImportSchema,
+        locations: LocationImportSchema,
+    };
+    const schema = schemas[importType as keyof typeof schemas];
+    if (!schema) throw new Error('Invalid data type for mapping.');
+
+    const expectedDbFields = Object.keys(schema.shape);
 
     const result = await suggestCsvMappings({
         csvHeaders,
@@ -201,7 +238,6 @@ export async function getMappingSuggestions(formData: FormData): Promise<CsvMapp
 }
 
 
-// The main server action that the client calls.
 export async function handleDataImport(formData: FormData): Promise<ImportResult> {
     const isDryRun = formData.get('dryRun') === 'true';
     const mappingsStr = formData.get('mappings') as string | null;
@@ -219,8 +255,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             return { success: false, isDryRun, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
         }
 
-        const cookieStore = cookies();
-        const csrfTokenFromCookie = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
         validateCSRF(formData, csrfTokenFromCookie);
 
         const file = formData.get('file') as File | null;
@@ -229,15 +264,10 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         if (!file || file.size === 0) {
             return { success: false, isDryRun, summaryMessage: 'No file was uploaded or the file is empty.' };
         }
-
         if (file.size > MAX_FILE_SIZE_BYTES) {
             return { success: false, isDryRun, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
         }
-        
-        const { type: fileType } = file;
-        const isAllowedType = ALLOWED_MIME_TYPES.some(allowedType => fileType.startsWith(allowedType));
-
-        if (!isAllowedType && !file.name.endsWith('.csv')) {
+        if (!ALLOWED_MIME_TYPES.some(allowedType => file.type.startsWith(allowedType)) && !file.name.endsWith('.csv')) {
              logger.warn(`[Data Import] Blocked invalid file type: ${file.type} with name ${file.name}`);
             return { success: false, isDryRun, summaryMessage: `Invalid file type. Only CSV files are allowed.` };
         }
@@ -246,35 +276,31 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         let result: Omit<ImportResult, 'success' | 'isDryRun'>;
         let requiresViewRefresh = false;
 
-        switch (dataType) {
-            case 'products':
-                result = await processCsv(fileContent, ProductImportSchema, 'products', companyId, isDryRun, mappings);
-                if (!isDryRun && (result.processedCount || 0) > 0) {
-                    await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
-                    requiresViewRefresh = true;
-                    revalidatePath('/inventory');
-                }
-                break;
-            case 'suppliers':
-                result = await processCsv(fileContent, SupplierImportSchema, 'vendors', companyId, isDryRun, mappings);
-                if (!isDryRun && (result.processedCount || 0) > 0) {
-                    await invalidateCompanyCache(companyId, ['suppliers']);
-                    revalidatePath('/suppliers');
-                }
-                break;
-            case 'supplier_catalogs':
-                result = await processCsv(fileContent, SupplierCatalogImportSchema, 'supplier_catalogs', companyId, isDryRun, mappings);
-                break;
-            case 'reorder_rules':
-                result = await processCsv(fileContent, ReorderRuleImportSchema, 'reorder_rules', companyId, isDryRun, mappings);
-                if (!isDryRun && (result.processedCount || 0) > 0) revalidatePath('/reordering');
-                break;
-            case 'locations':
-                result = await processCsv(fileContent, LocationImportSchema, 'locations', companyId, isDryRun, mappings);
-                if (!isDryRun && (result.processedCount || 0) > 0) revalidatePath('/locations');
-                break;
-            default:
-                throw new Error(`Unsupported data type: ${dataType}`);
+        const importSchemas = {
+            'products': { schema: ProductImportSchema, tableName: 'products' },
+            'suppliers': { schema: SupplierImportSchema, tableName: 'vendors' },
+            'reorder-rules': { schema: ReorderRuleImportSchema, tableName: 'reorder_rules' },
+            'locations': { schema: LocationImportSchema, tableName: 'locations' },
+            'historical-sales': { schema: HistoricalSalesImportSchema, tableName: 'sales' },
+        };
+
+        const config = importSchemas[dataType as keyof typeof importSchemas];
+        if (!config) {
+            throw new Error(`Unsupported data type: ${dataType}`);
+        }
+        
+        const importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, Papa.parse(fileContent, {header: true, skipEmptyLines: true}).data.length) : undefined;
+        
+        result = await processCsv(fileContent, config.schema, config.tableName, companyId, user.id, isDryRun, mappings, dataType, importJobId);
+
+        if (!isDryRun && (result.processedCount || 0) > 0) {
+            await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+            requiresViewRefresh = true;
+            revalidatePath('/inventory');
+            revalidatePath('/suppliers');
+            revalidatePath('/reordering');
+            revalidatePath('/locations');
+            revalidatePath('/sales');
         }
 
         if (!isDryRun && requiresViewRefresh) {
