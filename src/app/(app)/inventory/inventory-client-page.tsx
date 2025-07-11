@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { UnifiedInventoryItem, Location, Supplier, InventoryAnalytics } from '@/types';
+import type { UnifiedInventoryItem, Supplier, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, Sparkles, Loader2, Warehouse, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Replace } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -27,7 +26,6 @@ import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { ExportButton } from '../ui/export-button';
-import { InventoryTransferDialog } from './inventory-transfer-dialog';
 
 
 interface InventoryClientPageProps {
@@ -35,7 +33,6 @@ interface InventoryClientPageProps {
   totalCount: number;
   itemsPerPage: number;
   categories: string[];
-  locations: Location[];
   suppliers: Supplier[];
   analyticsData: InventoryAnalytics;
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
@@ -144,7 +141,7 @@ function EmptyInventoryState() {
 }
 
 
-export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, locations, suppliers, analyticsData, exportAction }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, suppliers, analyticsData, exportAction }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace, refresh } = useRouter();
@@ -157,7 +154,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historySku, setHistorySku] = useState<string | null>(null);
-  const [transferringItem, setTransferringItem] = useState<UnifiedInventoryItem | null>(null);
 
   useEffect(() => {
     setInventory(initialInventory);
@@ -174,7 +170,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     replace(`${pathname}?${params.toString()}`);
   }, 300);
 
-  const handleFilterChange = (type: 'category' | 'location' | 'supplier', value: string) => {
+  const handleFilterChange = (type: 'category' | 'supplier', value: string) => {
     const params = new URLSearchParams(searchParams);
     params.set('page', '1'); 
     if (value && value !== 'all') {
@@ -246,7 +242,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const isAllSelected = numSelected > 0 && numSelected === numInventory;
   const isSomeSelected = numSelected > 0 && numSelected < numInventory;
   
-  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('location') || !!searchParams.get('supplier');
+  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('supplier');
   const showEmptyState = totalCount === 0 && !isFiltered;
   const showNoResultsState = totalCount === 0 && isFiltered;
   
@@ -281,23 +277,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                 <SelectItem value="all">All Suppliers</SelectItem>
                 {suppliers.map((supplier) => (
                   <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.vendor_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-                onValueChange={(value) => handleFilterChange('location', value)}
-                defaultValue={searchParams.get('location') || 'all'}
-            >
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Filter by location" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Locations</SelectItem>
-                {locations.map((location) => (
-                  <SelectItem key={location.id} value={location.id}>
-                    {location.name}
+                    {supplier.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -327,7 +307,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action will attempt to permanently delete the selected {itemsToDelete?.length} item(s). This will fail if an item is part of any past sales or purchase orders, to protect your data integrity.
+                    This action will attempt to permanently delete the selected {itemsToDelete?.length} item(s). This will fail if an item is part of any past sales, to protect your data integrity.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -346,18 +326,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
         onSave={handleSaveItem}
       />
       
-      <InventoryTransferDialog
-        item={transferringItem}
-        locations={locations}
-        onClose={() => setTransferringItem(null)}
-        onTransferSuccess={() => {
-            setTransferringItem(null);
-            refresh();
-        }}
-      />
-
        <InventoryHistoryDialog
-            productId={historySku}
+            sku={historySku}
             onClose={() => setHistorySku(null)}
        />
 
@@ -375,11 +345,9 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                             />
                             </TableHead>
                             <TableHead>Product</TableHead>
-                            <TableHead>Location</TableHead>
                             <TableHead className="text-right">Quantity</TableHead>
                             <TableHead className="text-right">Total Value</TableHead>
                             <TableHead className="text-right">Profit Margin</TableHead>
-                            <TableHead className="text-right">Monthly Profit</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-24 text-center">Actions</TableHead>
                         </TableRow>
@@ -387,17 +355,15 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                         <TableBody>
                         {showNoResultsState ? (
                             <TableRow>
-                                <TableCell colSpan={9} className="h-24 text-center">
+                                <TableCell colSpan={7} className="h-24 text-center">
                                     No inventory found matching your criteria.
                                 </TableCell>
                             </TableRow>
                         ) : inventory.map(item => {
                             const price = item.price || 0;
-                            const cost = item.landed_cost || item.cost || 0;
+                            const cost = item.cost || 0;
                             const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
                             const marginColor = margin > 30 ? 'text-success' : margin > 15 ? 'text-amber-500' : 'text-destructive';
-                            const monthlyProfit = item.monthly_profit || 0;
-                            const profitColor = monthlyProfit > 0 ? 'text-success' : monthlyProfit < 0 ? 'text-destructive' : 'text-muted-foreground';
 
                             return (
                             <Fragment key={item.product_id}>
@@ -412,14 +378,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                 <div className="font-medium">{item.product_name}</div>
                                 <div className="text-xs text-muted-foreground">{item.sku}</div>
                                 </TableCell>
-                                <TableCell>{item.location_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
                                 <TableCell className="text-right">{item.quantity}</TableCell>
                                 <TableCell className="text-right font-medium">${(item.total_value/100).toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
                                     <span className={cn('font-semibold', marginColor)}>{margin.toFixed(1)}%</span>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                     <span className={cn('font-semibold', profitColor)}>{monthlyProfit >= 0 ? '$' : '-$'}{(Math.abs(monthlyProfit)/100).toFixed(2)}</span>
                                 </TableCell>
                                 <TableCell>
                                 <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
@@ -435,7 +397,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setHistorySku(item.sku)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setTransferringItem(item)}><Replace className="mr-2 h-4 w-4" />Transfer Stock</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemsToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
@@ -454,14 +415,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                             </TableRow>
                             {expandedRows.has(item.product_id) && (
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
-                                    <TableCell colSpan={9} className="p-4">
+                                    <TableCell colSpan={7} className="p-4">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                             <div><strong className="text-muted-foreground">Category:</strong> {item.category || 'N/A'}</div>
                                             <div><strong className="text-muted-foreground">Unit Cost:</strong> ${(item.cost/100).toFixed(2)}</div>
                                             <div><strong className="text-muted-foreground">Landed Cost:</strong> {item.landed_cost ? `$${(item.landed_cost/100).toFixed(2)}` : 'N/A'}</div>
-                                            <div><strong className="text-muted-foreground">On Order:</strong> {item.on_order_quantity} units</div>
                                             <div><strong className="text-muted-foreground">Barcode:</strong> {item.barcode || 'N/A'}</div>
-                                            <div><strong className="text-muted-foreground">Monthly Units Sold:</strong> {item.monthly_units_sold}</div>
                                         </div>
                                     </TableCell>
                                 </TableRow>

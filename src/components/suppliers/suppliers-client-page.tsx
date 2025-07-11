@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import type { Supplier } from '@/types';
@@ -33,12 +32,9 @@ import { deleteSupplier } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '../ui/input';
 import { Avatar, AvatarFallback } from '../ui/avatar';
-import { Mail, Briefcase, FileText, Truck, MoreHorizontal, Edit, Trash2, Search, Loader2 } from 'lucide-react';
+import { Mail, Phone, Truck, MoreHorizontal, Edit, Trash2, Search, Loader2, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
-import { Badge } from '../ui/badge';
-import { cn } from '@/lib/utils';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
 
 function SupplierCard({
   supplier,
@@ -72,24 +68,20 @@ function SupplierCard({
     });
   };
 
-   const getOnTimeBadgeVariant = (rate: number | null | undefined) => {
-    if (rate === null || rate === undefined) return 'bg-muted/50';
-    if (rate >= 95) return 'bg-success/20 text-success-foreground border-success/30';
-    if (rate >= 85) return 'bg-warning/20 text-amber-600 dark:text-amber-400 border-warning/30';
-    return 'bg-destructive/20 text-destructive-foreground border-destructive/30';
-  };
-
   return (
     <>
       <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-300">
         <CardHeader className="flex flex-row items-start justify-between">
           <div className="flex items-center gap-4">
             <Avatar className="h-12 w-12">
-              <AvatarFallback>{supplier.vendor_name.charAt(0)}</AvatarFallback>
+              <AvatarFallback>{supplier.name.charAt(0)}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <CardTitle>{supplier.vendor_name}</CardTitle>
-              <CardDescription>{supplier.address || 'Address not available'}</CardDescription>
+              <CardTitle>{supplier.name}</CardTitle>
+              <CardDescription className="flex items-center gap-2 pt-1 text-muted-foreground">
+                <Mail className="h-4 w-4" />
+                {supplier.email || 'No email'}
+              </CardDescription>
             </div>
           </div>
           <DropdownMenu>
@@ -109,48 +101,19 @@ function SupplierCard({
           </DropdownMenu>
         </CardHeader>
         <CardContent className="space-y-4 text-sm flex-grow">
-          {supplier.contact_info && (
-            <a
-              href={`mailto:${supplier.contact_info}`}
-              className="flex items-center hover:underline text-primary"
-            >
-              <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span>{supplier.contact_info}</span>
-            </a>
-          )}
-          <div className="flex items-center">
-            <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
-            <span>Terms: {supplier.terms || 'N/A'}</span>
-          </div>
-          {supplier.account_number && (
+          {supplier.phone && (
             <div className="flex items-center">
-              <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
-              <span>Account: {supplier.account_number}</span>
+              <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+              <span>{supplier.phone}</span>
+            </div>
+          )}
+          {supplier.default_lead_time_days !== null && (
+             <div className="flex items-center">
+                <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span>Lead Time: {supplier.default_lead_time_days} days</span>
             </div>
           )}
         </CardContent>
-         {supplier.total_completed_orders && (
-            <CardContent className="border-t pt-4 space-y-2">
-                <TooltipProvider>
-                    <div className="flex justify-between text-xs">
-                        <Tooltip>
-                            <TooltipTrigger asChild><span className="text-muted-foreground cursor-help">On-Time Rate</span></TooltipTrigger>
-                            <TooltipContent><p>Percentage of orders delivered on or before the expected date.</p></TooltipContent>
-                        </Tooltip>
-                        <Badge variant="outline" className={getOnTimeBadgeVariant(supplier.on_time_delivery_rate)}>
-                            {supplier.on_time_delivery_rate?.toFixed(1) ?? 'N/A'}%
-                        </Badge>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                         <Tooltip>
-                            <TooltipTrigger asChild><span className="text-muted-foreground cursor-help">Avg. Lead Time</span></TooltipTrigger>
-                            <TooltipContent><p>Average number of days from order to receipt.</p></TooltipContent>
-                        </Tooltip>
-                        <span className="font-medium">{supplier.average_lead_time_days?.toFixed(1) ?? 'N/A'} days</span>
-                    </div>
-                </TooltipProvider>
-            </CardContent>
-         )}
       </Card>
 
       <AlertDialog open={isAlertOpen} onOpenChange={setAlertOpen}>
@@ -158,7 +121,7 @@ function SupplierCard({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete {supplier.vendor_name}. Deleting a supplier who is linked to Purchase Orders will fail. This action cannot be undone.
+              This will permanently delete {supplier.name}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -187,9 +150,8 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
     if (!searchTerm) return suppliers;
     return suppliers.filter(
       (supplier) =>
-        supplier.vendor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (supplier.contact_info && supplier.contact_info.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (supplier.account_number && supplier.account_number.includes(searchTerm))
+        supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (supplier.email && supplier.email.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [suppliers, searchTerm]);
 
@@ -198,7 +160,7 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
       <div className="relative w-full max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by name, email, or account..."
+          placeholder="Search by name or email..."
           className="pl-10"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}

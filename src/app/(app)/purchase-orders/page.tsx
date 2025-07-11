@@ -1,37 +1,19 @@
 
-import { getPurchaseOrders, getPurchaseOrderAnalytics } from '@/app/data-actions';
-import { PurchaseOrderClientPage } from '@/components/purchase-orders/po-client-page';
+'use client';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
-const ITEMS_PER_PAGE = 25;
-
-export default async function PurchaseOrdersPage({
-    searchParams,
-}: {
-    searchParams?: {
-        query?: string;
-        page?: string;
-    };
-}) {
-  const query = searchParams?.query || '';
-  const currentPage = Number(searchParams?.page) || 1;
-  const [poData, analyticsData] = await Promise.all([
-    getPurchaseOrders({ query, page: currentPage }),
-    getPurchaseOrderAnalytics(),
-  ]);
-
-  return (
-    <AppPage className="flex flex-col h-full">
-      <AppPageHeader
-        title="Purchase Orders"
-        description="Manage your incoming inventory and supplier orders."
-      />
-      <PurchaseOrderClientPage 
-        initialPurchaseOrders={poData.items}
-        totalCount={poData.totalCount}
-        itemsPerPage={ITEMS_PER_PAGE}
-        analyticsData={analyticsData}
-      />
-    </AppPage>
-  );
+export default function PurchaseOrdersPage() {
+    return (
+        <AppPage>
+            <AppPageHeader 
+                title="Feature Removed"
+                description="Purchase Order management has been removed to focus on inventory intelligence."
+            />
+            <div className="text-center text-muted-foreground p-8 border-2 border-dashed rounded-lg">
+                <h3 className="text-lg font-semibold">This feature is no longer available.</h3>
+                <p>We are focusing on telling you what to order, not managing the ordering process itself.</p>
+                <p className="mt-2">Please use the Reorder Report for actionable insights.</p>
+            </div>
+        </AppPage>
+    );
 }

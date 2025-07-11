@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
+import { Textarea } from '../ui/textarea';
 
 interface SupplierFormProps {
   initialData?: Supplier;
@@ -31,11 +32,11 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
   const form = useForm<SupplierFormData>({
     resolver: zodResolver(SupplierFormSchema),
     defaultValues: {
-      vendor_name: initialData?.vendor_name || '',
-      contact_info: initialData?.contact_info || '',
-      address: initialData?.address || '',
-      terms: initialData?.terms || '',
-      account_number: initialData?.account_number || '',
+      name: initialData?.name || '',
+      email: initialData?.email || '',
+      phone: initialData?.phone || '',
+      default_lead_time_days: initialData?.default_lead_time_days || undefined,
+      notes: initialData?.notes || '',
     },
   });
 
@@ -67,29 +68,29 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <Label htmlFor="vendor_name">Supplier Name</Label>
-                        <Input id="vendor_name" {...form.register('vendor_name')} placeholder="e.g., Global Supplies Inc." />
-                        {form.formState.errors.vendor_name && <p className="text-sm text-destructive">{form.formState.errors.vendor_name.message}</p>}
+                        <Label htmlFor="name">Supplier Name</Label>
+                        <Input id="name" {...form.register('name')} placeholder="e.g., Global Supplies Inc." />
+                        {form.formState.errors.name && <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>}
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="contact_info">Contact Email</Label>
-                        <Input id="contact_info" type="email" {...form.register('contact_info')} placeholder="e.g., sales@globalsupplies.com" />
-                         {form.formState.errors.contact_info && <p className="text-sm text-destructive">{form.formState.errors.contact_info.message}</p>}
+                        <Label htmlFor="email">Contact Email</Label>
+                        <Input id="email" type="email" {...form.register('email')} placeholder="e.g., sales@globalsupplies.com" />
+                         {form.formState.errors.email && <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>}
                     </div>
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input id="address" {...form.register('address')} placeholder="e.g., 123 Industrial Way, Commerce City" />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <Label htmlFor="terms">Payment Terms</Label>
-                        <Input id="terms" {...form.register('terms')} placeholder="e.g., Net 30" />
+                        <Label htmlFor="phone">Phone Number</Label>
+                        <Input id="phone" {...form.register('phone')} />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="account_number">Account Number</Label>
-                        <Input id="account_number" {...form.register('account_number')} />
+                        <Label htmlFor="default_lead_time_days">Default Lead Time (Days)</Label>
+                        <Input id="default_lead_time_days" type="number" {...form.register('default_lead_time_days', { valueAsNumber: true })} />
                     </div>
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea id="notes" {...form.register('notes')} placeholder="e.g., Preferred contact method is email. Responds quickly." />
                 </div>
             </CardContent>
             <CardFooter>

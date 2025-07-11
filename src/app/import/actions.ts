@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
-import { ProductImportSchema, SupplierImportSchema, LocationImportSchema, HistoricalSalesImportSchema, ReorderRuleImportSchema } from './schemas';
+import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
@@ -154,10 +154,8 @@ async function processCsv<T extends z.ZodType>(
         if (!supabase) throw new Error('Supabase admin client not initialized.');
 
         const rpcMap = {
-            'products': 'batch_upsert_products',
+            'product-costs': 'batch_upsert_costs',
             'suppliers': 'batch_upsert_suppliers',
-            'reorder-rules': 'batch_upsert_reorder_rules',
-            'locations': 'batch_upsert_locations',
             'historical-sales': 'batch_import_sales',
         };
 
@@ -217,11 +215,9 @@ export async function getMappingSuggestions(formData: FormData): Promise<CsvMapp
     
     const importType = formData.get('dataType') as string;
     const schemas = {
-        products: ProductImportSchema,
-        suppliers: SupplierImportSchema,
-        'reorder-rules': ReorderRuleImportSchema,
+        'product-costs': ProductCostImportSchema,
+        'suppliers': SupplierImportSchema,
         'historical-sales': HistoricalSalesImportSchema,
-        locations: LocationImportSchema,
     };
     const schema = schemas[importType as keyof typeof schemas];
     if (!schema) throw new Error('Invalid data type for mapping.');
@@ -277,10 +273,8 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         let requiresViewRefresh = false;
 
         const importSchemas = {
-            'products': { schema: ProductImportSchema, tableName: 'products' },
-            'suppliers': { schema: SupplierImportSchema, tableName: 'vendors' },
-            'reorder-rules': { schema: ReorderRuleImportSchema, tableName: 'reorder_rules' },
-            'locations': { schema: LocationImportSchema, tableName: 'locations' },
+            'product-costs': { schema: ProductCostImportSchema, tableName: 'inventory' },
+            'suppliers': { schema: SupplierImportSchema, tableName: 'suppliers' },
             'historical-sales': { schema: HistoricalSalesImportSchema, tableName: 'sales' },
         };
 
@@ -298,8 +292,6 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             requiresViewRefresh = true;
             revalidatePath('/inventory');
             revalidatePath('/suppliers');
-            revalidatePath('/reordering');
-            revalidatePath('/locations');
             revalidatePath('/sales');
         }
 

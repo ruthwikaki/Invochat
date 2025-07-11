@@ -46,7 +46,7 @@ export default function ExportDataPage() {
                         Generate Data Archive
                     </CardTitle>
                     <CardDescription>
-                        This tool will generate a ZIP file containing CSVs for all your major data tables, including inventory, orders, purchase orders, and customers.
+                        This tool will generate a ZIP file containing CSVs for all your major data tables, including inventory, sales, and customers.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center">

@@ -1,5 +1,4 @@
 
-
 import { getSuppliersData } from '@/app/data-actions';
 import { SuppliersClientPage } from '@/components/suppliers/suppliers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -14,7 +13,7 @@ export default async function SuppliersPage() {
     <AppPage>
       <AppPageHeader 
         title="Suppliers"
-        description="Manage your vendors and their performance."
+        description="Manage your vendors and their information."
       >
         <Button asChild>
           <Link href="/suppliers/new">

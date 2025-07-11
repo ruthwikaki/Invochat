@@ -1,28 +1,18 @@
 
-import { getLocations } from '@/app/data-actions';
-import { LocationsClientPage } from '@/components/locations/locations-client-page';
+'use client';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
-import Link from 'next/link';
 
-export default async function LocationsPage() {
-  const locations = await getLocations();
-
-  return (
-    <AppPage className="flex flex-col h-full">
-      <AppPageHeader
-        title="Locations"
-        description="Manage your warehouses and other stock locations."
-      >
-        <Button asChild>
-          <Link href="/locations/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New Location
-          </Link>
-        </Button>
-      </AppPageHeader>
-      <LocationsClientPage initialLocations={locations} />
-    </AppPage>
-  );
+export default function LocationsPage() {
+    return (
+        <AppPage>
+            <AppPageHeader 
+                title="Feature Removed"
+                description="Multi-location inventory management has been removed for simplification."
+            />
+            <div className="text-center text-muted-foreground p-8 border-2 border-dashed rounded-lg">
+                <h3 className="text-lg font-semibold">This feature is no longer available.</h3>
+                <p>To better serve our core users, we have simplified inventory to a single location model.</p>
+            </div>
+        </AppPage>
+    );
 }
