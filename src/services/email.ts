@@ -3,21 +3,25 @@
 
 /**
  * @fileoverview
- * This file contains a simulated email service for sending alerts and purchase orders.
- * In a production environment, this would be replaced with a real email
- * sending service like Resend, SendGrid, or Nodemailer.
+ * This file contains the email service for sending alerts and purchase orders.
+ * It uses the Resend email platform.
  */
 
 import type { Alert, PurchaseOrder } from '@/types';
 import { logger } from '@/lib/logger';
+import { Resend } from 'resend';
+
+// Initialize Resend with the API key from environment variables.
+// The key is checked at startup, but we add a fallback for safety.
+const resend = new Resend(process.env.RESEND_API_KEY);
+const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+
 
 /**
- * Simulates sending an email alert.
+ * Sends an email alert.
  * @param alert The alert object containing details for the email.
  */
 export async function sendEmailAlert(alert: Alert): Promise<void> {
-  logger.debug('--- SIMULATING EMAIL ALERT ---');
-  
   const subject = `InvoChat Alert: ${alert.title} - ${alert.metadata.productName || 'System Alert'}`;
   
   const body = `
@@ -36,25 +40,36 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     - Last Sold Date: ${alert.metadata.lastSoldDate ? new Date(alert.metadata.lastSoldDate).toLocaleDateString() : 'N/A'}
     - Current Value: $${alert.metadata.value?.toLocaleString() || 'N/A'}
 
-    This is a simulated email. To enable real email sending, integrate a service here.
+    You can view this alert in your InvoChat dashboard.
   `.trim();
 
-  logger.debug(`To: user@example.com`);
-  logger.debug(`Subject: ${subject}`);
-  logger.debug('Body:', `\n${body}`);
-  logger.debug('------------------------------');
+  try {
+    await resend.emails.send({
+        from: fromEmail,
+        to: 'user@example.com', // In a real app, this would be the user's email
+        subject: subject,
+        text: body,
+    });
+    logger.info(`Successfully sent email alert for: ${alert.title}`);
+  } catch (error) {
+    logger.error('Failed to send email alert via Resend:', error);
+    // In a production app, you might want to add this to a retry queue.
+  }
 }
 
 
 /**
- * Simulates sending a purchase order email to a supplier.
+ * Sends a purchase order email to a supplier.
  * @param po The purchase order object.
  */
 export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
-    logger.debug('--- SIMULATING PURCHASE ORDER EMAIL ---');
-
+    const toEmail = po.supplier_email || null;
+    if (!toEmail) {
+        logger.warn(`Cannot send PO email for PO #${po.po_number} because supplier email is missing.`);
+        return;
+    }
+    
     const subject = `Purchase Order #${po.po_number} from Your Company`;
-    const toEmail = po.supplier_email || 'supplier-not-found@example.com';
 
     let body = `
         Hello ${po.supplier_name},
@@ -73,13 +88,13 @@ export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
         - SKU: ${item.sku}
           Product: ${item.product_name || 'N/A'}
           Quantity: ${item.quantity_ordered}
-          Unit Cost: $${item.unit_cost.toFixed(2)}
+          Unit Cost: $${(item.unit_cost / 100).toFixed(2)}
         `;
     });
 
     body += `
         ------------------------------------------------------------
-        Total Amount: $${po.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        Total Amount: $${(po.total_amount / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
         Notes:
         ${po.notes || 'No notes provided.'}
@@ -88,8 +103,17 @@ export async function sendPurchaseOrderEmail(po: PurchaseOrder): Promise<void> {
         Your Company
     `.trim();
 
-    logger.debug(`To: ${toEmail}`);
-    logger.debug(`Subject: ${subject}`);
-    logger.debug('Body:', `\n${body}`);
-    logger.debug('---------------------------------------');
+    try {
+         await resend.emails.send({
+            from: fromEmail,
+            to: toEmail,
+            subject: subject,
+            text: body,
+        });
+        logger.info(`Successfully sent PO #${po.po_number} to ${toEmail}`);
+    } catch(error) {
+        logger.error(`Failed to send PO email to ${toEmail} via Resend:`, error);
+    }
 }
+
+// TODO: Add functions for other email types like password reset, welcome, etc.
