@@ -745,6 +745,24 @@ export async function getReorderReportFromDB(companyId: string): Promise<Reorder
     });
 }
 
+export async function getInventoryTurnoverFromDB(companyId: string, days: number) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getInventoryTurnoverFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_inventory_turnover_report', {
+            p_company_id: companyId,
+            p_days: days,
+        });
+
+        if (error) {
+            logError(error, { context: `Failed to run turnover RPC for company ${companyId}` });
+            throw error;
+        }
+        return data && data.length > 0 ? data[0] : null;
+    });
+}
+
+
 export async function getInventoryHealthScoreFromDB(companyId: string) {
     // Placeholder function
     return { score: 85, summary: 'Overall inventory health is good.' };
