@@ -1,37 +1,45 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ReorderSuggestion } from '@/types';
-import { RefreshCw, ShoppingCart, Truck, Loader2 } from 'lucide-react';
+import { RefreshCw, Download } from 'lucide-react';
 import { Button } from '../ui/button';
-import { useState, useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { createPurchaseOrdersFromSuggestions } from '@/app/data-actions';
+import Papa from 'papaparse';
 
 type ReorderListProps = {
   items: ReorderSuggestion[];
 };
 
 export function ReorderList({ items }: ReorderListProps) {
-  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
-  const handleCreatePOs = () => {
-    startTransition(async () => {
-      const result = await createPurchaseOrdersFromSuggestions(items);
-      if (result.success) {
-        toast({
-          title: 'Purchase Orders Created!',
-          description: `${result.createdPoCount} new PO(s) have been generated. You can view them on the Purchase Orders page.`,
-        });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Error Creating POs',
-          description: result.error,
-        });
-      }
-    });
+  const handleExport = () => {
+    if (!items || items.length === 0) {
+      toast({ variant: 'destructive', title: 'No items to export' });
+      return;
+    }
+    
+    const dataToExport = items.map(s => ({
+      SKU: s.sku,
+      ProductName: s.product_name,
+      Supplier: s.supplier_name,
+      QuantityToOrder: s.suggested_reorder_quantity,
+      UnitCost: s.unit_cost ? (s.unit_cost / 100).toFixed(2) : 'N/A',
+      TotalCost: s.unit_cost ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : 'N/A'
+    }));
+
+    const csv = Papa.unparse(dataToExport);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `reorder-suggestions-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: 'Export Complete' });
   };
   
   if (!items || items.length === 0) {
@@ -56,29 +64,25 @@ export function ReorderList({ items }: ReorderListProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {items.map(item => (
-            <div key={item.sku} className="rounded-lg border p-4 space-y-2 bg-muted/20">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h4 className="font-semibold">{item.product_name}</h4>
-                        <p className="text-xs text-muted-foreground">{item.sku}</p>
+        <div className="max-h-80 overflow-y-auto pr-2 space-y-3">
+            {items.map(item => (
+                <div key={item.sku} className="rounded-lg border p-4 space-y-2 bg-muted/20">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h4 className="font-semibold">{item.product_name}</h4>
+                            <p className="text-xs text-muted-foreground">{item.sku}</p>
+                        </div>
+                         <p className="text-lg font-bold text-primary">{item.suggested_reorder_quantity}</p>
                     </div>
-                     <p className="text-lg font-bold text-primary">{item.suggested_reorder_quantity}</p>
+                     <div className="text-xs text-muted-foreground border-t pt-2 mt-2">
+                       {item.adjustment_reason}
+                    </div>
                 </div>
-                <div className="flex justify-between items-center text-sm text-muted-foreground">
-                    <p>Current: <span className="font-medium text-foreground">{item.current_quantity}</span></p>
-                    <p>Reorder Point: <span className="font-medium text-warning">{item.reorder_point}</span></p>
-                    <p>Supplier: <span className="font-medium text-foreground flex items-center gap-1"><Truck className="h-3 w-3"/>{item.supplier_name}</span></p>
-                </div>
-            </div>
-        ))}
-         <Button className="w-full mt-4" onClick={handleCreatePOs} disabled={isPending}>
-            {isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-                <ShoppingCart className="mr-2 h-4 w-4" />
-            )}
-            {isPending ? 'Creating POs...' : 'Create Purchase Order(s)'}
+            ))}
+        </div>
+         <Button className="w-full mt-4" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            Export Suggestions to CSV
         </Button>
       </CardContent>
     </Card>

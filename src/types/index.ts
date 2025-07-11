@@ -36,7 +36,11 @@ export type Message = {
         [key: string]: unknown;
     };
   } | null;
+  component?: string | null;
+  componentProps?: Record<string, any> | null;
   created_at: string;
+  confidence?: number | null;
+  assumptions?: string[] | null;
   isError?: boolean;
 };
 
@@ -47,6 +51,7 @@ export const ProductSchema = z.object({
     name: z.string(),
     category: z.string().nullable(),
     price: z.number().int().nullable(), // in cents
+    cost: z.number().int(), // in cents
     barcode: z.string().nullable(),
     created_at: z.string(),
     updated_at: z.string().nullable(),
@@ -57,6 +62,7 @@ export const ProductUpdateSchema = z.object({
   name: z.string().min(1, 'Product Name is required.'),
   category: z.string().optional().nullable(),
   price: z.coerce.number().int().nonnegative('Price must be a non-negative integer (in cents).').optional().nullable(),
+  cost: z.coerce.number().int().nonnegative('Cost must be a non-negative integer (in cents).').optional().nullable(),
   barcode: z.string().optional().nullable(),
 });
 export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
@@ -66,11 +72,9 @@ export const InventorySchema = z.object({
     company_id: z.string().uuid(),
     product_id: z.string().uuid(),
     quantity: z.number().int(),
-    cost: z.number().int(), // in cents
     reorder_point: z.number().int().nullable(),
     reorder_quantity: z.number().int().nullable(),
     last_sold_date: z.string().nullable(),
-    supplier_id: z.string().uuid().nullable(),
     deleted_at: z.string().nullable(),
     deleted_by: z.string().uuid().nullable(),
     created_at: z.string(),
@@ -144,6 +148,8 @@ export const CustomerSchema = z.object({
   customer_name: z.string(),
   email: z.string().email().nullable(),
   created_at: z.string(),
+  total_orders: z.coerce.number().int(),
+  total_spent: z.coerce.number(),
 });
 export type Customer = z.infer<typeof CustomerSchema>;
 
@@ -155,11 +161,6 @@ export const CompanySettingsSchema = z.object({
   timezone: z.string().nullable().optional().default('UTC'),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
-  subscription_status: z.string().default('trial'),
-  subscription_plan: z.string().default('starter'),
-  subscription_expires_at: z.string().datetime({ offset: true }).nullable(),
-  stripe_customer_id: z.string().nullable(),
-  stripe_subscription_id: z.string().nullable(),
 });
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
@@ -174,9 +175,173 @@ export const UnifiedInventoryItemSchema = z.object({
     price: z.number().nullable(), // In cents
     total_value: z.number(), // In cents
     reorder_point: z.number().nullable(),
-    reorder_quantity: z.number().nullable(),
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
-    last_sold_date: z.string().nullable()
 });
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
+
+export const ReorderSuggestionBaseSchema = z.object({
+    product_id: z.string().uuid(),
+    sku: z.string(),
+    product_name: z.string(),
+    current_quantity: z.number().int(),
+    reorder_point: z.number().int(),
+    suggested_reorder_quantity: z.number().int(),
+    supplier_id: z.string().uuid().nullable(),
+    supplier_name: z.string().nullable(),
+    unit_cost: z.number().int().nullable(),
+});
+
+export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
+    base_quantity: z.number().int().describe("The initial, simple calculated reorder quantity before AI adjustment."),
+    adjustment_reason: z.string().describe("A concise explanation for why the reorder quantity was adjusted."),
+    seasonality_factor: z.number().describe("A factor from ~0.5 (low season) to ~1.5 (high season) that influenced the adjustment."),
+    confidence: z.number().min(0).max(1).describe("The AI's confidence in its seasonal adjustment."),
+});
+export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+
+
+export const DeadStockItemSchema = z.object({
+    sku: z.string(),
+    product_name: z.string(),
+    quantity: z.number().int(),
+    total_value: z.number(),
+    last_sale_date: z.string().datetime({ offset: true }).nullable(),
+});
+export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
+
+export const SupplierPerformanceReportSchema = z.object({
+    supplier_name: z.string(),
+    total_completed_orders: z.number().int(),
+    on_time_delivery_rate: z.number(),
+    average_lead_time_days: z.number(),
+});
+export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
+
+
+export const AlertSchema = z.object({
+    id: z.string(),
+    type: z.enum(['low_stock', 'dead_stock', 'predictive']),
+    title: z.string(),
+    message: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']),
+    timestamp: z.string().datetime({ offset: true }),
+    metadata: z.record(z.any())
+});
+export type Alert = z.infer<typeof AlertSchema>;
+
+
+export const AnomalySchema = z.object({
+    id: z.string().optional(),
+    date: z.string(),
+    anomaly_type: z.string(),
+    daily_revenue: z.number().optional(),
+    avg_revenue: z.number().optional(),
+    daily_customers: z.number().optional(),
+    avg_customers: z.number().optional(),
+    deviation_percentage: z.number(),
+    explanation: z.string().optional(),
+    confidence: z.enum(['high', 'medium', 'low']).optional(),
+    suggestedAction: z.string().optional(),
+});
+export type Anomaly = z.infer<typeof AnomalySchema>;
+
+export const AnomalyExplanationInputSchema = z.object({
+    anomaly: AnomalySchema.omit({ explanation: true, confidence: true, suggestedAction: true, id: true }),
+    dateContext: z.object({
+        dayOfWeek: z.string(),
+        month: z.string(),
+        season: z.string(),
+        knownHoliday: z.string().optional(),
+    }),
+});
+export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
+
+export const AnomalyExplanationOutputSchema = z.object({
+    explanation: z.string(),
+    confidence: z.enum(['high', 'medium', 'low']),
+    suggestedAction: z.string(),
+});
+export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
+
+
+export type DashboardMetrics = {
+    totalSalesValue: number;
+    totalProfit: number;
+    totalInventoryValue: number;
+    lowStockItemsCount: number;
+    deadStockItemsCount: number;
+    totalSkus: number;
+    totalOrders: number;
+    totalCustomers: number;
+    averageOrderValue: number;
+    salesTrendData: { date: string, Sales: number }[];
+    inventoryByCategoryData: { name: string, value: number }[];
+    topCustomersData: { name: string, value: number }[];
+}
+
+
+export type TeamMember = {
+  id: string;
+  email: string;
+  role: 'Owner' | 'Admin' | 'Member';
+};
+
+
+export const InventoryAnalyticsSchema = z.object({
+  total_inventory_value: z.number().default(0),
+  total_skus: z.number().int().default(0),
+  low_stock_items: z.number().int().default(0),
+  potential_profit: z.number().default(0),
+});
+export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
+
+
+export const SalesAnalyticsSchema = z.object({
+  total_revenue: z.number().default(0),
+  average_sale_value: z.number().default(0),
+  payment_method_distribution: z.array(z.object({ name: z.string(), value: z.number() })),
+});
+export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
+
+
+export type CustomerAnalytics = {
+  total_customers: number;
+  new_customers_last_30_days: number;
+  repeat_customer_rate: number;
+  average_lifetime_value: number;
+  top_customers_by_spend: { name: string; value: number }[];
+  top_customers_by_sales: { name: string; value: number }[];
+};
+
+export const CsvMappingInputSchema = z.object({
+    csvHeaders: z.array(z.string()),
+    sampleRows: z.array(z.record(z.string(), z.unknown())),
+    expectedDbFields: z.array(z.string()),
+});
+export type CsvMappingInput = z.infer<typeof CsvMappingInputSchema>;
+
+export const CsvMappingOutputSchema = z.object({
+    mappings: z.array(z.object({
+        csvColumn: z.string(),
+        dbField: z.string(),
+        confidence: z.number().min(0).max(1),
+    })),
+    unmappedColumns: z.array(z.string()),
+});
+export type CsvMappingOutput = z.infer<typeof CsvMappingOutputSchema>;
+
+export type HealthCheckResult = {
+    healthy: boolean;
+    metric: number;
+    message: string;
+}
+
+export const InventoryAgingReportItemSchema = z.object({
+    sku: z.string(),
+    product_name: z.string(),
+    quantity: z.number().int(),
+    total_value: z.number(), // in cents
+    days_since_last_sale: z.number().int(),
+});
+export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;

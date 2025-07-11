@@ -19,7 +19,6 @@ import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
 import { getReorderSuggestions } from './reorder-tool';
 import { getSupplierAnalysisTool } from './analyze-supplier-flow';
-import { createPurchaseOrdersTool } from './create-po-tool';
 import { getDeadStockReport } from './dead-stock-tool';
 import { getInventoryTurnoverReport } from './inventory-turnover-tool';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getFinancialImpactAnalysis } from './analytics-tools';
@@ -30,7 +29,6 @@ const allTools = [
     getEconomicIndicators, 
     getReorderSuggestions, 
     getSupplierAnalysisTool, 
-    createPurchaseOrdersTool, 
     getDeadStockReport, 
     getInventoryTurnoverReport,
     getDemandForecast,
@@ -61,7 +59,6 @@ const finalResponsePrompt = ai.definePrompt({
         - **If the data has an 'analysis' field:** Use that text as your primary response. This means another AI has already summarized the data for you.
         - **If data exists (but no 'analysis' field):** Briefly summarize the key finding. Don't just list the data. For example, instead of saying "The data shows Vendor A has a 98% on-time rate", say "Vendor A is your most reliable supplier with a 98% on-time delivery rate."
         - **If data is empty or null:** Do not just say "No data found." Instead, provide a helpful and context-aware response. For example, if asked for dead stock and none is found, say "Good news! I didn't find any dead stock based on your current settings. Everything seems to be selling well."
-        - **Special Case (Action Confirmation):** If the tool result contains a "createdPoCount" key, this was a user-confirmed action. Your primary response should be a clear success message, like "Done! I've created {{toolResult.createdPoCount}} new purchase orders. You can review them on the Purchase Orders page." Set the visualization type to 'none' for this case.
 
     2.  **Formulate Response Body**:
         - Write a natural language paragraph that answers the user's question.
