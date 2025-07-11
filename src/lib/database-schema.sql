@@ -1,60 +1,61 @@
-
--- ### InvoChat Database Schema ###
--- This script is designed for a fresh Supabase project installation.
+-- InvoChat Database Schema
+-- Version: 4.0
+-- Description: A comprehensive, secure, and performant schema for the InvoChat application.
 
 -- 1. Extensions
--- Enable pgcrypto for gen_random_uuid()
-CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA "public";
+--------------------------------------------------
+-- Use pgcrypto for UUID generation, as it's a standard extension.
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 
 -- 2. Custom Types
--- Drop the type if it exists, then create it
+--------------------------------------------------
+-- Define a custom type for user roles to ensure data integrity.
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-        DROP TYPE public.user_role;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
     END IF;
-    CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
 END$$;
 
+
 -- 3. Tables
--- Companies are the top-level tenants
+--------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_name text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT NOW()
+    created_at timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE public.companies IS 'Top-level tenant for data isolation.';
+COMMENT ON TABLE public.companies IS 'Stores company-level information.';
 
--- Users table stores app users, linked to a company
 CREATE TABLE IF NOT EXISTS public.users (
     id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id uuid REFERENCES public.companies(id) ON DELETE SET NULL,
-    email text UNIQUE,
-    role public.user_role NOT NULL DEFAULT 'Member',
+    email text,
+    role public.user_role DEFAULT 'Member',
     deleted_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz
 );
-COMMENT ON TABLE public.users IS 'Stores application users and their company affiliation.';
+COMMENT ON TABLE public.users IS 'Stores user profiles and their association with companies.';
 
--- Company-specific settings and business rules
 CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
     dead_stock_days integer NOT NULL DEFAULT 90,
     overstock_multiplier numeric NOT NULL DEFAULT 3,
-    high_value_threshold integer NOT NULL DEFAULT 100000, -- in cents
+    high_value_threshold integer NOT NULL DEFAULT 100000,
     fast_moving_days integer NOT NULL DEFAULT 30,
     predictive_stock_days integer NOT NULL DEFAULT 7,
-    currency text NOT NULL DEFAULT 'USD',
-    timezone text NOT NULL DEFAULT 'UTC',
-    tax_rate numeric NOT NULL DEFAULT 0.0,
+    currency text DEFAULT 'USD',
+    timezone text DEFAULT 'UTC',
+    tax_rate numeric DEFAULT 0,
     custom_rules jsonb,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz
 );
 COMMENT ON TABLE public.company_settings IS 'Stores business logic settings for each company.';
 
--- Product master list
 CREATE TABLE IF NOT EXISTS public.products (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -62,36 +63,34 @@ CREATE TABLE IF NOT EXISTS public.products (
     name text NOT NULL,
     category text,
     barcode text,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(company_id, sku)
+    CONSTRAINT products_company_id_sku_key UNIQUE (company_id, sku)
 );
-COMMENT ON TABLE public.products IS 'Master list of all products.';
+COMMENT ON TABLE public.products IS 'Core product catalog information.';
 
--- Locations for inventory
 CREATE TABLE IF NOT EXISTS public.locations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     name text NOT NULL,
     address text,
-    is_default boolean NOT NULL DEFAULT false,
+    is_default boolean DEFAULT false,
     deleted_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(company_id, name)
+    CONSTRAINT locations_company_id_name_key UNIQUE (company_id, name)
 );
-COMMENT ON TABLE public.locations IS 'Warehouses or other stock-keeping locations.';
+COMMENT ON TABLE public.locations IS 'Represents physical locations where inventory is stored.';
 
--- Inventory stock levels
 CREATE TABLE IF NOT EXISTS public.inventory (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
     location_id uuid REFERENCES public.locations(id) ON DELETE SET NULL,
     quantity integer NOT NULL DEFAULT 0,
-    cost integer NOT NULL DEFAULT 0, -- in cents
-    price integer, -- in cents
-    landed_cost integer, -- in cents
+    cost integer,
+    price integer,
+    landed_cost integer,
     on_order_quantity integer NOT NULL DEFAULT 0,
     last_sold_date date,
     version integer NOT NULL DEFAULT 1,
@@ -101,14 +100,12 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_product_id text,
     external_variant_id text,
     external_quantity integer,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE (company_id, product_id, location_id),
-    UNIQUE (company_id, source_platform, external_variant_id)
+    CONSTRAINT inventory_company_product_location_unique UNIQUE (company_id, product_id, location_id)
 );
-COMMENT ON TABLE public.inventory IS 'Tracks stock levels for products at various locations.';
+COMMENT ON TABLE public.inventory IS 'Tracks stock levels for products at different locations.';
 
--- Supplier/Vendor information
 CREATE TABLE IF NOT EXISTS public.vendors (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -118,87 +115,81 @@ CREATE TABLE IF NOT EXISTS public.vendors (
     terms text,
     account_number text,
     deleted_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(company_id, vendor_name)
+    CONSTRAINT vendors_company_id_vendor_name_key UNIQUE (company_id, vendor_name)
 );
-COMMENT ON TABLE public.vendors IS 'Stores supplier/vendor information.';
+COMMENT ON TABLE public.vendors IS 'Stores information about suppliers.';
 
--- Supplier-specific product catalog
 CREATE TABLE IF NOT EXISTS public.supplier_catalogs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     supplier_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     supplier_sku text,
-    unit_cost integer NOT NULL, -- in cents
+    unit_cost integer,
     moq integer,
     lead_time_days integer,
-    is_active boolean NOT NULL DEFAULT true,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    is_active boolean DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(supplier_id, product_id)
+    CONSTRAINT supplier_catalogs_supplier_id_product_id_key UNIQUE (supplier_id, product_id)
 );
-COMMENT ON TABLE public.supplier_catalogs IS 'Stores supplier-specific pricing and SKUs for products.';
+COMMENT ON TABLE public.supplier_catalogs IS 'Maps products to suppliers with specific purchasing details.';
 
--- Reorder rules for products
 CREATE TABLE IF NOT EXISTS public.reorder_rules (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     location_id uuid REFERENCES public.locations(id) ON DELETE CASCADE,
-    rule_type text NOT NULL DEFAULT 'manual',
+    rule_type text DEFAULT 'manual',
     min_stock integer,
     max_stock integer,
     reorder_quantity integer,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(company_id, product_id, location_id),
-    CHECK(min_stock IS NULL OR max_stock IS NULL OR min_stock <= max_stock),
-    CHECK(reorder_quantity IS NULL OR reorder_quantity > 0)
+    CONSTRAINT reorder_rules_check CHECK (min_stock <= max_stock),
+    CONSTRAINT reorder_rules_company_product_location_key UNIQUE (company_id, product_id, location_id)
 );
 COMMENT ON TABLE public.reorder_rules IS 'Defines reordering thresholds for products.';
 
--- Purchase Orders
 CREATE TABLE IF NOT EXISTS public.purchase_orders (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     supplier_id uuid REFERENCES public.vendors(id) ON DELETE SET NULL,
     po_number text NOT NULL,
-    status text NOT NULL DEFAULT 'draft',
+    status public.purchase_order_status DEFAULT 'draft',
     order_date date NOT NULL,
     expected_date date,
-    total_amount integer, -- in cents
-    tax_amount integer, -- in cents
-    shipping_cost integer, -- in cents
+    total_amount integer,
+    tax_amount integer,
+    shipping_cost integer,
     notes text,
     requires_approval boolean NOT NULL DEFAULT false,
-    approved_by uuid REFERENCES public.users(id),
+    approved_by uuid,
     approved_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz,
-    UNIQUE(company_id, po_number)
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
 );
 COMMENT ON TABLE public.purchase_orders IS 'Tracks purchase orders sent to suppliers.';
 CREATE SEQUENCE IF NOT EXISTS purchase_orders_po_number_seq;
-ALTER TABLE public.purchase_orders ALTER COLUMN po_number SET DEFAULT 'PO-' || TO_CHAR(nextval('purchase_orders_po_number_seq'), 'FM000000');
+ALTER TABLE public.purchase_orders
+  ALTER COLUMN po_number
+  SET DEFAULT 'PO-' || TO_CHAR(nextval('purchase_orders_po_number_seq'), 'FM000000');
 
 
--- Items within a Purchase Order
 CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     po_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     quantity_ordered integer NOT NULL,
-    quantity_received integer NOT NULL DEFAULT 0,
-    unit_cost integer NOT NULL, -- in cents
-    tax_rate numeric,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz,
-    UNIQUE(po_id, product_id)
+    quantity_received integer DEFAULT 0,
+    unit_cost integer,
+    tax_rate numeric
 );
 COMMENT ON TABLE public.purchase_order_items IS 'Line items for each purchase order.';
 
--- Customer data
 CREATE TABLE IF NOT EXISTS public.customers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -208,31 +199,27 @@ CREATE TABLE IF NOT EXISTS public.customers (
     email text,
     status text,
     deleted_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz,
-    UNIQUE(company_id, email)
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
 );
 COMMENT ON TABLE public.customers IS 'Stores customer information.';
 
--- Sales records
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    customer_id uuid REFERENCES public.customers(id),
     sale_number text NOT NULL,
-    total_amount integer NOT NULL, -- in cents
-    tax_amount integer, -- in cents
+    customer_id uuid REFERENCES public.customers(id),
+    total_amount integer,
+    tax_amount integer,
     payment_method text,
     notes text,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     created_by uuid REFERENCES public.users(id),
-    external_id text,
-    UNIQUE(company_id, sale_number)
+    CONSTRAINT sales_company_id_sale_number_key UNIQUE (company_id, sale_number)
 );
-COMMENT ON TABLE public.sales IS 'Tracks sales transactions.';
+COMMENT ON TABLE public.sales IS 'Tracks individual sales transactions.';
 CREATE SEQUENCE IF NOT EXISTS sales_sale_number_seq;
 
--- Items within a Sale
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
@@ -240,37 +227,62 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
     location_id uuid REFERENCES public.locations(id) ON DELETE SET NULL,
     quantity integer NOT NULL,
-    unit_price integer NOT NULL, -- in cents
-    cost_at_time integer -- in cents
+    unit_price integer,
+    cost_at_time integer
 );
 COMMENT ON TABLE public.sale_items IS 'Line items for each sale.';
 
--- Integration settings
+CREATE TABLE IF NOT EXISTS public.conversations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    is_starred boolean DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    last_accessed_at timestamptz NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE public.conversations IS 'Stores AI chat conversation sessions.';
+
+CREATE TABLE IF NOT EXISTS public.messages (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    role public.message_role NOT NULL,
+    content text,
+    visualization jsonb,
+    confidence real,
+    assumptions text[],
+    component text,
+    component_props jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    is_error boolean DEFAULT false
+);
+COMMENT ON TABLE public.messages IS 'Stores individual messages within a conversation.';
+
 CREATE TABLE IF NOT EXISTS public.integrations (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     platform text NOT NULL,
     shop_domain text,
     shop_name text,
-    is_active boolean NOT NULL DEFAULT false,
+    is_active boolean DEFAULT true,
     last_sync_at timestamptz,
     sync_status text,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
+    created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz,
-    UNIQUE(company_id, platform)
+    CONSTRAINT integrations_company_id_platform_key UNIQUE (company_id, platform)
 );
 COMMENT ON TABLE public.integrations IS 'Stores third-party integration settings.';
 
--- Sync state for integrations
 CREATE TABLE IF NOT EXISTS public.sync_state (
     integration_id uuid PRIMARY KEY REFERENCES public.integrations(id) ON DELETE CASCADE,
     sync_type text NOT NULL,
     last_processed_cursor text,
-    last_update timestamptz NOT NULL DEFAULT NOW()
+    last_update timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT sync_state_pkey PRIMARY KEY (integration_id, sync_type)
 );
-COMMENT ON TABLE public.sync_state IS 'Tracks the state of ongoing data synchronizations.';
+COMMENT ON TABLE public.sync_state IS 'Tracks the state of ongoing data syncs to allow for resumption.';
 
--- Logs for sync jobs
 CREATE TABLE IF NOT EXISTS public.sync_logs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     integration_id uuid NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
@@ -278,92 +290,59 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
     status text NOT NULL,
     records_synced integer,
     error_message text,
-    started_at timestamptz NOT NULL DEFAULT NOW(),
+    started_at timestamptz NOT NULL DEFAULT now(),
     completed_at timestamptz
 );
-COMMENT ON TABLE public.sync_logs IS 'Logs the history of sync jobs.';
+COMMENT ON TABLE public.sync_logs IS 'Logs the history and outcomes of data synchronization jobs.';
 
--- Chat conversation history
-CREATE TABLE IF NOT EXISTS public.conversations (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL REFERENCES public.users(id),
-    company_id uuid NOT NULL REFERENCES public.companies(id),
-    title text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    last_accessed_at timestamptz NOT NULL DEFAULT NOW(),
-    is_starred boolean NOT NULL DEFAULT false
-);
-COMMENT ON TABLE public.conversations IS 'Stores chat conversation threads.';
-
--- Individual chat messages
-CREATE TABLE IF NOT EXISTS public.messages (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id),
-    role text NOT NULL,
-    content text,
-    component text,
-    component_props jsonb,
-    visualization jsonb,
-    confidence real,
-    assumptions text[],
-    created_at timestamptz NOT NULL DEFAULT NOW()
-);
-COMMENT ON TABLE public.messages IS 'Stores individual messages within a conversation.';
-
--- Channel fee configuration for net margin calculations
-CREATE TABLE IF NOT EXISTS public.channel_fees (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    channel_name text NOT NULL,
-    percentage_fee numeric NOT NULL DEFAULT 0,
-    fixed_fee integer NOT NULL DEFAULT 0, -- in cents
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    updated_at timestamptz,
-    UNIQUE(company_id, channel_name)
-);
-COMMENT ON TABLE public.channel_fees IS 'Stores sales channel fees for net margin calculations.';
-
--- Audit log for important actions
-CREATE TABLE IF NOT EXISTS public.audit_log (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid REFERENCES public.users(id),
-    company_id uuid REFERENCES public.companies(id),
-    action text NOT NULL,
-    details jsonb,
-    created_at timestamptz NOT NULL DEFAULT NOW()
-);
-COMMENT ON TABLE public.audit_log IS 'Tracks significant user and system actions.';
-
--- Inventory movement ledger
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
-    location_id uuid NOT NULL REFERENCES public.locations(id) ON DELETE RESTRICT,
+    company_id uuid NOT NULL REFERENCES public.companies(id),
+    product_id uuid NOT NULL REFERENCES public.products(id),
+    location_id uuid REFERENCES public.locations(id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    created_by uuid REFERENCES public.users(id),
     change_type text NOT NULL,
     quantity_change integer NOT NULL,
     new_quantity integer NOT NULL,
     related_id uuid,
-    notes text,
-    created_at timestamptz NOT NULL DEFAULT NOW(),
-    created_by uuid REFERENCES public.users(id)
+    notes text
 );
-COMMENT ON TABLE public.inventory_ledger IS 'Immutable log of all inventory movements.';
+COMMENT ON TABLE public.inventory_ledger IS 'An audit trail of all inventory movements.';
 
--- Background job tracking for data exports
 CREATE TABLE IF NOT EXISTS public.export_jobs (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id),
     requested_by_user_id uuid NOT NULL REFERENCES public.users(id),
     status text NOT NULL,
     download_url text,
     expires_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT NOW()
+    created_at timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE public.export_jobs IS 'Tracks background data export jobs.';
+COMMENT ON TABLE public.export_jobs IS 'Tracks data export job requests.';
 
--- User feedback on AI responses
+CREATE TABLE IF NOT EXISTS public.channel_fees (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id),
+    channel_name text NOT NULL,
+    percentage_fee numeric NOT NULL,
+    fixed_fee integer NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    CONSTRAINT channel_fees_company_id_channel_name_key UNIQUE (company_id, channel_name)
+);
+COMMENT ON TABLE public.channel_fees IS 'Stores fees for different sales channels for net margin calculations.';
+
+CREATE TABLE IF NOT EXISTS public.audit_log (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid REFERENCES auth.users(id),
+    company_id uuid REFERENCES public.companies(id),
+    action text NOT NULL,
+    details jsonb,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+COMMENT ON TABLE public.audit_log IS 'Records important actions taken by users or the system.';
+
 CREATE TABLE IF NOT EXISTS public.user_feedback (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id uuid NOT NULL REFERENCES public.users(id),
@@ -371,239 +350,325 @@ CREATE TABLE IF NOT EXISTS public.user_feedback (
     subject_id text NOT NULL,
     subject_type text NOT NULL,
     feedback text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT NOW()
+    created_at timestamptz NOT NULL DEFAULT now()
 );
-COMMENT ON TABLE public.user_feedback IS 'Collects user feedback on AI features.';
+COMMENT ON TABLE public.user_feedback IS 'Stores user feedback on AI-generated content.';
 
--- 4. Materialized Views for Performance
+
+-- 4. Materialized Views
+--------------------------------------------------
+-- A materialized view to pre-calculate expensive dashboard metrics.
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.company_dashboard_metrics AS
 SELECT
-    i.company_id,
-    SUM(i.quantity * i.cost) AS inventory_value,
-    COUNT(DISTINCT p.id) AS total_skus,
-    SUM(CASE WHEN i.quantity < COALESCE(rr.min_stock, 0) THEN 1 ELSE 0 END) AS low_stock_count
+    c.id AS company_id,
+    COALESCE(SUM(i.quantity * i.cost), 0) AS inventory_value,
+    COUNT(DISTINCT i.product_id) AS total_skus,
+    COUNT(DISTINCT CASE WHEN i.quantity < COALESCE(rr.min_stock, 0) THEN i.product_id END) AS low_stock_count
 FROM
-    public.inventory i
-JOIN
-    public.products p ON i.product_id = p.id
+    public.companies c
+LEFT JOIN
+    public.inventory i ON c.id = i.company_id AND i.deleted_at IS NULL
 LEFT JOIN
     public.reorder_rules rr ON i.product_id = rr.product_id AND i.location_id = rr.location_id
-WHERE
-    i.deleted_at IS NULL
 GROUP BY
-    i.company_id;
+    c.id;
 
+-- A materialized view for customer analytics.
 CREATE MATERIALIZED VIEW IF NOT EXISTS public.customer_analytics_metrics AS
 SELECT
-    s.company_id,
-    COUNT(DISTINCT c.id) AS total_customers,
-    SUM(CASE WHEN c.created_at >= NOW() - INTERVAL '30 days' THEN 1 ELSE 0 END) AS new_customers_last_30_days,
-    AVG(s.total_amount) AS average_lifetime_value,
-    COUNT(CASE WHEN s.order_count > 1 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(DISTINCT c.id), 0) AS repeat_customer_rate
+    c.id AS company_id,
+    COUNT(DISTINCT cust.id) AS total_customers,
+    SUM(CASE WHEN cust.created_at >= now() - interval '30 days' THEN 1 ELSE 0 END) AS new_customers_last_30_days,
+    COALESCE(SUM(s.total_amount), 0) AS total_revenue,
+    CASE WHEN COUNT(DISTINCT cust.id) > 0 THEN AVG(s.total_amount) ELSE 0 END AS average_lifetime_value,
+    CASE WHEN COUNT(DISTINCT s.customer_id) > 0
+         THEN (COUNT(DISTINCT CASE WHEN (SELECT COUNT(*) FROM public.sales s2 WHERE s2.customer_id = s.customer_id) > 1 THEN s.customer_id END)::numeric / COUNT(DISTINCT s.customer_id))
+         ELSE 0
+    END AS repeat_customer_rate
 FROM
-    (
-        SELECT
-            company_id,
-            customer_id,
-            SUM(total_amount) AS total_amount,
-            COUNT(*) AS order_count
-        FROM public.sales
-        GROUP BY company_id, customer_id
-    ) s
-JOIN
-    public.customers c ON s.customer_id = c.id
-WHERE
-    c.deleted_at IS NULL
+    public.companies c
+LEFT JOIN
+    public.customers cust ON c.id = cust.company_id AND cust.deleted_at IS NULL
+LEFT JOIN
+    public.sales s ON cust.id = s.customer_id
 GROUP BY
-    s.company_id;
+    c.id;
 
 
--- 5. Indexes for Performance
+-- 5. Indexes
+--------------------------------------------------
+-- Indexes for Foreign Keys
 CREATE INDEX IF NOT EXISTS users_company_id_idx ON public.users(company_id);
 CREATE INDEX IF NOT EXISTS products_company_id_idx ON public.products(company_id);
-CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
 CREATE INDEX IF NOT EXISTS inventory_company_id_idx ON public.inventory(company_id);
+CREATE INDEX IF NOT EXISTS inventory_product_id_idx ON public.inventory(product_id);
 CREATE INDEX IF NOT EXISTS inventory_location_id_idx ON public.inventory(location_id);
 CREATE INDEX IF NOT EXISTS vendors_company_id_idx ON public.vendors(company_id);
-CREATE INDEX IF NOT EXISTS po_company_id_idx ON public.purchase_orders(company_id);
-CREATE INDEX IF NOT EXISTS po_supplier_id_idx ON public.purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS supplier_catalogs_company_id_idx ON public.supplier_catalogs(company_id);
+CREATE INDEX IF NOT EXISTS supplier_catalogs_product_id_idx ON public.supplier_catalogs(product_id);
+CREATE INDEX IF NOT EXISTS reorder_rules_company_id_idx ON public.reorder_rules(company_id);
+CREATE INDEX IF NOT EXISTS reorder_rules_product_id_idx ON public.reorder_rules(product_id);
+CREATE INDEX IF NOT EXISTS purchase_orders_company_id_idx ON public.purchase_orders(company_id);
+CREATE INDEX IF NOT EXISTS purchase_orders_supplier_id_idx ON public.purchase_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS po_items_company_id_idx ON public.purchase_order_items(company_id);
+CREATE INDEX IF NOT EXISTS po_items_po_id_idx ON public.purchase_order_items(po_id);
 CREATE INDEX IF NOT EXISTS po_items_product_id_idx ON public.purchase_order_items(product_id);
+CREATE INDEX IF NOT EXISTS customers_company_id_idx ON public.customers(company_id);
 CREATE INDEX IF NOT EXISTS sales_company_id_idx ON public.sales(company_id);
-CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
+CREATE INDEX IF NOT EXISTS sales_customer_id_idx ON public.sales(customer_id);
 CREATE INDEX IF NOT EXISTS sale_items_company_id_idx ON public.sale_items(company_id);
-CREATE INDEX IF NOT EXISTS integrations_company_id_idx ON public.integrations(company_id);
-CREATE INDEX IF NOT EXISTS sync_logs_integration_id_idx ON public.sync_logs(integration_id);
+CREATE INDEX IF NOT EXISTS sale_items_sale_id_idx ON public.sale_items(sale_id);
+CREATE INDEX IF NOT EXISTS sale_items_product_id_idx ON public.sale_items(product_id);
 CREATE INDEX IF NOT EXISTS conversations_user_id_idx ON public.conversations(user_id);
+CREATE INDEX IF NOT EXISTS conversations_company_id_idx ON public.conversations(company_id);
 CREATE INDEX IF NOT EXISTS messages_conversation_id_idx ON public.messages(conversation_id);
 CREATE INDEX IF NOT EXISTS messages_company_id_idx ON public.messages(company_id);
-CREATE INDEX IF NOT EXISTS ledger_company_product_location_idx ON public.inventory_ledger (company_id, product_id, location_id);
-CREATE INDEX IF NOT EXISTS ledger_company_id_idx ON public.inventory_ledger (company_id);
-CREATE INDEX IF NOT EXISTS rr_product_id_idx ON public.reorder_rules(product_id);
-CREATE INDEX IF NOT EXISTS sc_product_id_idx ON public.supplier_catalogs(product_id);
+CREATE INDEX IF NOT EXISTS integrations_company_id_idx ON public.integrations(company_id);
+CREATE INDEX IF NOT EXISTS sync_logs_integration_id_idx ON public.sync_logs(integration_id);
+CREATE INDEX IF NOT EXISTS inventory_ledger_company_id_idx ON public.inventory_ledger(company_id);
+CREATE INDEX IF NOT EXISTS inventory_ledger_product_location_idx ON public.inventory_ledger(product_id, location_id);
 CREATE INDEX IF NOT EXISTS export_jobs_company_id_idx ON public.export_jobs(company_id);
 CREATE INDEX IF NOT EXISTS channel_fees_company_id_idx ON public.channel_fees(company_id);
+CREATE INDEX IF NOT EXISTS audit_log_company_user_action_idx ON public.audit_log(company_id, user_id, action);
+CREATE INDEX IF NOT EXISTS user_feedback_company_user_idx ON public.user_feedback(company_id, user_id);
+
+-- Indexes for Materialized Views
+CREATE UNIQUE INDEX IF NOT EXISTS company_dashboard_metrics_company_id_idx ON public.company_dashboard_metrics (company_id);
+CREATE UNIQUE INDEX IF NOT EXISTS customer_analytics_metrics_company_id_idx ON public.customer_analytics_metrics (company_id);
 
 
--- 6. Helper Functions & Triggers
+-- 6. Functions & Triggers
+--------------------------------------------------
 
--- Function to get the current user's company ID from the JWT
+-- Helper function to get the company_id from the session user's claims.
 CREATE OR REPLACE FUNCTION auth.company_id()
 RETURNS uuid
 LANGUAGE sql STABLE
 AS $$
-  SELECT NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'app_metadata', '')::jsonb ->> 'company_id' AS company_id
+  SELECT (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid
 $$;
-COMMENT ON FUNCTION auth.company_id() IS 'Returns the company_id of the currently authenticated user.';
 
--- Function to handle new user setup
+-- Function to handle new user sign-up.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
+RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  company_id_var uuid;
   company_name_text text;
+  new_company_id uuid;
 BEGIN
-  -- Extract company name from metadata, provide a fallback
+  -- Extract company name from metadata; revert to exception if empty
   company_name_text := trim(new.raw_user_meta_data->>'company_name');
   IF company_name_text IS NULL OR company_name_text = '' THEN
-    RAISE EXCEPTION 'Company name cannot be empty.';
+    RAISE EXCEPTION 'Company name cannot be empty during signup.';
   END IF;
 
   -- Create a new company for the user
   INSERT INTO public.companies (company_name)
   VALUES (company_name_text)
-  RETURNING id INTO company_id_var;
+  RETURNING id INTO new_company_id;
 
-  -- Insert the user into the public.users table
+  -- Insert into our public users table
   INSERT INTO public.users (id, company_id, email, role)
-  VALUES (new.id, company_id_var, new.email, 'Owner');
+  VALUES (new.id, new_company_id, new.email, 'Owner');
 
   -- Update the user's app_metadata in auth.users
   UPDATE auth.users
   SET app_metadata = jsonb_set(
     COALESCE(app_metadata, '{}'::jsonb),
     '{company_id}',
-    to_jsonb(company_id_var)
+    to_jsonb(new_company_id)
   ) || jsonb_set(
     COALESCE(app_metadata, '{}'::jsonb),
     '{role}',
     to_jsonb('Owner'::text)
   )
   WHERE id = new.id;
-
+  
   RETURN new;
 END;
 $$;
-COMMENT ON FUNCTION public.handle_new_user() IS 'Trigger function to create a company and user profile on new user signup.';
 
--- Generic function to update the 'updated_at' timestamp
-CREATE OR REPLACE FUNCTION public.increment_updated_at()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-   NEW.updated_at = NOW();
-   RETURN NEW;
-END;
-$$;
-COMMENT ON FUNCTION public.increment_updated_at() IS 'Updates the updated_at timestamp on a row update.';
-
-
--- Function to increment version on inventory updates
-CREATE OR REPLACE FUNCTION public.increment_version()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  new.version = old.version + 1;
-  new.updated_at = NOW();
-  RETURN new;
-END;
-$$;
-COMMENT ON FUNCTION public.increment_version() IS 'Increments the version number on inventory updates for optimistic locking.';
-
--- Trigger to enforce message company_id matches conversation company_id
-CREATE OR REPLACE FUNCTION public.enforce_message_company_id()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    conversation_company_id uuid;
-BEGIN
-    SELECT company_id INTO conversation_company_id FROM public.conversations WHERE id = NEW.conversation_id;
-    IF NEW.company_id != conversation_company_id THEN
-        RAISE EXCEPTION 'Message company_id does not match conversation company_id';
-    END IF;
-    RETURN NEW;
-END;
-$$;
-COMMENT ON FUNCTION public.enforce_message_company_id() IS 'Ensures a message''s company_id matches its parent conversation.';
-
--- 7. Apply Triggers
-
--- Trigger for new user signup
+-- Trigger to call the handle_new_user function on new user creation in auth.
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.handle_new_user();
 
--- Trigger for inventory versioning
+-- Function and trigger to bump version and updated_at on inventory updates.
+CREATE OR REPLACE FUNCTION public.increment_version()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.version = OLD.version + 1;
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS handle_inventory_update ON public.inventory;
 CREATE TRIGGER handle_inventory_update
   BEFORE UPDATE ON public.inventory
   FOR EACH ROW
   WHEN (OLD.* IS DISTINCT FROM NEW.*)
   EXECUTE PROCEDURE public.increment_version();
+  
+-- Generic function to bump the updated_at timestamp on any table.
+CREATE OR REPLACE FUNCTION public.bump_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
--- Trigger for message company_id consistency
-DROP TRIGGER IF EXISTS on_message_insert_or_update ON public.messages;
-CREATE TRIGGER on_message_insert_or_update
+-- Apply the updated_at trigger to relevant tables.
+DROP TRIGGER IF EXISTS trigger_products_updated_at ON public.products;
+CREATE TRIGGER trigger_products_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE PROCEDURE public.bump_updated_at();
+
+DROP TRIGGER IF EXISTS trigger_locations_updated_at ON public.locations;
+CREATE TRIGGER trigger_locations_updated_at BEFORE UPDATE ON public.locations FOR EACH ROW EXECUTE PROCEDURE public.bump_updated_at();
+
+DROP TRIGGER IF EXISTS trigger_vendors_updated_at ON public.vendors;
+CREATE TRIGGER trigger_vendors_updated_at BEFORE UPDATE ON public.vendors FOR EACH ROW EXECUTE PROCEDURE public.bump_updated_at();
+
+DROP TRIGGER IF EXISTS trigger_purchase_orders_updated_at ON public.purchase_orders;
+CREATE TRIGGER trigger_purchase_orders_updated_at BEFORE UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE PROCEDURE public.bump_updated_at();
+
+DROP TRIGGER IF EXISTS trigger_channel_fees_updated_at ON public.channel_fees;
+CREATE TRIGGER trigger_channel_fees_updated_at BEFORE UPDATE ON public.channel_fees FOR EACH ROW EXECUTE PROCEDURE public.bump_updated_at();
+
+-- Trigger to ensure message.company_id matches conversation.company_id
+CREATE OR REPLACE FUNCTION public.enforce_message_company_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  conv_company_id uuid;
+BEGIN
+  SELECT company_id INTO conv_company_id FROM public.conversations WHERE id = NEW.conversation_id;
+  IF NEW.company_id IS DISTINCT FROM conv_company_id THEN
+    RAISE EXCEPTION 'Message company_id does not match conversation company_id';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trigger_message_company_id_consistency ON public.messages;
+CREATE TRIGGER trigger_message_company_id_consistency
   BEFORE INSERT OR UPDATE ON public.messages
   FOR EACH ROW
   EXECUTE PROCEDURE public.enforce_message_company_id();
 
--- Apply generic updated_at triggers
-DROP TRIGGER IF EXISTS handle_products_update ON public.products;
-CREATE TRIGGER handle_products_update BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
 
-DROP TRIGGER IF EXISTS handle_locations_update ON public.locations;
-CREATE TRIGGER handle_locations_update BEFORE UPDATE ON public.locations FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+-- 7. Row Level Security (RLS)
+--------------------------------------------------
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access for members" ON public.companies FOR ALL USING (id = auth.company_id());
 
-DROP TRIGGER IF EXISTS handle_vendors_update ON public.vendors;
-CREATE TRIGGER handle_vendors_update BEFORE UPDATE ON public.vendors FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see users in their own company" ON public.users FOR SELECT USING (company_id = auth.company_id() AND deleted_at IS NULL);
+CREATE POLICY "Users can update their own profile" ON public.users FOR UPDATE USING (id = auth.uid());
 
-DROP TRIGGER IF EXISTS handle_supplier_catalogs_update ON public.supplier_catalogs;
-CREATE TRIGGER handle_supplier_catalogs_update BEFORE UPDATE ON public.supplier_catalogs FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to settings" ON public.company_settings FOR ALL USING (company_id = auth.company_id());
 
-DROP TRIGGER IF EXISTS handle_reorder_rules_update ON public.reorder_rules;
-CREATE TRIGGER handle_reorder_rules_update BEFORE UPDATE ON public.reorder_rules FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to products" ON public.products FOR ALL USING (company_id = auth.company_id());
 
-DROP TRIGGER IF EXISTS handle_purchase_orders_update ON public.purchase_orders;
-CREATE TRIGGER handle_purchase_orders_update BEFORE UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to locations" ON public.locations FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
 
-DROP TRIGGER IF EXISTS handle_purchase_order_items_update ON public.purchase_order_items;
-CREATE TRIGGER handle_purchase_order_items_update BEFORE UPDATE ON public.purchase_order_items FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to inventory" ON public.inventory FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
 
-DROP TRIGGER IF EXISTS handle_customers_update ON public.customers;
-CREATE TRIGGER handle_customers_update BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+ALTER TABLE public.vendors ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to vendors" ON public.vendors FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
 
-DROP TRIGGER IF EXISTS handle_integrations_update ON public.integrations;
-CREATE TRIGGER handle_integrations_update BEFORE UPDATE ON public.integrations FOR EACH ROW EXECUTE PROCEDURE public.increment_updated_at();
+ALTER TABLE public.supplier_catalogs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to supplier catalogs" ON public.supplier_catalogs FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.reorder_rules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to reorder rules" ON public.reorder_rules FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to purchase orders" ON public.purchase_orders FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.purchase_order_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to PO items" ON public.purchase_order_items FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to customers" ON public.customers FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
+
+ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to sales" ON public.sales FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to sale items" ON public.sale_items FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their own conversations" ON public.conversations FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage messages in their conversations" ON public.messages FOR ALL USING (conversation_id IN (SELECT id FROM public.conversations WHERE user_id = auth.uid()));
+
+ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to integrations" ON public.integrations FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.sync_state ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to sync state" ON public.sync_state FOR ALL USING (integration_id IN (SELECT id FROM public.integrations WHERE company_id = auth.company_id()));
+
+ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to sync logs" ON public.sync_logs FOR ALL USING (integration_id IN (SELECT id FROM public.integrations WHERE company_id = auth.company_id()));
+
+ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to inventory ledger" ON public.inventory_ledger FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to export jobs" ON public.export_jobs FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to channel fees" ON public.channel_fees FOR ALL USING (company_id = auth.company_id());
+
+ALTER TABLE public.user_feedback ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their own feedback" ON public.user_feedback FOR ALL USING (user_id = auth.uid());
+
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to audit log" ON public.audit_log FOR ALL USING (company_id = auth.company_id());
+
+-- RLS for Materialized Views
+ALTER TABLE public.company_dashboard_metrics ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to dashboard metrics" ON public.company_dashboard_metrics FOR SELECT USING (company_id = auth.company_id());
+
+ALTER TABLE public.customer_analytics_metrics ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Company access to customer analytics" ON public.customer_analytics_metrics FOR SELECT USING (company_id = auth.company_id());
 
 
--- 8. Advanced Functions (RPCs)
+-- 8. Stored Procedures (RPC)
+--------------------------------------------------
 
--- Function to record a sale and update inventory atomically
+CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
+RETURNS TABLE(product_id uuid)
+LANGUAGE sql
+AS $$
+  SELECT product_id FROM public.sale_items WHERE company_id = p_company_id AND product_id = ANY(p_product_ids)
+  UNION
+  SELECT product_id FROM public.purchase_order_items WHERE company_id = p_company_id AND product_id = ANY(p_product_ids);
+$$;
+
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
     p_user_id uuid,
     p_sale_items jsonb,
-    p_customer_name text DEFAULT NULL,
-    p_customer_email text DEFAULT NULL,
-    p_payment_method text DEFAULT 'card',
-    p_notes text DEFAULT NULL,
+    p_customer_name text,
+    p_customer_email text,
+    p_payment_method text,
+    p_notes text,
     p_external_id text DEFAULT NULL
 )
 RETURNS public.sales
@@ -613,302 +678,131 @@ DECLARE
     new_sale_id uuid;
     new_customer_id uuid;
     total_amount_cents bigint;
+    tax_amount bigint;
+    company_tax_rate numeric;
     item_record record;
+    inv_record record;
     sale_item_temp_table_name text;
 BEGIN
-    -- Create a temporary table to hold sale items
+    -- Use a temporary table for the sale items to avoid multiple JSON parses
     sale_item_temp_table_name := 'sale_items_temp_' || replace(gen_random_uuid()::text, '-', '');
     EXECUTE format(
-        'CREATE TEMP TABLE %I (
-            product_id uuid,
-            quantity int,
-            unit_price int,
-            location_id uuid
-        ) ON COMMIT DROP;',
-        sale_item_temp_table_name
+      'CREATE TEMP TABLE %I (
+        product_id uuid,
+        product_name text,
+        quantity int,
+        unit_price int,
+        location_id uuid,
+        cost_at_time int
+      ) ON COMMIT DROP;',
+      sale_item_temp_table_name
     );
 
-    -- Populate the temporary table from JSONB input
     EXECUTE format(
-        'INSERT INTO %I (product_id, quantity, unit_price, location_id)
-         SELECT (item->>''product_id'')::uuid, (item->>''quantity'')::int, (item->>''unit_price'')::int, (item->>''location_id'')::uuid
-         FROM jsonb_array_elements(%L);',
-        sale_item_temp_table_name, p_sale_items
-    );
+      'INSERT INTO %I (product_id, product_name, quantity, unit_price, location_id)
+       SELECT (p_sale_items->>''product_id'')::uuid, p_sale_items->>''product_name'', (p_sale_items->>''quantity'')::int, (p_sale_items->>''unit_price'')::int, (p_sale_items->>''location_id'')::uuid
+       FROM jsonb_to_recordset($1) AS p_sale_items(product_id text, product_name text, quantity text, unit_price text, location_id text)',
+       sale_item_temp_table_name
+    ) USING p_sale_items;
 
-    -- Calculate total amount from the temporary table
-    EXECUTE format('SELECT SUM(quantity * unit_price) FROM %I', sale_item_temp_table_name)
-    INTO total_amount_cents;
-
-    -- Upsert customer and get their ID
+    -- Upsert customer
     IF p_customer_email IS NOT NULL THEN
         INSERT INTO public.customers (company_id, customer_name, email)
-        VALUES (p_company_id, COALESCE(p_customer_name, p_customer_email), p_customer_email)
+        VALUES (p_company_id, p_customer_name, p_customer_email)
         ON CONFLICT (company_id, email) DO UPDATE SET customer_name = EXCLUDED.customer_name
         RETURNING id INTO new_customer_id;
     END IF;
+    
+    -- Decrement inventory and update cost_at_time in temp table
+    FOR item_record IN EXECUTE format('SELECT * FROM %I', sale_item_temp_table_name) LOOP
+        SELECT * INTO inv_record FROM public.inventory 
+        WHERE product_id = item_record.product_id AND company_id = p_company_id AND location_id = item_record.location_id;
 
-    -- Create the sale record
-    INSERT INTO public.sales (company_id, customer_id, sale_number, total_amount, payment_method, notes, created_by, external_id)
-    VALUES (p_company_id, new_customer_id, 'SALE-' || TO_CHAR(nextval('sales_sale_number_seq'), 'FM000000'), total_amount_cents, p_payment_method, p_notes, p_user_id, p_external_id)
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Product with ID % not found at location %', item_record.product_id, item_record.location_id;
+        END IF;
+        IF inv_record.quantity < item_record.quantity THEN
+            RAISE EXCEPTION 'Not enough stock for product ID %. Available: %, Required: %', item_record.product_id, inv_record.quantity, item_record.quantity;
+        END IF;
+
+        UPDATE public.inventory
+        SET quantity = quantity - item_record.quantity, last_sold_date = CURRENT_DATE
+        WHERE id = inv_record.id;
+        
+        EXECUTE format(
+            'UPDATE %I SET cost_at_time = $1 WHERE product_id = $2 AND location_id = $3',
+            sale_item_temp_table_name
+        ) USING inv_record.cost, item_record.product_id, item_record.location_id;
+    END LOOP;
+
+    -- Calculate totals
+    EXECUTE format('SELECT SUM(quantity * unit_price) FROM %I', sale_item_temp_table_name)
+    INTO total_amount_cents;
+
+    SELECT cs.tax_rate INTO company_tax_rate FROM public.company_settings cs WHERE cs.company_id = p_company_id;
+    tax_amount := total_amount_cents * company_tax_rate;
+
+    -- Create sale record
+    INSERT INTO public.sales (company_id, customer_id, sale_number, total_amount, tax_amount, payment_method, notes, created_by)
+    VALUES (p_company_id, new_customer_id, 'SALE-' || TO_CHAR(nextval('sales_sale_number_seq'), 'FM000000'), total_amount_cents, tax_amount, p_payment_method, p_notes, p_user_id)
     RETURNING id INTO new_sale_id;
 
-    -- Loop through temp table to update inventory and create sale_items
-    FOR item_record IN EXECUTE format('SELECT * FROM %I', sale_item_temp_table_name)
-    LOOP
-        -- Decrement inventory
-        UPDATE public.inventory
-        SET quantity = quantity - item_record.quantity
-        WHERE product_id = item_record.product_id
-          AND company_id = p_company_id
-          AND location_id = item_record.location_id;
-          
-        -- Insert into sale_items
+    -- Insert sale items and ledger entries
+    FOR item_record IN EXECUTE format('SELECT * FROM %I', sale_item_temp_table_name) LOOP
         INSERT INTO public.sale_items (sale_id, company_id, product_id, location_id, quantity, unit_price, cost_at_time)
-        VALUES (
-            new_sale_id,
-            p_company_id,
-            item_record.product_id,
-            item_record.location_id,
-            item_record.quantity,
-            item_record.unit_price,
-            (SELECT cost FROM public.inventory WHERE product_id = item_record.product_id AND company_id = p_company_id AND location_id = item_record.location_id)
-        );
+        VALUES (new_sale_id, p_company_id, item_record.product_id, item_record.location_id, item_record.quantity, item_record.unit_price, item_record.cost_at_time);
 
-        -- Insert into inventory ledger
-        INSERT INTO public.inventory_ledger(company_id, product_id, location_id, change_type, quantity_change, new_quantity, related_id, notes, created_by)
-        SELECT
-            p_company_id,
-            item_record.product_id,
-            item_record.location_id,
-            'sale',
-            -item_record.quantity,
-            i.quantity,
-            new_sale_id,
-            'Sale #' || (SELECT sale_number FROM public.sales WHERE id = new_sale_id),
-            p_user_id
-        FROM public.inventory i
-        WHERE i.product_id = item_record.product_id
-          AND i.company_id = p_company_id
-          AND i.location_id = item_record.location_id;
-
+        INSERT INTO public.inventory_ledger (company_id, product_id, location_id, created_by, change_type, quantity_change, new_quantity, related_id, notes)
+        VALUES (p_company_id, item_record.product_id, item_record.location_id, p_user_id, 'sale', -item_record.quantity, (SELECT quantity FROM public.inventory WHERE product_id = item_record.product_id AND location_id = item_record.location_id), new_sale_id, 'Sale #' || (SELECT sale_number FROM public.sales WHERE id = new_sale_id));
     END LOOP;
 
     RETURN (SELECT * FROM public.sales WHERE id = new_sale_id);
 END;
 $$;
-COMMENT ON FUNCTION public.record_sale_transaction IS 'Records a sale, updates inventory, and creates ledger entries in a single transaction.';
-
--- Other functions remain the same as previous correct version...
-CREATE OR REPLACE FUNCTION public.check_inventory_references(p_company_id uuid, p_product_ids uuid[])
-RETURNS TABLE(product_id uuid)
-LANGUAGE sql
-AS $$
-  SELECT product_id FROM public.sale_items WHERE company_id = p_company_id AND product_id = ANY(p_product_ids)
-  UNION
-  SELECT product_id FROM public.purchase_order_items poi JOIN public.purchase_orders po ON poi.po_id = po.id WHERE po.company_id = p_company_id AND poi.product_id = ANY(p_product_ids);
-$$;
-
-CREATE OR REPLACE FUNCTION public.refresh_materialized_views(p_company_id uuid, p_view_names text[])
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    view_name text;
-BEGIN
-    FOREACH view_name IN ARRAY p_view_names
-    LOOP
-        EXECUTE 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.' || quote_ident(view_name);
-    END LOOP;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.get_alerts(p_company_id uuid, p_dead_stock_days integer, p_fast_moving_days integer, p_predictive_stock_days integer)
-RETURNS TABLE(type text, product_id uuid, product_name text, current_stock integer, reorder_point integer, last_sold_date date, value integer, days_of_stock_remaining numeric)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    -- Low Stock Alerts
-    RETURN QUERY
-    SELECT
-        'low_stock'::text as type,
-        p.id as product_id,
-        p.name as product_name,
-        i.quantity as current_stock,
-        rr.min_stock as reorder_point,
-        i.last_sold_date,
-        (i.quantity * i.cost)::integer as value,
-        NULL::numeric as days_of_stock_remaining
-    FROM public.inventory i
-    JOIN public.products p ON i.product_id = p.id
-    JOIN public.reorder_rules rr ON i.product_id = rr.product_id AND i.location_id = rr.location_id
-    WHERE i.company_id = p_company_id AND i.quantity < rr.min_stock AND i.deleted_at IS NULL;
-
-    -- Dead Stock Alerts
-    RETURN QUERY
-    SELECT
-        'dead_stock'::text as type,
-        p.id as product_id,
-        p.name as product_name,
-        i.quantity as current_stock,
-        rr.min_stock as reorder_point,
-        i.last_sold_date,
-        (i.quantity * i.cost)::integer as value,
-        NULL::numeric as days_of_stock_remaining
-    FROM public.inventory i
-    JOIN public.products p ON i.product_id = p.id
-    LEFT JOIN public.reorder_rules rr ON i.product_id = rr.product_id AND i.location_id = rr.location_id
-    WHERE i.company_id = p_company_id
-      AND i.last_sold_date < (NOW() - (p_dead_stock_days || ' days')::interval)
-      AND i.deleted_at IS NULL;
-
-    -- Predictive Stockout Alerts
-    RETURN QUERY
-    WITH sales_velocity AS (
-        SELECT
-            si.product_id,
-            SUM(si.quantity)::numeric / NULLIF(p_fast_moving_days, 0) AS daily_sales
-        FROM public.sale_items si
-        JOIN public.sales s ON si.sale_id = s.id
-        WHERE si.company_id = p_company_id AND s.created_at >= NOW() - (p_fast_moving_days || ' days')::interval
-        GROUP BY si.product_id
-    )
-    SELECT
-        'predictive'::text as type,
-        p.id as product_id,
-        p.name as product_name,
-        i.quantity as current_stock,
-        rr.min_stock as reorder_point,
-        i.last_sold_date,
-        (i.quantity * i.cost)::integer as value,
-        i.quantity / NULLIF(sv.daily_sales, 0) as days_of_stock_remaining
-    FROM public.inventory i
-    JOIN public.products p ON i.product_id = p.id
-    JOIN sales_velocity sv ON i.product_id = sv.product_id
-    LEFT JOIN public.reorder_rules rr ON i.product_id = rr.product_id AND i.location_id = rr.location_id
-    WHERE i.company_id = p_company_id
-      AND sv.daily_sales > 0
-      AND (i.quantity / sv.daily_sales) <= p_predictive_stock_days
-      AND i.deleted_at IS NULL;
-
-END;
-$$;
 
 
-CREATE OR REPLACE FUNCTION public.batch_upsert_with_transaction(
-    p_table_name text,
-    p_records jsonb,
-    p_conflict_columns text[]
-)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    temp_table_name text;
-    insert_cols text;
-    conflict_cols_formatted text;
-    update_cols text;
-    query text;
-BEGIN
-    temp_table_name := 'temp_upsert_' || replace(gen_random_uuid()::text, '-', '');
+-- 9. Grants & Default Privileges
+--------------------------------------------------
+-- Grant usage on schemas
+GRANT USAGE ON SCHEMA public TO authenticated, service_role;
+GRANT USAGE ON SCHEMA auth TO authenticated, service_role;
 
-    -- Create a temporary table with the structure of the target table
-    EXECUTE format('CREATE TEMP TABLE %I (LIKE public.%I INCLUDING DEFAULTS) ON COMMIT DROP;', temp_table_name, to_regclass(p_table_name)::text);
-
-    -- Insert the JSON data into the temporary table
-    EXECUTE format('INSERT INTO %I SELECT * FROM jsonb_populate_recordset(null::%I, %L);', temp_table_name, to_regclass(p_table_name)::text, p_records);
-
-    -- Construct the column lists for the upsert command
-    SELECT
-        string_agg(quote_ident(column_name), ', '),
-        string_agg(quote_ident(column_name) || ' = EXCLUDED.' || quote_ident(column_name), ', ')
-    INTO insert_cols, update_cols
-    FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = p_table_name;
-
-    conflict_cols_formatted := array_to_string(p_conflict_columns, ', ');
-
-    -- Construct and execute the final UPSERT command
-    query := format(
-        'INSERT INTO public.%I (%s) ' ||
-        'SELECT %s FROM %I ' ||
-        'ON CONFLICT (%s) DO UPDATE SET %s;',
-        p_table_name, insert_cols, insert_cols, temp_table_name, conflict_cols_formatted, update_cols
-    );
-
-    EXECUTE query;
-END;
-$$;
-
-
--- 9. Row-Level Security (RLS)
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.vendors ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.supplier_catalogs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reorder_rules ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sync_state ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_feedback ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_dashboard_metrics ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customer_analytics_metrics ENABLE ROW LEVEL SECURITY;
-
--- Policies
-CREATE POLICY "Company access" ON public.companies FOR ALL USING (id = auth.company_id());
-CREATE POLICY "Company access for users" ON public.users FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access for settings" ON public.company_settings FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access for products" ON public.products FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
-CREATE POLICY "Company access for inventory" ON public.inventory FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
-CREATE POLICY "Company access for locations" ON public.locations FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
-CREATE POLICY "Company access for vendors" ON public.vendors FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
-CREATE POLICY "Company access for catalogs" ON public.supplier_catalogs FOR ALL USING ((SELECT company_id FROM public.vendors WHERE id = supplier_id) = auth.company_id());
-CREATE POLICY "Company access for reorder rules" ON public.reorder_rules FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access for purchase orders" ON public.purchase_orders FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access for po items" ON public.purchase_order_items FOR ALL USING ((( SELECT company_id FROM public.purchase_orders WHERE id = po_id ) = auth.company_id()));
-CREATE POLICY "Company access for customers" ON public.customers FOR ALL USING (company_id = auth.company_id() AND deleted_at IS NULL);
-CREATE POLICY "Company access for sales" ON public.sales FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access for sale items" ON public.sale_items FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access for integrations" ON public.integrations FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access for sync state" ON public.sync_state FOR ALL USING ((( SELECT company_id FROM public.integrations WHERE id = integration_id ) = auth.company_id()));
-CREATE POLICY "Company access for sync logs" ON public.sync_logs FOR ALL USING ((( SELECT company_id FROM public.integrations WHERE id = integration_id ) = auth.company_id()));
-CREATE POLICY "Users can manage their own conversations" ON public.conversations FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "Users can manage messages in their conversations" ON public.messages FOR ALL USING ((conversation_id IN (SELECT id FROM public.conversations WHERE user_id = auth.uid())));
-CREATE POLICY "Company access to audit log" ON public.audit_log FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access to inventory ledger" ON public.inventory_ledger FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access to export jobs" ON public.export_jobs FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access to channel fees" ON public.channel_fees FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access to user feedback" ON public.user_feedback FOR ALL USING (company_id = auth.company_id());
-CREATE POLICY "Company access to dashboard metrics" ON public.company_dashboard_metrics FOR SELECT USING (company_id = auth.company_id());
-CREATE POLICY "Company access to customer metrics" ON public.customer_analytics_metrics FOR SELECT USING (company_id = auth.company_id());
-
-
--- 10. Grants
-GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, service_role;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO postgres, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, service_role;
-
+-- Grant usage on custom types
 GRANT USAGE ON TYPE public.user_role TO authenticated;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT USAGE ON TYPE public.message_role TO authenticated;
+GRANT USAGE ON TYPE public.purchase_order_status TO authenticated;
 
--- Ensure future functions/types are also granted
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON TYPES TO authenticated;
+-- Grant execution on all functions in the public schema
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+
+-- Grant permissions on tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+
+-- Grant permissions on sequences
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
+
+-- Ensure future objects have correct permissions
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT USAGE, SELECT ON SEQUENCES TO authenticated;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+GRANT EXECUTE ON FUNCTIONS TO authenticated;
+
+-- Grant permissions for Supabase managed schemas
+GRANT USAGE ON SCHEMA storage TO authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA storage TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO authenticated;
+
+-- Initial data seeding (optional)
+-- You can add initial INSERT statements here if needed for testing or default setup.
+-- Example:
+-- INSERT INTO public.companies (company_name) VALUES ('Default Test Company');
+-- ...
+
+-- End of script
+SELECT 'Schema setup complete.';

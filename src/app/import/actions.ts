@@ -7,7 +7,7 @@ import { cookies } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
 import { ProductImportSchema, SupplierImportSchema, SupplierCatalogImportSchema, ReorderRuleImportSchema, LocationImportSchema } from './schemas';
-import { supabaseAdmin } from '@/lib/supabase/admin';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
@@ -126,14 +126,14 @@ async function processCsv<T extends z.ZodType>(
     let processedCount = 0;
 
     if (validRows.length > 0) {
-        const supabase = supabaseAdmin;
+        const supabase = getServiceRoleClient();
         if (!supabase) throw new Error('Supabase admin client not initialized.');
 
         // Define what makes a row unique for upserting.
         let conflictTarget: string[] = [];
         if (tableName === 'products') conflictTarget = ['company_id', 'sku'];
         if (tableName === 'vendors') conflictTarget = ['company_id', 'vendor_name'];
-        if (tableName === 'supplier_catalogs') conflictTarget = ['supplier_id', 'sku'];
+        if (tableName === 'supplier_catalogs') conflictTarget = ['supplier_id', 'product_id'];
         if (tableName === 'reorder_rules') conflictTarget = ['company_id', 'product_id'];
         if (tableName === 'locations') conflictTarget = ['company_id', 'name'];
 
