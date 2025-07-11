@@ -32,7 +32,6 @@ const menuItems = [
   { href: '/cash-flow', label: 'Cash Flow', icon: CircleDollarSign },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
-  { href: '/purchase-orders', label: 'Purchase Orders', icon: ClipboardList },
   { href: '/reordering', label: 'Reorder Suggestions', icon: RefreshCw },
   { href: '/insights', label: 'Insights', icon: Lightbulb },
   { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },

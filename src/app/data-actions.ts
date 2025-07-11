@@ -53,13 +53,10 @@ import {
   getCashFlowInsightsFromDB,
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
-  createPurchaseOrdersFromSuggestionsInDb,
-  getPurchaseOrdersFromDB,
-  getPurchaseOrderByIdFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, PurchaseOrder } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -572,36 +569,4 @@ export async function sendDigestEmailAction(): Promise<{ success: boolean; error
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
-}
-
-export async function createPurchaseOrdersFromSuggestions(
-  suggestions: ReorderSuggestion[]
-): Promise<{ success: boolean; error?: string, createdPoCount?: number }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        if (suggestions.length === 0) {
-            return { success: false, error: "No suggestions were provided to create purchase orders from." };
-        }
-        
-        const result = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
-        
-        revalidatePath('/purchase-orders');
-        
-        return { success: true, createdPoCount: result.length };
-
-    } catch (e) {
-        logError(e, { context: 'createPurchaseOrdersFromSuggestions server action failed' });
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function getPurchaseOrders(params: { query?: string, page: number, limit: number }) {
-    const { companyId } = await getAuthContext();
-    const offset = (params.page - 1) * params.limit;
-    return getPurchaseOrdersFromDB(companyId, { ...params, offset });
-}
-
-export async function getPurchaseOrderById(poId: string): Promise<PurchaseOrder | null> {
-    const { companyId } = await getAuthContext();
-    return getPurchaseOrderByIdFromDB(poId, companyId);
 }
