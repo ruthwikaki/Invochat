@@ -9,52 +9,40 @@ import {
   getDashboardMetrics,
   getSettings,
   updateSettingsInDb,
-  getAnomalyInsightsFromDB,
   getInventoryCategoriesFromDB,
   getUnifiedInventoryFromDB,
-  getTeamMembersFromDB,
-  inviteUserToCompanyInDb,
-  removeTeamMemberFromDb,
-  updateTeamMemberRoleInDb,
   getSupplierByIdFromDB,
   createSupplierInDb,
   updateSupplierInDb,
   deleteSupplierFromDb,
   softDeleteInventoryItemsFromDb,
-  updateInventoryItemInDb,
   getInventoryLedgerForSkuFromDB,
   getCustomersFromDB,
-  getCustomerAnalyticsFromDB,
   deleteCustomerFromDb,
   searchProductsForSaleInDB,
   recordSaleInDB,
   getSalesFromDB,
-  createExportJobInDb,
-  refreshMaterializedViews,
   getIntegrationsByCompanyId,
   getInventoryAnalyticsFromDB,
   getSalesAnalyticsFromDB,
-  getSuppliersWithPerformanceFromDB,
+  getSuppliersDataFromDB,
   testSupabaseConnection as dbTestSupabase,
   testDatabaseQuery as dbTestQuery,
-  testMaterializedView as dbTestMView,
-  getBusinessProfile,
-  healthCheckInventoryConsistency,
-  healthCheckFinancialConsistency,
-  createAuditLogInDb,
   updateProductInDb,
-  logUserFeedbackInDb
+  logUserFeedbackInDb,
+  getDeadStockReportFromDB,
+  getReorderReportFromDB,
+  getInventoryHealthScoreFromDB,
+  findProfitLeaksFromDB,
+  getAbcAnalysisFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import {
-    generateAnomalyExplanation,
-} from '@/ai/flows/anomaly-explanation-flow';
-import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, SupplierFormData, SaleCreateInput, ProductUpdateData, InventoryAgingReportItem, HealthCheckResult } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
+import { revalidatePath } from 'next/cache';
 
 async function getAuthContext() {
     const cookieStore = cookies();
@@ -67,10 +55,12 @@ async function getAuthContext() {
     );
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated.');
-    const companyId = user.app_metadata.company_id;
+    const companyId = user.app_metadata?.company_id;
     if (!companyId) throw new Error('Company ID not found for user.');
     return { companyId, userId: user.id };
 }
+
+// --- Simplified Core Actions ---
 
 export async function getDashboardData(dateRange: string) {
     const { companyId } = await getAuthContext();
@@ -83,53 +73,13 @@ export async function getCompanySettings() {
 }
 
 export async function updateCompanySettings(formData: FormData) {
-  const { companyId, userId } = await getAuthContext();
+  const { companyId } = await getAuthContext();
   validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
   const settings = {
     dead_stock_days: Number(formData.get('dead_stock_days')),
     fast_moving_days: Number(formData.get('fast_moving_days')),
-    overstock_multiplier: Number(formData.get('overstock_multiplier')),
-    high_value_threshold: Number(formData.get('high_value_threshold')),
-    predictive_stock_days: Number(formData.get('predictive_stock_days')),
   };
-  await createAuditLogInDb(userId, companyId, 'settings_updated', { new_settings: settings });
   return updateSettingsInDb(companyId, settings);
-}
-
-export async function getInsightsPageData() {
-    const { companyId } = await getAuthContext();
-    const [rawAnomalies] = await Promise.all([
-        getAnomalyInsightsFromDB(companyId),
-    ]);
-
-    const explainedAnomalies = await Promise.all(
-        rawAnomalies.map(async (anomaly) => {
-            const date = new Date(anomaly.date);
-            const explanation = await generateAnomalyExplanation({
-                anomaly,
-                dateContext: {
-                    dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
-                    month: date.toLocaleDateString('en-US', { month: 'long' }),
-                    season: 'Summer',
-                    knownHoliday: undefined,
-                },
-            });
-            return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
-        })
-    );
-    
-    const summary = await generateInsightsSummary({
-        anomalies: explainedAnomalies,
-        lowStockCount: 0,
-        deadStockCount: 0,
-    });
-
-    return {
-        summary,
-        anomalies: explainedAnomalies,
-        topDeadStock: [],
-        topLowStock: [],
-    };
 }
 
 export async function getUnifiedInventory(params: { query?: string; category?: string; supplier?: string, page?: number, limit?: number }) {
@@ -168,7 +118,6 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     try {
         const { companyId, userId } = await getAuthContext();
         const updatedProduct = await updateProductInDb(companyId, productId, data);
-        await createAuditLogInDb(userId, companyId, 'product_updated', { product_id: productId, changes: data });
         revalidatePath('/inventory');
         return { success: true, updatedItem: updatedProduct };
     } catch(e) {
@@ -176,84 +125,15 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     }
 }
 
-export async function updateInventoryItem(productId: string, data: InventoryUpdateData) {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        const updatedItem = await updateInventoryItemInDb(companyId, productId, data);
-        await createAuditLogInDb(userId, companyId, 'inventory_item_updated', { product_id: productId, changes: data });
-        revalidatePath('/inventory');
-        return { success: true, updatedItem };
-    } catch(e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
 
-export async function getInventoryLedger(sku: string) {
+export async function getInventoryLedger(productId: string) {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerForSkuFromDB(companyId, sku);
-}
-
-export async function exportInventory(params: { query?: string; category?: string; supplier?: string }) {
-    try {
-        const { companyId } = await getAuthContext();
-        const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
-        const csv = Papa.unparse(items);
-        return { success: true, data: csv };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function getTeamMembers() {
-    const { companyId } = await getAuthContext();
-    return getTeamMembersFromDB(companyId);
-}
-
-export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
-        const email = formData.get('email') as string;
-        await inviteUserToCompanyInDb(companyId, 'Your Company', email);
-        await createAuditLogInDb(userId, companyId, 'user_invited', { invited_email: email });
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
-        const memberId = formData.get('memberId') as string;
-        if (userId === memberId) throw new Error("You cannot remove yourself.");
-        
-        await createAuditLogInDb(userId, companyId, 'user_removed', { removed_user_id: memberId });
-        return await removeTeamMemberFromDb(memberId, companyId, userId);
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
-        const memberId = formData.get('memberId') as string;
-        const newRole = formData.get('newRole') as 'Admin' | 'Member';
-        if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
-        
-        await createAuditLogInDb(userId, companyId, 'user_role_changed', { target_user_id: memberId, new_role: newRole });
-        return await updateTeamMemberRoleInDb(memberId, companyId, newRole);
-    } catch(e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
+    return getInventoryLedgerForSkuFromDB(companyId, productId);
 }
 
 export async function getSuppliersData() {
     const { companyId } = await getAuthContext();
-    return getSuppliersWithPerformanceFromDB(companyId);
+    return getSuppliersDataFromDB(companyId);
 }
 
 export async function getSupplierById(id: string) {
@@ -320,11 +200,6 @@ export async function getCustomersData(params: { query?: string, page: number })
     return getCustomersFromDB(companyId, { ...params, limit, offset });
 }
 
-export async function getCustomerAnalytics() {
-    const { companyId } = await getAuthContext();
-    return getCustomerAnalyticsFromDB(companyId);
-}
-
 export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId } = await getAuthContext();
@@ -333,17 +208,6 @@ export async function deleteCustomer(formData: FormData): Promise<{ success: boo
         await deleteCustomerFromDb(id, companyId);
         revalidatePath('/customers');
         return { success: true };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function exportCustomers(params: { query?: string }) {
-    try {
-        const { companyId } = await getAuthContext();
-        const { items } = await getCustomersFromDB(companyId, { ...params, limit: 10000, offset: 0 });
-        const csv = Papa.unparse(items);
-        return { success: true, data: csv };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -381,27 +245,35 @@ export async function getSalesAnalytics() {
     return getSalesAnalyticsFromDB(companyId);
 }
 
-export async function exportSales(params: { query?: string }) {
-    try {
-        const { companyId } = await getAuthContext();
-        const { items } = await getSalesFromDB(companyId, { ...params, limit: 10000, page: 1 });
-        const csv = Papa.unparse(items);
-        return { success: true, data: csv };
-    } catch(e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
+// --- Report Actions ---
+
+export async function getDeadStockReport() {
+    const { companyId } = await getAuthContext();
+    return getDeadStockReportFromDB(companyId);
 }
 
-export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        const job = await createExportJobInDb(companyId, userId);
-        logger.info(`[Export] Job ${job.id} created for company ${companyId}.`);
-        return { success: true, jobId: job.id };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
+export async function getReorderReport() {
+    const { companyId } = await getAuthContext();
+    return getReorderReportFromDB(companyId);
 }
+
+export async function getInventoryHealthScore() {
+    const { companyId } = await getAuthContext();
+    return getInventoryHealthScoreFromDB(companyId);
+}
+
+export async function getProfitLeaks() {
+    const { companyId } = await getAuthContext();
+    return findProfitLeaksFromDB(companyId);
+}
+
+export async function getAbcAnalysis(metric: 'revenue' | 'units' | 'profit', period: 'last30' | 'last90' | 'last365') {
+    const { companyId } = await getAuthContext();
+    return getAbcAnalysisFromDB(companyId, metric, period);
+}
+
+
+// --- System & Test Actions ---
 
 export async function testSupabaseConnection(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
     return dbTestSupabase();
@@ -409,9 +281,7 @@ export async function testSupabaseConnection(): Promise<{ isConfigured: boolean;
 export async function testDatabaseQuery(): Promise<{ success: boolean; error?: string; }> {
     return dbTestQuery();
 }
-export async function testMaterializedView(): Promise<{ success: boolean; error?: string; }> {
-    return dbTestMView();
-}
+
 export async function testGenkitConnection(): Promise<{ isConfigured: boolean; success: boolean; error?: string; }> {
     return genkitTest();
 }
@@ -420,15 +290,6 @@ export async function testRedisConnection(): Promise<{ isEnabled: boolean; succe
         isEnabled: isRedisEnabled,
         ...await redisTest()
     };
-}
-export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> {
-    const { companyId } = await getAuthContext();
-    return healthCheckInventoryConsistency(companyId);
-}
-
-export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> {
-    const { companyId } = await getAuthContext();
-    return healthCheckFinancialConsistency(companyId);
 }
 
 export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {

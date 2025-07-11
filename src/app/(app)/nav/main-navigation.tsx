@@ -12,8 +12,8 @@ import {
   Truck,
   BarChart,
   ShoppingCart,
-  Archive,
-  FileSearch,
+  ClipboardList,
+  HeartPulse,
 } from 'lucide-react';
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 
@@ -22,10 +22,11 @@ const menuItems = [
   { href: '/chat', label: 'Chat', icon: MessageSquare, exact: false },
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
-  { href: '/reports/reordering', label: 'Reorder Report', icon: FileSearch },
+  { href: '/reports/reordering', label: 'Reorder Report', icon: ClipboardList },
   { href: '/reports/dead-stock', label: 'Dead Stock', icon: TrendingDown },
   { href: '/reports/abc-analysis', label: 'ABC Analysis', icon: BarChart },
   { href: '/reports/profit-leaks', label: 'Profit Leaks', icon: Lightbulb },
+   { href: '/reports/health-score', label: 'Health Score', icon: HeartPulse },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
 ];
 

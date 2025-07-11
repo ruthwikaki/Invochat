@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -22,15 +21,13 @@ interface InventoryHistoryDialogProps {
 
 function ChangeTypeBadge({ changeType }: { changeType: string }) {
     const variants: Record<string, string> = {
-        'purchase_order_received': 'bg-blue-500/10 text-blue-700 border-blue-500/20',
+        'restock': 'bg-blue-500/10 text-blue-700 border-blue-500/20',
         'sale': 'bg-red-500/10 text-red-700 border-red-500/20',
         'return': 'bg-green-500/10 text-green-700 border-green-500/20',
-        'manual_adjustment': 'bg-gray-500/10 text-gray-700 border-gray-500/20',
-        'transfer_in': 'bg-green-500/10 text-green-700 border-green-500/20',
-        'transfer_out': 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
+        'adjustment': 'bg-gray-500/10 text-gray-700 border-gray-500/20',
     };
     return (
-        <Badge variant="outline" className={cn("capitalize", variants[changeType] || variants.manual_adjustment)}>
+        <Badge variant="outline" className={cn("capitalize", variants[changeType] || variants.adjustment)}>
             {changeType.replace(/_/g, ' ')}
         </Badge>
     );
@@ -60,7 +57,7 @@ function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
                 </span>
             </TableCell>
             <TableCell className="text-right">{entry.new_quantity}</TableCell>
-            <TableCell>{entry.notes || 'N/A'}</TableCell>
+            <TableCell>{entry.related_id || 'N/A'}</TableCell>
         </TableRow>
     )
 }
@@ -97,10 +94,10 @@ export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryD
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Inventory History for SKU: {productId}
+            Inventory History for Product ID: {productId}
           </DialogTitle>
           <DialogDescription>
-            A complete audit trail of all stock movements for this item across all locations.
+            A complete audit trail of all stock movements for this item.
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto">
@@ -124,7 +121,7 @@ export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryD
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Change</TableHead>
                   <TableHead className="text-right">New Quantity</TableHead>
-                  <TableHead>Reference/Notes</TableHead>
+                  <TableHead>Reference ID</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
