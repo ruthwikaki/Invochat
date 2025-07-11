@@ -1,6 +1,7 @@
+
 'use server';
 /**
- * @fileOverview A Genkit flow to analyze supplier performance and provide a recommendation.
+ * @fileOverview A Genkit flow to analyze supplier performance based on product sales and provide a recommendation.
  */
 
 import { ai } from '@/ai/genkit';
@@ -24,15 +25,18 @@ const supplierAnalysisPrompt = ai.definePrompt({
   inputSchema: z.object({ performanceData: z.array(z.custom<SupplierPerformanceReport>()) }),
   outputSchema: SupplierAnalysisOutputSchema.omit({ performanceData: true }),
   prompt: `
-    You are an expert supply chain analyst. You have been given a list of supplier performance reports. Your task is to analyze this data and provide a recommendation for the best supplier.
+    You are an expert supply chain analyst. You have been given a list of supplier performance reports based on the sales performance of their products. Your task is to analyze this data and provide a recommendation for the most valuable supplier.
 
     **Supplier Performance Data:**
     {{{json performanceData}}}
 
     **Your Task:**
-    1.  **Analyze:** Review the data. The "best" supplier is not always the one with the highest on-time rate. A slightly lower on-time rate might be acceptable if their lead time is significantly shorter. Find a good balance.
-    2.  **Recommend:** Identify the single best supplier and state their name clearly in the 'bestSupplier' field.
-    3.  **Summarize:** Write a concise, 1-2 sentence summary explaining your choice. For example: "While Supplier B has a perfect on-time record, Supplier A is recommended due to their significantly faster average lead time of 3 days, which improves cash flow."
+    1.  **Analyze:** Review the data. The "best" supplier is a balance of multiple factors:
+        *   **Total Profit:** A supplier contributing significantly to profit is very valuable.
+        *   **Average Margin:** High margins indicate profitable products.
+        *   **Sell-Through Rate:** A high rate indicates their products are in demand and don't become dead stock.
+    2.  **Recommend:** Identify the single best supplier based on this financial and sales performance analysis. State their name clearly in the 'bestSupplier' field.
+    3.  **Summarize:** Write a concise, 1-2 sentence summary explaining your choice. For example: "While Supplier B provides more products, Supplier A is recommended due to their significantly higher average profit margin (45%) and excellent sell-through rate, making them your most profitable partner."
     4.  **Format:** Provide your response in the specified JSON format.
   `,
 });
@@ -50,7 +54,7 @@ export const analyzeSuppliersFlow = ai.defineFlow(
 
       if (!performanceData || performanceData.length === 0) {
         return {
-          analysis: "There is not enough data to analyze supplier performance. Please ensure you have completed purchase orders in the system.",
+          analysis: "There is not enough data to analyze supplier performance. Please ensure you have sales data and products assigned to suppliers.",
           bestSupplier: "N/A",
           performanceData: [],
         };
@@ -78,7 +82,7 @@ export const analyzeSuppliersFlow = ai.defineFlow(
 export const getSupplierAnalysisTool = ai.defineTool(
     {
         name: 'getSupplierPerformanceAnalysis',
-        description: "Analyzes supplier performance to recommend the best one. Use this when the user asks about 'best supplier', 'supplier performance', 'which vendor is best', 'on-time delivery', or 'supplier reliability'.",
+        description: "Analyzes supplier performance based on sales and profitability to recommend the best one. Use this when the user asks about 'best supplier', 'supplier performance', 'which vendor is best', or 'most profitable supplier'.",
         inputSchema: SupplierAnalysisInputSchema,
         outputSchema: SupplierAnalysisOutputSchema
     },

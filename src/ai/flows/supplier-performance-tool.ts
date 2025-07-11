@@ -1,7 +1,8 @@
 
+
 'use server';
 /**
- * @fileOverview Defines a Genkit tool for analyzing supplier performance.
+ * @fileOverview Defines a Genkit tool for analyzing supplier performance based on sales data.
  */
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
@@ -15,7 +16,7 @@ export const getSupplierPerformanceReport = ai.defineTool(
   {
     name: 'getSupplierPerformanceReport',
     description:
-      "Use this tool to get a supplier performance report. This report analyzes historical purchase order data to determine which suppliers deliver on time. Use it when the user asks about 'supplier performance', 'which vendor is best', 'on-time delivery', or 'supplier reliability'.",
+      "Use this tool to get a supplier performance report. This report analyzes product sales data to determine which suppliers' products are most profitable and sell best. Use it when the user asks about 'supplier performance', 'which vendor is best', 'profitable suppliers', or 'best-selling suppliers'.",
     input: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get the report for."),
     }),

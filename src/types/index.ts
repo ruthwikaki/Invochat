@@ -1,4 +1,5 @@
 
+
 import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -216,9 +217,11 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
-    total_completed_orders: z.number().int(),
-    on_time_delivery_rate: z.number(),
-    average_lead_time_days: z.number(),
+    total_revenue: z.number(),
+    total_profit: z.number(),
+    avg_margin: z.number(),
+    total_skus: z.number().int(),
+    sell_through_rate: z.number(),
 });
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
 
@@ -372,3 +375,32 @@ export const ChannelFeeSchema = z.object({
     fixed_fee: z.number(), // in cents
 });
 export type ChannelFee = z.infer<typeof ChannelFeeSchema>;
+
+export const PurchaseOrderSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    po_number: z.string(),
+    supplier_id: z.string().uuid(),
+    supplier_name: z.string(),
+    status: z.enum(['draft', 'sent', 'partial', 'received', 'cancelled']),
+    order_date: z.string(),
+    expected_date: z.string().nullable(),
+    total_amount: z.number(),
+    items: z.array(z.object({
+        id: z.string().uuid(),
+        product_id: z.string().uuid(),
+        sku: z.string(),
+        name: z.string(),
+        quantity_ordered: z.number(),
+        quantity_received: z.number(),
+        unit_cost: z.number(),
+    })),
+});
+export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
+
+export const BusinessProfileSchema = z.object({
+    monthly_revenue: z.number(),
+    outstanding_po_value: z.number(),
+    risk_tolerance: z.string().nullable(),
+});
+export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;

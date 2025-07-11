@@ -1,9 +1,10 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionSchema } from '@/types';
+import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder, SupplierPerformanceReport } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -773,9 +774,16 @@ export async function findProfitLeaksFromDB(companyId: string) {
     return [];
 }
 
-export async function getAbcAnalysisFromDB(companyId: string, metric: 'revenue' | 'units' | 'profit', period: 'last30' | 'last90' | 'last365') {
-    // Placeholder function
-    return [];
+export async function getAbcAnalysisFromDB(companyId: string) {
+    return withPerformanceTracking('getAbcAnalysisFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_abc_analysis', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'get_abc_analysis RPC failed' });
+            throw new Error(`Could not generate ABC analysis: ${error.message}`);
+        }
+        return data;
+    });
 }
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
@@ -792,6 +800,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             type: z.enum(['low_stock', 'dead_stock', 'predictive']),
             sku: z.string(),
             product_name: z.string(),
+            product_id: z.string().uuid(),
             current_stock: z.number().int(),
             reorder_point: z.number().int().nullable(),
             last_sold_date: z.string().datetime({ offset: true }).nullable(),
@@ -809,7 +818,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             severity: item.type === 'low_stock' ? 'warning' : 'info',
             timestamp: new Date().toISOString(),
             metadata: {
-                productId: item.sku, // Assuming sku can be used as an identifier for linking
+                productId: item.product_id,
                 productName: item.product_name,
                 currentStock: item.current_stock,
                 reorderPoint: item.reorder_point,
@@ -976,5 +985,97 @@ export async function getCashFlowInsightsFromDB(companyId: string) {
         });
 
         return CashFlowSchema.parse(data);
+    });
+}
+
+export async function getDemandForecastFromDB(companyId: string) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getDemandForecastFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_demand_forecast', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'get_demand_forecast RPC failed' });
+            throw new Error(`Could not generate demand forecast: ${error.message}`);
+        }
+        return data;
+    });
+}
+
+
+export async function getGrossMarginAnalysisFromDB(companyId: string) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getGrossMarginAnalysisFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_gross_margin_analysis', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'get_gross_margin_analysis RPC failed' });
+            throw new Error(`Could not generate gross margin analysis: ${error.message}`);
+        }
+        return data;
+    });
+}
+
+export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getNetMarginByChannelFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_net_margin_by_channel', { p_company_id: companyId, p_channel_name: channelName });
+        if (error) {
+            logError(error, { context: 'get_net_margin_by_channel RPC failed' });
+            throw new Error(`Could not generate net margin analysis: ${error.message}`);
+        }
+        return data;
+    });
+}
+
+export async function getMarginTrendsFromDB(companyId: string) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getMarginTrendsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_margin_trends', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'get_margin_trends RPC failed' });
+            throw new Error(`Could not generate margin trends analysis: ${error.message}`);
+        }
+        return data;
+    });
+}
+
+export async function getFinancialImpactOfPoFromDB(companyId: string, items: { sku: string; quantity: number }[]) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getFinancialImpactOfPoFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_financial_impact_of_po', { p_company_id: companyId, p_po_items: items });
+        if (error) {
+            logError(error, { context: 'get_financial_impact_of_po RPC failed' });
+            throw new Error(`Could not run financial impact analysis: ${error.message}`);
+        }
+        return data;
+    });
+}
+
+export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getHistoricalSalesForSkus', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_historical_sales', { p_company_id: companyId, p_skus: skus });
+        if (error) {
+            logError(error, { context: 'get_historical_sales RPC failed' });
+            throw new Error(`Could not fetch historical sales data: ${error.message}`);
+        }
+        return data;
+    });
+}
+
+export async function getSupplierPerformanceFromDB(companyId: string): Promise<SupplierPerformanceReport[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getSupplierPerformanceFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_supplier_performance', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'get_supplier_performance RPC failed' });
+            throw new Error(`Could not fetch supplier performance data: ${error.message}`);
+        }
+        return z.array(SupplierPerformanceReportSchema).parse(data || []);
     });
 }

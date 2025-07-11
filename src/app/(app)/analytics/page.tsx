@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive, Truck } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -61,6 +61,14 @@ const availableAnalyses = [
       description: 'Calculate how many times inventory is sold and replaced over a period.',
       prompt: 'What is my inventory turnover rate for the last 90 days?',
       details: "This report calculates your inventory turnover rate (COGS / Average Inventory), a key indicator of sales efficiency and inventory health. A higher number is generally better."
+    },
+    {
+      key: 'supplier_performance',
+      title: 'Supplier Performance',
+      icon: Truck,
+      description: 'Analyze suppliers based on product profitability and sales velocity, not just delivery times.',
+      prompt: 'Analyze my supplier performance based on which products sell best and are most profitable',
+      details: "This report scores your suppliers based on the financial performance of their products, helping you identify your most valuable partners."
     },
     {
       key: 'forecast',
