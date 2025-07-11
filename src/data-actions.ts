@@ -71,7 +71,15 @@ import {
   getInventoryAgingReportFromDB,
   getFinancialImpactOfPoFromDB as dbGetFinancialImpact,
   logUserFeedbackInDb,
-  getSalesVelocityFromDB
+  getSalesVelocityFromDB,
+  getDemandForecastFromDB,
+  getAbcAnalysisFromDB,
+  getGrossMarginAnalysisFromDB,
+  getNetMarginByChannelFromDB,
+  getMarginTrendsFromDB,
+  getHistoricalSalesForSkus,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -571,11 +579,106 @@ export async function getCashFlowInsights() {
 
 export async function getSupplierPerformance() {
     const { companyId } = await getAuthContext();
-    return getSuppliersDataFromDB(companyId);
+    return getSupplierPerformanceFromDB(companyId);
 }
 
 export async function getInventoryTurnover() {
     const { companyId } = await getAuthContext();
     const settings = await getSettings(companyId);
-    return getSalesVelocityFromDB(companyId, settings.fast_moving_days, 10);
+    return getInventoryTurnoverFromDB(companyId, settings.fast_moving_days);
+}
+
+export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
+    try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60);
+        if (limited) {
+            return { error: 'You have reached the request limit. Please try again in a minute.' };
+        }
+
+        const companyId = await getAuthContext();
+        
+        let currentConversationId = conversationId;
+        if (!currentConversationId) {
+            const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
+            currentConversationId = await saveConversation(companyId, newTitle);
+        }
+
+        const userMessageToSave = {
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'user' as const,
+            content: content,
+        };
+        await saveMessage(userMessageToSave);
+
+        // Fetch recent messages for history
+        const cookieStore = cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
+        const { data: historyData, error: historyError } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', currentConversationId)
+            .order('created_at', { ascending: false })
+            .limit(config.ai.historyLimit);
+
+        if (historyError) {
+            logError(historyError, { context: 'Failed to fetch conversation history' });
+        }
+        const conversationHistory = (historyData || []).map(m => ({
+            role: m.role as 'user' | 'assistant' | 'tool',
+            content: [{ text: m.content }]
+        })).reverse();
+
+
+        const response = await universalChatFlow({ companyId, conversationHistory });
+        
+        let component = null;
+        let componentProps = {};
+
+        if (response.toolName === 'getDeadStockReport') {
+            component = 'deadStockTable';
+            componentProps = { data: response.data };
+        }
+        if (response.toolName === 'getReorderSuggestions') {
+            component = 'reorderList';
+            componentProps = { items: response.data };
+        }
+        if (response.toolName === 'getSupplierPerformanceReport') {
+            component = 'supplierPerformanceTable';
+            componentProps = { data: response.data };
+        }
+         if (response.toolName === 'createPurchaseOrdersFromSuggestions') {
+            component = 'confirmation';
+            componentProps = { ...response.data };
+        }
+
+        const newMessage: Message = {
+            id: `ai_${Date.now()}`,
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'assistant',
+            content: response.response,
+            visualization: response.visualization,
+            confidence: response.confidence,
+            assumptions: response.assumptions,
+            created_at: new Date().toISOString(),
+            component,
+            componentProps
+        };
+
+        await saveMessage({ ...newMessage, id: undefined, created_at: undefined });
+        
+        return { newMessage, conversationId: currentConversationId };
+
+    } catch(e) {
+        logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
+        return { error: getErrorMessage(e) };
+    }
 }

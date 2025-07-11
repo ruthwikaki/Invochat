@@ -643,38 +643,22 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
 // --- System & Test Actions ---
 
 export async function testSupabaseConnection(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-        return { isConfigured: false, success: false, user: null, error: new Error('Supabase URL or Anon Key is not configured.') };
-    }
-
-    try {
-        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        });
-        const { data, error } = await supabase.auth.getUser();
-        if (error && error.message !== 'Auth session missing!') throw error;
-        
-        return { isConfigured: true, success: true, user: data?.user || null };
-    } catch (e: any) {
-        return { isConfigured: true, success: false, user: null, error: e };
-    }
+    return dbTestSupabase();
 }
 
 export async function testDatabaseQuery(): Promise<{ success: boolean; error?: string; }> {
-    try {
-        const supabase = getServiceRoleClient();
-        const { error } = await supabase.from('inventory').select('id').limit(1);
-        if (error) throw error;
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
+    return dbTestQuery();
+}
+
+export async function testGenkitConnection(): Promise<{ isConfigured: boolean; success: boolean; error?: string; }> {
+    return genkitTest();
+}
+
+export async function testRedisConnection(): Promise<{ isEnabled: boolean; success: boolean; error?: string; }> {
+    return {
+        isEnabled: isRedisEnabled,
+        ...await redisTest()
+    };
 }
 
 export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
@@ -698,93 +682,6 @@ export async function logUserFeedbackInDb(userId: string, companyId: string, sub
     });
 }
 
-
-export async function getDeadStockReportFromDB(companyId: string) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getDeadStockReportFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const settings = await getSettings(companyId);
-        
-        const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId, p_dead_stock_days: settings.dead_stock_days });
-        if (error) {
-            logError(error, { context: 'get_dead_stock_report RPC failed' });
-            throw error;
-        }
-
-        const ReportSchema = z.object({
-            items: z.array(DeadStockItemSchema),
-            total_value: z.number(),
-            total_units: z.number().int(),
-        });
-        
-        const result = ReportSchema.parse(data);
-
-        return {
-            deadStockItems: result.items,
-            totalValue: result.total_value,
-            totalUnits: result.total_units,
-        };
-    });
-}
-
-export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getReorderSuggestionsFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const settings = await getSettings(companyId);
-        
-        const { data, error } = await supabase.rpc('get_reorder_suggestions', {
-            p_company_id: companyId
-        });
-        
-        if (error) {
-            logError(error, { context: 'get_reorder_suggestions RPC failed' });
-            throw error;
-        }
-
-        return z.array(ReorderSuggestionBaseSchema).parse(data || []);
-    });
-}
-
-export async function getInventoryTurnoverFromDB(companyId: string, days: number) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getInventoryTurnoverFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_inventory_turnover_report', {
-            p_company_id: companyId,
-            p_days: days,
-        });
-
-        if (error) {
-            logError(error, { context: `Failed to run turnover RPC for company ${companyId}` });
-            throw error;
-        }
-        return data && data.length > 0 ? data[0] : null;
-    });
-}
-
-
-export async function getInventoryHealthScoreFromDB(companyId: string) {
-    // Placeholder function
-    return { score: 85, summary: 'Overall inventory health is good.' };
-}
-
-export async function findProfitLeaksFromDB(companyId: string) {
-    // Placeholder function
-    return [];
-}
-
-export async function getAbcAnalysisFromDB(companyId: string) {
-    return withPerformanceTracking('getAbcAnalysisFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_abc_analysis', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: 'get_abc_analysis RPC failed' });
-            throw new Error(`Could not generate ABC analysis: ${error.message}`);
-        }
-        return data;
-    });
-}
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
@@ -815,7 +712,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
             type: item.type,
             title: item.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
             message: `Item ${item.product_name} (${item.sku}) has triggered a ${item.type} alert.`,
-            severity: item.type === 'low_stock' ? 'warning' : 'info',
+            severity: item.type === 'predictive' ? 'warning' : item.type === 'low_stock' ? 'warning' : 'info',
             timestamp: new Date().toISOString(),
             metadata: {
                 productId: item.product_id,
@@ -827,19 +724,6 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
                 daysOfStockRemaining: item.days_of_stock_remaining
             }
         }));
-    });
-}
-
-export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getAnomalyInsightsFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_anomaly_insights', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: `get_anomaly_insights RPC failed for company ${companyId}` });
-            throw error;
-        }
-        return z.array(AnomalySchema).parse(data || []);
     });
 }
 
@@ -988,59 +872,6 @@ export async function getCashFlowInsightsFromDB(companyId: string) {
     });
 }
 
-export async function getDemandForecastFromDB(companyId: string) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getDemandForecastFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_demand_forecast', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: 'get_demand_forecast RPC failed' });
-            throw new Error(`Could not generate demand forecast: ${error.message}`);
-        }
-        return data;
-    });
-}
-
-
-export async function getGrossMarginAnalysisFromDB(companyId: string) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getGrossMarginAnalysisFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_gross_margin_analysis', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: 'get_gross_margin_analysis RPC failed' });
-            throw new Error(`Could not generate gross margin analysis: ${error.message}`);
-        }
-        return data;
-    });
-}
-
-export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getNetMarginByChannelFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_net_margin_by_channel', { p_company_id: companyId, p_channel_name: channelName });
-        if (error) {
-            logError(error, { context: 'get_net_margin_by_channel RPC failed' });
-            throw new Error(`Could not generate net margin analysis: ${error.message}`);
-        }
-        return data;
-    });
-}
-
-export async function getMarginTrendsFromDB(companyId: string) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getMarginTrendsFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_margin_trends', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: 'get_margin_trends RPC failed' });
-            throw new Error(`Could not generate margin trends analysis: ${error.message}`);
-        }
-        return data;
-    });
-}
-
 export async function getFinancialImpactOfPoFromDB(companyId: string, items: { sku: string; quantity: number }[]) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getFinancialImpactOfPoFromDB', async () => {
@@ -1049,50 +880,6 @@ export async function getFinancialImpactOfPoFromDB(companyId: string, items: { s
         if (error) {
             logError(error, { context: 'get_financial_impact_of_po RPC failed' });
             throw new Error(`Could not run financial impact analysis: ${error.message}`);
-        }
-        return data;
-    });
-}
-
-export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getHistoricalSalesForSkus', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_historical_sales', { p_company_id: companyId, p_skus: skus });
-        if (error) {
-            logError(error, { context: 'get_historical_sales RPC failed' });
-            throw new Error(`Could not fetch historical sales data: ${error.message}`);
-        }
-        return data;
-    });
-}
-
-export async function getSupplierPerformanceFromDB(companyId: string): Promise<SupplierPerformanceReport[]> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getSupplierPerformanceFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_supplier_performance', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: 'get_supplier_performance RPC failed' });
-            throw new Error(`Could not fetch supplier performance data: ${error.message}`);
-        }
-        return z.array(SupplierPerformanceReportSchema).parse(data || []);
-    });
-}
-
-export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getSalesVelocityFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_sales_velocity', {
-            p_company_id: companyId,
-            p_days: days,
-            p_limit: limit,
-        });
-
-        if (error) {
-            logError(error, { context: `Failed to run sales velocity RPC for company ${companyId}` });
-            throw error;
         }
         return data;
     });

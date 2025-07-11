@@ -12,6 +12,7 @@ import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
 import { getErrorMessage } from '@/lib/error-handler';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { useRouter } from 'next/navigation';
 
 function LoadingState() {
   return (
@@ -125,11 +126,11 @@ function StrategicReports() {
     const [analysisResult, setAnalysisResult] = useState<Message | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [conversationId, setConversationId] = useState<string | null>(null);
+    const router = useRouter();
 
     const handleRunAnalysis = (prompt: string, key: string) => {
         // Special case for 'what_if' which should be handled in chat
         if (key === 'what_if') {
-            const router = (window as any).next.router;
             router.push(`/chat?q=${encodeURIComponent(prompt)}`);
             return;
         }
