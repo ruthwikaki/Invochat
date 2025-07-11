@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, PurchaseOrder, SupplierPerformanceReport } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { trackDbQueryPerformance, incrementCacheHit, incrementCacheMiss } from './monitoring';
 import { config } from '@/config/app-config';
@@ -75,9 +75,6 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
             overstock_multiplier: config.businessLogic.overstockMultiplier,
             high_value_threshold: config.businessLogic.highValueThreshold,
             fast_moving_days: config.businessLogic.fastMovingDays,
-            predictive_stock_days: config.businessLogic.predictiveStockDays,
-            currency: 'USD',
-            timezone: 'UTC',
         };
         
         const { data: newData, error: insertError } = await supabase
@@ -100,7 +97,6 @@ const CompanySettingsUpdateSchema = z.object({
     fast_moving_days: z.coerce.number().int().positive('Fast-moving days must be a positive number.').optional(),
     overstock_multiplier: z.coerce.number().positive('Overstock multiplier must be a positive number.').optional(),
     high_value_threshold: z.coerce.number().int().positive('High-value threshold must be a positive number.').optional(),
-    predictive_stock_days: z.coerce.number().int().positive('Predictive stock days must be a positive number.').optional(),
 });
 
 
@@ -726,9 +722,9 @@ export async function getDeadStockReportFromDB(companyId: string) {
     });
 }
 
-export async function getReorderReportFromDB(companyId: string): Promise<ReorderSuggestion[]> {
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getReorderReportFromDB', async () => {
+    return withPerformanceTracking('getReorderSuggestionsFromDB', async () => {
         const supabase = getServiceRoleClient();
         const settings = await getSettings(companyId);
         
@@ -742,7 +738,7 @@ export async function getReorderReportFromDB(companyId: string): Promise<Reorder
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema).parse(data || []);
+        return z.array(ReorderSuggestionBaseSchema).parse(data || []);
     });
 }
 

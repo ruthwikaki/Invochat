@@ -34,8 +34,8 @@ const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
 
 const reorderRefinementPrompt = ai.definePrompt({
     name: 'reorderRefinementPrompt',
-    input: { schema: ReorderRefinementInputSchema },
-    output: { schema: z.array(EnhancedReorderSuggestionSchema) },
+    inputSchema: ReorderRefinementInputSchema,
+    outputSchema: z.array(EnhancedReorderSuggestionSchema),
     prompt: `
         You are an expert supply chain analyst for an e-commerce business. Your task is to refine a list of automatically-generated reorder suggestions by considering their historical sales data and seasonality.
 
@@ -73,10 +73,10 @@ export const getReorderSuggestions = ai.defineTool(
     name: 'getReorderSuggestions',
     description:
       "Use this tool to get a list of products that should be reordered based on current stock levels, sales velocity, and reorder rules. This is the primary tool for answering any questions about 'what to order' or 'what is running low'.",
-    input: z.object({
+    inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get suggestions for."),
     }),
-    output: z.array(EnhancedReorderSuggestionSchema),
+    outputSchema: z.array(EnhancedReorderSuggestionSchema),
   },
   async (input): Promise<any[]> => {
     logger.info(`[Reorder Tool] Getting suggestions for company: ${input.companyId}`);
@@ -90,8 +90,9 @@ export const getReorderSuggestions = ai.defineTool(
         }
 
         // Step 2: Get historical sales data and company settings (for timezone)
+        const skus = baseSuggestions.map(s => s.sku);
         const [historicalSales, settings] = await Promise.all([
-            getHistoricalSalesForSkus(input.companyId, baseSuggestions.map(s => s.sku)),
+            getHistoricalSalesForSkus(input.companyId, skus),
             getSettings(input.companyId),
         ]);
         

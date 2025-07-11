@@ -194,6 +194,7 @@ export const ReorderSuggestionBaseSchema = z.object({
     supplier_id: z.string().uuid().nullable(),
     supplier_name: z.string().nullable(),
     unit_cost: z.number().int().nullable(),
+    base_quantity: z.number().int().optional(), // Adding this for the AI to know the original
 });
 
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
