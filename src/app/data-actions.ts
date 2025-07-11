@@ -54,10 +54,11 @@ import {
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
   getInventoryRiskReportFromDB,
+  getCustomerSegmentAnalysisFromDB,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem } from '@/types';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -580,4 +581,9 @@ export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAna
 export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> {
     const { companyId } = await getAuthContext();
     return getInventoryRiskReportFromDB(companyId);
+}
+
+export async function getCustomerSegmentAnalysis(): Promise<CustomerSegmentAnalysisItem[]> {
+    const { companyId } = await getAuthContext();
+    return getCustomerSegmentAnalysisFromDB(companyId);
 }

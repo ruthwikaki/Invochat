@@ -406,3 +406,12 @@ export const InventoryRiskItemSchema = z.object({
   reason: z.string(),
 });
 export type InventoryRiskItem = z.infer<typeof InventoryRiskItemSchema>;
+
+export const CustomerSegmentAnalysisItemSchema = z.object({
+    segment: z.string(),
+    sku: z.string(),
+    product_name: z.string(),
+    total_quantity: z.coerce.number().int(),
+    total_revenue: z.coerce.number().int(),
+});
+export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
