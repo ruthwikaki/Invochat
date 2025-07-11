@@ -1427,15 +1427,16 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
 }
 
 
-export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<(Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'> & {min_stock: number | null})[]> {
+export async function searchProductsForSaleInDB(companyId: string, query: string): Promise<(Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id' | 'location_id'> & {min_stock: number | null})[]> {
   if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
   return withPerformanceTracking('searchProductsForSale', async () => {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('inventory')
-        .select('product_id, products!inner(sku, name), price, quantity, reorder_rules!left(min_stock)')
+        .select('product_id, products!inner(sku, name), price, quantity, location_id, reorder_rules!left(min_stock)')
         .eq('company_id', companyId)
         .is('deleted_at', null)
+        .gt('quantity', 0)
         .or(`products.name.ilike.%${query}%,products.sku.ilike.%${query}%`)
         .limit(10);
     
@@ -1450,6 +1451,7 @@ export async function searchProductsForSaleInDB(companyId: string, query: string
         product_name: item.products.name,
         price: item.price,
         quantity: item.quantity,
+        location_id: item.location_id,
         min_stock: item.reorder_rules?.min_stock,
     }));
   });
@@ -1504,6 +1506,19 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
   });
 }
 
+export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getSalesAnalyticsFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: `Error fetching sales analytics for company ${companyId}` });
+            throw error;
+        }
+        return data || { total_revenue: 0, average_sale_value: 0, payment_method_distribution: [] };
+    });
+}
+
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getInventoryAnalyticsFromDB', async () => {
@@ -1527,19 +1542,6 @@ export async function getPurchaseOrderAnalyticsFromDB(companyId: string): Promis
             throw error;
         }
         return data || { open_po_value: 0, overdue_po_count: 0, avg_lead_time: 0, status_distribution: [] };
-    });
-}
-
-export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
-    return withPerformanceTracking('getSalesAnalyticsFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: `Error fetching sales analytics for company ${companyId}` });
-            throw error;
-        }
-        return data || { total_revenue: 0, average_sale_value: 0, payment_method_distribution: [] };
     });
 }
 
@@ -1806,4 +1808,3 @@ export async function logUserFeedbackInDb(userId: string, companyId: string, sub
     throw error;
   }
 }
-    

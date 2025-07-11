@@ -71,21 +71,20 @@ export const InventorySchema = z.object({
     product_id: z.string().uuid(),
     location_id: z.string().uuid().nullable(),
     quantity: z.number().int(),
-    cost: z.number().int(),
-    price: z.number().int().nullable(),
-    landed_cost: z.number().int().nullable(),
-    reorder_point: z.number().int().nullable(),
+    cost: z.number().int(), // in cents
+    price: z.number().int().nullable(), // in cents
+    landed_cost: z.number().int().nullable(), // in cents
     on_order_quantity: z.number().int(),
     last_sold_date: z.string().nullable(),
     version: z.number().int(),
     deleted_at: z.string().nullable(),
     deleted_by: z.string().uuid().nullable(),
-    created_at: z.string(),
-    updated_at: z.string().nullable(),
     source_platform: z.string().nullable(),
     external_product_id: z.string().nullable(),
     external_variant_id: z.string().nullable(),
     external_quantity: z.number().int().nullable(),
+    created_at: z.string(),
+    updated_at: z.string().nullable(),
 });
 export type Inventory = z.infer<typeof InventorySchema>;
 
@@ -316,6 +315,7 @@ export const ReorderRuleSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
   product_id: z.string().uuid(),
+  location_id: z.string().uuid().nullable(),
   rule_type: z.string().default('manual'),
   min_stock: z.number().int().nullable(),
   max_stock: z.number().int().nullable(),
@@ -426,6 +426,8 @@ export const CustomerSchema = z.object({
   status: z.string().nullable(),
   deleted_at: z.string().nullable(),
   created_at: z.string(),
+  total_orders: z.coerce.number().int().optional(),
+  total_spent: z.coerce.number().int().optional(),
 });
 export type Customer = z.infer<typeof CustomerSchema>;
 
@@ -470,6 +472,7 @@ export const SaleCreateItemSchema = z.object({
   product_name: z.string(),
   quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
   unit_price: z.coerce.number().min(0),
+  location_id: z.string().uuid("Location is required for the sale."),
   max_quantity: z.number().int(),
   min_stock: z.number().int().nullable(),
 });

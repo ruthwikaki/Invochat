@@ -20,7 +20,7 @@ export default function DatabaseSetupPage() {
         </CardHeader>
         <CardContent className="text-center space-y-4">
             <p className="text-sm text-muted-foreground">
-                You must run a one-time setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for InvoChat to work correctly.
+                You must run a one-time setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for the app to work correctly.
             </p>
             <div className="text-left p-4 bg-muted rounded-md border text-sm">
                 <p>1. In your project, find the file located at: <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></p>

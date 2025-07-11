@@ -20,7 +20,7 @@ import { Loader2, Plus, Trash2, Search, X, AlertTriangle } from 'lucide-react';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { cn } from '@/lib/utils';
 
-type ProductSearchResult = Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id'> & { min_stock: number | null };
+type ProductSearchResult = Pick<UnifiedInventoryItem, 'sku' | 'product_name' | 'price' | 'quantity' | 'product_id' | 'location_id'> & { min_stock: number | null };
 
 export function QuickSaleForm() {
   const router = useRouter();
@@ -68,7 +68,16 @@ export function QuickSaleForm() {
   };
   
   const addProductToCart = (product: ProductSearchResult) => {
-    const existingItemIndex = fields.findIndex(field => field.product_id === product.product_id);
+    if (!product.location_id) {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Add Product',
+            description: `Product "${product.product_name}" is not assigned to a location.`
+        });
+        return;
+    }
+
+    const existingItemIndex = fields.findIndex(field => field.product_id === product.product_id && field.location_id === product.location_id);
     if (existingItemIndex > -1) {
       const currentItem = fields[existingItemIndex];
       update(existingItemIndex, {
@@ -81,6 +90,7 @@ export function QuickSaleForm() {
         product_name: product.product_name,
         quantity: 1,
         unit_price: product.price || 0,
+        location_id: product.location_id,
         max_quantity: product.quantity,
         min_stock: product.min_stock
       });
@@ -138,7 +148,7 @@ export function QuickSaleForm() {
                         {searchResults.map(product => {
                             const wouldBreachMinStock = product.min_stock !== null && (product.quantity - 1 < product.min_stock);
                             return (
-                                <div key={product.sku} onClick={() => addProductToCart(product)} className="p-2 hover:bg-accent cursor-pointer flex justify-between items-center">
+                                <div key={`${product.product_id}-${product.location_id}`} onClick={() => addProductToCart(product)} className="p-2 hover:bg-accent cursor-pointer flex justify-between items-center">
                                     <div>
                                         <p className="font-medium flex items-center gap-2">
                                             {product.product_name}
@@ -187,8 +197,8 @@ export function QuickSaleForm() {
                              else if (belowMin) errorMessage = `Sale would bring stock to ${remainingStock}, which is below the minimum of ${field.min_stock}.`;
 
                             return (
-                                <>
-                                    <TableRow key={field.fieldId} className={cn(hasError && "bg-destructive/10")}>
+                                <React.Fragment key={field.fieldId}>
+                                    <TableRow className={cn(hasError && "bg-destructive/10")}>
                                         <TableCell>{field.product_name}</TableCell>
                                         <TableCell><Input type="number" {...form.register(`items.${index}.quantity`)} min={1} max={field.max_quantity} /></TableCell>
                                         <TableCell><Input type="number" step="0.01" {...form.register(`items.${index}.unit_price`, { valueAsNumber: true })} /></TableCell>
@@ -202,7 +212,7 @@ export function QuickSaleForm() {
                                             </TableCell>
                                         </TableRow>
                                     )}
-                                </>
+                                </React.Fragment>
                             )
                         })}
                     </TableBody>
