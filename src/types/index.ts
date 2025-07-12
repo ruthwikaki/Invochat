@@ -161,6 +161,7 @@ export const CompanySettingsSchema = z.object({
   predictive_stock_days: z.number().default(7),
   overstock_multiplier: z.number().default(3),
   high_value_threshold: z.number().default(100000),
+  promo_sales_lift_multiplier: z.number().default(2.5),
   currency: z.string().nullable().optional().default('USD'),
   timezone: z.string().nullable().optional().default('UTC'),
   created_at: z.string().datetime({ offset: true }),
