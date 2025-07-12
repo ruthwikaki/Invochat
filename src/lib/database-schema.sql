@@ -1,16 +1,11 @@
 -- This script is idempotent and can be run multiple times.
--- It is the single source of truth for the database schema.
-
 -- =================================================================
 -- 1. Setup Custom Types
 -- =================================================================
--- Create the custom type for user roles if it doesn't exist
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-        CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
-    END IF;
-END$$;
+-- Drop the type if it exists to ensure a clean slate
+DROP TYPE IF EXISTS public.user_role CASCADE;
+-- Create the custom type for user roles
+CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
 
 
 -- =================================================================
@@ -32,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id uuid NOT NULL,
     company_id uuid NOT NULL,
     email text,
-    role public.user_role NOT NULL DEFAULT 'Member'::public.user_role,
+    role user_role NOT NULL DEFAULT 'Member'::user_role,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT users_pkey PRIMARY KEY (id),
@@ -47,13 +42,20 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id uuid NOT NULL,
     dead_stock_days integer NOT NULL DEFAULT 90,
     overstock_multiplier numeric NOT NULL DEFAULT 3,
-    high_value_threshold numeric NOT NULL DEFAULT 100000,
+    high_value_threshold numeric NOT NULL DEFAULT 1000,
     fast_moving_days integer NOT NULL DEFAULT 30,
     predictive_stock_days integer NOT NULL DEFAULT 7,
     currency text DEFAULT 'USD'::text,
     timezone text DEFAULT 'UTC'::text,
+    tax_rate numeric DEFAULT 0,
+    custom_rules jsonb,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone,
+    subscription_status text DEFAULT 'trial'::text,
+    subscription_plan text DEFAULT 'starter'::text,
+    subscription_expires_at timestamp with time zone,
+    stripe_customer_id text,
+    stripe_subscription_id text,
     promo_sales_lift_multiplier real NOT NULL DEFAULT 2.5,
     CONSTRAINT company_settings_pkey PRIMARY KEY (company_id),
     CONSTRAINT company_settings_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE
@@ -85,8 +87,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     name text NOT NULL,
     category text,
     quantity integer NOT NULL DEFAULT 0,
-    cost integer NOT NULL DEFAULT 0, -- in cents
-    price integer, -- in cents
+    cost numeric NOT NULL DEFAULT 0,
+    price numeric,
     reorder_point integer,
     reorder_quantity integer,
     lead_time_days integer,
@@ -118,7 +120,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     customer_name text NOT NULL,
     email text,
     total_orders integer DEFAULT 0,
-    total_spent integer DEFAULT 0, -- in cents
+    total_spent numeric DEFAULT 0,
     first_order_date date,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
@@ -137,7 +139,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
     customer_id uuid,
     customer_name text,
     customer_email text,
-    total_amount integer NOT NULL, -- in cents
+    total_amount numeric NOT NULL,
     payment_method text,
     notes text,
     created_at timestamp with time zone DEFAULT now(),
@@ -154,12 +156,12 @@ ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL,
-    company_id uuid NOT NULL,
     product_id uuid NOT NULL,
     product_name text,
     quantity integer NOT NULL,
-    unit_price integer NOT NULL, -- in cents
-    cost_at_time integer, -- in cents
+    unit_price numeric NOT NULL,
+    cost_at_time numeric,
+    company_id uuid NOT NULL,
     CONSTRAINT sale_items_pkey PRIMARY KEY (id),
     CONSTRAINT sale_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
     CONSTRAINT sale_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.inventory(id) ON DELETE RESTRICT,
@@ -304,7 +306,7 @@ CREATE TABLE IF NOT EXISTS public.channel_fees (
     company_id uuid NOT NULL,
     channel_name text NOT NULL,
     percentage_fee numeric NOT NULL,
-    fixed_fee integer NOT NULL, -- in cents
+    fixed_fee numeric NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     CONSTRAINT channel_fees_pkey PRIMARY KEY (id),
@@ -324,30 +326,26 @@ CREATE TABLE IF NOT EXISTS public.webhook_events (
 );
 ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
 
--- =================================================================
--- 3. Create Archive Tables
--- =================================================================
 
--- Archive table for sales
-CREATE TABLE IF NOT EXISTS public.sales_archive (
+-- Data Archival Tables
+CREATE TABLE IF NOT EXISTS public.archived_sales (
     LIKE public.sales INCLUDING ALL
 );
-ALTER TABLE public.sales_archive ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.archived_sales ENABLE ROW LEVEL SECURITY;
 
--- Archive table for sale items
-CREATE TABLE IF NOT EXISTS public.sale_items_archive (
+CREATE TABLE IF NOT EXISTS public.archived_sale_items (
     LIKE public.sale_items INCLUDING ALL
 );
-ALTER TABLE public.sale_items_archive ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.archived_sale_items ENABLE ROW LEVEL SECURITY;
 
--- Archive table for audit logs
-CREATE TABLE IF NOT EXISTS public.audit_log_archive (
+CREATE TABLE IF NOT EXISTS public.archived_audit_log (
     LIKE public.audit_log INCLUDING ALL
 );
-ALTER TABLE public.audit_log_archive ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.archived_audit_log ENABLE ROW LEVEL SECURITY;
+
 
 -- =================================================================
--- 4. Create Indexes for Performance
+-- 3. Create Indexes for Performance
 -- =================================================================
 CREATE INDEX IF NOT EXISTS idx_inventory_company_sku ON public.inventory(company_id, sku);
 CREATE INDEX IF NOT EXISTS idx_inventory_company_id ON public.inventory(company_id);
@@ -363,7 +361,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_deleted_at ON public.inventory(deleted_
 CREATE INDEX IF NOT EXISTS idx_inventory_last_sold_date ON public.inventory(last_sold_date);
 
 -- =================================================================
--- 5. Create Database Functions
+-- 4. Create Database Functions
 -- =================================================================
 
 -- Function to handle new user sign-ups
@@ -411,6 +409,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
+
 -- Updated function to record a sale transaction
 CREATE OR REPLACE FUNCTION public.record_sale_transaction_v2(
     p_company_id uuid,
@@ -421,17 +420,14 @@ CREATE OR REPLACE FUNCTION public.record_sale_transaction_v2(
     p_payment_method text,
     p_notes text,
     p_external_id text
-) RETURNS public.sales 
-LANGUAGE plpgsql
-SECURITY DEFINER SET search_path = public
-AS $$
+) RETURNS public.sales AS $$
 DECLARE
     v_sale_id uuid;
     v_customer_id uuid;
     v_sale_number text;
-    v_total_amount integer := 0;
+    v_total_amount numeric := 0;
     v_item RECORD;
-    v_product_cost integer;
+    v_product_cost numeric;
     v_new_quantity integer;
     v_sale_record public.sales;
 BEGIN
@@ -456,7 +452,7 @@ BEGIN
     END IF;
 
     -- Calculate total sale amount
-    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price integer)
+    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price numeric)
     LOOP
         v_total_amount := v_total_amount + (v_item.quantity * v_item.unit_price);
     END LOOP;
@@ -474,7 +470,7 @@ BEGIN
     ) RETURNING id INTO v_sale_id;
     
     -- Process each item in the sale
-    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price integer, product_name text)
+    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price numeric, product_name text)
     LOOP
         -- Get current product cost for the sale item record
         SELECT cost INTO v_product_cost FROM public.inventory WHERE id = v_item.product_id;
@@ -515,48 +511,42 @@ BEGIN
     SELECT * INTO v_sale_record FROM public.sales WHERE id = v_sale_id;
     RETURN v_sale_record;
 END;
-$$;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 
--- Function to archive old data
-CREATE OR REPLACE FUNCTION public.archive_old_data(p_cutoff_date date)
-RETURNS TABLE(archived_table text, archived_count bigint) AS $$
-DECLARE
-    v_sales_count bigint;
-    v_audit_log_count bigint;
+-- Data Archival Function
+CREATE OR REPLACE FUNCTION archive_old_data(p_company_id uuid, p_cutoff_date date)
+RETURNS TABLE(archived_sales_count integer, archived_audit_log_count integer) AS $$
 BEGIN
-    -- Archive sales and sale_items
+    -- Archive Sales Data
     WITH moved_sales AS (
-        DELETE FROM public.sales
-        WHERE created_at < p_cutoff_date
-        RETURNING *
+        DELETE FROM public.sales s
+        WHERE s.company_id = p_company_id AND s.created_at < p_cutoff_date
+        RETURNING s.*
     )
-    INSERT INTO public.sales_archive SELECT * FROM moved_sales;
-    GET DIAGNOSTICS v_sales_count = ROW_COUNT;
+    INSERT INTO public.archived_sales SELECT * FROM moved_sales;
+    GET DIAGNOSTICS archived_sales_count = ROW_COUNT;
 
-    -- Note: sale_items are deleted via CASCADE constraint
+    -- Note: Sale items are archived automatically due to ON DELETE CASCADE.
 
-    -- Archive audit logs
+    -- Archive Audit Log Data
     WITH moved_logs AS (
-        DELETE FROM public.audit_log
-        WHERE created_at < p_cutoff_date
-        RETURNING *
+        DELETE FROM public.audit_log al
+        WHERE al.company_id = p_company_id AND al.created_at < p_cutoff_date
+        RETURNING al.*
     )
-    INSERT INTO public.audit_log_archive SELECT * FROM moved_logs;
-    GET DIAGNOSTICS v_audit_log_count = ROW_COUNT;
+    INSERT INTO public.archived_audit_log SELECT * FROM moved_logs;
+    GET DIAGNOSTICS archived_audit_log_count = ROW_COUNT;
 
-    -- Return summary
-    RETURN QUERY SELECT 'sales' as archived_table, v_sales_count as archived_count;
-    RETURN QUERY SELECT 'audit_log' as archived_table, v_audit_log_count as archived_count;
+    RETURN QUERY SELECT archived_sales_count, archived_audit_log_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 
-
 -- =================================================================
--- 6. Define Row-Level Security (RLS) Policies
+-- 5. Define Row-Level Security (RLS) Policies
 -- =================================================================
-CREATE OR REPLACE FUNCTION public.is_member_of_company(p_company_id uuid)
+CREATE OR REPLACE FUNCTION is_member_of_company(p_company_id uuid)
 RETURNS boolean AS $$
 BEGIN
   RETURN EXISTS (
@@ -564,19 +554,19 @@ BEGIN
     WHERE id = auth.uid() AND company_id = p_company_id AND deleted_at IS NULL
   );
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Helper function to get the role of the current user for their company
-CREATE OR REPLACE FUNCTION public.get_my_role(p_company_id uuid)
-RETURNS public.user_role AS $$
+CREATE OR REPLACE FUNCTION get_my_role(p_company_id uuid)
+RETURNS user_role AS $$
 DECLARE
-    v_role public.user_role;
+    v_role user_role;
 BEGIN
     SELECT role INTO v_role FROM public.users
     WHERE id = auth.uid() AND company_id = p_company_id AND deleted_at IS NULL;
     RETURN v_role;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 
 -- Policies for 'companies' table
@@ -609,8 +599,8 @@ BEGIN
         WHERE table_schema = 'public' AND table_name IN (
             'suppliers', 'inventory', 'customers', 'sales', 'sale_items', 'inventory_ledger',
             'conversations', 'messages', 'integrations', 'sync_logs', 'sync_state',
-            'audit_log', 'export_jobs', 'channel_fees', 'webhook_events',
-            'sales_archive', 'sale_items_archive', 'audit_log_archive'
+            'audit_log', 'export_jobs', 'channel_fees', 'webhook_events', 'archived_sales', 
+            'archived_sale_items', 'archived_audit_log'
         )
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS "Allow full access for company members" ON public.%I', t_name);
@@ -626,7 +616,7 @@ $$;
 
 
 -- =================================================================
--- 7. Grant Usage on Schema and Tables
+-- 6. Grant Usage on Schema and Tables
 -- =================================================================
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
