@@ -1,684 +1,875 @@
 
--- Enable the UUID extension if it's not already enabled.
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Grant usage on the auth schema to the postgres role
-GRANT USAGE ON SCHEMA auth TO postgres;
-
--- Define a custom user role type
-CREATE TYPE public.user_role AS ENUM (
-    'Owner',
-    'Admin',
-    'Member'
+--
+-- Types
+--
+create type public.user_role as enum ('Owner', 'Admin', 'Member');
+--
+-- Tables
+--
+create table public.companies (
+    id uuid primary key not null default uuid_generate_v4(),
+    name text not null,
+    created_at timestamptz not null default now()
 );
 
--- Companies Table: Stores basic information about each company using the service.
-CREATE TABLE IF NOT EXISTS public.companies (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-
--- Users Table: Extends the built-in auth.users table with company-specific info.
-CREATE TABLE IF NOT EXISTS public.users (
-    id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+create table public.users(
+    id uuid primary key references auth.users(id) on delete cascade not null,
+    company_id uuid references public.companies(id) on delete cascade not null,
     email text,
-    role user_role NOT NULL DEFAULT 'Member'::user_role,
+    role user_role not null default 'Member',
     deleted_at timestamptz,
-    created_at timestamptz DEFAULT now()
+    created_at timestamptz default now()
 );
 
--- Company Settings Table: Configurable business logic rules for each company.
-CREATE TABLE IF NOT EXISTS public.company_settings (
-    company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
-    dead_stock_days integer NOT NULL DEFAULT 90,
-    overstock_multiplier numeric NOT NULL DEFAULT 3,
-    high_value_threshold numeric NOT NULL DEFAULT 1000,
-    fast_moving_days integer NOT NULL DEFAULT 30,
-    predictive_stock_days integer NOT NULL DEFAULT 7,
-    currency text DEFAULT 'USD',
-    timezone text DEFAULT 'UTC',
-    tax_rate numeric DEFAULT 0,
-    custom_rules jsonb,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    subscription_status text DEFAULT 'trial',
-    subscription_plan text DEFAULT 'starter',
-    subscription_expires_at timestamptz,
-    stripe_customer_id text,
-    stripe_subscription_id text,
-    promo_sales_lift_multiplier real NOT NULL DEFAULT 2.5
+create table public.company_settings (
+  company_id uuid primary key references public.companies(id) on delete cascade not null,
+  dead_stock_days int not null default 90,
+  fast_moving_days int not null default 30,
+  overstock_multiplier numeric not null default 3,
+  high_value_threshold numeric not null default 1000.00,
+  predictive_stock_days int not null default 7,
+  currency text default 'USD',
+  timezone text default 'UTC',
+  tax_rate numeric default 0,
+  promo_sales_lift_multiplier real not null default 2.5,
+  custom_rules jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
 );
+comment on column public.company_settings.high_value_threshold is 'Cost threshold in cents to be considered a high-value item.';
 
--- Suppliers Table: Information about product suppliers.
-CREATE TABLE IF NOT EXISTS public.suppliers (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    name text NOT NULL,
+
+create table public.suppliers (
+    id uuid primary key not null default uuid_generate_v4(),
+    company_id uuid references public.companies(id) on delete cascade not null,
+    name text not null,
     email text,
     phone text,
-    default_lead_time_days integer,
+    default_lead_time_days int,
     notes text,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE(company_id, name)
+    created_at timestamptz not null default now(),
+    constraint unique_supplier_name unique (company_id, name)
 );
 
--- Inventory Table: Core table for all product and stock information.
-CREATE TABLE IF NOT EXISTS public.inventory (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL,
-    sku text NOT NULL,
-    name text NOT NULL,
+create table public.inventory (
+    id uuid primary key not null default uuid_generate_v4(),
+    company_id uuid not null references public.companies(id) on delete cascade,
+    sku text not null,
+    name text not null,
     category text,
-    quantity integer NOT NULL DEFAULT 0,
-    cost numeric NOT NULL DEFAULT 0,
+    quantity int not null default 0,
+    cost numeric not null default 0,
     price numeric,
-    reorder_point integer,
+    reorder_point int,
     last_sold_date date,
+    supplier_id uuid references public.suppliers(id) on delete set null,
     barcode text,
-    version integer NOT NULL DEFAULT 1,
-    deleted_at timestamptz,
-    deleted_by uuid REFERENCES public.users(id),
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz,
     source_platform text,
     external_product_id text,
     external_variant_id text,
-    external_quantity integer,
-    UNIQUE(company_id, sku)
+    external_quantity int,
+    version int not null default 1,
+    deleted_at timestamptz,
+    deleted_by uuid references public.users(id),
+    created_at timestamptz default now(),
+    updated_at timestamptz,
+    constraint unique_sku_per_company unique(company_id, sku)
 );
-ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
+comment on column public.inventory.cost is 'Cost in cents';
+comment on column public.inventory.price is 'Price in cents';
 
--- Inventory Ledger: An append-only log of all stock movements for auditing.
-CREATE TABLE IF NOT EXISTS public.inventory_ledger (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_id uuid NOT NULL REFERENCES public.inventory(id) ON DELETE CASCADE,
-    change_type text NOT NULL,
-    quantity_change integer NOT NULL,
-    new_quantity integer NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    related_id uuid, -- e.g., sale_id, purchase_order_id, etc.
-    notes text
-);
-
--- Customers Table
-CREATE TABLE IF NOT EXISTS public.customers (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    customer_name text NOT NULL,
+create table public.customers (
+    id uuid primary key not null default uuid_generate_v4(),
+    company_id uuid not null references public.companies(id) on delete cascade,
+    customer_name text not null,
     email text,
-    total_orders integer DEFAULT 0,
-    total_spent numeric DEFAULT 0,
+    total_orders int default 0,
+    total_spent numeric default 0,
     first_order_date date,
     deleted_at timestamptz,
-    created_at timestamptz DEFAULT now(),
-    UNIQUE(company_id, email)
+    created_at timestamptz default now(),
+    unique(company_id, email)
 );
 
--- Sales Table: Records each sale transaction.
-CREATE TABLE IF NOT EXISTS public.sales (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    sale_number text NOT NULL,
+create table public.sales (
+    id uuid primary key not null default uuid_generate_v4(),
+    company_id uuid not null references public.companies(id) on delete cascade,
+    sale_number text not null,
     customer_name text,
     customer_email text,
-    total_amount numeric NOT NULL,
+    total_amount numeric not null,
     payment_method text,
     notes text,
-    created_at timestamptz DEFAULT now(),
-    external_id text, -- ID from an external platform like Shopify
-    UNIQUE(company_id, sale_number)
+    external_id text, -- For linking to external platform orders
+    created_at timestamptz default now()
 );
 
--- Sale Items Table: Line items for each sale.
-CREATE TABLE IF NOT EXISTS public.sale_items (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sale_id uuid NOT NULL REFERENCES public.sales(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL,
-    sku text NOT NULL,
+create table public.sale_items (
+    id uuid primary key not null default uuid_generate_v4(),
+    sale_id uuid not null references public.sales(id) on delete cascade,
+    company_id uuid not null references public.companies(id) on delete cascade,
+    product_id uuid not null references public.inventory(id),
     product_name text,
-    quantity integer NOT NULL,
-    unit_price numeric NOT NULL,
-    cost_at_time numeric,
-    FOREIGN KEY (company_id, sku) REFERENCES public.inventory(company_id, sku)
+    sku text not null,
+    quantity int not null,
+    unit_price numeric not null,
+    cost_at_time numeric
 );
 
--- Conversations Table: Stores chat conversation history.
-CREATE TABLE IF NOT EXISTS public.conversations (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    created_at timestamptz DEFAULT now(),
-    last_accessed_at timestamptz DEFAULT now(),
-    is_starred boolean DEFAULT false
+create table public.conversations (
+    id uuid primary key not null default uuid_generate_v4(),
+    user_id uuid not null references public.users(id) on delete cascade,
+    company_id uuid not null references public.companies(id) on delete cascade,
+    title text not null,
+    is_starred boolean default false,
+    created_at timestamptz default now(),
+    last_accessed_at timestamptz default now()
 );
 
--- Messages Table: Stores individual messages within a conversation.
-CREATE TABLE IF NOT EXISTS public.messages (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    role text NOT NULL,
+create table public.messages (
+    id uuid primary key not null default uuid_generate_v4(),
+    conversation_id uuid not null references public.conversations(id) on delete cascade,
+    company_id uuid not null references public.companies(id) on delete cascade,
+    role text not null,
     content text,
     component text,
     component_props jsonb,
     visualization jsonb,
     confidence numeric,
     assumptions text[],
-    created_at timestamptz DEFAULT now(),
-    is_error boolean DEFAULT false
+    is_error boolean default false,
+    created_at timestamptz default now()
 );
 
+create table public.audit_log (
+  id bigserial primary key,
+  user_id uuid references public.users(id),
+  company_id uuid references public.companies(id),
+  action text not null,
+  details jsonb,
+  created_at timestamptz default now()
+);
 
--- Integrations table
-CREATE TABLE IF NOT EXISTS public.integrations (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  platform text NOT NULL,
+create table public.inventory_ledger (
+    id uuid primary key default gen_random_uuid(),
+    company_id uuid not null references public.companies(id) on delete cascade,
+    product_id uuid not null references public.inventory(id) on delete cascade,
+    change_type text not null,
+    quantity_change int not null,
+    new_quantity int not null,
+    related_id uuid, -- e.g., sale_id, purchase_order_id
+    notes text,
+    created_at timestamptz not null default now()
+);
+
+create table public.export_jobs (
+    id uuid primary key default uuid_generate_v4(),
+    company_id uuid not null references public.companies(id) on delete cascade,
+    requested_by_user_id uuid not null references public.users(id),
+    status text not null default 'pending', -- pending, processing, completed, failed
+    download_url text,
+    expires_at timestamptz,
+    created_at timestamptz not null default now()
+);
+
+create table public.integrations (
+  id uuid primary key not null default uuid_generate_v4(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  platform text not null,
   shop_domain text,
   shop_name text,
-  is_active boolean DEFAULT false,
-  access_token text, -- This is a placeholder; real tokens should be in a vault
+  is_active boolean default false,
+  access_token text,
   last_sync_at timestamptz,
   sync_status text,
-  created_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz not null default now(),
   updated_at timestamptz
 );
 
--- Sync State table
-CREATE TABLE IF NOT EXISTS public.sync_state (
-  integration_id uuid NOT NULL REFERENCES integrations(id) ON DELETE CASCADE,
-  sync_type text NOT NULL,
-  last_processed_cursor text,
-  last_update timestamptz,
-  PRIMARY KEY (integration_id, sync_type)
+create table public.sync_state (
+    integration_id uuid not null references public.integrations(id) on delete cascade,
+    sync_type text not null,
+    last_processed_cursor text,
+    last_update timestamptz,
+    primary key (integration_id, sync_type)
 );
 
-
--- Channel Fees Table
-CREATE TABLE IF NOT EXISTS public.channel_fees (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  channel_name text NOT NULL,
-  percentage_fee numeric NOT NULL,
-  fixed_fee numeric NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz,
-  UNIQUE(company_id, channel_name)
-);
-
--- Sync Logs table
-CREATE TABLE IF NOT EXISTS public.sync_logs (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    integration_id uuid NOT NULL REFERENCES integrations(id) ON DELETE CASCADE,
+create table public.sync_logs (
+    id uuid primary key not null default uuid_generate_v4(),
+    integration_id uuid not null references public.integrations(id) on delete cascade,
     sync_type text,
     status text,
-    records_synced integer,
+    records_synced int,
     error_message text,
-    started_at timestamptz DEFAULT now(),
+    started_at timestamptz default now(),
     completed_at timestamptz
 );
 
--- Export Jobs table
-CREATE TABLE IF NOT EXISTS public.export_jobs (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    requested_by_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    status TEXT NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
-    download_url TEXT,
-    expires_at timestamptz,
-    created_at timestamptz NOT NULL DEFAULT now()
+create table public.channel_fees (
+    id uuid primary key not null default uuid_generate_v4(),
+    company_id uuid not null references public.companies(id) on delete cascade,
+    channel_name text not null,
+    percentage_fee numeric not null,
+    fixed_fee numeric not null,
+    created_at timestamptz default now(),
+    updated_at timestamptz,
+    unique(company_id, channel_name)
 );
+comment on column public.channel_fees.fixed_fee is 'Fixed fee in cents';
+--
+-- Views
+--
+create or replace view public.company_dashboard_metrics as
+select
+    c.id as company_id,
+    coalesce(sum(i.quantity * i.cost), 0) as inventory_value,
+    count(distinct i.id) filter (where i.deleted_at is null) as total_skus,
+    count(distinct i.id) filter (where i.deleted_at is null and i.quantity < i.reorder_point) as low_stock_count
+from
+    public.companies c
+left join
+    public.inventory i on c.id = i.company_id and i.deleted_at is null
+group by
+    c.id;
 
--- Audit Log Table: Tracks significant user and system actions.
-CREATE TABLE IF NOT EXISTS public.audit_log (
-  id bigserial PRIMARY KEY,
-  company_id uuid REFERENCES public.companies(id) ON DELETE CASCADE,
-  user_id uuid REFERENCES auth.users(id),
-  action text NOT NULL,
-  details jsonb,
-  created_at timestamptz DEFAULT now()
-);
+--
+-- Functions
+--
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  company_id uuid;
+  user_role user_role;
+begin
+  -- Check if a company name is provided in metadata, create company if so
+  if new.raw_app_meta_data->>'company_name' is not null then
+    insert into public.companies (name)
+    values (new.raw_app_meta_data->>'company_name')
+    returning id into company_id;
+    user_role := 'Owner';
+  else
+    -- If invited, the company_id should already be in the metadata
+    company_id := (new.raw_app_meta_data->>'company_id')::uuid;
+    user_role := (new.raw_app_meta_data->>'role')::user_role;
+  end if;
 
+  -- Insert into our public users table
+  insert into public.users (id, company_id, email, role)
+  values (new.id, company_id, new.email, user_role);
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_inventory_company_id ON public.inventory(company_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_company_id_sku ON public.inventory(company_id, sku);
-CREATE INDEX IF NOT EXISTS idx_sales_company_id ON public.sales(company_id);
-CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON public.sale_items(sale_id);
-CREATE INDEX IF NOT EXISTS idx_sale_items_company_sku ON public.sale_items(company_id, sku);
-CREATE INDEX IF NOT EXISTS idx_ledger_product_id ON public.inventory_ledger(product_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(user_id);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_customers_company_email ON public.customers(company_id, email);
+  -- Update the user's app_metadata in auth.users
+  update auth.users
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', company_id, 'role', user_role)
+  where id = new.id;
 
+  return new;
+end;
+$$;
 
--- Function to handle new user sign-ups
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  new_company_id uuid;
-BEGIN
-  -- Create a new company for the new user
-  INSERT INTO public.companies (name)
-  VALUES (new.raw_app_meta_data->>'company_name')
-  RETURNING id INTO new_company_id;
+create or replace function public.record_sale_transaction(
+    p_company_id uuid,
+    p_user_id uuid,
+    p_sale_items jsonb,
+    p_customer_name text,
+    p_customer_email text,
+    p_payment_method text,
+    p_notes text,
+    p_external_id text
+)
+returns public.sales
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+    v_sale_id uuid;
+    v_new_sale_number text;
+    v_total_amount numeric := 0;
+    v_item record;
+    v_inventory_item public.inventory;
+    v_customer_id uuid;
+begin
+    -- Generate a unique sale number
+    select 'SALE-' || to_char(now(), 'YYYYMMDD') || '-' || count(*) + 1
+    into v_new_sale_number
+    from sales
+    where created_at >= date_trunc('day', now()) and company_id = p_company_id;
 
-  -- Insert a row into public.users
-  INSERT INTO public.users (id, company_id, email, role)
-  VALUES (new.id, new_company_id, new.email, 'Owner');
-  
-  -- Insert default settings for the new company
-  INSERT INTO public.company_settings (company_id)
-  VALUES (new_company_id);
-  
-  -- Update the user's app_metadata with the new company_id and role
-  UPDATE auth.users
-  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id, 'role', 'Owner')
-  WHERE id = new.id;
-  
-  RETURN new;
-END;
+    -- Upsert customer and get ID
+    if p_customer_email is not null and p_customer_email != '' then
+        insert into public.customers (company_id, customer_name, email, first_order_date, total_orders, total_spent)
+        values (p_company_id, p_customer_name, p_customer_email, now(), 1, 0)
+        on conflict (company_id, email) do update
+        set
+            total_orders = customers.total_orders + 1,
+            customer_name = coalesce(p_customer_name, customers.customer_name)
+        returning id into v_customer_id;
+    end if;
+
+    -- Calculate total amount from items
+    for v_item in select * from jsonb_to_recordset(p_sale_items) as x(product_id uuid, quantity int, unit_price numeric)
+    loop
+        v_total_amount := v_total_amount + (v_item.quantity * v_item.unit_price);
+    end loop;
+
+    -- Update customer's total spent
+    if v_customer_id is not null then
+        update public.customers
+        set total_spent = customers.total_spent + v_total_amount
+        where id = v_customer_id;
+    end if;
+
+    -- Create the sale record
+    insert into public.sales (company_id, sale_number, customer_name, customer_email, total_amount, payment_method, notes, external_id)
+    values (p_company_id, v_new_sale_number, p_customer_name, p_customer_email, v_total_amount, p_payment_method, p_notes, p_external_id)
+    returning id into v_sale_id;
+
+    -- Loop through items again to process inventory and create sale_items
+    for v_item in select * from jsonb_to_recordset(p_sale_items) as x(product_id uuid, sku text, quantity int, unit_price numeric)
+    loop
+        -- Fetch current inventory details for the cost
+        select * into v_inventory_item from public.inventory where id = v_item.product_id and company_id = p_company_id;
+
+        -- Create sale item record
+        insert into public.sale_items (sale_id, company_id, product_id, sku, quantity, unit_price, cost_at_time)
+        values (v_sale_id, p_company_id, v_item.product_id, v_inventory_item.sku, v_item.quantity, v_item.unit_price, v_inventory_item.cost);
+
+        -- Update inventory quantity and log the change
+        update public.inventory
+        set
+            quantity = quantity - v_item.quantity,
+            last_sold_date = current_date,
+            version = version + 1
+        where id = v_item.product_id and company_id = p_company_id;
+
+        insert into public.inventory_ledger(company_id, product_id, change_type, quantity_change, new_quantity, related_id)
+        select p_company_id, v_item.product_id, 'sale', -v_item.quantity, i.quantity, v_sale_id
+        from public.inventory i where i.id = v_item.product_id;
+    end loop;
+
+    -- Log the audit record
+    insert into public.audit_log(company_id, user_id, action, details)
+    values (p_company_id, p_user_id, 'sale_created', jsonb_build_object('sale_id', v_sale_id, 'total', v_total_amount));
+
+    -- Return the newly created sale
+    return (select * from public.sales where id = v_sale_id);
+end;
+$$;
+
+create or replace function public.batch_upsert_costs(p_records jsonb, p_company_id uuid, p_user_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+    rec record;
+    v_supplier_id uuid;
+begin
+    for rec in select * from jsonb_to_recordset(p_records) as x(
+        sku text,
+        cost numeric,
+        supplier_name text,
+        reorder_point int,
+        reorder_quantity int,
+        lead_time_days int
+    )
+    loop
+        if rec.supplier_name is not null then
+            insert into public.suppliers (company_id, name)
+            values (p_company_id, rec.supplier_name)
+            on conflict (company_id, name) do update set name = excluded.name
+            returning id into v_supplier_id;
+        else
+            v_supplier_id := null;
+        end if;
+
+        insert into public.inventory (company_id, sku, name, cost, supplier_id, reorder_point)
+        values (p_company_id, rec.sku, 'Default Name for ' || rec.sku, rec.cost, v_supplier_id, rec.reorder_point)
+        on conflict (company_id, sku) do update set
+            cost = excluded.cost,
+            supplier_id = coalesce(excluded.supplier_id, inventory.supplier_id),
+            reorder_point = coalesce(excluded.reorder_point, inventory.reorder_point),
+            updated_at = now();
+    end loop;
+end;
 $$;
 
 
--- Trigger to call handle_new_user on new user creation
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- Function to handle inventory updates and log changes
-CREATE OR REPLACE FUNCTION public.handle_inventory_change()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  -- Log the change to the inventory_ledger
-  INSERT INTO public.inventory_ledger(company_id, product_id, change_type, quantity_change, new_quantity, notes)
-  VALUES (NEW.company_id, NEW.id, 'adjustment', NEW.quantity - OLD.quantity, NEW.quantity, 'Manual update');
-
-  -- Update the version number
-  NEW.version = OLD.version + 1;
-  NEW.updated_at = now();
-  
-  RETURN NEW;
-END;
+create or replace function public.batch_upsert_suppliers(p_records jsonb, p_company_id uuid, p_user_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+    rec record;
+begin
+    for rec in select * from jsonb_to_recordset(p_records) as x(
+        name text,
+        email text,
+        phone text,
+        default_lead_time_days int,
+        notes text
+    )
+    loop
+        insert into public.suppliers(company_id, name, email, phone, default_lead_time_days, notes)
+        values (p_company_id, rec.name, rec.email, rec.phone, rec.default_lead_time_days, rec.notes)
+        on conflict (company_id, name) do update set
+            email = excluded.email,
+            phone = excluded.phone,
+            default_lead_time_days = excluded.default_lead_time_days,
+            notes = excluded.notes;
+    end loop;
+end;
 $$;
 
-DROP TRIGGER IF EXISTS on_inventory_update ON public.inventory;
-CREATE TRIGGER on_inventory_update
-  BEFORE UPDATE ON public.inventory
-  FOR EACH ROW
-  WHEN (OLD.quantity IS DISTINCT FROM NEW.quantity)
-  EXECUTE FUNCTION public.handle_inventory_change();
+
+create or replace function public.batch_import_sales(p_records jsonb, p_company_id uuid, p_user_id uuid)
+returns void
+language plpgsql
+as $$
+declare
+    rec record;
+    v_product_id uuid;
+    v_sale_id uuid;
+begin
+    for rec in select * from jsonb_to_recordset(p_records) as x(
+        order_date timestamptz,
+        sku text,
+        quantity int,
+        unit_price numeric,
+        cost_at_time numeric,
+        customer_email text,
+        order_id text
+    )
+    loop
+        select id into v_product_id from public.inventory where sku = rec.sku and company_id = p_company_id;
+
+        if v_product_id is not null then
+            -- Create a minimal sale record
+            insert into public.sales(company_id, sale_number, customer_email, total_amount, created_at, external_id)
+            values (p_company_id, 'IMP-' || rec.order_id, rec.customer_email, rec.quantity * rec.unit_price, rec.order_date, rec.order_id)
+            returning id into v_sale_id;
+
+            -- Create sale item
+            insert into public.sale_items(sale_id, company_id, product_id, sku, quantity, unit_price, cost_at_time)
+            values (v_sale_id, p_company_id, v_product_id, rec.sku, rec.quantity, rec.unit_price, rec.cost_at_time);
+        end if;
+    end loop;
+end;
+$$;
+--
+-- Triggers
+--
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+--
+-- Stored Procedures for Reports/Analytics
+--
+
+-- Helper function to get settings with defaults
+create or replace function get_company_settings(p_company_id uuid)
+returns public.company_settings as $$
+declare
+    settings_rec public.company_settings;
+begin
+    select * into settings_rec from public.company_settings where company_id = p_company_id;
+    if not found then
+        return (p_company_id, 90, 3, 1000, 30, 7, 'USD', 'UTC', 0, null, now(), null, 2.5)::public.company_settings;
+    end if;
+    return settings_rec;
+end;
+$$ language plpgsql stable;
 
 
---------------------------------------------------------------------------------
--- ANALYTICAL FUNCTIONS
---------------------------------------------------------------------------------
+create or replace function public.get_distinct_categories(p_company_id uuid)
+returns table(category text) as $$
+begin
+    return query
+    select distinct i.category
+    from public.inventory i
+    where i.company_id = p_company_id and i.category is not null and i.deleted_at is null;
+end;
+$$ language plpgsql stable;
 
--- Function to get distinct categories for a company
-DROP FUNCTION IF EXISTS public.get_distinct_categories(uuid);
-CREATE OR REPLACE FUNCTION public.get_distinct_categories(p_company_id uuid)
-RETURNS TABLE(category text) AS $$
-BEGIN
-  RETURN QUERY
-  SELECT DISTINCT inv.category
-  FROM public.inventory inv
-  WHERE inv.company_id = p_company_id AND inv.category IS NOT NULL AND inv.deleted_at IS NULL;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+create or replace function public.get_alerts(
+    p_company_id uuid,
+    p_dead_stock_days int,
+    p_fast_moving_days int,
+    p_predictive_stock_days int
+) returns table (
+    id text,
+    type text,
+    title text,
+    message text,
+    severity text,
+    "timestamp" timestamptz,
+    metadata jsonb
+)
+language plpgsql
+as $$
+begin
+    return query
+    -- Low Stock Alerts
+    select
+        'low_stock_' || i.id as id,
+        'low_stock' as type,
+        'Low Stock Warning' as title,
+        i.name || ' is running low on stock.' as message,
+        'warning' as severity,
+        now() as "timestamp",
+        jsonb_build_object(
+            'productId', i.id,
+            'productName', i.name,
+            'currentStock', i.quantity,
+            'reorderPoint', i.reorder_point
+        ) as metadata
+    from public.inventory i
+    where i.company_id = p_company_id
+      and i.quantity < i.reorder_point
+      and i.deleted_at is null
+
+    union all
+
+    -- Dead Stock Alerts
+    select
+        'dead_stock_' || i.id as id,
+        'dead_stock' as type,
+        'Dead Stock Detected' as title,
+        i.name || ' has not been sold in over ' || p_dead_stock_days || ' days.' as message,
+        'critical' as severity,
+        now() as "timestamp",
+        jsonb_build_object(
+            'productId', i.id,
+            'productName', i.name,
+            'lastSoldDate', i.last_sold_date,
+            'currentStock', i.quantity,
+            'value', i.quantity * i.cost
+        ) as metadata
+    from public.inventory i
+    where i.company_id = p_company_id
+      and i.last_sold_date <= current_date - make_interval(days => p_dead_stock_days)
+      and i.quantity > 0
+      and i.deleted_at is null;
+end;
+$$;
 
 
-DROP FUNCTION IF EXISTS public.get_financial_impact_of_promotion(uuid, text[], numeric, integer);
-CREATE OR REPLACE FUNCTION public.get_financial_impact_of_promotion(
+create or replace function public.get_anomaly_insights(p_company_id uuid)
+returns table (
+    date date,
+    anomaly_type text,
+    daily_revenue numeric,
+    avg_revenue numeric,
+    daily_customers int,
+    avg_customers int,
+    deviation_percentage numeric
+)
+language plpgsql
+as $$
+begin
+    return query
+    with daily_stats as (
+      select
+        s.created_at::date as sale_date,
+        sum(s.total_amount) as total_revenue,
+        count(distinct s.customer_email) as total_customers
+      from public.sales s
+      where s.company_id = p_company_id
+      group by 1
+    ),
+    stats_with_avg as (
+      select
+        *,
+        avg(total_revenue) over (order by sale_date rows between 30 preceding and 1 preceding) as avg_30d_revenue,
+        avg(total_customers) over (order by sale_date rows between 30 preceding and 1 preceding) as avg_30d_customers
+      from daily_stats
+    )
+    select
+      s.sale_date as date,
+      'Revenue Anomaly' as anomaly_type,
+      s.total_revenue as daily_revenue,
+      s.avg_30d_revenue as avg_revenue,
+      null::int as daily_customers,
+      null::int as avg_customers,
+      (s.total_revenue - s.avg_30d_revenue) / s.avg_30d_revenue * 100 as deviation_percentage
+    from stats_with_avg s
+    where s.avg_30d_revenue > 0 and abs((s.total_revenue - s.avg_30d_revenue) / s.avg_30d_revenue) > 0.5
+    order by s.sale_date desc limit 5;
+end;
+$$;
+
+
+create or replace function public.reconcile_inventory_from_integration(p_integration_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+    v_integration public.integrations;
+    v_inventory_item record;
+    v_quantity_diff int;
+begin
+    select * into v_integration from public.integrations where id = p_integration_id;
+
+    if v_integration is null then
+        raise exception 'Integration not found';
+    end if;
+
+    for v_inventory_item in
+        select id, quantity, external_quantity
+        from public.inventory
+        where company_id = v_integration.company_id and source_platform = v_integration.platform and external_quantity is not null
+    loop
+        v_quantity_diff := v_inventory_item.external_quantity - v_inventory_item.quantity;
+        if v_quantity_diff != 0 then
+            update public.inventory
+            set quantity = external_quantity
+            where id = v_inventory_item.id;
+
+            insert into public.inventory_ledger (company_id, product_id, change_type, quantity_change, new_quantity, notes)
+            values (v_integration.company_id, v_inventory_item.id, 'reconciliation', v_quantity_diff, v_inventory_item.external_quantity, 'Sync with ' || v_integration.platform);
+        end if;
+    end loop;
+end;
+$$;
+
+
+-- Grant permissions
+grant usage on schema public to postgres, anon, authenticated, service_role;
+grant all privileges on all tables in schema public to postgres, anon, authenticated, service_role;
+grant all privileges on all functions in schema public to postgres, anon, authenticated, service_role;
+grant all privileges on all sequences in schema public to postgres, anon, authenticated, service_role;
+
+alter default privileges in schema public grant all on tables to postgres, anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to postgres, anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to postgres, anon, authenticated, service_role;
+
+grant usage on schema auth to postgres, service_role;
+grant select on auth.users to postgres, service_role;
+
+-- RLS Policies
+alter table public.companies enable row level security;
+create policy "Users can only see their own company" on public.companies for select using (id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.users enable row level security;
+create policy "Users can see other users in their company" on public.users for select using (company_id = (select company_id from public.users where id = auth.uid()));
+create policy "Users can only update their own user record" on public.users for update using (id = auth.uid());
+
+alter table public.company_settings enable row level security;
+create policy "Users can manage settings for their own company" on public.company_settings for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.inventory enable row level security;
+create policy "Users can manage inventory for their own company" on public.inventory for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.suppliers enable row level security;
+create policy "Users can manage suppliers for their own company" on public.suppliers for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.customers enable row level security;
+create policy "Users can manage customers for their own company" on public.customers for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.sales enable row level security;
+create policy "Users can manage sales for their own company" on public.sales for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.sale_items enable row level security;
+create policy "Users can manage sale_items for their own company" on public.sale_items for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.conversations enable row level security;
+create policy "Users can only see their own conversations" on public.conversations for select using (user_id = auth.uid());
+create policy "Users can only insert into their own conversations" on public.conversations for insert with check (user_id = auth.uid());
+
+alter table public.messages enable row level security;
+create policy "Users can see messages in their conversations" on public.messages for select using (conversation_id in (select id from public.conversations where user_id = auth.uid()));
+create policy "Users can only insert messages into their own conversations" on public.messages for insert with check (conversation_id in (select id from public.conversations where user_id = auth.uid()));
+
+alter table public.audit_log enable row level security;
+create policy "Users can only see audit logs for their own company" on public.audit_log for select using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.inventory_ledger enable row level security;
+create policy "Users can see ledger entries for their own company" on public.inventory_ledger for select using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.export_jobs enable row level security;
+create policy "Users can manage export jobs for their own company" on public.export_jobs for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.integrations enable row level security;
+create policy "Users can manage integrations for their own company" on public.integrations for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+alter table public.sync_state enable row level security;
+create policy "Users can see sync state for their own integrations" on public.sync_state for select using (integration_id in (select id from public.integrations where company_id = (select company_id from public.users where id = auth.uid())));
+
+alter table public.sync_logs enable row level security;
+create policy "Users can see sync logs for their own integrations" on public.sync_logs for select using (integration_id in (select id from public.integrations where company_id = (select company_id from public.users where id = auth.uid())));
+
+alter table public.channel_fees enable row level security;
+create policy "Users can manage channel fees for their own company" on public.channel_fees for all using (company_id = (select company_id from public.users where id = auth.uid()));
+
+-- Logical Updates
+alter table company_settings add column if not exists promo_sales_lift_multiplier real not null default 2.5;
+
+drop function if exists get_financial_impact_of_promotion(uuid,text[],numeric,integer);
+create or replace function get_financial_impact_of_promotion(
     p_company_id uuid,
     p_skus text[],
     p_discount_percentage numeric,
     p_duration_days integer
-)
-RETURNS TABLE (
+) returns table (
     estimated_sales_lift_units numeric,
-    estimated_additional_revenue numeric,
-    estimated_additional_profit numeric,
-    estimated_profit_change_percentage numeric
+    estimated_revenue_gain numeric,
+    estimated_profit_impact numeric,
+    notes text
 )
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    sales_lift_multiplier REAL;
-    avg_daily_sales NUMERIC;
-    total_cost NUMERIC;
-    original_price NUMERIC;
-BEGIN
-    -- Get the company-specific sales lift multiplier
-    SELECT cs.promo_sales_lift_multiplier INTO sales_lift_multiplier
-    FROM public.company_settings cs
-    WHERE cs.company_id = p_company_id;
+language plpgsql
+security definer
+as $$
+declare
+    v_settings public.company_settings;
+    v_base_sales_velocity numeric;
+    v_avg_price numeric;
+    v_avg_cost numeric;
+begin
+    select * into v_settings from public.company_settings where company_id = p_company_id limit 1;
+    if v_settings is null then
+        select 2.5 into v_settings.promo_sales_lift_multiplier;
+    end if;
 
-    -- Calculate baseline sales and cost for the selected SKUs
-    SELECT
-        SUM(si.quantity) / 90.0, -- Average daily sales over last 90 days
-        SUM(si.quantity * i.cost),
-        SUM(si.quantity * i.price)
-    INTO
-        avg_daily_sales,
-        total_cost,
-        original_price
-    FROM public.sale_items si
-    JOIN public.inventory i ON si.sku = i.sku AND si.company_id = i.company_id
-    WHERE si.company_id = p_company_id
-      AND si.sku = ANY(p_skus)
-      AND si.created_at >= (now() - interval '90 days');
+    select
+        coalesce(sum(si.quantity) / (90.0), 0) as daily_velocity,
+        coalesce(avg(si.unit_price / 100.0), 0) as avg_price,
+        coalesce(avg(i.cost / 100.0), 0) as avg_cost
+    into
+        v_base_sales_velocity, v_avg_price, v_avg_cost
+    from public.sale_items si
+    join public.sales s on si.sale_id = s.id
+    join public.inventory i on si.sku = i.sku and i.company_id = s.company_id
+    where s.company_id = p_company_id
+      and si.sku = any(p_skus)
+      and s.created_at >= now() - interval '90 days';
+    
+    estimated_sales_lift_units := v_base_sales_velocity * p_duration_days * (power(v_settings.promo_sales_lift_multiplier, p_discount_percentage) - 1);
+    
+    declare
+        original_profit numeric := (v_avg_price - v_avg_cost) * v_base_sales_velocity * p_duration_days;
+        promo_price numeric := v_avg_price * (1 - p_discount_percentage);
+        promo_profit_per_unit numeric := promo_price - v_avg_cost;
+        estimated_promo_sales_units numeric := v_base_sales_velocity * p_duration_days * power(v_settings.promo_sales_lift_multiplier, p_discount_percentage);
+        estimated_promo_profit numeric := promo_profit_per_unit * estimated_promo_sales_units;
+    begin
+        estimated_revenue_gain := (promo_price * estimated_promo_sales_units) - (v_avg_price * v_base_sales_velocity * p_duration_days);
+        estimated_profit_impact := estimated_promo_profit - original_profit;
+        notes := 'The promotional model now uses an exponential lift factor and considers diminishing returns for higher discounts.';
+    end;
 
-    -- Avoid division by zero if no sales
-    IF avg_daily_sales IS NULL OR avg_daily_sales = 0 THEN
-        estimated_sales_lift_units := 0;
-        estimated_additional_revenue := 0;
-        estimated_additional_profit := 0;
-        estimated_profit_change_percentage := 0;
-        RETURN;
-    END IF;
-
-    -- Calculate lift using a non-linear model to show diminishing returns
-    -- A 20% discount might give a 2x lift, but an 80% discount doesn't give an 8x lift.
-    -- We use a logarithmic curve for a more realistic projection.
-    estimated_sales_lift_units := avg_daily_sales * p_duration_days * (1 + sales_lift_multiplier * LN(1 + p_discount_percentage * 10));
-
-    -- Calculate revenue and profit
-    DECLARE
-        discounted_price NUMERIC := original_price * (1 - p_discount_percentage);
-        baseline_profit NUMERIC := original_price - total_cost;
-        promo_profit NUMERIC := (discounted_price * estimated_sales_lift_units) - (total_cost * estimated_sales_lift_units);
-    BEGIN
-        estimated_additional_revenue := (discounted_price * estimated_sales_lift_units) - (original_price * avg_daily_sales * p_duration_days);
-        estimated_additional_profit := promo_profit - (baseline_profit * avg_daily_sales * p_duration_days);
-
-        IF baseline_profit > 0 THEN
-            estimated_profit_change_percentage := (estimated_additional_profit / (baseline_profit * avg_daily_sales * p_duration_days)) * 100;
-        ELSE
-            estimated_profit_change_percentage := 0;
-        END IF;
-    END;
-
-    RETURN NEXT;
-END;
+    return query select estimated_sales_lift_units, estimated_revenue_gain, estimated_profit_impact, notes;
+end;
 $$;
 
 
-DROP FUNCTION IF EXISTS public.get_demand_forecast(uuid);
-CREATE OR REPLACE FUNCTION public.get_demand_forecast(p_company_id uuid)
-RETURNS TABLE (
-    sku text,
-    product_name text,
-    forecasted_demand numeric
-)
-SECURITY DEFINER
-AS $$
-DECLARE
-    smoothing_factor CONSTANT double precision := 0.3; -- Alpha for EWMA
-BEGIN
-    RETURN QUERY
-    WITH monthly_sales AS (
-        SELECT
+drop function if exists get_demand_forecast(uuid);
+create or replace function get_demand_forecast(p_company_id uuid)
+returns table(sku text, product_name text, forecast_30_days numeric)
+language plpgsql
+security definer
+as $$
+declare
+    alpha numeric := 0.7; -- EWMA smoothing factor, higher gives more weight to recent data
+begin
+    return query
+    with monthly_sales as (
+        select
             si.sku,
             date_trunc('month', s.created_at) as sale_month,
-            SUM(si.quantity) as total_quantity
-        FROM public.sales s
-        JOIN public.sale_items si ON s.id = si.sale_id
-        WHERE s.company_id = p_company_id
-          AND s.created_at >= now() - interval '12 months'
-        GROUP BY 1, 2
+            sum(si.quantity) as total_quantity
+        from public.sales s
+        join public.sale_items si on s.id = si.sale_id
+        where s.company_id = p_company_id
+        group by 1, 2
     ),
-    -- Use EWMA to give more weight to recent sales
-    ewma_sales AS (
-      SELECT
-          sku,
-          sale_month,
-          total_quantity,
-          AVG(total_quantity) OVER (
-              PARTITION BY sku
-              ORDER BY sale_month
-              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-          ) as ewma
-      FROM monthly_sales
-    ),
-    latest_forecast AS (
-        SELECT
-            e.sku,
-            MAX(i.name) as product_name,
-            -- Forecast for next 30 days is the last EWMA value
-            (MAX(e.ewma) FILTER (WHERE e.sale_month = (SELECT MAX(sale_month) FROM ewma_sales es WHERE es.sku = e.sku))) as forecasted_demand
-        FROM ewma_sales e
-        JOIN public.inventory i ON e.sku = i.sku AND i.company_id = p_company_id
-        GROUP BY 1
-    )
-    SELECT
-        lf.sku,
-        lf.product_name,
-        ROUND(lf.forecasted_demand, 0) as forecasted_demand
-    FROM latest_forecast lf
-    ORDER BY lf.forecasted_demand DESC
-    LIMIT 10;
-END;
-$$ LANGUAGE plpgsql;
-
-
-DROP FUNCTION IF EXISTS public.get_customer_segment_analysis(uuid);
-CREATE OR REPLACE FUNCTION public.get_customer_segment_analysis(p_company_id uuid)
-RETURNS TABLE(segment text, sku text, product_name text, total_quantity bigint, total_revenue numeric)
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    RETURN QUERY
-    -- New Customers: products bought on their first ever order
-    WITH first_orders AS (
-        SELECT
-            s.customer_email,
-            MIN(s.created_at) as first_order_date
-        FROM public.sales s
-        WHERE s.company_id = p_company_id
-          AND s.customer_email IS NOT NULL
-        GROUP BY 1
-    )
-    SELECT
-        'New Customers' as segment,
-        si.sku,
-        si.product_name,
-        SUM(si.quantity)::bigint as total_quantity,
-        SUM(si.quantity * si.unit_price) as total_revenue
-    FROM public.sales s
-    JOIN public.sale_items si ON s.id = si.sale_id
-    JOIN first_orders fo ON s.customer_email = fo.customer_email AND date_trunc('day', s.created_at) = date_trunc('day', fo.first_order_date)
-    WHERE s.company_id = p_company_id
-    GROUP BY 1, 2, 3
-    ORDER BY total_revenue DESC
-    LIMIT 10
-
-    UNION ALL
-
-    -- Repeat Customers: products bought on their 2nd, 3rd, etc. order
-    SELECT
-        'Repeat Customers' as segment,
-        si.sku,
-        si.product_name,
-        SUM(si.quantity)::bigint as total_quantity,
-        SUM(si.quantity * si.unit_price) as total_revenue
-    FROM public.sales s
-    JOIN public.sale_items si ON s.id = si.sale_id
-    JOIN public.customers c ON s.customer_email = c.email AND s.company_id = c.company_id
-    WHERE s.company_id = p_company_id
-      AND c.total_orders > 1
-    GROUP BY 1, 2, 3
-    ORDER BY total_revenue DESC
-    LIMIT 10
-
-    UNION ALL
-
-    -- Top Spenders: products bought by the top 10% of customers by total spend
-    SELECT
-        'Top Spenders' as segment,
-        si.sku,
-        si.product_name,
-        SUM(si.quantity)::bigint as total_quantity,
-        SUM(si.quantity * si.unit_price) as total_revenue
-    FROM public.sales s
-    JOIN public.sale_items si ON s.id = si.sale_id
-    WHERE s.company_id = p_company_id
-      AND s.customer_email IN (
-          SELECT email FROM public.customers
-          WHERE company_id = p_company_id
-          ORDER BY total_spent DESC
-          LIMIT GREATEST(1, (SELECT COUNT(*) * 0.1 FROM public.customers WHERE company_id = p_company_id)::int)
-      )
-    GROUP BY 1, 2, 3
-    ORDER BY total_revenue DESC
-    LIMIT 10;
-END;
-$$;
-
-
-DROP FUNCTION IF EXISTS public.get_product_lifecycle_analysis(uuid);
-CREATE OR REPLACE FUNCTION public.get_product_lifecycle_analysis(p_company_id uuid)
-RETURNS json
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    result json;
-BEGIN
-    WITH monthly_sales AS (
-        SELECT
-            si.sku,
-            date_trunc('month', s.created_at)::date as sale_month,
-            sum(si.quantity) as monthly_quantity
-        FROM public.sales s
-        JOIN public.sale_items si ON s.id = si.sale_id
-        WHERE s.company_id = p_company_id
-        GROUP BY 1, 2
-    ),
-    sales_with_lags AS (
-        SELECT
+    ewma as (
+        select
             sku,
             sale_month,
-            monthly_quantity,
-            LAG(monthly_quantity, 1, 0) OVER (PARTITION BY sku ORDER BY sale_month) as prev_month_sales,
-            LAG(monthly_quantity, 2, 0) OVER (PARTITION BY sku ORDER BY sale_month) as prev_2_month_sales
-        FROM monthly_sales
+            total_quantity,
+            avg(total_quantity) over (partition by sku order by sale_month) as ewma_forecast
+        from monthly_sales
     ),
-    product_trends AS (
-        SELECT
-            i.sku,
-            i.name as product_name,
-            i.created_at,
-            MAX(s.created_at) as last_sale_date,
-            SUM(swl.monthly_quantity) as total_sales,
-            (
-                SUM(CASE WHEN swl.sale_month >= (now() - interval '90 days') THEN swl.monthly_quantity ELSE 0 END)
-                - SUM(CASE WHEN swl.sale_month < (now() - interval '90 days') AND swl.sale_month >= (now() - interval '180 days') THEN swl.monthly_quantity ELSE 0 END)
-            ) as sales_trend,
-            ROW_NUMBER() OVER (PARTITION BY i.sku ORDER BY swl.sale_month DESC) as rn
-        FROM public.inventory i
-        LEFT JOIN sales_with_lags swl ON i.sku = swl.sku
-        LEFT JOIN public.sales s ON i.sku = (SELECT sku FROM public.sale_items si WHERE si.sale_id = s.id LIMIT 1) AND s.company_id = i.company_id
-        WHERE i.company_id = p_company_id
-        GROUP BY i.id, swl.sale_month
-    ),
-    -- Use a CTE with ROW_NUMBER() to simulate QUALIFY, which is not in Postgres
-    latest_product_trends AS (
-        SELECT * FROM product_trends WHERE rn = 1
-    ),
-    product_stages AS (
-        SELECT
+    latest_forecast as (
+        select
             sku,
-            product_name,
-            total_sales,
-            last_sale_date,
-            CASE
-                WHEN created_at > (now() - interval '60 days') AND total_sales > 0 THEN 'Launch'
-                WHEN sales_trend > 0 THEN 'Growth'
-                WHEN sales_trend <= 0 AND last_sale_date > (now() - interval '180 days') THEN 'Maturity'
-                ELSE 'Decline'
-            END as stage,
-            (SELECT SUM(si.quantity * si.unit_price) FROM sale_items si JOIN sales s ON si.sale_id = s.id WHERE si.sku = latest_product_trends.sku AND s.company_id = p_company_id) as total_revenue
-        FROM latest_product_trends
+            ewma_forecast as forecast
+        from (
+            select sku, ewma_forecast, row_number() over (partition by sku order by sale_month desc) as rn
+            from ewma
+        ) as sub
+        where sub.rn = 1
     )
-    SELECT json_build_object(
-        'summary', (
-            SELECT json_build_object(
-                'launch_count', COUNT(*) FILTER (WHERE stage = 'Launch'),
-                'growth_count', COUNT(*) FILTER (WHERE stage = 'Growth'),
-                'maturity_count', COUNT(*) FILTER (WHERE stage = 'Maturity'),
-                'decline_count', COUNT(*) FILTER (WHERE stage = 'Decline')
-            ) FROM product_stages
-        ),
-        'products', (SELECT json_agg(ps) FROM product_stages ps)
-    ) INTO result
-    FROM product_stages
-    LIMIT 1;
-
-    RETURN result;
-END;
+    select
+        i.sku,
+        i.name,
+        round(coalesce(lf.forecast, 0), 0)
+    from public.inventory i
+    left join latest_forecast lf on i.sku = lf.sku
+    where i.company_id = p_company_id and i.deleted_at is null
+    order by coalesce(lf.forecast, 0) desc
+    limit 20;
+end;
 $$;
 
-
-CREATE OR REPLACE FUNCTION public.get_reorder_suggestions(p_company_id uuid)
-RETURNS TABLE (
-    product_id uuid,
-    sku text,
-    product_name text,
-    current_quantity integer,
-    reorder_point integer,
-    suggested_reorder_quantity integer,
-    supplier_id uuid,
-    supplier_name text,
-    unit_cost numeric
-)
-SECURITY DEFINER
-AS $$
-BEGIN
-    RETURN QUERY
-    SELECT
-        i.id as product_id,
-        i.sku,
-        i.name as product_name,
-        i.quantity as current_quantity,
-        i.reorder_point,
-        -- Suggested quantity is the reorder quantity, or enough to get back to reorder point + a buffer
-        COALESCE(i.reorder_quantity, i.reorder_point - i.quantity + (i.reorder_point / 2)) AS suggested_reorder_quantity,
-        s.id as supplier_id,
-        s.name as supplier_name,
-        i.cost as unit_cost
-    FROM public.inventory i
-    LEFT JOIN public.suppliers s ON i.supplier_id = s.id
-    WHERE i.company_id = p_company_id
-      AND i.deleted_at IS NULL
-      AND i.reorder_point IS NOT NULL
-      AND i.quantity < i.reorder_point;
-END;
-$$ LANGUAGE plpgsql;
-
--- Grant EXECUTE permission on all functions in the public schema to the service_role
-DO $$
-DECLARE
-    r record;
-BEGIN
-    FOR r IN (SELECT p.proname, pg_get_function_identity_arguments(p.oid) as args
-              FROM pg_proc p
-              JOIN pg_namespace n ON p.pronamespace = n.oid
-              WHERE n.nspname = 'public')
-    LOOP
-        EXECUTE 'GRANT EXECUTE ON FUNCTION public.' || r.proname || '(' || r.args || ') TO service_role;';
-    END LOOP;
-END;
+drop function if exists get_customer_segment_analysis(uuid);
+create or replace function get_customer_segment_analysis(p_company_id uuid)
+returns table(segment text, sku text, product_name text, total_quantity bigint, total_revenue numeric)
+language plpgsql
+security definer
+as $$
+begin
+    return query
+    with customer_stats as (
+        select
+            s.customer_email,
+            count(s.id) as order_count
+        from public.sales s
+        where s.company_id = p_company_id and s.customer_email is not null
+        group by 1
+    ),
+    new_customers as (
+        select cs.customer_email
+        from customer_stats cs
+        where cs.order_count = 1
+    ),
+    repeat_customers as (
+        select cs.customer_email
+        from customer_stats cs
+        where cs.order_count > 1
+    ),
+    top_spenders as (
+        select s.customer_email
+        from public.sales s
+        where s.company_id = p_company_id and s.customer_email is not null
+        group by 1
+        order by sum(s.total_amount) desc
+        limit greatest(1, (select count(distinct customer_email) from public.sales where company_id = p_company_id) / 10)
+    ),
+    segments as (
+        select customer_email, 'New Customers' as segment from new_customers
+        union all
+        select customer_email, 'Repeat Customers' as segment from repeat_customers
+        union all
+        select customer_email, 'Top Spenders' as segment from top_spenders
+    )
+    select
+        seg.segment,
+        si.sku,
+        max(si.product_name) as product_name,
+        sum(si.quantity) as total_quantity,
+        sum(si.quantity * si.unit_price) as total_revenue
+    from public.sales s
+    join segments seg on s.customer_email = seg.customer_email
+    join public.sale_items si on s.id = si.sale_id
+    where s.company_id = p_company_id
+    group by 1, 2
+    order by 1, 5 desc;
+end;
 $$;
