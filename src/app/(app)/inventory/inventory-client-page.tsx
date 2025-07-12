@@ -9,12 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Supplier, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles, Wand2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -26,6 +26,7 @@ import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { ExportButton } from '../ui/export-button';
 import { Loader2 } from 'lucide-react';
+import { ProductDescriptionGeneratorDialog } from './product-description-generator';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
@@ -153,6 +154,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historyProductId, setHistoryProductId] = useState<string | null>(null);
+  const [itemForDescription, setItemForDescription] = useState<UnifiedInventoryItem | null>(null);
 
   useEffect(() => {
     setInventory(initialInventory);
@@ -329,6 +331,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             productId={historyProductId}
             onClose={() => setHistoryProductId(null)}
        />
+       
+       <ProductDescriptionGeneratorDialog
+            item={itemForDescription}
+            onClose={() => setItemForDescription(null)}
+            onSaveSuccess={handleSaveItem}
+        />
 
         {showEmptyState ? <EmptyInventoryState /> : (
             <Card>
@@ -395,7 +403,9 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setItemForDescription(item)}><Wand2 className="mr-2 h-4 w-4" />Generate Description</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setHistoryProductId(item.product_id)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
+                                                <DropdownMenuSeparator />
                                                 <DropdownMenuItem onSelect={() => setItemsToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
