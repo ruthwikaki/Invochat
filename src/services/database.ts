@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -1165,23 +1163,16 @@ export async function deleteIntegrationFromDb(id: string, companyId: string) {
 }
 
 
-export async function reconcileInventory(integrationId: string) {
-    if (!isValidUuid(integrationId)) {
-        return { success: false, error: 'Invalid integration ID.' };
-    }
-    
-    try {
-        const supabase = getServiceRoleClient();
-        const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_integration_id: integrationId });
+export async function reconcileInventoryFromPlatform(integrationId: string, companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.rpc('reconcile_inventory_from_integration', { 
+        p_integration_id: integrationId,
+        p_company_id: companyId
+    });
 
-        if (error) {
-            throw new Error(error.message);
-        }
-
-        return { success: true };
-    } catch (e) {
-        logError(e, { context: 'reconcileInventory action' });
-        return { success: false, error: getErrorMessage(e) };
+    if (error) {
+        logError(error, { context: `Reconciliation failed for integration ${integrationId}` });
+        throw error;
     }
 }
 
@@ -1235,5 +1226,3 @@ export async function dbTestQuery(): Promise<{ success: boolean; error?: string;
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-    

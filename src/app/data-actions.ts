@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -54,12 +52,14 @@ import {
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
   getCompanyById,
+  reconcileInventoryFromPlatform,
+  testMaterializedView as dbTestMaterializedView,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
@@ -101,7 +101,7 @@ export async function getCompanySettings() {
 
 export async function updateCompanySettings(formData: FormData) {
   const { companyId } = await getAuthContext();
-  validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+  validateCSRF(formData);
   const settings = {
     dead_stock_days: Number(formData.get('dead_stock_days')),
     fast_moving_days: Number(formData.get('fast_moving_days')),
@@ -117,7 +117,7 @@ export async function getUnifiedInventory(params: { query?: string; category?: s
 }
 
 export async function getInventoryAnalytics() {
-    const { companyId } = await getAuthContext();
+    const { companyId } await getAuthContext();
     return getInventoryAnalyticsFromDB(companyId);
 }
 
@@ -129,7 +129,7 @@ export async function getInventoryCategories() {
 export async function deleteInventoryItems(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         const productIdsString = formData.get('productIds') as string;
         if (!productIdsString) throw new Error('No Product IDs provided for deletion.');
         
@@ -193,7 +193,7 @@ export async function updateSupplier(id: string, data: SupplierFormData) {
 export async function deleteSupplier(formData: FormData) {
     try {
         const { companyId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteSupplierFromDb(id, companyId);
         revalidatePath('/suppliers');
@@ -210,7 +210,7 @@ export async function getIntegrations() {
 
 export async function disconnectIntegration(formData: FormData) {
     try {
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         
         const { companyId } = await getAuthContext();
         const id = formData.get('integrationId') as string;
@@ -232,7 +232,7 @@ export async function getCustomersData(params: { query?: string, page: number })
 export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteCustomerFromDb(id, companyId);
         revalidatePath('/customers');
@@ -249,7 +249,7 @@ export async function searchProductsForSale(query: string) {
 
 export async function recordSale(formData: FormData): Promise<{ success: boolean, sale?: any, error?: string }> {
     try {
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
 
         const { companyId, userId } = await getAuthContext();
         const saleDataString = formData.get('saleData') as string;
@@ -296,7 +296,7 @@ export async function getInsightsPageData() {
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
         getAnomalyInsightsFromDB(companyId),
         getDeadStockReportFromDB(companyId),
-        getAlertsFromDB(),
+        getAlertsFromDB(companyId),
     ]);
 
     const explainedAnomalies = await Promise.all(
@@ -390,7 +390,7 @@ export async function getTeamMembers() {
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         const email = formData.get('email') as string;
         await inviteUserToCompanyInDb(companyId, 'Your Company', email);
         return { success: true };
@@ -402,7 +402,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
 export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
@@ -415,7 +415,7 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
 export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
@@ -434,7 +434,7 @@ export async function getChannelFees() {
 export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId } = await getAuthContext();
-        validateCSRF(formData, cookies().get(CSRF_COOKIE_NAME)?.value);
+        validateCSRF(formData);
         
         const percentageFee = parseFloat(formData.get('percentage_fee') as string);
         if (isNaN(percentageFee) || percentageFee < 0 || percentageFee > 1) {
@@ -597,7 +597,7 @@ export async function getGeneratedProductDescription(productName: string, catego
     return generateProductDescription({ productName, category, keywords });
 }
 
-export async function handleUserMessage({ content, conversationId }: { content: string, conversationId: string | null }) {
+export async function handleUserMessage({ content, conversationId, source }: { content: string, conversationId: string | null, source?: 'chat_page' | 'analytics_page' }) {
     // This function is now a passthrough to the universal chat flow, ensuring consistency.
     const { companyId } = await getAuthContext();
     
@@ -606,4 +606,19 @@ export async function handleUserMessage({ content, conversationId }: { content: 
     const conversationHistory = conversationId ? [{ role: 'user', content: [{ text: content }]}] : [];
     
     return universalChatFlow({ companyId, conversationHistory });
+}
+
+export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId } = await getAuthContext();
+        const result = await reconcileInventoryFromPlatform(integrationId, companyId);
+        revalidatePath('/inventory');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function testMaterializedView() {
+    return dbTestMaterializedView();
 }

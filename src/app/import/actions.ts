@@ -1,15 +1,14 @@
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
 import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
-import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User, CsvMappingInput, CsvMappingOutput } from '@/types';
 import { revalidatePath } from 'next/cache';
@@ -246,13 +245,13 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             return { success: false, isDryRun, summaryMessage: 'You do not have permission to import data.' };
         }
         
-        const { limited } = await rateLimit(user.id, 'data_import', 10, 3600);
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'data_import', 10, 3600);
         if (limited) {
             return { success: false, isDryRun, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
         }
 
-        const csrfTokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
-        validateCSRF(formData, csrfTokenFromCookie);
+        validateCSRF(formData);
 
         const file = formData.get('file') as File | null;
         const dataType = formData.get('dataType') as string;
