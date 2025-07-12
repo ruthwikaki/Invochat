@@ -8,9 +8,11 @@ export const dynamic = 'force-dynamic';
 export default async function ChatPage({
   searchParams,
 }: {
-  searchParams?: { id?: string };
+  searchParams?: { id?: string; q?: string };
 }) {
   const conversationId = searchParams?.id;
+  const prefillQuery = searchParams?.q;
+  
   // Message fetching remains here as it's specific to the conversation being viewed.
   const messages: Message[] = conversationId ? await getMessages(conversationId) : [];
 
@@ -22,6 +24,7 @@ export default async function ChatPage({
           key={conversationId} // Re-mount component when ID changes
           conversationId={conversationId}
           initialMessages={messages}
+          prefillQuery={prefillQuery}
         />
       </main>
     </div>

@@ -103,7 +103,7 @@ function BotAvatar({ isError }: { isError?: boolean }) {
             )}
         >
             <Avatar className={cn('h-8 w-8 bg-card')}>
-                <AvatarFallback className={cn('bg-transparent', isError && 'text-destructive')}>
+                <AvatarFallback className={cn('bg-transparent text-primary-foreground', isError && 'text-destructive')}>
                    {isError ? <AlertTriangle className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
                 </AvatarFallback>
             </Avatar>

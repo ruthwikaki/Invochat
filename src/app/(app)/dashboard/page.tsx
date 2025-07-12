@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, TrendingUp, RefreshCw, ArrowUp, ArrowDown, Plus } from 'lucide-react';

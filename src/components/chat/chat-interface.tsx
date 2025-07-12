@@ -55,7 +55,7 @@ function ChatWelcomePanel() {
     );
 }
 
-export function ChatInterface({ conversationId, initialMessages }: { conversationId?: string; initialMessages: Message[] }) {
+export function ChatInterface({ conversationId, initialMessages, prefillQuery }: { conversationId?: string; initialMessages: Message[], prefillQuery?: string; }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [isPending, startTransition] = useTransition();
@@ -64,6 +64,12 @@ export function ChatInterface({ conversationId, initialMessages }: { conversatio
   const { toast } = useToast();
 
   const isNewChat = !conversationId;
+  
+  useEffect(() => {
+    if (prefillQuery) {
+      setInput(prefillQuery);
+    }
+  }, [prefillQuery]);
 
   const processAndSetMessages = async (userMessageText: string) => {
     // Placeholder until auth is restored
@@ -123,7 +129,7 @@ export function ChatInterface({ conversationId, initialMessages }: { conversatio
         const errorMessage: Message = {
             id: `error_${Date.now()}`,
             role: 'assistant',
-            content: getErrorMessage(error) || 'Could not get response from InvoChat.',
+            content: getErrorMessage(error) || 'Could not get response from ARVO.',
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
             company_id: companyId,
@@ -227,5 +233,3 @@ export function ChatInterface({ conversationId, initialMessages }: { conversatio
     </div>
   );
 }
-
-    
