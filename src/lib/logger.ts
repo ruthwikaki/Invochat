@@ -1,8 +1,8 @@
 
-
 /**
  * @fileoverview A simple, centralized logger for the application.
  * This logger standardizes log output with timestamps and severity levels.
+ * In production, it outputs structured JSON for better interoperability with logging services.
  */
 
 type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
@@ -16,8 +16,20 @@ const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
   if (isProduction && (level === 'DEBUG')) {
       return;
   }
+  
   const timestamp = new Date().toISOString();
-  console.log(`${timestamp} [${level}] - ${message}`, ...optionalParams);
+  
+  if (isProduction) {
+    const logObject = {
+      timestamp,
+      level,
+      message,
+      ...optionalParams[0] && typeof optionalParams[0] === 'object' ? optionalParams[0] : { details: optionalParams },
+    };
+    console.log(JSON.stringify(logObject));
+  } else {
+    console.log(`${timestamp} [${level}] - ${message}`, ...optionalParams);
+  }
 };
 
 function debug(message: string, ...optionalParams: any[]) {

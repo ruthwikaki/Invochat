@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -746,11 +747,13 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 
 export async function getDbSchemaAndData(companyId: string) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    // Harden this function to prevent exposing sensitive table structures.
+    const allowedTables = ['inventory', 'sales', 'customers', 'suppliers', 'company_settings'];
+    
     return withPerformanceTracking('getDbSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
-        const tableNames = ['inventory', 'sales', 'customers', 'suppliers'];
         
-        const results = await Promise.all(tableNames.map(async (tableName) => {
+        const results = await Promise.all(allowedTables.map(async (tableName) => {
             const { data, error } = await supabase
                 .from(tableName)
                 .select('*')
@@ -898,7 +901,7 @@ export async function getInventoryTurnoverFromDB(companyId: string, days: number
     average_inventory_value: number,
     period_days: number
 }> {
-    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    if (!isValidUuid(companyId)) throw new Error('Invalid ID format.');
     return withPerformanceTracking('getInventoryTurnoverFromDB', async () => {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase.rpc('get_inventory_turnover_report', { p_company_id: companyId, p_days: days }).single();

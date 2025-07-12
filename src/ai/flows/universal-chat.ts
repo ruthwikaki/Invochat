@@ -26,6 +26,7 @@ import { getBundleSuggestions } from './suggest-bundles-flow';
 import { getPriceOptimizationSuggestions } from './price-optimization-flow';
 import { getMarkdownSuggestions } from './markdown-optimizer-flow';
 import { findHiddenMoney } from './hidden-money-finder-flow';
+import { isRedisEnabled, redisClient } from '@/lib/redis';
 
 // List of all available tools for the AI to use.
 const allTools = [
@@ -102,6 +103,22 @@ const universalChatOrchestrator = ai.defineFlow(
         throw new Error("User query was empty.");
     }
     
+    // --- Redis Caching Logic ---
+    const cacheKey = `aichat:${companyId}:${userQuery.toLowerCase().replace(/\s+/g, '-')}`;
+    if (isRedisEnabled) {
+      try {
+        const cachedResponse = await redisClient.get(cacheKey);
+        if (cachedResponse) {
+          logger.info(`[AI Cache] HIT for query: "${userQuery}"`);
+          return JSON.parse(cachedResponse);
+        }
+        logger.info(`[AI Cache] MISS for query: "${userQuery}"`);
+      } catch (e) {
+        logError(e, { context: 'Redis cache get failed for AI chat' });
+      }
+    }
+    // --- End Caching Logic ---
+
     const aiModel = config.ai.model;
     
     try {
@@ -134,11 +151,17 @@ const universalChatOrchestrator = ai.defineFlow(
                 // If the tool output has its own nested data (like the supplier analysis flow), use that for the visualization.
                 const dataForVisualization = toolResult.output.performanceData || toolResult.output;
                 
-                return {
+                const responseToCache = {
                     ...finalOutput,
                     data: dataForVisualization,
                     toolName: toolCall.name,
                 };
+                
+                if (isRedisEnabled) {
+                    await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
+                }
+                return responseToCache;
+
             } catch (e) {
                 logError(e, { context: `Tool execution failed for '${toolCall.name}'` });
                 return {
@@ -160,13 +183,18 @@ const universalChatOrchestrator = ai.defineFlow(
             prompt: userQuery,
         });
 
-        return {
+        const responseToCache = {
             response: text,
             data: [],
             visualization: { type: 'none', title: '' },
             confidence: 0.5,
             assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
         };
+        
+        if (isRedisEnabled) {
+            await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
+        }
+        return responseToCache;
 
     } catch (e) {
         const errorMessage = getErrorMessage(e);
