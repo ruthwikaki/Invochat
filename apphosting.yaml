@@ -8,6 +8,6 @@ resources:
   memoryMiB: 1024
 
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
-  maxInstances: 10
+  # Increase this value to allow for more server instances to handle traffic.
+  # This has been increased from 10 to 20 for better scalability.
+  maxInstances: 20

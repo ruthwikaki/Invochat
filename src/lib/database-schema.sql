@@ -1,14 +1,16 @@
-
 -- This script is idempotent and can be run multiple times.
--- It is designed to be the single source of truth for the database schema.
+-- It is the single source of truth for the database schema.
 
 -- =================================================================
 -- 1. Setup Custom Types
 -- =================================================================
--- Drop the type if it exists to ensure a clean slate
-DROP TYPE IF EXISTS public.user_role CASCADE;
--- Create the custom type for user roles
-CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
+-- Create the custom type for user roles if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
+    END IF;
+END$$;
 
 
 -- =================================================================
@@ -30,7 +32,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id uuid NOT NULL,
     company_id uuid NOT NULL,
     email text,
-    role user_role NOT NULL DEFAULT 'Member'::user_role,
+    role public.user_role NOT NULL DEFAULT 'Member'::public.user_role,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT users_pkey PRIMARY KEY (id),
@@ -45,20 +47,13 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id uuid NOT NULL,
     dead_stock_days integer NOT NULL DEFAULT 90,
     overstock_multiplier numeric NOT NULL DEFAULT 3,
-    high_value_threshold numeric NOT NULL DEFAULT 1000,
+    high_value_threshold numeric NOT NULL DEFAULT 100000,
     fast_moving_days integer NOT NULL DEFAULT 30,
     predictive_stock_days integer NOT NULL DEFAULT 7,
     currency text DEFAULT 'USD'::text,
     timezone text DEFAULT 'UTC'::text,
-    tax_rate numeric DEFAULT 0,
-    custom_rules jsonb,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone,
-    subscription_status text DEFAULT 'trial'::text,
-    subscription_plan text DEFAULT 'starter'::text,
-    subscription_expires_at timestamp with time zone,
-    stripe_customer_id text,
-    stripe_subscription_id text,
     promo_sales_lift_multiplier real NOT NULL DEFAULT 2.5,
     CONSTRAINT company_settings_pkey PRIMARY KEY (company_id),
     CONSTRAINT company_settings_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE
@@ -90,9 +85,11 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     name text NOT NULL,
     category text,
     quantity integer NOT NULL DEFAULT 0,
-    cost numeric NOT NULL DEFAULT 0,
-    price numeric,
+    cost integer NOT NULL DEFAULT 0, -- in cents
+    price integer, -- in cents
     reorder_point integer,
+    reorder_quantity integer,
+    lead_time_days integer,
     last_sold_date date,
     barcode text,
     version integer NOT NULL DEFAULT 1,
@@ -105,8 +102,6 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_variant_id text,
     external_quantity integer,
     supplier_id uuid,
-    reorder_quantity integer,
-    lead_time_days integer,
     CONSTRAINT inventory_pkey PRIMARY KEY (id),
     CONSTRAINT inventory_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
     CONSTRAINT inventory_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -123,7 +118,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
     customer_name text NOT NULL,
     email text,
     total_orders integer DEFAULT 0,
-    total_spent numeric DEFAULT 0,
+    total_spent integer DEFAULT 0, -- in cents
     first_order_date date,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
@@ -139,14 +134,14 @@ CREATE TABLE IF NOT EXISTS public.sales (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
     sale_number text NOT NULL,
+    customer_id uuid,
     customer_name text,
     customer_email text,
-    total_amount numeric NOT NULL,
+    total_amount integer NOT NULL, -- in cents
     payment_method text,
     notes text,
     created_at timestamp with time zone DEFAULT now(),
     external_id text,
-    customer_id uuid,
     CONSTRAINT sales_pkey PRIMARY KEY (id),
     CONSTRAINT sales_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
     CONSTRAINT sales_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL,
@@ -159,12 +154,12 @@ ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL,
+    company_id uuid NOT NULL,
+    product_id uuid NOT NULL,
     product_name text,
     quantity integer NOT NULL,
-    unit_price numeric NOT NULL,
-    cost_at_time numeric,
-    company_id uuid NOT NULL,
-    product_id uuid, -- Will be made NOT NULL after migration
+    unit_price integer NOT NULL, -- in cents
+    cost_at_time integer, -- in cents
     CONSTRAINT sale_items_pkey PRIMARY KEY (id),
     CONSTRAINT sale_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
     CONSTRAINT sale_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.inventory(id) ON DELETE RESTRICT,
@@ -236,7 +231,6 @@ CREATE TABLE IF NOT EXISTS public.integrations (
     shop_domain text,
     shop_name text,
     is_active boolean DEFAULT false,
-    access_token text, -- Legacy, to be removed. Secrets are in Vault.
     last_sync_at timestamp with time zone,
     sync_status text,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -310,7 +304,7 @@ CREATE TABLE IF NOT EXISTS public.channel_fees (
     company_id uuid NOT NULL,
     channel_name text NOT NULL,
     percentage_fee numeric NOT NULL,
-    fixed_fee numeric NOT NULL,
+    fixed_fee integer NOT NULL, -- in cents
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     CONSTRAINT channel_fees_pkey PRIMARY KEY (id),
@@ -330,9 +324,30 @@ CREATE TABLE IF NOT EXISTS public.webhook_events (
 );
 ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
 
+-- =================================================================
+-- 3. Create Archive Tables
+-- =================================================================
+
+-- Archive table for sales
+CREATE TABLE IF NOT EXISTS public.sales_archive (
+    LIKE public.sales INCLUDING ALL
+);
+ALTER TABLE public.sales_archive ENABLE ROW LEVEL SECURITY;
+
+-- Archive table for sale items
+CREATE TABLE IF NOT EXISTS public.sale_items_archive (
+    LIKE public.sale_items INCLUDING ALL
+);
+ALTER TABLE public.sale_items_archive ENABLE ROW LEVEL SECURITY;
+
+-- Archive table for audit logs
+CREATE TABLE IF NOT EXISTS public.audit_log_archive (
+    LIKE public.audit_log INCLUDING ALL
+);
+ALTER TABLE public.audit_log_archive ENABLE ROW LEVEL SECURITY;
 
 -- =================================================================
--- 3. Create Indexes for Performance
+-- 4. Create Indexes for Performance
 -- =================================================================
 CREATE INDEX IF NOT EXISTS idx_inventory_company_sku ON public.inventory(company_id, sku);
 CREATE INDEX IF NOT EXISTS idx_inventory_company_id ON public.inventory(company_id);
@@ -348,7 +363,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_deleted_at ON public.inventory(deleted_
 CREATE INDEX IF NOT EXISTS idx_inventory_last_sold_date ON public.inventory(last_sold_date);
 
 -- =================================================================
--- 4. Create Database Functions
+-- 5. Create Database Functions
 -- =================================================================
 
 -- Function to handle new user sign-ups
@@ -389,40 +404,11 @@ BEGIN
 END;
 $$;
 
-
 -- Trigger for new user function
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
-
--- This is a one-time migration step to ensure data integrity.
--- It can be safely re-run.
-DO $$
-BEGIN
-    IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='sale_items' AND column_name='sku') THEN
-        -- Only run this if the 'sku' column still exists, indicating the migration hasn't been fully completed.
-        -- Backfill product_id from sku for any legacy records
-        UPDATE public.sale_items si
-        SET product_id = i.id
-        FROM public.inventory i
-        WHERE si.sku = i.sku
-          AND si.company_id = i.company_id
-          AND si.product_id IS NULL; -- Only update where it's not already set
-    END IF;
-EXCEPTION
-    WHEN undefined_column THEN
-        -- This is expected if the 'sku' column has already been dropped.
-        RAISE NOTICE 'Column "sku" not found in "sale_items", skipping backfill.';
-END
-$$;
-
--- After backfill, alter the column to be NOT NULL
-ALTER TABLE public.sale_items ALTER COLUMN product_id SET NOT NULL;
-
--- Finally, drop the redundant SKU column if it exists
-ALTER TABLE public.sale_items DROP COLUMN IF EXISTS sku;
 
 
 -- Updated function to record a sale transaction
@@ -435,14 +421,17 @@ CREATE OR REPLACE FUNCTION public.record_sale_transaction_v2(
     p_payment_method text,
     p_notes text,
     p_external_id text
-) RETURNS public.sales LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+) RETURNS public.sales 
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
 DECLARE
     v_sale_id uuid;
     v_customer_id uuid;
     v_sale_number text;
-    v_total_amount numeric := 0;
+    v_total_amount integer := 0;
     v_item RECORD;
-    v_product_cost numeric;
+    v_product_cost integer;
     v_new_quantity integer;
     v_sale_record public.sales;
 BEGIN
@@ -467,7 +456,7 @@ BEGIN
     END IF;
 
     -- Calculate total sale amount
-    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price numeric)
+    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price integer)
     LOOP
         v_total_amount := v_total_amount + (v_item.quantity * v_item.unit_price);
     END LOOP;
@@ -485,7 +474,7 @@ BEGIN
     ) RETURNING id INTO v_sale_id;
     
     -- Process each item in the sale
-    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price numeric, product_name text)
+    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price integer, product_name text)
     LOOP
         -- Get current product cost for the sale item record
         SELECT cost INTO v_product_cost FROM public.inventory WHERE id = v_item.product_id;
@@ -518,7 +507,7 @@ BEGIN
         UPDATE public.customers
         SET total_orders = total_orders + 1,
             total_spent = total_spent + v_total_amount,
-            first_order_date = LEAST(first_order_date, current_date)
+            first_order_date = LEAST(COALESCE(first_order_date, '9999-12-31'), current_date)
         WHERE id = v_customer_id;
     END IF;
 
@@ -529,31 +518,65 @@ END;
 $$;
 
 
+-- Function to archive old data
+CREATE OR REPLACE FUNCTION public.archive_old_data(p_cutoff_date date)
+RETURNS TABLE(archived_table text, archived_count bigint) AS $$
+DECLARE
+    v_sales_count bigint;
+    v_audit_log_count bigint;
+BEGIN
+    -- Archive sales and sale_items
+    WITH moved_sales AS (
+        DELETE FROM public.sales
+        WHERE created_at < p_cutoff_date
+        RETURNING *
+    )
+    INSERT INTO public.sales_archive SELECT * FROM moved_sales;
+    GET DIAGNOSTICS v_sales_count = ROW_COUNT;
+
+    -- Note: sale_items are deleted via CASCADE constraint
+
+    -- Archive audit logs
+    WITH moved_logs AS (
+        DELETE FROM public.audit_log
+        WHERE created_at < p_cutoff_date
+        RETURNING *
+    )
+    INSERT INTO public.audit_log_archive SELECT * FROM moved_logs;
+    GET DIAGNOSTICS v_audit_log_count = ROW_COUNT;
+
+    -- Return summary
+    RETURN QUERY SELECT 'sales' as archived_table, v_sales_count as archived_count;
+    RETURN QUERY SELECT 'audit_log' as archived_table, v_audit_log_count as archived_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+
 
 -- =================================================================
--- 5. Define Row-Level Security (RLS) Policies
+-- 6. Define Row-Level Security (RLS) Policies
 -- =================================================================
-CREATE OR REPLACE FUNCTION is_member_of_company(p_company_id uuid)
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+CREATE OR REPLACE FUNCTION public.is_member_of_company(p_company_id uuid)
+RETURNS boolean AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.users
     WHERE id = auth.uid() AND company_id = p_company_id AND deleted_at IS NULL
   );
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 -- Helper function to get the role of the current user for their company
-CREATE OR REPLACE FUNCTION get_my_role(p_company_id uuid)
-RETURNS user_role LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+CREATE OR REPLACE FUNCTION public.get_my_role(p_company_id uuid)
+RETURNS public.user_role AS $$
 DECLARE
-    v_role user_role;
+    v_role public.user_role;
 BEGIN
     SELECT role INTO v_role FROM public.users
     WHERE id = auth.uid() AND company_id = p_company_id AND deleted_at IS NULL;
     RETURN v_role;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 
 -- Policies for 'companies' table
@@ -586,7 +609,8 @@ BEGIN
         WHERE table_schema = 'public' AND table_name IN (
             'suppliers', 'inventory', 'customers', 'sales', 'sale_items', 'inventory_ledger',
             'conversations', 'messages', 'integrations', 'sync_logs', 'sync_state',
-            'audit_log', 'export_jobs', 'channel_fees', 'webhook_events'
+            'audit_log', 'export_jobs', 'channel_fees', 'webhook_events',
+            'sales_archive', 'sale_items_archive', 'audit_log_archive'
         )
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS "Allow full access for company members" ON public.%I', t_name);
@@ -602,7 +626,7 @@ $$;
 
 
 -- =================================================================
--- 6. Grant Usage on Schema and Tables
+-- 7. Grant Usage on Schema and Tables
 -- =================================================================
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
@@ -612,10 +636,3 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, se
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
-
-
--- =================================================================
--- 7. Secure Materialized Views
--- =================================================================
-REVOKE ALL ON public.company_dashboard_metrics FROM anon, authenticated;
-REVOKE ALL ON public.customer_analytics_metrics FROM anon, authenticated;
