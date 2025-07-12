@@ -154,7 +154,7 @@ function StrategicReports() {
 
     const handleRunAnalysis = (prompt: string, key: string) => {
         // Special cases for scenarios that should be handled in chat
-        if (key === 'what_if_po' || key === 'what_if_promo') {
+        if (key === 'what_if_promo') {
             router.push(`/chat?q=${encodeURIComponent(prompt)}`);
             return;
         }

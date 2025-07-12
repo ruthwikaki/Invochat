@@ -449,14 +449,31 @@ export async function updateProductInDb(companyId: string, productId: string, da
             .update({ ...parsedData, updated_at: new Date().toISOString() })
             .eq('id', productId)
             .eq('company_id', companyId)
-            .select()
+            .select('*, supplier:suppliers(name)')
             .single();
 
         if (error) {
             logError(error, { context: `Failed to update product ${productId}` });
             throw error;
         }
-        return updated;
+        
+        // Transform the response to match UnifiedInventoryItem
+        const transformed = {
+          product_id: updated.id,
+          sku: updated.sku,
+          product_name: updated.name,
+          category: updated.category,
+          quantity: updated.quantity,
+          cost: updated.cost,
+          price: updated.price,
+          total_value: updated.quantity * updated.cost,
+          reorder_point: updated.reorder_point,
+          supplier_name: updated.supplier?.name || null,
+          supplier_id: updated.supplier_id,
+          barcode: updated.barcode,
+        };
+
+        return UnifiedInventoryItemSchema.parse(transformed);
     });
 }
 
@@ -767,6 +784,16 @@ export async function getBusinessProfile(companyId: string): Promise<BusinessPro
     });
 }
 
+export async function getCompanyById(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('companies').select('name').eq('id', companyId).single();
+    if (error) {
+        logError(error, { context: `Failed to fetch company ${companyId}` });
+        return null;
+    }
+    return data;
+}
+
 
 export async function healthCheckInventoryConsistency(companyId: string): Promise<HealthCheckResult> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
@@ -1062,17 +1089,6 @@ export async function getMarginTrendsFromDB(companyId: string) {
     }
     return data;
 }
-
-export async function getFinancialImpactOfPoFromDB(companyId: string, items: { sku: string; quantity: number }[]) {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_financial_impact_of_po', { p_company_id: companyId, p_items: items });
-    if (error) {
-        logError(error, { context: 'get_financial_impact_of_po RPC failed' });
-        throw error;
-    }
-    return data;
-}
-
 
 export async function getFinancialImpactOfPromotionFromDB(companyId: string, skus: string[], discountPercentage: number, durationDays: number) {
     const supabase = getServiceRoleClient();

@@ -2,98 +2,74 @@
 
 'use server';
 
-import type { Message } from '@/types';
-import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { createServerClient } from '@supabase/ssr';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { rateLimit } from '@/lib/redis';
-import { config } from '@/config/app-config';
 import {
   getDashboardMetrics,
-  getDeadStockPageData,
-  getAlertsFromDB,
-  getDbSchemaAndData,
   getSettings,
   updateSettingsInDb,
-  getAnomalyInsightsFromDB,
   getInventoryCategoriesFromDB,
   getUnifiedInventoryFromDB,
-  getTeamMembersFromDB,
-  inviteUserToCompanyInDb,
-  removeTeamMemberFromDb,
-  updateTeamMemberRoleInDb,
-  getReorderSuggestionsFromDB,
-  createPurchaseOrdersFromSuggestionsInDb,
-  getPurchaseOrdersFromDB,
-  getPurchaseOrderByIdFromDB,
-  updatePurchaseOrderInDb,
-  deletePurchaseOrderFromDb,
-  receivePurchaseOrderItemsInDB,
-  getChannelFeesFromDB,
-  upsertChannelFeeInDB,
-  getLocationsFromDB,
-  getLocationByIdFromDB,
-  createLocationInDB,
-  updateLocationInDB,
-  deleteLocationFromDb,
   getSupplierByIdFromDB,
   createSupplierInDb,
   updateSupplierInDb,
   deleteSupplierFromDb,
   softDeleteInventoryItemsFromDb,
-  updateInventoryItemInDb,
   getInventoryLedgerForSkuFromDB,
   getCustomersFromDB,
-  getCustomerAnalyticsFromDB,
   deleteCustomerFromDb,
   searchProductsForSaleInDB,
   recordSaleInDB,
   getSalesFromDB,
-  createExportJobInDb,
-  refreshMaterializedViews,
   getIntegrationsByCompanyId,
   getInventoryAnalyticsFromDB,
   getSalesAnalyticsFromDB,
   getSuppliersDataFromDB,
   testSupabaseConnection as dbTestSupabase,
   testDatabaseQuery as dbTestQuery,
-  testMaterializedView as dbTestMView,
-  getBusinessProfile,
-  healthCheckInventoryConsistency,
-  healthCheckFinancialConsistency,
-  createAuditLogInDb,
   updateProductInDb,
-  approvePurchaseOrderInDb,
-  transferInventoryInDb,
-  reconcileInventoryInDb,
-  getInventoryAgingReportFromDB,
-  getFinancialImpactOfPoFromDB as dbGetFinancialImpact,
   logUserFeedbackInDb,
-  getSalesVelocityFromDB,
-  getDemandForecastFromDB,
-  getAbcAnalysisFromDB,
-  getGrossMarginAnalysisFromDB,
-  getNetMarginByChannelFromDB,
-  getMarginTrendsFromDB,
-  getHistoricalSalesForSkus,
+  getDeadStockReportFromDB,
+  getReorderSuggestionsFromDB,
+  getAnomalyInsightsFromDB,
+  getDbSchemaAndData,
+  healthCheckFinancialConsistency,
+  healthCheckInventoryConsistency,
+  createExportJobInDb,
+  getAlertsFromDB,
+  getCustomerAnalyticsFromDB,
+  getInventoryAgingReportFromDB,
+  getProductLifecycleAnalysisFromDB,
+  getInventoryRiskReportFromDB,
+  getCustomerSegmentAnalysisFromDB,
+  getTeamMembersFromDB,
+  inviteUserToCompanyInDb,
+  removeTeamMemberFromDb,
+  updateTeamMemberRoleInDb,
+  getChannelFeesFromDB,
+  upsertChannelFeeInDB,
+  getCashFlowInsightsFromDB,
   getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB
+  getInventoryTurnoverFromDB,
+  getCompanyById,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import {
-    generateAnomalyExplanation,
-} from '@/ai/flows/anomaly-explanation-flow';
-import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import type { Alert, Anomaly, CompanySettings, InventoryUpdateData, LocationFormData, PurchaseOrder, PurchaseOrderCreateInput, PurchaseOrderUpdateInput, ReorderSuggestion, ReceiveItemsFormInput, SupplierFormData, SaleCreateInput, ProductUpdateData, InventoryAgingReportItem, HealthCheckResult } from '@/types';
-import { sendPurchaseOrderEmail } from '@/services/email';
+import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
-import { ai } from '@/ai/genkit';
-import { createPurchaseOrderInDb } from '@/services/database';
+import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
+import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
+import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
+import { sendInventoryDigestEmail } from '@/services/email';
+import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
+import { generateProductDescription } from '@/ai/flows/generate-description-flow';
+import { universalChatFlow } from '@/ai/flows/universal-chat';
+import type { Message } from '@/types';
+
 
 async function getAuthContext() {
     const cookieStore = cookies();
@@ -108,7 +84,7 @@ async function getAuthContext() {
     if (!user) throw new Error('User not authenticated.');
     const companyId = user.app_metadata?.company_id;
     if (!companyId) throw new Error('Company ID not found for user.');
-    return { companyId, userId: user.id };
+    return { companyId, userId: user.id, userEmail: user.email! };
 }
 
 // --- Simplified Core Actions ---
@@ -315,40 +291,25 @@ export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     return getReorderSuggestionsFromDB(companyId);
 }
 
-export async function getInventoryHealthScore() {
-    const { companyId } = await getAuthContext();
-    return getInventoryHealthScoreFromDB(companyId);
-}
-
-export async function findProfitLeaks() {
-    const { companyId } = await getAuthContext();
-    return findProfitLeaksFromDB(companyId);
-}
-
-export async function getAbcAnalysis() {
-    const { companyId } = await getAuthContext();
-    return getAbcAnalysisFromDB(companyId);
-}
-
 export async function getInsightsPageData() {
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
         getAnomalyInsightsFromDB(companyId),
         getDeadStockReportFromDB(companyId),
-        getAlertsFromDB(companyId),
+        getAlertsFromDB(),
     ]);
 
     const explainedAnomalies = await Promise.all(
         rawAnomalies.map(async (anomaly) => {
             const date = new Date(anomaly.date);
-            const explanation = await generateAnomalyExplanation({
-                anomaly,
-                dateContext: {
-                    dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
-                    month: date.toLocaleDateString('en-US', { month: 'long' }),
-                    season: 'Summer', // This is a placeholder; a real app might use a date library for this
-                    knownHoliday: undefined, // Placeholder; would need a holiday calendar
-                },
+            const explanation = await generateAlertExplanation({
+                id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
+                type: 'predictive',
+                title: anomaly.anomaly_type,
+                message: `Deviation of ${anomaly.deviation_percentage.toFixed(0)}% from the average.`,
+                severity: 'warning',
+                timestamp: anomaly.date,
+                metadata: { ...anomaly },
             });
             return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
         })
@@ -588,97 +549,145 @@ export async function getInventoryTurnover() {
     return getInventoryTurnoverFromDB(companyId, settings.fast_moving_days);
 }
 
-export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
+
+export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> {
     try {
-        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60);
-        if (limited) {
-            return { error: 'You have reached the request limit. Please try again in a minute.' };
-        }
-
-        const companyId = await getAuthContext();
-        
-        let currentConversationId = conversationId;
-        if (!currentConversationId) {
-            const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
-            currentConversationId = await saveConversation(companyId, newTitle);
-        }
-
-        const userMessageToSave = {
-            conversation_id: currentConversationId,
-            company_id: companyId,
-            role: 'user' as const,
-            content: content,
-        };
-        await saveMessage(userMessageToSave);
-
-        // Fetch recent messages for history
-        const cookieStore = cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-              cookies: { get: (name: string) => cookieStore.get(name)?.value },
-            }
-        );
-        const { data: historyData, error: historyError } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', currentConversationId)
-            .order('created_at', { ascending: false })
-            .limit(config.ai.historyLimit);
-
-        if (historyError) {
-            logError(historyError, { context: 'Failed to fetch conversation history' });
-        }
-        const conversationHistory = (historyData || []).map(m => ({
-            role: m.role as 'user' | 'assistant' | 'tool',
-            content: [{ text: m.content }]
-        })).reverse();
-
-
-        const response = await universalChatFlow({ companyId, conversationHistory });
-        
-        let component = null;
-        let componentProps = {};
-
-        if (response.toolName === 'getDeadStockReport') {
-            component = 'deadStockTable';
-            componentProps = { data: response.data };
-        }
-        if (response.toolName === 'getReorderSuggestions') {
-            component = 'reorderList';
-            componentProps = { items: response.data };
-        }
-        if (response.toolName === 'getSupplierPerformanceReport') {
-            component = 'supplierPerformanceTable';
-            componentProps = { data: response.data };
-        }
-         if (response.toolName === 'createPurchaseOrdersFromSuggestions') {
-            component = 'confirmation';
-            componentProps = { ...response.data };
-        }
-
-        const newMessage: Message = {
-            id: `ai_${Date.now()}`,
-            conversation_id: currentConversationId,
-            company_id: companyId,
-            role: 'assistant',
-            content: response.response,
-            visualization: response.visualization,
-            confidence: response.confidence,
-            assumptions: response.assumptions,
-            created_at: new Date().toISOString(),
-            component,
-            componentProps
-        };
-
-        await saveMessage({ ...newMessage, id: undefined, created_at: undefined });
-        
-        return { newMessage, conversationId: currentConversationId };
-
-    } catch(e) {
-        logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
-        return { error: getErrorMessage(e) };
+        const { userEmail } = await getAuthContext();
+        const insights = await getInsightsPageData();
+        await sendInventoryDigestEmail(userEmail, insights);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> {
+    const { companyId } = await getAuthContext();
+    return getProductLifecycleAnalysisFromDB(companyId);
+}
+
+export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> {
+    const { companyId } = await getAuthContext();
+    return getInventoryRiskReportFromDB(companyId);
+}
+
+export async function getCustomerSegmentAnalysis(): Promise<{
+    segments: CustomerSegmentAnalysisItem[],
+    insights: { analysis: string, suggestion: string } | null
+}> {
+    const { companyId } = await getAuthContext();
+    const segments = await getCustomerSegmentAnalysisFromDB(companyId);
+    if (segments.length === 0) {
+        return { segments, insights: null };
+    }
+    const insights = await getCustomerInsights({ segments });
+    return { segments, insights };
+}
+
+export async function getMorningBriefing(range: string) {
+    const { companyId } = await getAuthContext();
+    const [metrics, company] = await Promise.all([
+        getDashboardMetrics(companyId, range),
+        getCompanyById(companyId),
+    ]);
+    return generateMorningBriefing({ metrics, companyName: company?.name });
+}
+
+export async function getGeneratedProductDescription(productName: string, category: string, keywords: string[]) {
+    return generateProductDescription({ productName, category, keywords });
+}
+
+export async function handleUserMessage({ content, conversationId, source }: { content: string, conversationId: string | null, source?: 'chat_page' | 'analytics_page' }) {
+    const { companyId } = await getAuthContext();
+    
+    let currentConversationId = conversationId;
+    // Create a new conversation if it's coming from the analytics page
+    if (!currentConversationId) {
+        const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
+        currentConversationId = await saveConversation(companyId, newTitle);
+    }
+
+    const conversationHistory = currentConversationId 
+        ? await getMessageHistory(currentConversationId)
+        : [];
+
+    // Add the new user message to the history for the AI call
+    conversationHistory.push({ role: 'user', content: [{ text: content }] });
+    
+    // Save the user message to the database
+    const userMessageToSave = {
+        conversation_id: currentConversationId!,
+        company_id: companyId,
+        role: 'user' as const,
+        content: content,
+    };
+    await saveMessage(userMessageToSave);
+
+    // Call the AI
+    const response = await universalChatFlow({ companyId, conversationHistory });
+
+    // Save the AI response
+    const aiMessageToSave: Omit<Message, 'id' | 'created_at'> = {
+        conversation_id: currentConversationId!,
+        company_id: companyId,
+        role: 'assistant',
+        content: response.response,
+        visualization: response.visualization,
+        confidence: response.confidence,
+        assumptions: response.assumptions,
+    };
+    await saveMessage(aiMessageToSave);
+
+    // This is a bit of a hack to get the full message back to the client
+    const newMessage = {
+        ...aiMessageToSave,
+        id: `ai_${Date.now()}`,
+        created_at: new Date().toISOString()
+    }
+
+    return { newMessage, conversationId: currentConversationId };
+}
+
+async function saveConversation(companyId: string, title: string): Promise<string> {
+    const { userId } = await getAuthContext();
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('conversations')
+        .insert({ user_id: userId, company_id: companyId, title })
+        .select('id')
+        .single();
+    
+    if (error) {
+        logError(error, { context: 'Failed to save new conversation' });
+        throw new Error('Could not save conversation.');
+    }
+    return data.id;
+}
+
+async function saveMessage(message: Omit<Message, 'id' | 'created_at'>) {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('messages').insert(message);
+    if (error) {
+        logError(error, { context: 'Failed to save message' });
+    }
+}
+
+async function getMessageHistory(conversationId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(20); // Limit history to prevent excessive token usage
+
+    if (error) {
+        logError(error, { context: `Failed to fetch history for conversation ${conversationId}` });
+        return [];
+    }
+
+    return (data || []).map(m => ({
+        role: m.role as 'user' | 'assistant' | 'tool',
+        content: [{ text: m.content }]
+    }));
 }

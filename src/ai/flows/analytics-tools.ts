@@ -131,31 +131,6 @@ export const getMarginTrends = ai.defineTool(
   }
 );
 
-export const getFinancialImpactAnalysis = ai.defineTool(
-  {
-      name: 'getFinancialImpactAnalysis',
-      description: "Use for 'what-if' scenarios related to purchasing. Analyzes the financial impact of a potential purchase order without actually creating it. Calculates the cost and its effect on key business metrics.",
-      inputSchema: z.object({
-        companyId: z.string().uuid(),
-        items: z.array(z.object({
-            sku: z.string(),
-            quantity: z.number().int().positive(),
-        })).describe("An array of items (SKU and quantity) to analyze for a potential purchase.")
-      }),
-      outputSchema: z.any(),
-  },
-  async ({ companyId, items }) => {
-    try {
-        logger.info(`[Analytics Tool] Running financial impact analysis for company: ${companyId}`);
-        return await db.getFinancialImpactOfPoFromDB(companyId, items);
-    } catch (e) {
-        logError(e, { context: `[Analytics Tool] Financial impact analysis failed for company ${companyId}`});
-        throw new Error('An error occurred while trying to run the financial impact analysis.');
-    }
-  }
-);
-
-
 export const getPromotionalImpactAnalysis = ai.defineTool(
   {
       name: 'getPromotionalImpactAnalysis',

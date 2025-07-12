@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview SMB-specific safety configurations.
  * This file centralizes all the guardrail settings that make the application
@@ -6,22 +5,6 @@
  */
 
 export const SMB_CONFIG = {
-  financial: {
-    // The maximum percentage of monthly revenue that a single PO can represent.
-    // Prevents a single bad order from bankrupting the company.
-    maxSingleOrderPercent: 0.15,
-    
-    // The maximum percentage of monthly revenue that can be tied up in all open POs.
-    // Protects cash flow.
-    maxTotalExposurePercent: 0.35,
-    
-    // The percentage of monthly revenue to always keep as a buffer.
-    emergencyReservePercent: 0.10,
-
-    // The maximum value for a PO that can be created without requiring manual review/approval.
-    autoApprovalLimit: 100000, // $1,000.00 in cents
-  },
-  
   operational: {
     // The maximum number of conversation history items to send to the AI.
     // Prevents excessive token usage and high API costs.
@@ -37,9 +20,6 @@ export const SMB_CONFIG = {
   },
   
   safety: {
-    // Enables/disables all financial circuit breakers.
-    enableFinancialCircuitBreakers: true,
-    
     // Enables/disables the AI Decision Validator.
     enableAIDecisionValidation: true,
     

@@ -1,5 +1,4 @@
 
-
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -21,7 +20,7 @@ import { getReorderSuggestions } from './reorder-tool';
 import { getSupplierAnalysisTool } from './analyze-supplier-flow';
 import { getDeadStockReport } from './dead-stock-tool';
 import { getInventoryTurnoverReport } from './inventory-turnover-tool';
-import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getFinancialImpactAnalysis, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
+import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import { getBundleSuggestions } from './suggest-bundles-flow';
 import { getPriceOptimizationSuggestions } from './price-optimization-flow';
@@ -40,7 +39,6 @@ const allTools = [
     getGrossMarginAnalysis,
     getNetMarginByChannel,
     getMarginTrends,
-    getFinancialImpactAnalysis,
     getSalesVelocity,
     getBundleSuggestions,
     getPriceOptimizationSuggestions,
