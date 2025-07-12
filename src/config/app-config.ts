@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Centralized, environment-aware configuration for InvoChat.
  *
@@ -50,6 +49,12 @@ const parseIntWithDefault = (value: string | undefined, defaultValue: number): n
     return isNaN(parsed) ? defaultValue : parsed;
 };
 
+const parseFloatWithDefault = (value: string | undefined, defaultValue: number): number => {
+    if (value === undefined) return defaultValue;
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? defaultValue : parsed;
+};
+
 const isProduction = process.env.NODE_ENV === 'production';
 
 export const config = {
@@ -85,6 +90,7 @@ export const config = {
     predictiveStockDays: parseIntWithDefault(process.env.BL_PREDICTIVE_STOCK_DAYS, 7),
     overstockMultiplier: parseIntWithDefault(process.env.BL_OVERSTOCK_MULTIPLIER, 3),
     highValueThreshold: parseIntWithDefault(process.env.BL_HIGH_VALUE_THRESHOLD, 100000),
+    promoSalesLiftMultiplier: parseFloatWithDefault(process.env.BL_PROMO_SALES_LIFT_MULTIPLIER, 2.5),
   },
   chat: {
     quickActions: [
@@ -103,4 +109,3 @@ export const config = {
 
 // A type alias for convenience
 export type AppConfig = typeof config;
-
