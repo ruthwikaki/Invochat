@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -32,9 +33,6 @@ import {
   logUserFeedbackInDb,
   getDeadStockReportFromDB,
   getReorderSuggestionsFromDB,
-  getInventoryHealthScoreFromDB,
-  findProfitLeaksFromDB,
-  getAbcAnalysisFromDB,
   getAnomalyInsightsFromDB,
   getDbSchemaAndData,
   healthCheckFinancialConsistency,
@@ -286,21 +284,6 @@ export async function getDeadStockData() {
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
     return getReorderSuggestionsFromDB(companyId);
-}
-
-export async function getInventoryHealthScore() {
-    const { companyId } = await getAuthContext();
-    return getInventoryHealthScoreFromDB(companyId);
-}
-
-export async function findProfitLeaks() {
-    const { companyId } = await getAuthContext();
-    return findProfitLeaksFromDB(companyId);
-}
-
-export async function getAbcAnalysis() {
-    const { companyId } = await getAuthContext();
-    return getAbcAnalysisFromDB(companyId);
 }
 
 export async function getInsightsPageData() {

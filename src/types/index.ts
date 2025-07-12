@@ -385,7 +385,7 @@ export const ProductLifecycleAnalysisSchema = z.object({
     }),
     products: z.array(z.any()),
 });
-export type ProductLifecycleAnalysis = z.infer<typeof ProductLifecycleAnalysisSchema>;
+export type ProductLifecycleAnalysis = z.infer<typeof ProductLifecycleAnalysis>;
 
 export const InventoryRiskItemSchema = z.object({
   sku: z.string(),
@@ -405,3 +405,22 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
     total_revenue: z.coerce.number().int(),
 });
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
+
+export const ExportJobSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  requested_by_user_id: z.string().uuid(),
+  status: z.string(),
+  download_url: z.string().nullable(),
+  expires_at: z.string().datetime({ offset: true }).nullable(),
+  created_at: z.string().datetime({ offset: true }),
+});
+export type ExportJob = z.infer<typeof ExportJobSchema>;
+
+export const BusinessProfileSchema = z.object({
+  total_revenue_last_12_months: z.number(),
+  total_cogs_last_12_months: z.number(),
+  total_inventory_value: z.number(),
+  product_category_count: z.number().int(),
+});
+export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;

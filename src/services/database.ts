@@ -347,31 +347,25 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
-        let queryBuilder = supabase
-            .from('inventory_view')
-            .select('*', { count: 'exact' })
-            .eq('company_id', companyId);
+        
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_unified_inventory', {
+            p_company_id: companyId,
+            p_query: params.query || null,
+            p_category: params.category || null,
+            p_supplier_id: params.supplier || null,
+            p_sku_filter: null,
+            p_limit: params.limit,
+            p_offset: params.offset
+        }).single();
 
-        if(params.query) {
-            queryBuilder = queryBuilder.ilike('product_name', `%${params.query}%`);
-        }
-        if (params.category) {
-            queryBuilder = queryBuilder.eq('category', params.category);
-        }
-        if(params.supplier) {
-            queryBuilder = queryBuilder.eq('supplier_id', params.supplier);
-        }
-        
-        const { data, count, error } = await queryBuilder.range(params.offset || 0, (params.offset || 0) + (params.limit || 50) - 1);
-        
-        if (error) {
-            logError(error, { context: 'getUnifiedInventoryFromDB failed' });
-            throw new Error(`Could not load inventory data: ${error.message}`);
+        if (rpcError) {
+            logError(rpcError, { context: 'getUnifiedInventoryFromDB failed' });
+            throw new Error(`Could not load inventory data: ${rpcError.message}`);
         }
         
         return {
-            items: z.array(UnifiedInventoryItemSchema).parse(data || []),
-            totalCount: count || 0,
+            items: z.array(UnifiedInventoryItemSchema).parse(rpcData.items || []),
+            totalCount: rpcData.total_count || 0,
         };
     });
 }
@@ -490,30 +484,23 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
      if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getCustomersFromDB', async () => {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('customer_analytics_metrics').select('*', { count: 'exact' }).eq('company_id', companyId);
         
-        if (params.query) {
-            query = query.or(`customer_name.ilike.%${params.query}%,email.ilike.%${params.query}%`);
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_customers_with_stats', {
+            p_company_id: companyId,
+            p_query: params.query || null,
+            p_limit: params.limit,
+            p_offset: params.offset
+        }).single();
+        
+        if (rpcError) {
+            logError(rpcError, { context: `Failed to fetch customers for company ${companyId}` });
+            throw rpcError;
         }
-
-        const { data, count, error } = await query
-            .order('total_spent', { ascending: false })
-            .range(params.offset, params.offset + params.limit - 1);
         
-        if (error) {
-            logError(error, { context: `Failed to fetch customers for company ${companyId}` });
-            throw error;
-        }
-
-        const CustomerStatSchema = z.object({
-            id: z.string().uuid(),
-            customer_name: z.string(),
-            email: z.string().email().nullable(),
-            total_orders: z.number().int(),
-            total_spent: z.number(), // in cents
-        });
-        
-        return { items: z.array(CustomerSchema).parse(data || []), totalCount: count || 0 };
+        return { 
+            items: z.array(CustomerSchema).parse(rpcData.items || []), 
+            totalCount: rpcData.total_count || 0 
+        };
     });
 }
 
@@ -602,12 +589,12 @@ export async function recordSaleInDB(companyId: string, userId: string, saleData
 }
 
 export async function getSalesFromDB(companyId: string, params: { query?: string, page: number, limit: number, offset: number }) {
-    if (!isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getSalesFromDB', async () => {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('sales').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('sales').select('*, customer:customers(customer_name, email)', { count: 'exact' }).eq('company_id', companyId);
         if (params.query) {
-            query = query.or(`sale_number.ilike.%${params.query}%,customer_name.ilike.%${params.query}%,customer_email.ilike.%${params.query}%`);
+            query = query.or(`sale_number.ilike.%${params.query}%,customers.customer_name.ilike.%${params.query}%,customers.email.ilike.%${params.query}%`);
         }
         
         const { data, count, error } = await query
@@ -618,7 +605,14 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
             logError(error, { context: `Failed to fetch sales for company ${companyId}` });
             throw error;
         }
-        return { items: z.array(SaleSchema).parse(data || []), totalCount: count || 0 };
+        
+        const transformedData = data.map(s => ({
+            ...s,
+            customer_name: s.customer?.customer_name,
+            customer_email: s.customer?.email,
+        }));
+        
+        return { items: z.array(SaleSchema).parse(transformedData || []), totalCount: count || 0 };
     });
 }
 
