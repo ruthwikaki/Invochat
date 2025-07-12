@@ -581,11 +581,23 @@ export async function searchProductsForSaleInDB(companyId: string, query: string
 
 export async function recordSaleInDB(companyId: string, userId: string, saleData: SaleCreateInput) {
     if (!isValidUuid(companyId) || !isValidUuid(userId)) throw new Error('Invalid ID format.');
-    const parsedData = SaleCreateSchema.parse(saleData);
+    
+    // The SaleCreateSchema now expects product_id instead of sku in the items.
+    const SaleCreateSchemaWithProductId = z.object({
+        ...SaleCreateSchema.shape,
+        items: z.array(z.object({
+            product_id: z.string().uuid(),
+            quantity: z.coerce.number().int().min(1),
+            unit_price: z.coerce.number().min(0),
+        })),
+    });
+
+    const parsedData = SaleCreateSchemaWithProductId.parse(saleData);
     
     return withPerformanceTracking('recordSaleInDB', async () => {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('record_sale_transaction', {
+
+        const { data, error } = await supabase.rpc('record_sale_transaction_v2', {
             p_company_id: companyId,
             p_user_id: userId,
             p_sale_items: parsedData.items,
@@ -597,7 +609,7 @@ export async function recordSaleInDB(companyId: string, userId: string, saleData
         }).single();
         
         if (error) {
-            logError(error, { context: 'record_sale_transaction RPC failed' });
+            logError(error, { context: 'record_sale_transaction_v2 RPC failed' });
             throw error;
         }
 
@@ -1223,3 +1235,5 @@ export async function dbTestQuery(): Promise<{ success: boolean; error?: string;
         return { success: false, error: getErrorMessage(e) };
     }
 }
+
+    
