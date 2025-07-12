@@ -9,5 +9,5 @@ resources:
 
 runConfig:
   # Increase this value to allow for more server instances to handle traffic.
-  # This has been increased from 10 to 20 for better scalability.
-  maxInstances: 20
+  # This has been increased from 20 to 50 for better scalability.
+  maxInstances: 50
