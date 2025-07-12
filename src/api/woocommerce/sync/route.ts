@@ -8,7 +8,8 @@ import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
-
+import { getServiceRoleClient } from '@/lib/supabase/admin';
+import { logWebhookEvent } from '@/services/database';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
@@ -40,6 +41,29 @@ async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
 
 export async function POST(request: Request) {
     try {
+        // --- Webhook Replay Protection ---
+        const webhookId = request.headers.get('x-wc-webhook-id');
+        const shopDomain = request.headers.get('x-wc-webhook-source'); // WooCommerce uses this header
+        
+        if (webhookId && shopDomain) {
+            const supabase = getServiceRoleClient();
+            const { data: integration } = await supabase
+                .from('integrations')
+                .select('id')
+                .eq('shop_domain', shopDomain) // Find integration by its domain
+                .single();
+
+            if (integration) {
+                const { success } = await logWebhookEvent(integration.id, 'woocommerce', webhookId);
+                if (!success) {
+                    logError(new Error(`WooCommerce webhook replay attempt detected: ${webhookId}`), { status: 409 });
+                    return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                }
+            }
+        }
+        // --- End Webhook Replay Protection ---
+
+
         const cookieStore = cookies();
         const authSupabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,

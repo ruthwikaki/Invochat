@@ -107,6 +107,7 @@ export const SaleItemSchema = z.object({
     sale_id: z.string().uuid(),
     company_id: z.string().uuid(),
     product_id: z.string().uuid(),
+    product_name: z.string(),
     quantity: z.number().int(),
     unit_price: z.number().int(), // In cents
     cost_at_time: z.number().int(), // In cents

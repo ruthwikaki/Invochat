@@ -588,6 +588,7 @@ export async function recordSaleInDB(companyId: string, userId: string, saleData
             product_id: z.string().uuid(),
             quantity: z.coerce.number().int().min(1),
             unit_price: z.coerce.number().min(0),
+            product_name: z.string(), // Added for ledger notes
         })),
     });
 
@@ -1228,4 +1229,16 @@ export async function dbTestQuery(): Promise<{ success: boolean; error?: string;
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function logWebhookEvent(integrationId: string, platform: string, webhookId: string): Promise<{ success: boolean; error?: any }> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('webhook_events')
+        .insert({
+            integration_id: integrationId,
+            platform: platform,
+            webhook_id: webhookId
+        });
+    return { success: !error, error: error };
 }
