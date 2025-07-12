@@ -291,7 +291,7 @@ export async function getInsightsPageData() {
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
         getAnomalyInsightsFromDB(companyId),
         getDeadStockReportFromDB(companyId),
-        getAlertsFromDB(companyId),
+        getAlertsFromDB(),
     ]);
 
     const explainedAnomalies = await Promise.all(

@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { DashboardMetrics, Alert, CompanySettings, UnifiedInventoryItem, User, TeamMember, Anomaly, Supplier, InventoryLedgerEntry, ExportJob, Customer, CustomerAnalytics, Sale, SaleCreateInput, InventoryAnalytics, SalesAnalytics, BusinessProfile, HealthCheckResult, Product, ProductUpdateData, InventoryAgingReportItem, ReorderSuggestion, ChannelFee, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
-import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema } from '@/types';
+import { CompanySettingsSchema, DeadStockItemSchema, SupplierSchema, AnomalySchema, SupplierFormSchema, InventoryLedgerEntrySchema, ExportJobSchema, CustomerSchema, CustomerAnalyticsSchema, SaleSchema, BusinessProfileSchema, ReorderSuggestionBaseSchema, ReorderSuggestionSchema, SupplierPerformanceReportSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema, UnifiedInventoryItemSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { redirect } from 'next/navigation';
 import type { Integration } from '@/features/integrations/types';
+import Papa from 'papaparse';
 
 
 export const isValidUuid = (uuid: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
@@ -654,16 +655,6 @@ export async function testDatabaseQuery(): Promise<{ success: boolean; error?: s
     return dbTestQuery();
 }
 
-export async function testGenkitConnection(): Promise<{ isConfigured: boolean; success: boolean; error?: string; }> {
-    return genkitTest();
-}
-
-export async function testRedisConnection(): Promise<{ isEnabled: boolean; success: boolean; error?: string; }> {
-    return {
-        isEnabled: isRedisEnabled,
-        ...await redisTest()
-    };
-}
 
 export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
     if (!isValidUuid(userId) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
@@ -708,9 +699,15 @@ export async function createAuditLogInDb(
 
 export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    const settings = await getSettings(companyId);
     return withPerformanceTracking('getAlertsFromDB', async () => {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
+        const { data, error } = await supabase.rpc('get_alerts', { 
+            p_company_id: companyId,
+            p_dead_stock_days: settings.dead_stock_days,
+            p_fast_moving_days: settings.fast_moving_days,
+            p_predictive_stock_days: settings.predictive_stock_days,
+        });
         if (error) {
             logError(error, { context: `get_alerts RPC failed for company ${companyId}` });
             throw error;
@@ -724,12 +721,23 @@ export async function getDbSchemaAndData(companyId: string) {
     if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
     return withPerformanceTracking('getDbSchemaAndData', async () => {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_schema_and_data', { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: `get_schema_and_data RPC failed for company ${companyId}` });
-            throw error;
-        }
-        return data || [];
+        const tableNames = ['inventory', 'sales', 'customers', 'suppliers'];
+        
+        const results = await Promise.all(tableNames.map(async (tableName) => {
+            const { data, error } = await supabase
+                .from(tableName)
+                .select('*')
+                .eq('company_id', companyId)
+                .limit(5);
+
+            if (error) {
+                 logError(error, { context: `Failed to get schema and data for table ${tableName}` });
+                return { tableName, rows: [] };
+            }
+            return { tableName, rows: data };
+        }));
+
+        return results;
     });
 }
 
@@ -1096,5 +1104,106 @@ export async function logSuccessfulLogin(userId: string, ipAddress: string) {
     const { data: user } = await supabase.from('users').select('company_id').eq('id', userId).single();
     if (user) {
         await createAuditLogInDb(user.company_id, userId, 'user_login_success', { ipAddress });
+    }
+}
+
+export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
+    if (!isValidUuid(companyId)) throw new Error('Invalid Company ID format.');
+    return withPerformanceTracking('getIntegrationsByCompanyId', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('integrations')
+            .select('*')
+            .eq('company_id', companyId);
+        if (error) {
+            logError(error, { context: `Error fetching integrations for company ${companyId}` });
+            throw new Error(`Could not load integrations: ${error.message}`);
+        }
+        return data || [];
+    });
+}
+
+
+export async function deleteIntegrationFromDb(id: string, companyId: string) {
+    if (!isValidUuid(id) || !isValidUuid(companyId)) throw new Error('Invalid ID format.');
+    return withPerformanceTracking('deleteIntegrationFromDb', async () => {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.from('integrations').delete().eq('id', id).eq('company_id', companyId);
+        if (error) {
+            logError(error, { context: `Failed to delete integration ${id}` });
+            throw error;
+        }
+    });
+}
+
+
+export async function reconcileInventory(integrationId: string) {
+    if (!isValidUuid(integrationId)) {
+        return { success: false, error: 'Invalid integration ID.' };
+    }
+    
+    try {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_integration_id: integrationId });
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        return { success: true };
+    } catch (e) {
+        logError(e, { context: 'reconcileInventory action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+
+export async function testMaterializedView(): Promise<{ success: boolean; error?: string; }> {
+    try {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('company_dashboard_metrics')
+            .select('*')
+            .limit(1);
+
+        if (error) {
+            if (error.code === '42P01') { // "undefined_table"
+                return { success: false, error: "The materialized view 'company_dashboard_metrics' does not exist. Please run the latest database schema." };
+            }
+            throw error;
+        }
+        return { success: true };
+    } catch(e) {
+        logError(e, { context: 'Materialized View Test Failed' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function dbTestSupabase(): Promise<{ isConfigured: boolean; success: boolean; user: any; error?: Error; }> {
+    const isConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY);
+    if (!isConfigured) {
+        return { isConfigured, success: false, user: null, error: new Error('One or more Supabase environment variables are missing.') };
+    }
+    try {
+        const cookieStore = cookies();
+        const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+          cookies: { get: (name: string) => cookieStore.get(name)?.value }
+        });
+        const { data, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        return { isConfigured, success: true, user: data.user };
+    } catch(e) {
+        return { isConfigured, success: false, user: null, error: e as Error };
+    }
+}
+
+export async function dbTestQuery(): Promise<{ success: boolean; error?: string; }> {
+    try {
+        const supabase = getServiceRoleClient();
+        const { error } = await supabase.from('inventory').select('id').limit(1);
+        if (error) throw error;
+        return { success: true };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
     }
 }
