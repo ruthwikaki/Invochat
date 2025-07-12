@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
@@ -25,6 +26,7 @@ import { Package } from 'lucide-react';
 import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { ExportButton } from '../ui/export-button';
+import { ProductDescriptionGeneratorDialog } from './product-description-generator';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
@@ -152,6 +154,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
   const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
   const [historyProductId, setHistoryProductId] = useState<string | null>(null);
+  const [itemForDescription, setItemForDescription] = useState<UnifiedInventoryItem | null>(null);
 
   useEffect(() => {
     setInventory(initialInventory);
@@ -328,6 +331,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             productId={historyProductId}
             onClose={() => setHistoryProductId(null)}
        />
+       
+       <ProductDescriptionGeneratorDialog
+            item={itemForDescription}
+            onClose={() => setItemForDescription(null)}
+            onSaveSuccess={handleSaveItem}
+        />
 
         {showEmptyState ? <EmptyInventoryState /> : (
             <Card>
@@ -394,6 +403,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => setItemForDescription(item)}><Sparkles className="mr-2 h-4 w-4" />Generate Description</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setHistoryProductId(item.product_id)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemsToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete

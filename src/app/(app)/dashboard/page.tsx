@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, TrendingUp, RefreshCw, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { getDashboardData } from '@/app/data-actions';
+import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
 import Link from 'next/link';
 import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
 import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';
@@ -20,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { BusinessHealthScore } from '@/components/dashboard/business-health-score';
 import { RoiCounter } from '@/components/dashboard/roi-counter';
 import { DashboardEmptyState } from '@/components/dashboard/dashboard-empty-state';
+import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 
 
 // --- Data Formatting Utilities ---
@@ -122,6 +124,7 @@ function ErrorDisplay({ error }: { error: Error }) {
 function DashboardSkeleton() {
     return (
         <div className="space-y-8">
+            <Skeleton className="h-32 w-full" />
             {/* Top Row: Value-add Widgets */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="h-[230px]">
@@ -224,6 +227,7 @@ export default function DashboardPage({ searchParams }: { searchParams?: { range
                 <DashboardEmptyState />
             ) : data ? (
                 <div className="space-y-8">
+                    <MorningBriefing dateRange={dateRange} />
                     {/* Top Row: Value-add Widgets */}
                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <RoiCounter metrics={data} />

@@ -1,4 +1,5 @@
 
+
 'use client';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -18,8 +19,8 @@ import {
 } from '@/components/ui/select';
 import type { Alert } from '@/types';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle, Info, Bot, Settings, History, Clock, TrendingDown } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { AlertCircle, CheckCircle, Info, Bot, Settings, History, Clock, TrendingDown, BrainCircuit, Loader2 } from 'lucide-react';
+import { useState, useEffect, useMemo, useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getAlertsData } from '@/app/data-actions';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,14 +29,24 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { motion } from 'framer-motion';
+import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 
 
 function AlertCard({ alert }: { alert: Alert }) {
   const [formattedDate, setFormattedDate] = useState('');
+  const [explanation, setExplanation] = useState<{ explanation: string; suggestedAction: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     setFormattedDate(formatDistanceToNow(new Date(alert.timestamp), { addSuffix: true }));
   }, [alert.timestamp]);
+
+  const getExplanation = () => {
+    startTransition(async () => {
+        const result = await generateAlertExplanation(alert);
+        setExplanation(result);
+    });
+  }
 
   const getIcon = () => {
     switch(alert.type) {
@@ -99,7 +110,7 @@ function AlertCard({ alert }: { alert: Alert }) {
             <Badge variant={getBadgeVariant()} className="capitalize shrink-0">{alert.type.replace(/_/g, ' ')}</Badge>
           </div>
         </CardHeader>
-        <CardContent className="pl-14">
+        <CardContent className="pl-14 space-y-4">
           <p className="mb-4">{alert.message}</p>
            <div className="text-sm bg-background/50 p-3 rounded-md space-y-2 border">
               {alert.metadata.productName && <p><strong>Product:</strong> {alert.metadata.productName}</p>}
@@ -111,14 +122,27 @@ function AlertCard({ alert }: { alert: Alert }) {
               {alert.metadata.recent_margin !== undefined && <p><strong>Recent Margin:</strong> {`${(alert.metadata.recent_margin * 100).toFixed(1)}%`}</p>}
               {alert.metadata.previous_margin !== undefined && <p><strong>Previous Margin:</strong> {`${(alert.metadata.previous_margin * 100).toFixed(1)}%`}</p>}
            </div>
+           {explanation && (
+                <div className="mt-4 bg-primary/10 p-3 rounded-md border border-primary/20">
+                    <p className="flex items-center gap-2 font-semibold text-primary"><BrainCircuit className="h-4 w-4"/> AI Analysis</p>
+                    <p className="text-sm mt-1">{explanation.explanation}</p>
+                    <Button asChild variant="link" size="sm" className="p-0 h-auto mt-2">
+                        <Link href={`/chat?q=${encodeURIComponent(explanation.suggestedAction)}`}>{explanation.suggestedAction}</Link>
+                    </Button>
+                </div>
+           )}
         </CardContent>
-        {alert.metadata.productId && (
-            <CardFooter className="pl-14 flex justify-end">
+        <CardFooter className="pl-14 flex justify-end gap-2">
+            <Button variant="outline" onClick={getExplanation} disabled={isPending}>
+                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                Explain with AI
+            </Button>
+            {alert.metadata.productId && (
                 <Button asChild>
                     <Link href={`/inventory?query=${alert.metadata.productId}`}>View Item & Take Action</Link>
                 </Button>
-            </CardFooter>
-        )}
+            )}
+        </CardFooter>
       </Card>
     </motion.div>
   );

@@ -53,6 +53,7 @@ import {
   getCashFlowInsightsFromDB,
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
+  getCompanyById,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -62,8 +63,12 @@ import { CSRF_COOKIE_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
+import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
+import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import { sendInventoryDigestEmail } from '@/services/email';
+import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
+import { generateProductDescription } from '@/ai/flows/generate-description-flow';
+import { universalChatFlow } from '@/ai/flows/universal-chat';
 
 
 async function getAuthContext() {
@@ -297,14 +302,14 @@ export async function getInsightsPageData() {
     const explainedAnomalies = await Promise.all(
         rawAnomalies.map(async (anomaly) => {
             const date = new Date(anomaly.date);
-            const explanation = await generateAnomalyExplanation({
-                anomaly,
-                dateContext: {
-                    dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'long' }),
-                    month: date.toLocaleDateString('en-US', { month: 'long' }),
-                    season: 'Summer', // This is a placeholder; a real app might use a date library for this
-                    knownHoliday: undefined, // Placeholder; would need a holiday calendar
-                },
+            const explanation = await generateAlertExplanation({
+                id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
+                type: 'predictive',
+                title: anomaly.anomaly_type,
+                message: `Deviation of ${anomaly.deviation_percentage.toFixed(0)}% from the average.`,
+                severity: 'warning',
+                timestamp: anomaly.date,
+                metadata: { ...anomaly },
             });
             return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
         })
@@ -566,7 +571,39 @@ export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> {
     return getInventoryRiskReportFromDB(companyId);
 }
 
-export async function getCustomerSegmentAnalysis(): Promise<CustomerSegmentAnalysisItem[]> {
+export async function getCustomerSegmentAnalysis(): Promise<{
+    segments: CustomerSegmentAnalysisItem[],
+    insights: { analysis: string, suggestion: string } | null
+}> {
     const { companyId } = await getAuthContext();
-    return getCustomerSegmentAnalysisFromDB(companyId);
+    const segments = await getCustomerSegmentAnalysisFromDB(companyId);
+    if (segments.length === 0) {
+        return { segments, insights: null };
+    }
+    const insights = await getCustomerInsights({ segments });
+    return { segments, insights };
+}
+
+export async function getMorningBriefing(range: string) {
+    const { companyId } = await getAuthContext();
+    const [metrics, company] = await Promise.all([
+        getDashboardMetrics(companyId, range),
+        getCompanyById(companyId),
+    ]);
+    return generateMorningBriefing({ metrics, companyName: company?.name });
+}
+
+export async function getGeneratedProductDescription(productName: string, category: string, keywords: string[]) {
+    return generateProductDescription({ productName, category, keywords });
+}
+
+export async function handleUserMessage({ content, conversationId }: { content: string, conversationId: string | null }) {
+    // This function is now a passthrough to the universal chat flow, ensuring consistency.
+    const { companyId } = await getAuthContext();
+    
+    // In a real app, you would handle conversation history management here.
+    // For this implementation, we simulate a simple history.
+    const conversationHistory = conversationId ? [{ role: 'user', content: [{ text: content }]}] : [];
+    
+    return universalChatFlow({ companyId, conversationHistory });
 }
