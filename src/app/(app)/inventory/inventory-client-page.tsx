@@ -1,15 +1,14 @@
 
-
 'use client';
 
-import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
-import type { UnifiedInventoryItem, InventoryAnalytics, ProductVariant, Location } from '@/types';
+import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles, History, Replace } from 'lucide-react';
+import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,8 +18,6 @@ import { Package } from 'lucide-react';
 import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
-import { InventoryHistoryDialog } from './inventory-history-dialog';
-import { InventoryTransferDialog } from './inventory-transfer-dialog';
 
 
 interface InventoryClientPageProps {
@@ -144,10 +141,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { replace } = useRouter();
-  const router = useRouter();
 
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
-  const [historyVariantId, setHistoryVariantId] = useState<string | null>(null);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -179,8 +174,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const showNoResultsState = totalCount === 0 && isFiltered;
   
   return (
-    <>
-    <InventoryHistoryDialog variantId={historyVariantId} onClose={() => setHistoryVariantId(null)} />
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value || '$0'} icon={DollarSign} />
@@ -262,7 +255,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                             <TableHead className="text-right">Cost</TableHead>
                                                             <TableHead className="text-right">Quantity</TableHead>
                                                             <TableHead>Status</TableHead>
-                                                            <TableHead className="text-center">Actions</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
@@ -274,11 +266,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                                 <TableCell className="text-right">{formatCentsAsCurrency(variant.cost)}</TableCell>
                                                                 <TableCell className="text-right font-medium">{variant.inventory_quantity}</TableCell>
                                                                 <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
-                                                                <TableCell className="text-center">
-                                                                    <Button variant="ghost" size="icon" onClick={() => setHistoryVariantId(variant.id)}>
-                                                                        <History className="h-4 w-4" />
-                                                                    </Button>
-                                                                </TableCell>
                                                             </TableRow>
                                                         ))}
                                                     </TableBody>
@@ -298,6 +285,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             </Card>
         )}
     </div>
-    </>
   );
 }
+
+    

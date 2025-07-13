@@ -3,7 +3,6 @@
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import {
   getSettings,
@@ -50,13 +49,14 @@ import {
   getCompanyById,
   testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
-  getInventoryLedgerFromDB,
-  getHistoricalSalesForSkus,
+  logPOCreationInDb,
+  transferStockInDb,
+  logWebhookEvent,
   getDashboardMetrics
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, InventoryLedgerEntry } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -66,7 +66,7 @@ import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
-import { universalChatFlow } from '@/ai/flows/universal-chat';
+import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 
 
 async function getAuthContext() {
@@ -133,12 +133,6 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
-}
-
-
-export async function getInventoryLedger(variantId: string): Promise<InventoryLedgerEntry[]> {
-    const { companyId } = await getAuthContext();
-    return getInventoryLedgerFromDB(companyId, variantId);
 }
 
 export async function getSuppliersData() {
@@ -233,13 +227,6 @@ export async function getSalesAnalytics() {
     return getSalesAnalyticsFromDB(companyId);
 }
 
-// ... other actions to be refactored ...
-
-// Stubs for functions that need updates
-export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
-    const { companyId } = await getAuthContext();
-    return getReorderSuggestionsFromDB(companyId);
-}
 export async function getInsightsPageData() { 
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
@@ -250,9 +237,16 @@ export async function getInsightsPageData() {
 
      const explainedAnomalies = await Promise.all(
         rawAnomalies.map(async (anomaly) => {
-            // Re-use logic from alert explanation for consistency
-            const { explanation, confidence, suggestedAction } = await generateMorningBriefing({ metrics: {} as any, companyName: '' }); // This is a mock call for now
-            return { ...anomaly, explanation, confidence, suggestedAction, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
+            const explanation = await generateAlertExplanation({
+                id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
+                type: 'predictive',
+                title: anomaly.anomaly_type,
+                message: `Deviation of ${anomaly.deviation_percentage.toFixed(0)}% from the average.`,
+                severity: 'warning',
+                timestamp: anomaly.date,
+                metadata: { ...anomaly },
+            });
+            return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
         })
     );
     
@@ -407,3 +401,6 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 export async function testMaterializedView() { return {success: true}; }
 export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }
 export async function transferStock(formData: FormData) { return {success: false, error: "Not implemented"}; }
+export async function getReorderReport(): Promise<ReorderSuggestion[]> { return []; }
+
+    

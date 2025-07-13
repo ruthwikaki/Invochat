@@ -8,6 +8,8 @@ import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
+import { logWebhookEvent } from '@/services/database';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
@@ -49,6 +51,30 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
 
 export async function POST(request: Request) {
     try {
+        // --- Webhook Replay Protection ---
+        const webhookId = request.headers.get('x-shopify-webhook-id');
+        const shopDomain = request.headers.get('x-shopify-shop-domain');
+        
+        if (webhookId && shopDomain) {
+            const supabase = getServiceRoleClient();
+            const { data: integration } = await supabase
+                .from('integrations')
+                .select('id')
+                .eq('shop_domain', `https://${shopDomain}`)
+                .single();
+
+            if (integration) {
+                const { success, error } = await logWebhookEvent(integration.id, 'shopify', webhookId);
+                if (!success) {
+                    // This means the webhook ID has been processed before.
+                    logError(new Error(`Shopify webhook replay attempt detected: ${webhookId}`), { status: 409 });
+                    return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                }
+            }
+        }
+        // --- End Webhook Replay Protection ---
+
+
         // --- Server-side Authentication & Authorization ---
         const cookieStore = cookies();
         const authSupabase = createServerClient(
@@ -95,3 +121,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
+
+    

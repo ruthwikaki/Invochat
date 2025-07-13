@@ -140,7 +140,6 @@ const availableAnalyses = [
       icon: Archive,
       description: "See how long your inventory has been sitting on the shelves.",
       details: "This report is crucial for identifying stale inventory before it becomes dead stock. It groups your inventory into aging buckets (e.g., 0-30 days, 31-60 days).",
-      isNew: true,
       path: "/reports/inventory-aging"
     },
     {
@@ -149,7 +148,6 @@ const availableAnalyses = [
       icon: ShieldAlert,
       description: "Identify products that pose the most financial risk to your business.",
       details: "Calculates a 'Risk Score' for each product based on its value, sales velocity, and age, helping you prioritize actions to mitigate potential losses.",
-      isNew: true,
       path: "/reports/inventory-risk"
     },
     {
@@ -158,7 +156,6 @@ const availableAnalyses = [
       icon: Recycle,
       description: "Understand where each product is in its lifecycle (Launch, Growth, Maturity, Decline).",
       details: "Helps you make better strategic decisions, like when to promote a product, when to reorder heavily, or when to plan for a replacement.",
-      isNew: true,
       path: "/reports/product-lifecycle"
     },
     {
@@ -167,7 +164,6 @@ const availableAnalyses = [
       icon: Users2,
       description: "Discover which products are popular with different customer groups.",
       details: "See what products are driving new customer acquisition versus what your top spenders are buying. Invaluable for targeted marketing.",
-      isNew: true,
       path: "/reports/customer-segments"
     }
 ];
@@ -288,7 +284,7 @@ function StrategicReports() {
                         <CardFooter>
                             <Button className="w-full" onClick={() => handleRunAnalysis(analysis.prompt, analysis.key, analysis.path)} disabled={isPending}>
                                {isPending && currentAnalysisKey === analysis.key ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {analysis.key.startsWith('what_if') ? 'Go to Chat' : analysis.isNew ? 'View Report' : 'Run Analysis'}
+                                {analysis.key.startsWith('what_if') ? 'Go to Chat' : analysis.path ? 'View Report' : 'Run Analysis'}
                             </Button>
                         </CardFooter>
                     </Card>
@@ -310,4 +306,6 @@ export default function AnalyticsPage() {
         </AppPage>
     );
 }
+    
+
     
