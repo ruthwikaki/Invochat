@@ -163,10 +163,34 @@ export async function getDeadStockReportFromDB(companyId: string) { return {dead
 export async function getReorderSuggestionsFromDB(companyId: string) { return []; }
 export async function getAnomalyInsightsFromDB(companyId: string) { return []; }
 export async function getAlertsFromDB(companyId: string) { return []; }
-export async function getInventoryAgingReportFromDB(companyId: string) { return []; }
-export async function getProductLifecycleAnalysisFromDB(companyId: string) { return {summary:{}, products:[]}; }
-export async function getInventoryRiskReportFromDB(companyId: string) { return []; }
-export async function getCustomerSegmentAnalysisFromDB(companyId: string) { return []; }
+
+export async function getInventoryAgingReportFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
+    if (error) throw error;
+    return data || [];
+}
+export async function getProductLifecycleAnalysisFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis', { p_company_id: companyId });
+    if (error) throw error;
+    return data;
+}
+
+export async function getInventoryRiskReportFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_inventory_risk_report', { p_company_id: companyId });
+    if (error) throw error;
+    return data || [];
+}
+
+export async function getCustomerSegmentAnalysisFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_customer_segment_analysis', { p_company_id: companyId });
+    if (error) throw error;
+    return data || [];
+}
+
 export async function getCashFlowInsightsFromDB(companyId: string) {
     return { dead_stock_value: 0, slow_mover_value: 0, dead_stock_threshold_days: 90 };
 }
@@ -246,4 +270,3 @@ export async function logSuccessfulLogin(userId: string, ip: string) {}
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) { return []; }
 export async function getHistoricalSalesFromDB(companyId: string, days: number) { return []; }
-

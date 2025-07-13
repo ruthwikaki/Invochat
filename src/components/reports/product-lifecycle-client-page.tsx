@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -52,6 +53,7 @@ export function ProductLifecycleClientPage({ initialData }: ProductLifecycleClie
 
   const formattedTableData = data.products.map(p => ({
     ...p,
+    stage: <StageBadge stage={p.stage} />,
     total_revenue: formatCentsAsCurrency(p.total_revenue),
   }));
 

@@ -215,6 +215,55 @@ export const ReorderSuggestionBaseSchema = z.object({
 });
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionBaseSchema>;
 
+export const InventoryAgingReportItemSchema = z.object({
+  sku: z.string(),
+  product_name: z.string(),
+  quantity: z.number(),
+  total_value: z.number(),
+  days_since_last_sale: z.number(),
+});
+export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
+
+export const InventoryRiskItemSchema = z.object({
+    sku: z.string(),
+    product_name: z.string(),
+    quantity: z.number(),
+    total_value: z.number(),
+    risk_score: z.number(),
+});
+export type InventoryRiskItem = z.infer<typeof InventoryRiskItemSchema>;
+
+
+export const ProductLifecycleStageSchema = z.object({
+  sku: z.string(),
+  product_name: z.string(),
+  stage: z.enum(['Launch', 'Growth', 'Maturity', 'Decline']),
+  total_revenue: z.number(),
+  total_quantity: z.number(),
+});
+export type ProductLifecycleStage = z.infer<typeof ProductLifecycleStageSchema>;
+
+export const ProductLifecycleAnalysisSchema = z.object({
+    summary: z.object({
+        launch_count: z.number(),
+        growth_count: z.number(),
+        maturity_count: z.number(),
+        decline_count: z.number(),
+    }),
+    products: z.array(ProductLifecycleStageSchema),
+});
+export type ProductLifecycleAnalysis = z.infer<typeof ProductLifecycleAnalysisSchema>;
+
+export const CustomerSegmentAnalysisItemSchema = z.object({
+    segment: z.enum(['New Customers', 'Repeat Customers', 'Top Spenders']),
+    sku: z.string(),
+    product_name: z.string(),
+    total_revenue: z.number(),
+    total_quantity: z.number(),
+    customer_count: z.number(),
+});
+export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
+
 export type DashboardMetrics = any;
 export type InventoryAnalytics = any;
 export type SalesAnalytics = any;
@@ -222,10 +271,6 @@ export type CustomerAnalytics = any;
 export type Alert = any;
 export type Anomaly = any;
 export type HealthCheckResult = any;
-export type InventoryAgingReportItem = any;
-export type ProductLifecycleAnalysis = any;
-export type InventoryRiskItem = any;
-export type CustomerSegmentAnalysisItem = any;
 export type ChannelFee = any;
 export type CompanyInfo = any;
 export type Location = any;

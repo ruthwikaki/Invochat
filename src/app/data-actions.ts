@@ -317,7 +317,10 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
 export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> { return {success: false, error: "Not implemented"}; }
 export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
-export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { return []; }
+export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { 
+    const { companyId } = await getAuthContext();
+    return getInventoryAgingReportFromDB(companyId);
+}
 export async function exportInventory(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
 export async function getCashFlowInsights() {
     const { companyId } = await getAuthContext();
@@ -326,9 +329,23 @@ export async function getCashFlowInsights() {
 export async function getSupplierPerformance() { return []; }
 export async function getInventoryTurnover() { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
 export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { return {success: false, error: "Not implemented"}; }
-export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> { return {summary: {launch_count:0, growth_count:0, maturity_count:0, decline_count:0}, products:[]}; }
-export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> { return []; }
-export async function getCustomerSegmentAnalysis(): Promise<{ segments: CustomerSegmentAnalysisItem[], insights: { analysis: string, suggestion: string } | null }> { return {segments: [], insights: null}; }
+export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> { 
+    const { companyId } = await getAuthContext();
+    return getProductLifecycleAnalysisFromDB(companyId);
+}
+export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> { 
+    const { companyId } = await getAuthContext();
+    return getInventoryRiskReportFromDB(companyId);
+}
+export async function getCustomerSegmentAnalysis(): Promise<{ segments: CustomerSegmentAnalysisItem[], insights: { analysis: string, suggestion: string } | null }> { 
+    const { companyId } = await getAuthContext();
+    const segments = await getCustomerSegmentAnalysisFromDB(companyId);
+    if (segments.length === 0) {
+        return { segments, insights: null };
+    }
+    const insights = await getCustomerInsights({ segments });
+    return { segments, insights };
+}
 export async function getMorningBriefing(range: string) { return {greeting: 'Good morning!', summary: 'Data is being updated for the new schema.'}; }
 export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> { return {success: false, error: "Not implemented"}; }
 export async function testMaterializedView() { return {success: true}; }
