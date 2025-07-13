@@ -1,38 +1,58 @@
--- =================================================================
--- ARVO: PRODUCTION-READY DATABASE SCHEMA (FINAL)
--- Description: This script sets up the complete database schema
--- for the application. It is idempotent and can be run safely
--- on new or existing databases.
--- =================================================================
+-- =====================================================
+-- Reset and Setup
+-- =====================================================
 
--- Enable UUID generation
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- Drop existing public tables and functions in reverse dependency order to avoid errors
+DROP VIEW IF EXISTS public.sales_summary, public.inventory_status, public.company_dashboard_metrics CASCADE;
+DROP FUNCTION IF EXISTS public.update_updated_at_column, public.record_sale_transaction_v2, public.get_customer_analytics, public.get_sales_analytics, public.get_users_for_company, public.handle_new_user, public.record_order_from_platform CASCADE;
+DROP TABLE IF EXISTS 
+    public.refund_line_items,
+    public.refunds,
+    public.order_line_items, 
+    public.orders, 
+    public.product_variants, 
+    public.products, -- Renaming inventory to products
+    public.sale_items, -- Old table
+    public.sales,      -- Old table
+    public.inventory,  -- Old table to be replaced
+    public.discounts, 
+    public.customer_addresses, 
+    public.inventory_ledger,
+    public.suppliers,
+    public.customers,
+    public.sync_logs,
+    public.sync_state,
+    public.integrations,
+    public.export_jobs,
+    public.messages,
+    public.conversations,
+    public.audit_log,
+    public.channel_fees,
+    public.company_settings,
+    public.users,
+    public.companies
+    CASCADE;
 
--- =================================================================
--- Types and Enums
--- =================================================================
-
--- Define a user role type
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-        CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
-    END IF;
-END $$;
-
--- =================================================================
--- Tables
--- =================================================================
-
--- Companies Table: Stores company information
-CREATE TABLE IF NOT EXISTS public.companies (
+-- Create the companies table first as it's a top-level dependency
+CREATE TABLE public.companies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     name text NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
--- Users Table: Stores app users, linked to auth.users
-CREATE TABLE IF NOT EXISTS public.users (
+-- =====================================================
+-- USER AND COMPANY SETUP
+-- =====================================================
+-- User Role Enum
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
+    END IF;
+END$$;
+
+-- Users table to store app-specific user data
+CREATE TABLE public.users (
     id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     email text,
@@ -41,23 +61,61 @@ CREATE TABLE IF NOT EXISTS public.users (
     created_at timestamp with time zone DEFAULT now()
 );
 
--- Company Settings Table
-CREATE TABLE IF NOT EXISTS public.company_settings (
+-- Company Settings
+CREATE TABLE public.company_settings (
     company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
     dead_stock_days integer NOT NULL DEFAULT 90,
     fast_moving_days integer NOT NULL DEFAULT 30,
-    overstock_multiplier numeric NOT NULL DEFAULT 3,
-    high_value_threshold numeric NOT NULL DEFAULT 1000,
-    predictive_stock_days integer NOT NULL DEFAULT 7,
-    promo_sales_lift_multiplier real NOT NULL DEFAULT 2.5,
     currency text DEFAULT 'USD',
     timezone text DEFAULT 'UTC',
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone
 );
 
--- Products Table: The parent product record
-CREATE TABLE IF NOT EXISTS public.products (
+-- Function to handle new user sign-up and company creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_company_id uuid;
+  v_company_name text := NEW.raw_app_meta_data->>'company_name';
+BEGIN
+  -- Create a new company for the user
+  INSERT INTO public.companies (name)
+  VALUES (v_company_name)
+  RETURNING id INTO v_company_id;
+
+  -- Update the user's app_metadata with the new company_id
+  UPDATE auth.users
+  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', v_company_id, 'role', 'Owner')
+  WHERE id = NEW.id;
+
+  -- Create a corresponding entry in the public.users table
+  INSERT INTO public.users (id, company_id, email, role)
+  VALUES (NEW.id, v_company_id, NEW.email, 'Owner');
+  
+  -- Create default settings for the new company
+  INSERT INTO public.company_settings (company_id)
+  VALUES (v_company_id);
+
+  RETURN NEW;
+END;
+$$;
+
+-- Trigger to execute the function on new user creation
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+
+-- =====================================================
+-- MAIN E-COMMERCE ENTITIES
+-- =====================================================
+CREATE TABLE public.products (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     title text NOT NULL,
@@ -65,17 +123,31 @@ CREATE TABLE IF NOT EXISTS public.products (
     handle text,
     product_type text,
     tags text[],
-    status text NOT NULL DEFAULT 'active', -- active, draft, archived
+    status text, -- e.g., active, draft, archived
     image_url text,
     external_product_id text,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone
 );
-ALTER TABLE public.products ADD CONSTRAINT unique_external_product_id_per_company UNIQUE (company_id, external_product_id);
+CREATE INDEX idx_products_company_id ON public.products(company_id);
 
 
--- Product Variants Table: Specific versions of a product (SKUs)
-CREATE TABLE IF NOT EXISTS public.product_variants (
+CREATE TABLE public.customers (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    customer_name text,
+    email text,
+    total_orders integer DEFAULT 0,
+    total_spent numeric(10,2) DEFAULT 0,
+    first_order_date date,
+    deleted_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now()
+);
+CREATE UNIQUE INDEX unique_customer_email_per_company ON public.customers(company_id, email) WHERE deleted_at IS NULL;
+CREATE INDEX idx_customers_company_id ON public.customers(company_id);
+
+-- 1. Product Variants Table
+CREATE TABLE public.product_variants (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -88,38 +160,68 @@ CREATE TABLE IF NOT EXISTS public.product_variants (
     option3_name text,
     option3_value text,
     barcode text,
-    price integer, -- in cents
-    compare_at_price integer, -- in cents
-    cost integer, -- in cents
-    inventory_quantity integer NOT NULL DEFAULT 0,
+    price numeric(10,2),
+    compare_at_price numeric(10,2),
+    cost numeric(10,2),
+    weight numeric(10,3),
+    weight_unit text,
+    inventory_quantity integer DEFAULT 0,
     external_variant_id text,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone
 );
-ALTER TABLE public.product_variants ADD CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku);
-ALTER TABLE public.product_variants ADD CONSTRAINT unique_external_variant_id_per_company UNIQUE (company_id, external_variant_id);
+CREATE INDEX idx_product_variants_product_id ON public.product_variants(product_id);
+CREATE INDEX idx_product_variants_company_id ON public.product_variants(company_id);
+CREATE INDEX idx_product_variants_sku ON public.product_variants(sku);
 
-
--- Customers Table
-CREATE TABLE IF NOT EXISTS public.customers (
+-- 2. Orders Table
+CREATE TABLE public.orders (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    customer_name text,
-    email text,
-    total_orders integer DEFAULT 0,
-    total_spent integer DEFAULT 0, -- in cents
-    first_order_date date,
-    external_customer_id text,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    order_number text NOT NULL,
+    external_order_id text,
+    customer_id uuid REFERENCES public.customers(id) ON DELETE SET NULL,
+    financial_status text DEFAULT 'pending', -- pending/paid/refunded/partially_refunded
+    fulfillment_status text DEFAULT 'unfulfilled', -- unfulfilled/partial/fulfilled
+    currency text DEFAULT 'USD',
+    subtotal numeric(10,2) NOT NULL DEFAULT 0,
+    total_tax numeric(10,2) DEFAULT 0,
+    total_shipping numeric(10,2) DEFAULT 0,
+    total_discounts numeric(10,2) DEFAULT 0,
+    total_amount numeric(10,2) NOT NULL,
+    source_platform text, -- shopify/woocommerce
+    created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone
 );
-ALTER TABLE public.customers ADD CONSTRAINT unique_external_customer_id_per_company UNIQUE (company_id, external_customer_id);
+CREATE INDEX idx_orders_company_id ON public.orders(company_id);
+CREATE INDEX idx_orders_customer_id ON public.orders(customer_id);
+CREATE INDEX idx_orders_order_number ON public.orders(order_number);
+CREATE INDEX idx_orders_created_at ON public.orders(created_at);
 
--- Customer Addresses Table
-CREATE TABLE IF NOT EXISTS public.customer_addresses (
+-- 3. Order Line Items Table
+CREATE TABLE public.order_line_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    variant_id uuid REFERENCES public.product_variants(id) ON DELETE SET NULL,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_name text,
+    variant_title text,
+    sku text,
+    quantity integer NOT NULL,
+    price numeric(10,2) NOT NULL,
+    total_discount numeric(10,2) DEFAULT 0,
+    tax_amount numeric(10,2) DEFAULT 0,
+    cost_at_time numeric(10,2),
+    external_line_item_id text
+);
+CREATE INDEX idx_order_line_items_order_id ON public.order_line_items(order_id);
+CREATE INDEX idx_order_line_items_variant_id ON public.order_line_items(variant_id);
+
+-- 4. Customer Addresses Table
+CREATE TABLE public.customer_addresses (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id uuid NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
-    address_type text NOT NULL DEFAULT 'shipping', -- billing or shipping
+    address_type text NOT NULL DEFAULT 'shipping',
     first_name text,
     last_name text,
     company text,
@@ -132,221 +234,124 @@ CREATE TABLE IF NOT EXISTS public.customer_addresses (
     phone text,
     is_default boolean DEFAULT false
 );
+CREATE INDEX idx_customer_addresses_customer_id ON public.customer_addresses(customer_id);
 
--- Orders Table
-CREATE TABLE IF NOT EXISTS public.orders (
+-- 5. Refunds Table
+CREATE TABLE public.refunds (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    order_number text NOT NULL,
-    external_order_id text,
-    customer_id uuid REFERENCES public.customers(id) ON DELETE SET NULL,
-    financial_status text DEFAULT 'pending', -- pending, paid, refunded, etc.
-    fulfillment_status text DEFAULT 'unfulfilled', -- unfulfilled, partial, fulfilled
-    currency text DEFAULT 'USD',
-    subtotal integer, -- in cents
-    total_tax integer, -- in cents
-    total_shipping integer, -- in cents
-    total_discounts integer, -- in cents
-    total_amount integer NOT NULL, -- in cents
-    source_platform text,
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone
-);
-ALTER TABLE public.orders ADD CONSTRAINT unique_external_order_id_per_company UNIQUE (company_id, external_order_id);
-
--- Order Line Items Table
-CREATE TABLE IF NOT EXISTS public.order_line_items (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE RESTRICT,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_name text,
-    variant_title text,
-    sku text,
-    quantity integer NOT NULL,
-    price integer NOT NULL, -- in cents
-    total_discount integer, -- in cents
-    tax_amount integer, -- in cents
-    cost_at_time integer, -- in cents
-    external_line_item_id text
+    refund_number text NOT NULL,
+    reason text,
+    note text,
+    total_amount numeric(10,2) NOT NULL,
+    external_refund_id text,
+    created_at timestamp with time zone DEFAULT now()
 );
+CREATE INDEX idx_refunds_company_id ON public.refunds(company_id);
+CREATE INDEX idx_refunds_order_id ON public.refunds(order_id);
 
--- Discounts Table
-CREATE TABLE IF NOT EXISTS public.discounts (
+-- 6. Refund Line Items Table
+CREATE TABLE public.refund_line_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    refund_id uuid NOT NULL REFERENCES public.refunds(id) ON DELETE CASCADE,
+    order_line_item_id uuid NOT NULL REFERENCES public.order_line_items(id) ON DELETE CASCADE,
+    quantity integer NOT NULL,
+    amount numeric(10,2) NOT NULL,
+    restock boolean DEFAULT true
+);
+CREATE INDEX idx_refund_line_items_refund_id ON public.refund_line_items(refund_id);
+
+-- 7. Discounts Table
+CREATE TABLE public.discounts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     code text NOT NULL,
-    type text NOT NULL, -- e.g., 'percentage', 'fixed_amount'
-    value numeric NOT NULL,
+    type text NOT NULL, -- percentage/fixed_amount/free_shipping
+    value numeric(10,2) NOT NULL,
     is_active boolean DEFAULT true,
-    created_at timestamp with time zone NOT NULL DEFAULT now()
+    created_at timestamp with time zone DEFAULT now()
 );
-ALTER TABLE public.discounts ADD CONSTRAINT unique_discount_code_per_company UNIQUE (company_id, code);
+CREATE INDEX idx_discounts_company_id ON public.discounts(company_id);
+CREATE INDEX idx_discounts_code ON public.discounts(code);
 
--- Inventory Adjustments (Ledger) Table
-CREATE TABLE IF NOT EXISTS public.inventory_adjustments (
+
+-- =====================================================
+-- INTERNAL APP TABLES
+-- =====================================================
+CREATE TABLE public.suppliers (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    change_type text NOT NULL, -- sale, return, restock, count, damage, etc.
-    quantity_change integer NOT NULL,
-    new_quantity integer NOT NULL,
-    reason text,
-    related_id text,
-    created_by_user_id uuid REFERENCES public.users(id),
+    name text NOT NULL,
+    email text,
+    phone text,
+    default_lead_time_days integer,
+    notes text,
     created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
+CREATE TABLE public.integrations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    platform text NOT NULL,
+    shop_domain text,
+    shop_name text,
+    is_active boolean DEFAULT false,
+    last_sync_at timestamp with time zone,
+    sync_status text,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone
+);
 
--- =================================================================
--- Indexes for Performance
--- =================================================================
+CREATE TABLE public.conversations (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    last_accessed_at timestamp with time zone DEFAULT now(),
+    is_starred boolean DEFAULT false
+);
 
--- Product related indexes
-CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
-CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON public.product_variants(product_id);
-CREATE INDEX IF NOT EXISTS idx_product_variants_sku_company ON public.product_variants(company_id, sku);
-
--- Order related indexes
-CREATE INDEX IF NOT EXISTS idx_orders_company_id_created_at ON public.orders(company_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
-CREATE INDEX IF NOT EXISTS idx_order_line_items_order_id ON public.order_line_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_order_line_items_variant_id ON public.order_line_items(variant_id);
-
--- Customer related indexes
-CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
-CREATE INDEX IF NOT EXISTS idx_customer_addresses_customer_id ON public.customer_addresses(customer_id);
-
--- Inventory Adjustments index
-CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_variant_id ON public.inventory_adjustments(variant_id, created_at DESC);
-
-
--- =================================================================
--- Functions and Triggers
--- =================================================================
-
--- Function to handle user creation and company setup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-    v_company_id uuid;
-    v_company_name text := NEW.raw_user_meta_data->>'company_name';
-BEGIN
-    -- Create a new company for the user
-    INSERT INTO public.companies (name)
-    VALUES (COALESCE(v_company_name, 'My Company'))
-    RETURNING id INTO v_company_id;
-
-    -- Insert into our public users table
-    INSERT INTO public.users (id, company_id, email, role)
-    VALUES (NEW.id, v_company_id, NEW.email, 'Owner');
-    
-    -- Create default settings for the new company
-    INSERT INTO public.company_settings (company_id)
-    VALUES (v_company_id);
-
-    -- Update the user's app_metadata with the new company_id
-    UPDATE auth.users
-    SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', v_company_id)
-    WHERE id = NEW.id;
-
-    RETURN NEW;
-END;
-$$;
-
--- Trigger to call handle_new_user on new user signup
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_new_user();
-
--- Function to update 'updated_at' columns automatically
+CREATE TABLE public.messages (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    role text NOT NULL,
+    content text,
+    visualization jsonb,
+    confidence numeric,
+    assumptions text[],
+    is_error boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT now()
+);
+-- =====================================================
+-- TRIGGERS AND CONSTRAINTS
+-- =====================================================
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-   NEW.updated_at = now();
-   RETURN NEW;
+    NEW.updated_at = now();
+    RETURN NEW;
 END;
 $$ language 'plpgsql';
 
--- Apply the updated_at trigger to relevant tables
-DO $$
-DECLARE
-  t text;
-BEGIN
-  FOR t IN SELECT table_name FROM information_schema.columns WHERE column_name = 'updated_at' AND table_schema = 'public'
-  LOOP
-    EXECUTE format('DROP TRIGGER IF EXISTS handle_updated_at ON public.%I', t);
-    EXECUTE format('CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column()', t);
-  END LOOP;
-END;
-$$;
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_product_variants_updated_at BEFORE UPDATE ON public.product_variants FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+ALTER TABLE public.orders ADD CONSTRAINT unique_order_number_per_company UNIQUE (company_id, order_number);
+ALTER TABLE public.refunds ADD CONSTRAINT unique_refund_number_per_company UNIQUE (company_id, refund_number);
+ALTER TABLE public.discounts ADD CONSTRAINT unique_discount_code_per_company UNIQUE (company_id, code);
+ALTER TABLE public.product_variants ADD CONSTRAINT unique_sku_per_company UNIQUE (company_id, sku);
 
--- =================================================================
--- Row Level Security (RLS)
--- =================================================================
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customer_addresses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.discounts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory_adjustments ENABLE ROW LEVEL SECURITY;
-
-
--- Function to get the current user's company_id
-CREATE OR REPLACE FUNCTION public.get_my_company_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT (auth.jwt()->'app_metadata'->>'company_id')::uuid;
-$$;
-
-
--- RLS Policies
--- Users can only see data belonging to their own company.
-CREATE POLICY "Allow access to own company data" ON public.companies FOR SELECT USING (id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.users FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.company_settings FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.products FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.product_variants FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.orders FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.order_line_items FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.customers FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.customer_addresses FOR ALL USING (customer_id IN (SELECT id FROM public.customers WHERE company_id = public.get_my_company_id()));
-CREATE POLICY "Allow access to own company data" ON public.discounts FOR ALL USING (company_id = public.get_my_company_id());
-CREATE POLICY "Allow access to own company data" ON public.inventory_adjustments FOR ALL USING (company_id = public.get_my_company_id());
-
-
--- =================================================================
--- Permissions
--- =================================================================
-
--- Grant usage on the schema to authenticated users
-GRANT USAGE ON SCHEMA public TO authenticated;
--- Grant all permissions on all tables to authenticated users
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
--- Grant execute permissions on all functions to authenticated users
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
-
--- Note: The service_role key bypasses RLS, so it can access all data.
-
--- =================================================================
--- Finalization Message
--- =================================================================
-DO $$
-BEGIN
-  RAISE NOTICE 'Database schema setup and optimization completed successfully!';
-END $$;
+-- =====================================================
+-- PERMISSIONS
+-- =====================================================
+GRANT USAGE ON SCHEMA public TO authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO authenticated, service_role;

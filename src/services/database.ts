@@ -60,7 +60,9 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             .eq('company_id', companyId);
 
         if (params.query) {
-            query = query.or(`sku.ilike.%${params.query}%,product_title.ilike.%${params.query}%`);
+             const { data: productIds } = await supabase.from('products').select('id').ilike('title', `%${params.query}%`).eq('company_id', companyId);
+             const pids = productIds?.map(p => p.id) || [];
+             query = query.or(`sku.ilike.%${params.query}%,product_id.in.(${pids.join(',')})`);
         }
         
         const { data, error, count } = await query
@@ -116,8 +118,8 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
     });
 }
 
-export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
-    return {success: false, error: 'Not implemented for new schema'}; // This needs a new implementation
+export async function getInventoryLedgerFromDB(companyId: string, productId: string) {
+    return []; // This needs a new implementation
 }
 
 

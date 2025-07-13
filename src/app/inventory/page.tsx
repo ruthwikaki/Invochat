@@ -39,7 +39,7 @@ export default async function InventoryPage({
       <InventoryClientPage 
         initialInventory={inventoryData.items} 
         totalCount={inventoryData.totalCount}
-        itemsPerPage={ITEMS_PER_PAGE}
+        itemsPerPage={itemsPerPage}
         analyticsData={analytics}
         exportAction={handleExport}
       />

@@ -104,8 +104,6 @@ export async function updateCompanySettings(formData: FormData) {
   const settings = {
     dead_stock_days: Number(formData.get('dead_stock_days')),
     fast_moving_days: Number(formData.get('fast_moving_days')),
-    overstock_multiplier: Number(formData.get('overstock_multiplier')),
-    high_value_threshold: Number(formData.get('high_value_threshold')),
   };
   return updateSettingsInDb(companyId, settings);
 }
@@ -137,9 +135,9 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
 }
 
 
-export async function getInventoryLedger(variantId: string) {
+export async function getInventoryLedger(productId: string) {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerFromDB(companyId, variantId);
+    return getInventoryLedgerFromDB(companyId, productId);
 }
 
 export async function getSuppliersData() {
@@ -297,7 +295,22 @@ export async function getCustomerAnalytics() {
 }
 export async function exportCustomers(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
 export async function exportSales(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
-export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) { return {success: false, error: "Not implemented"}; }
+export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
+    try {
+        const dataToExport = suggestions.map(s => ({
+            SKU: s.sku,
+            ProductName: s.product_name,
+            Supplier: s.supplier_name,
+            QuantityToOrder: s.suggested_reorder_quantity,
+            UnitCost: s.unit_cost ? (s.unit_cost).toFixed(2) : 'N/A',
+            TotalCost: s.unit_cost ? ((s.suggested_reorder_quantity * s.unit_cost)).toFixed(2) : 'N/A'
+        }));
+        const csv = Papa.unparse(dataToExport);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
 export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> { return {success: false, error: "Not implemented"}; }
 export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
