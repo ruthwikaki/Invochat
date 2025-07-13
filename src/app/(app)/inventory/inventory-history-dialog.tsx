@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,20 +13,19 @@ import { getErrorMessage } from '@/lib/error-handler';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ArrowDown, ArrowUp, History, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '../ui/badge';
+import { Badge } from '@/components/ui/badge';
 
 interface InventoryHistoryDialogProps {
-  sku: string | null;
+  variantId: string | null;
   onClose: () => void;
 }
 
 function ChangeTypeBadge({ changeType }: { changeType: string }) {
     const variants: Record<string, string> = {
-        'purchase_order_received': 'bg-blue-500/10 text-blue-700 border-blue-500/20',
+        'restock': 'bg-blue-500/10 text-blue-700 border-blue-500/20',
         'sale': 'bg-red-500/10 text-red-700 border-red-500/20',
         'return': 'bg-green-500/10 text-green-700 border-green-500/20',
         'adjustment': 'bg-gray-500/10 text-gray-700 border-gray-500/20',
-        'restock': 'bg-green-500/10 text-green-700 border-green-500/20',
     };
     return (
         <Badge variant="outline" className={cn("capitalize", variants[changeType] || variants.adjustment)}>
@@ -34,7 +34,7 @@ function ChangeTypeBadge({ changeType }: { changeType: string }) {
     );
 }
 
-function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
+function HistoryTableRow({ entry }: { entry: any }) { // Using any for now
     const [formattedDate, setFormattedDate] = useState('');
 
     useEffect(() => {
@@ -49,7 +49,7 @@ function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
                 </div>
             </TableCell>
             <TableCell>
-                <ChangeTypeBadge changeType={entry.change_type} />
+                <ChangeTypeBadge changeType={entry.adjustment_type} />
             </TableCell>
             <TableCell className={cn("text-right font-bold", entry.quantity_change > 0 ? 'text-success' : 'text-destructive')}>
                 <span className="flex items-center justify-end gap-1">
@@ -58,23 +58,25 @@ function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
                 </span>
             </TableCell>
             <TableCell className="text-right">{entry.new_quantity}</TableCell>
-            <TableCell>{entry.notes || 'N/A'}</TableCell>
+            <TableCell>{entry.reason || 'N/A'}</TableCell>
         </TableRow>
     )
 }
 
-export function InventoryHistoryDialog({ sku, onClose }: InventoryHistoryDialogProps) {
-  const [history, setHistory] = useState<InventoryLedgerEntry[]>([]);
+export function InventoryHistoryDialog({ variantId, onClose }: InventoryHistoryDialogProps) {
+  const [history, setHistory] = useState<any[]>([]); // Using any for now
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (sku) {
+    if (variantId) {
       const fetchHistory = async () => {
         setLoading(true);
         try {
-          const data = await getInventoryLedger(sku);
-          setHistory(data);
+          // This action needs to be updated to fetch from inventory_adjustments
+          // const data = await getInventoryLedger(variantId);
+          // setHistory(data);
+          toast({ title: "History Temporarily Unavailable", description: "This feature is being updated for the new database schema."})
         } catch (error) {
           toast({
             variant: 'destructive',
@@ -87,15 +89,15 @@ export function InventoryHistoryDialog({ sku, onClose }: InventoryHistoryDialogP
       };
       fetchHistory();
     }
-  }, [sku, toast]);
+  }, [variantId, toast]);
 
   return (
-    <Dialog open={!!sku} onOpenChange={onClose}>
+    <Dialog open={!!variantId} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Inventory History for SKU: {sku}
+            Inventory History for Variant
           </DialogTitle>
           <DialogDescription>
             A complete audit trail of all stock movements for this item.
