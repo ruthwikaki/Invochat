@@ -52,6 +52,7 @@ import {
   testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
   getInventoryLedgerFromDB,
+  getHistoricalSalesForSkus
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -104,6 +105,8 @@ export async function updateCompanySettings(formData: FormData) {
   const settings = {
     dead_stock_days: Number(formData.get('dead_stock_days')),
     fast_moving_days: Number(formData.get('fast_moving_days')),
+    overstock_multiplier: Number(formData.get('overstock_multiplier')),
+    high_value_threshold: Number(formData.get('high_value_threshold')),
   };
   return updateSettingsInDb(companyId, settings);
 }

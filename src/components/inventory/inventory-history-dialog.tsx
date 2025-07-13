@@ -13,7 +13,7 @@ import { getErrorMessage } from '@/lib/error-handler';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ArrowDown, ArrowUp, History, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '../ui/badge';
+import { Badge } from '@/components/ui/badge';
 
 interface InventoryHistoryDialogProps {
   variantId: string | null;

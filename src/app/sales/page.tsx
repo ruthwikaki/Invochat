@@ -31,7 +31,7 @@ export default async function SalesPage({
     <AppPage>
       <AppPageHeader
         title="Sales History"
-        description="View and manage all recorded sales."
+        description="View and manage all recorded sales orders."
       />
       <SalesClientPage
         initialSales={salesData.items}

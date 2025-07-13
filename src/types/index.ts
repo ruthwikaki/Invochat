@@ -142,6 +142,8 @@ export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
   dead_stock_days: z.number().default(90),
   fast_moving_days: z.number().default(30),
+  overstock_multiplier: z.number().default(3),
+  high_value_threshold: z.number().default(1000),
   predictive_stock_days: z.number().default(7),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
@@ -226,6 +228,7 @@ export type InventoryRiskItem = any;
 export type CustomerSegmentAnalysisItem = any;
 export type ChannelFee = any;
 export type CompanyInfo = any;
+export type Location = any;
 
 export const InventoryLedgerEntrySchema = z.object({
     id: z.string().uuid(),
@@ -291,3 +294,13 @@ export const SupplierPerformanceReportSchema = z.object({
     sell_through_rate: z.number()
 });
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
+
+export const AlertSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  title: z.string(),
+  message: z.string(),
+  severity: z.string(),
+  timestamp: z.string(),
+  metadata: z.record(z.any()),
+});
