@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -41,8 +42,6 @@ const menuItems = [
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/customers', label: 'Customers', icon: Users },
   { href: '/alerts', label: 'Alerts', icon: AlertCircle },
-  { href: '/locations', label: 'Locations', icon: Warehouse },
-  { href: '/reports/inventory-aging', label: 'Inventory Aging', icon: Archive },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
 ];
 

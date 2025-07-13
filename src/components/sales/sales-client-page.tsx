@@ -33,7 +33,7 @@ const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, val
             <Icon className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{typeof value === 'number' && !Number.isInteger(value) ? formatCentsAsCurrency(value) : value}</div>
+            <div className="text-2xl font-bold">{typeof value === 'number' ? formatCentsAsCurrency(value) : value}</div>
             {label && <p className="text-xs text-muted-foreground">{label}</p>}
         </CardContent>
     </Card>
@@ -105,8 +105,8 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
   return (
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <AnalyticsCard title="Total Revenue" value={formatCentsAsCurrency(analyticsData.total_revenue)} icon={DollarSign} />
-            <AnalyticsCard title="Average Sale Value" value={formatCentsAsCurrency(analyticsData.average_sale_value)} icon={BarChart} />
+            <AnalyticsCard title="Total Revenue" value={analyticsData.total_revenue || 0} icon={DollarSign} />
+            <AnalyticsCard title="Average Sale Value" value={analyticsData.average_sale_value || 0} icon={BarChart} />
         </div>
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1">

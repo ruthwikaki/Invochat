@@ -81,7 +81,7 @@ export async function syncProducts(integration: Integration, accessToken: string
                         product_id: internalProductId,
                         company_id: integration.company_id,
                         sku: variant.sku || `SHOPIFY-${variant.id}`,
-                        title: variant.title === 'Default Title' ? shopifyProduct.title : variant.title,
+                        title: variant.title === 'Default Title' ? null : variant.title,
                         option1_name: shopifyProduct.options[0]?.name,
                         option1_value: variant.option1,
                         option2_name: shopifyProduct.options[1]?.name,
@@ -117,8 +117,43 @@ export async function syncProducts(integration: Integration, accessToken: string
 
 
 export async function syncSales(integration: Integration, accessToken: string) {
-    // This function needs to be completely rewritten to support the new orders/line_items schema.
-    logger.info(`[Shopify Sync] Sales sync for ${integration.shop_name} is not yet implemented for the new schema.`);
+    const supabase = getServiceRoleClient();
+    logger.info(`[Shopify Sync] Starting sales sync for ${integration.shop_name}`);
+    let totalOrdersSynced = 0;
+    
+    let nextUrl: string | null = `https://${integration.shop_domain}/admin/api/${SHOPIFY_API_VERSION}/orders.json?status=any&limit=50`;
+
+    while (nextUrl) {
+        const response = await fetch(nextUrl, {
+            headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+        });
+        await delay(RATE_LIMIT_DELAY);
+
+        if (!response.ok) throw new Error(`Shopify API order fetch error (${response.status}): ${await response.text()}`);
+
+        const pageData = await response.json();
+        const orders = pageData.orders;
+
+        if (orders.length === 0) break;
+        
+        for (const order of orders) {
+            const { error } = await supabase.rpc('record_order_from_platform', {
+                p_company_id: integration.company_id,
+                p_order_payload: order,
+                p_platform: 'shopify'
+            });
+
+            if (error) {
+                logError(error, { context: `Failed to record synced Shopify order ${order.id}` });
+            } else {
+                totalOrdersSynced++;
+            }
+        }
+        
+        nextUrl = parseLinkHeader(response.headers.get('Link'));
+    }
+
+    logger.info(`[Shopify Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}`);
 }
 
 export async function runShopifyFullSync(integration: Integration) {

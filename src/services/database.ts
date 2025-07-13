@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -46,37 +46,31 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
 export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number; limit?: number; offset?: number; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
-        let query = supabase
-            .from('product_variants')
-            .select(`
-                *,
-                product:products!inner(title, status)
-            `, { count: 'exact' })
-            .eq('company_id', companyId);
-
-        if (params.query) {
-            query = query.or(`sku.ilike.%${params.query}%,products.title.ilike.%${params.query}%`);
-        }
         
-        const { data, error, count } = await query
-            .order('created_at', { ascending: false })
-            .range(params.offset || 0, (params.offset || 0) + (params.limit || 50) - 1);
+        // This RPC call simplifies fetching product variants with their parent product info.
+        const rpcParams: any = {
+            p_company_id: companyId,
+            p_limit: params.limit || 50,
+            p_offset: params.offset || 0,
+        };
+        if (params.query) {
+            rpcParams.p_search_term = params.query;
+        }
+
+        const { data, error } = await supabase
+            .rpc('get_inventory_with_products', rpcParams);
         
         if (error) {
             logError(error, { context: 'getUnifiedInventoryFromDB failed' });
             throw error;
         }
 
-        const items = data.map(v => ({
-            ...v,
-            product_id: v.product_id,
-            product_title: v.product.title,
-            product_status: v.product.status,
-        }));
+        const items = z.array(UnifiedInventoryItemSchema).parse(data || []);
+        const totalCount = items[0]?.full_count || 0;
         
         return {
-            items: z.array(UnifiedInventoryItemSchema).parse(items || []),
-            totalCount: count || 0,
+            items,
+            totalCount,
         };
     });
 }
@@ -87,7 +81,7 @@ export async function updateProductInDb(companyId: string, productId: string, da
         const supabase = getServiceRoleClient();
         const { data: updated, error } = await supabase
             .from('products')
-            .update({ ...parsedData, updated_at: new Date().toISOString() })
+            .update({ title: parsedData.name, product_type: parsedData.category, updated_at: new Date().toISOString() })
             .eq('id', productId)
             .eq('company_id', companyId)
             .select()
@@ -112,9 +106,30 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
     });
 }
 
+export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
+    return withPerformanceTracking('getInventoryLedgerFromDB', async () => {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('inventory_adjustments')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('variant_id', variantId)
+            .order('created_at', { ascending: false });
+            
+        if (error) throw error;
+        return data || [];
+    });
+}
+
+
 // --- Stubs for functions that need significant refactoring ---
 export async function getDashboardMetrics(companyId: string, dateRange: string) { return {}; }
-export async function getInventoryAnalyticsFromDB(companyId: string) { return {}; }
+export async function getInventoryAnalyticsFromDB(companyId: string) { return {
+    total_inventory_value: 0,
+    total_products: 0,
+    total_variants: 0,
+    low_stock_items: 0,
+}; }
 export async function getSuppliersDataFromDB(companyId: string) { return []; }
 export async function getSupplierByIdFromDB(id: string, companyId: string) { return null; }
 export async function createSupplierInDb(companyId: string, formData: SupplierFormData) { return; }
@@ -122,9 +137,30 @@ export async function updateSupplierInDb(id: string, companyId: string, formData
 export async function deleteSupplierFromDb(id: string, companyId: string) { return; }
 export async function getCustomersFromDB(companyId: string, params: any) { return {items: [], totalCount: 0}; }
 export async function deleteCustomerFromDb(customerId: string, companyId: string) { return; }
-export async function getSalesFromDB(companyId: string, params: any) { return {items: [], totalCount: 0}; }
-export async function getSalesAnalyticsFromDB(companyId: string) { return {}; }
-export async function getCustomerAnalyticsFromDB(companyId: string) { return {}; }
+
+export async function getSalesFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) {
+    const supabase = getServiceRoleClient();
+    let query = supabase.from('orders').select('*', { count: 'exact' }).eq('company_id', companyId);
+    if(params.query) {
+        query = query.or(`order_number.ilike.%${params.query}%`);
+    }
+    const { data, error, count } = await query.order('created_at', {ascending: false}).range(params.offset, params.offset + params.limit - 1);
+    if (error) throw error;
+    return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
+}
+export async function getSalesAnalyticsFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
+    if (error) throw error;
+    return data;
+}
+
+export async function getCustomerAnalyticsFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
+    if(error) throw error;
+    return data;
+}
 export async function getDeadStockReportFromDB(companyId: string) { return {deadStockItems: [], totalValue: 0, totalUnits: 0}; }
 export async function getReorderSuggestionsFromDB(companyId: string) { return []; }
 export async function getAnomalyInsightsFromDB(companyId: string) { return []; }
@@ -133,7 +169,12 @@ export async function getInventoryAgingReportFromDB(companyId: string) { return 
 export async function getProductLifecycleAnalysisFromDB(companyId: string) { return {summary:{}, products:[]}; }
 export async function getInventoryRiskReportFromDB(companyId: string) { return []; }
 export async function getCustomerSegmentAnalysisFromDB(companyId: string) { return []; }
-export async function getCashFlowInsightsFromDB(companyId: string) { return {}; }
+export async function getCashFlowInsightsFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
+    if (error) throw error;
+    return data;
+}
 export async function getSupplierPerformanceFromDB(companyId: string) { return []; }
 export async function getInventoryTurnoverFromDB(companyId: string, days: number) { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
 
@@ -150,7 +191,7 @@ export async function getIntegrationsByCompanyId(companyId: string): Promise<Int
 export async function deleteIntegrationFromDb(id: string, companyId: string) { /* ... */ }
 export async function getTeamMembersFromDB(companyId: string): Promise<TeamMember[]> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('users').select('id, email, role').eq('company_id', companyId);
+    const { data, error } = await supabase.rpc('get_users_for_company', { p_company_id: companyId });
     if (error) throw error;
     return (data ?? []) as TeamMember[];
 }
@@ -176,4 +217,3 @@ export async function createExportJobInDb(companyId: string, userId: string) { r
 export async function healthCheckFinancialConsistency(companyId: string) { return {} as any; }
 export async function healthCheckInventoryConsistency(companyId: string) { return {} as any; }
 export async function getDbSchemaAndData(companyId: string) { return []; }
-

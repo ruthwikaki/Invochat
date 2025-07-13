@@ -18,7 +18,6 @@ import {
   deleteSupplierFromDb,
   getCustomersFromDB,
   deleteCustomerFromDb,
-  searchProductsForSaleInDB,
   getSalesFromDB,
   getIntegrationsByCompanyId,
   getInventoryAnalyticsFromDB,
@@ -53,6 +52,7 @@ import {
   getCompanyById,
   testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
+  getInventoryLedgerFromDB,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -91,7 +91,7 @@ export async function getDashboardData(dateRange: string) {
     const { companyId } = await getAuthContext();
     // This function will need to be updated to work with the new schema
     // return getDashboardMetrics(companyId, dateRange);
-    return {}; // Placeholder
+    return { total_revenue: 0, average_sale_value: 0 }; // Placeholder
 }
 
 export async function getCompanySettings() {
@@ -111,26 +111,19 @@ export async function updateCompanySettings(formData: FormData) {
   return updateSettingsInDb(companyId, settings);
 }
 
-export async function getUnifiedInventory(params: { query?: string; category?: string; supplier?: string, page?: number, limit?: number }) {
+export async function getUnifiedInventory(params: { query?: string; page?: number, limit?: number }) {
     const { companyId } = await getAuthContext();
     return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
 }
 
 export async function getInventoryAnalytics() {
     const { companyId } = await getAuthContext();
-    // Needs update for new schema
-    // return getInventoryAnalyticsFromDB(companyId);
-    return {}; // Placeholder
+    return getInventoryAnalyticsFromDB(companyId);
 }
 
 export async function getInventoryCategories() {
     const { companyId } = await getAuthContext();
     return getInventoryCategoriesFromDB(companyId);
-}
-
-// This function is now more complex as it might delete a product with all its variants
-export async function deleteInventoryItems(formData: FormData): Promise<{ success: boolean; error?: string }> {
-    return { success: false, error: "Deletion logic needs to be updated for new product/variant schema." };
 }
 
 export async function updateProduct(productId: string, data: ProductUpdateData) {
@@ -147,8 +140,7 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
 
 export async function getInventoryLedger(variantId: string) {
     const { companyId } = await getAuthContext();
-    // This needs to be updated to fetch from inventory_adjustments table
-    return []; // Placeholder
+    return getInventoryLedgerFromDB(companyId, variantId);
 }
 
 export async function getSuppliersData() {
@@ -233,18 +225,14 @@ export async function deleteCustomer(formData: FormData): Promise<{ success: boo
     }
 }
 
-// Quick Sale logic is now obsolete, replaced by new Orders model
-export async function searchProductsForSale(query: string) {
-    return [];
-}
-export async function recordSale(formData: FormData): Promise<{ success: boolean, sale?: any, error?: string }> {
-    return { success: false, error: "This action is obsolete."};
-}
 export async function getSales(params: { query?: string, page: number, limit: number }) {
-    return { items: [], totalCount: 0};
+    const { companyId } = await getAuthContext();
+    const offset = (params.page - 1) * params.limit;
+    return getSalesFromDB(companyId, { ...params, offset });
 }
 export async function getSalesAnalytics() {
-    return {};
+     const { companyId } = await getAuthContext();
+    return getSalesAnalyticsFromDB(companyId);
 }
 
 // ... other actions to be refactored ...
@@ -260,15 +248,6 @@ export async function getGeneratedProductDescription(productName: string, catego
     return generateProductDescription({ productName, category, keywords });
 }
 
-// The rest of the file needs to be updated to match the new schema.
-// This is a partial implementation to get the core structure in place.
-
-export async function handleUserMessage({ content, conversationId, source }: { content: string, conversationId: string | null, source?: 'chat_page' | 'analytics_page' }) {
-    const { companyId } = await getAuthContext();
-    const conversationHistory = conversationId ? [] : []; // simplified
-    
-    return universalChatFlow({ companyId, conversationHistory });
-}
 export async function logUserFeedback(formData: FormData) { return {success: true} }
 export async function getAlertsData() { return [] }
 export async function getDatabaseSchemaAndData() { return [] }
@@ -281,6 +260,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const email = formData.get('email') as string;
+        // Company name is hardcoded as it's not available here, needs a better solution in a real app
         await inviteUserToCompanyInDb(companyId, 'Your Company', email);
         return { success: true };
     } catch (e) {
@@ -312,7 +292,10 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getCustomerAnalytics() { return {}; }
+export async function getCustomerAnalytics() {
+    const { companyId } = await getAuthContext();
+    return getCustomerAnalyticsFromDB(companyId);
+}
 export async function exportCustomers(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
 export async function exportSales(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) { return {success: false, error: "Not implemented"}; }
@@ -320,10 +303,13 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
 export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { return []; }
-export async function exportInventory(params: { query?: string; category?: string; supplier?: string }) { return {success: false, error: "Not implemented"}; }
-export async function getCashFlowInsights() { return {}; }
+export async function exportInventory(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
+export async function getCashFlowInsights() {
+    const { companyId } = await getAuthContext();
+    return getCashFlowInsightsFromDB(companyId);
+}
 export async function getSupplierPerformance() { return []; }
-export async function getInventoryTurnover() { return {}; }
+export async function getInventoryTurnover() { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
 export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { return {success: false, error: "Not implemented"}; }
 export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> { return {summary: {launch_count:0, growth_count:0, maturity_count:0, decline_count:0}, products:[]}; }
 export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> { return []; }

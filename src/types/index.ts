@@ -33,7 +33,7 @@ export const ProductSchema = z.object({
   handle: z.string().nullable(),
   product_type: z.string().nullable(),
   tags: z.array(z.string()).nullable(),
-  status: z.enum(['active', 'draft', 'archived']),
+  status: z.string(), // active, draft, archived
   image_url: z.string().url().nullable(),
   external_product_id: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
@@ -46,7 +46,7 @@ export const ProductVariantSchema = z.object({
   product_id: z.string().uuid(),
   company_id: z.string().uuid(),
   sku: z.string(),
-  title: z.string(),
+  title: z.string().nullable(),
   option1_name: z.string().nullable(),
   option1_value: z.string().nullable(),
   option2_name: z.string().nullable(),
@@ -54,7 +54,7 @@ export const ProductVariantSchema = z.object({
   option3_name: z.string().nullable(),
   option3_value: z.string().nullable(),
   barcode: z.string().nullable(),
-  price: z.number().int(), // in cents
+  price: z.number().int().nullable(), // in cents
   compare_at_price: z.number().int().nullable(),
   cost: z.number().int().nullable(), // in cents
   inventory_quantity: z.number().int(),
@@ -67,7 +67,7 @@ export type ProductVariant = z.infer<typeof ProductVariantSchema>;
 // Combined type for UI display, including parent product info
 export const UnifiedInventoryItemSchema = ProductVariantSchema.extend({
   product_title: z.string(),
-  product_status: z.enum(['active', 'draft', 'archived']),
+  product_status: z.string(),
   image_url: z.string().url().nullable(),
 });
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
@@ -80,14 +80,13 @@ export const OrderSchema = z.object({
   order_number: z.string(),
   external_order_id: z.string().nullable(),
   customer_id: z.string().uuid().nullable(),
-  status: z.string(),
-  financial_status: z.string(),
-  fulfillment_status: z.string(),
-  currency: z.string(),
-  subtotal: z.number().int(),
-  total_tax: z.number().int(),
-  total_shipping: z.number().int(),
-  total_discounts: z.number().int(),
+  financial_status: z.string().nullable(),
+  fulfillment_status: z.string().nullable(),
+  currency: z.string().nullable(),
+  subtotal: z.number().int().nullable(),
+  total_tax: z.number().int().nullable(),
+  total_shipping: z.number().int().nullable(),
+  total_discounts: z.number().int().nullable(),
   total_amount: z.number().int(),
   source_platform: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
@@ -98,15 +97,15 @@ export const OrderLineItemSchema = z.object({
   id: z.string().uuid(),
   order_id: z.string().uuid(),
   variant_id: z.string().uuid(),
-  product_id: z.string().uuid(),
-  product_name: z.string(),
+  company_id: z.string().uuid(),
+  product_name: z.string().nullable(),
   variant_title: z.string().nullable(),
-  sku: z.string(),
+  sku: z.string().nullable(),
   quantity: z.number().int(),
   price: z.number().int(),
-  total_discount: z.number().int(),
-  tax_amount: z.number().int(),
-  fulfillment_status: z.string(),
+  total_discount: z.number().int().nullable(),
+  tax_amount: z.number().int().nullable(),
+  cost_at_time: z.number().int().nullable(),
   external_line_item_id: z.string().nullable(),
 });
 export type OrderLineItem = z.infer<typeof OrderLineItemSchema>;
@@ -119,7 +118,7 @@ export const CustomerSchema = z.object({
   customer_name: z.string().nullable(),
   email: z.string().email().nullable(),
   total_orders: z.number().int(),
-  total_spent: z.number().int(),
+  total_spent: z.number().int(), // in cents
   created_at: z.string().datetime({ offset: true }),
 });
 export type Customer = z.infer<typeof CustomerSchema>;
@@ -203,7 +202,6 @@ export const ProductUpdateSchema = z.object({
   cost: z.coerce.number().int().optional().nullable(),
   price: z.coerce.number().int().optional().nullable(),
   barcode: z.string().optional().nullable(),
-  location_note: z.string().optional().nullable(),
 });
 export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
 
@@ -258,7 +256,3 @@ export const CsvMappingOutputSchema = z.object({
     unmappedColumns: z.array(z.string()),
 });
 export type CsvMappingOutput = z.infer<typeof CsvMappingOutputSchema>;
-
-// Quick sale types will be replaced by the new order schema
-export type Sale = any;
-export type SaleCreateInput = any;
