@@ -95,7 +95,7 @@ export type Order = z.infer<typeof OrderSchema>;
 export const OrderLineItemSchema = z.object({
   id: z.string().uuid(),
   order_id: z.string().uuid(),
-  variant_id: z.string().uuid(),
+  variant_id: z.string().uuid().nullable(),
   company_id: z.string().uuid(),
   product_name: z.string().nullable(),
   variant_title: z.string().nullable(),
@@ -142,6 +142,7 @@ export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
   dead_stock_days: z.number().default(90),
   fast_moving_days: z.number().default(30),
+  predictive_stock_days: z.number().default(7),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
 });

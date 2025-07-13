@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema } from '@/types';
 import { redisClient, isRedisEnabled, invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -60,12 +60,19 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             .eq('company_id', companyId);
 
         if (params.query) {
-             const { data: productIds } = await supabase.from('products').select('id').ilike('title', `%${params.query}%`).eq('company_id', companyId);
-             const pids = productIds?.map(p => p.id) || [];
-             query = query.or(`sku.ilike.%${params.query}%,product_id.in.(${pids.join(',')})`);
+             const { data: productIdsData, error: productIdsError } = await supabase.from('products').select('id').ilike('title', `%${params.query}%`).eq('company_id', companyId);
+             if (productIdsError) { logError(productIdsError); }
+             const pids = productIdsData?.map(p => p.id) || [];
+
+             let orQuery = `sku.ilike.%${params.query}%`;
+             if (pids.length > 0) {
+                 orQuery += `,product_id.in.(${pids.join(',')})`;
+             }
+             query = query.or(orQuery);
         }
         
         const { data, error, count } = await query
+            .order('created_at', { ascending: false })
             .range(params.offset || 0, (params.offset || 0) + (params.limit || 50) - 1);
         
         if (error) {
@@ -118,8 +125,17 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
     });
 }
 
-export async function getInventoryLedgerFromDB(companyId: string, productId: string) {
-    return []; // This needs a new implementation
+export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('inventory_ledger')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('variant_id', variantId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+    if(error) throw error;
+    return data || [];
 }
 
 
@@ -217,3 +233,4 @@ export async function healthCheckFinancialConsistency(companyId: string) { retur
 export async function healthCheckInventoryConsistency(companyId: string) { return {} as any; }
 export async function getDbSchemaAndData(companyId: string) { return []; }
 export async function refreshMaterializedViews(companyId: string) {}
+export async function logSuccessfulLogin(userId: string, ip: string) {}

@@ -330,3 +330,4 @@ export async function getMorningBriefing(range: string) { return {greeting: 'Goo
 export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> { return {success: false, error: "Not implemented"}; }
 export async function testMaterializedView() { return {success: true}; }
 export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }
+export async function transferStock(formData: FormData) { return {success: false, error: "Not implemented"}; }

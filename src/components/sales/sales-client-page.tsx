@@ -111,7 +111,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by order #, customer name or email..." onChange={(e) => handleSearch(e.target.value)} defaultValue={searchParams.get('query')?.toString()} className="pl-10"/>
+          <Input placeholder="Search by order #..." onChange={(e) => handleSearch(e.target.value)} defaultValue={searchParams.get('query')?.toString()} className="pl-10"/>
         </div>
         <ExportButton exportAction={exportAction} filename="sales.csv" />
       </div>

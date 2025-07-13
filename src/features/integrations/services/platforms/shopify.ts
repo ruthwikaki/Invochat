@@ -42,7 +42,7 @@ export async function syncProducts(integration: Integration, accessToken: string
 
         const pageData = await response.json();
         const productsToUpsert: Omit<Product, 'id' | 'created_at' | 'updated_at'>[] = [];
-        const variantsToUpsert: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[] = [];
+        
 
         // First, prepare products for upsert
         for (const shopifyProduct of pageData.products) {
@@ -72,6 +72,7 @@ export async function syncProducts(integration: Integration, accessToken: string
             const productIdMap = new Map(upsertedProducts?.map(p => [p.external_product_id, p.id]));
             
             // Now prepare variants with the correct internal product_id
+            const variantsToUpsert: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[] = [];
             for (const shopifyProduct of pageData.products) {
                 const internalProductId = productIdMap.get(String(shopifyProduct.id));
                 if (!internalProductId) continue;
@@ -97,18 +98,18 @@ export async function syncProducts(integration: Integration, accessToken: string
                     });
                 }
             }
+
+             // Upsert variants
+            if (variantsToUpsert.length > 0) {
+                const { error: variantUpsertError } = await supabase
+                    .from('product_variants')
+                    .upsert(variantsToUpsert, { onConflict: 'company_id, external_variant_id' });
+                    
+                if (variantUpsertError) throw new Error(`Database upsert error for variants: ${variantUpsertError.message}`);
+                totalVariantsSynced += variantsToUpsert.length;
+            }
         }
         
-        // Upsert variants
-        if (variantsToUpsert.length > 0) {
-            const { error: variantUpsertError } = await supabase
-                .from('product_variants')
-                .upsert(variantsToUpsert, { onConflict: 'company_id, sku' });
-                
-            if (variantUpsertError) throw new Error(`Database upsert error for variants: ${variantUpsertError.message}`);
-            totalVariantsSynced += variantsToUpsert.length;
-        }
-
         nextUrl = parseLinkHeader(response.headers.get('Link'));
     }
     

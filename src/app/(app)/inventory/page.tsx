@@ -1,7 +1,7 @@
 
 
-import { getUnifiedInventory, getInventoryAnalytics } from '@/app/data-actions';
-import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
+import { getUnifiedInventory, getInventoryAnalytics, exportInventory } from '@/app/data-actions';
+import { InventoryClientPage } from './inventory-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 const ITEMS_PER_PAGE = 25; 
@@ -25,9 +25,7 @@ export default async function InventoryPage({
 
   const handleExport = async () => {
     'use server';
-    // This export function will need to be updated for the new schema
-    // return exportInventory({ query });
-    return { success: false, error: 'Export not yet implemented for new schema.'};
+    return exportInventory({ query });
   }
 
   return (
@@ -39,7 +37,7 @@ export default async function InventoryPage({
       <InventoryClientPage 
         initialInventory={inventoryData.items} 
         totalCount={inventoryData.totalCount}
-        itemsPerPage={itemsPerPage}
+        itemsPerPage={ITEMS_PER_PAGE}
         analyticsData={analytics}
         exportAction={handleExport}
       />
