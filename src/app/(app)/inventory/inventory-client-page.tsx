@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
@@ -6,43 +7,27 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { UnifiedInventoryItem, Supplier, InventoryAnalytics } from '@/types';
+import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles, Wand2 } from 'lucide-react';
+import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
-import { deleteInventoryItems } from '@/app/data-actions';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
-import { InventoryEditDialog } from './inventory-edit-dialog';
 import { Package } from 'lucide-react';
-import { InventoryHistoryDialog } from './inventory-history-dialog';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
-import { ExportButton } from '../ui/export-button';
-import { Loader2 } from 'lucide-react';
-import { ProductDescriptionGeneratorDialog } from './product-description-generator';
+import { ExportButton } from '@/components/ui/export-button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { formatCentsAsCurrency } from '@/lib/utils';
+
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
   totalCount: number;
   itemsPerPage: number;
-  categories: string[];
-  suppliers: Supplier[];
   analyticsData: InventoryAnalytics;
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
-
-const formatCurrency = (value: number) => {
-    if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
-    if (Math.abs(value) >= 1_000) return `$${(value / 1_000).toFixed(1)}k`;
-    return `$${value.toFixed(2)}`;
-};
 
 const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, value: string | number, icon: React.ElementType, label?: string }) => (
     <Card>
@@ -51,7 +36,7 @@ const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, val
             <Icon className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{typeof value === 'number' && !Number.isInteger(value) ? formatCurrency(value) : value}</div>
+            <div className="text-2xl font-bold">{typeof value === 'number' && !Number.isInteger(value) ? formatCentsAsCurrency(value) : value}</div>
             {label && <p className="text-xs text-muted-foreground">{label}</p>}
         </CardContent>
     </Card>
@@ -100,11 +85,11 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
 };
 
 
-const StatusBadge = ({ quantity, reorderPoint }: { quantity: number, reorderPoint: number | null }) => {
+const StatusBadge = ({ quantity }: { quantity: number }) => {
     if (quantity <= 0) {
         return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">Out of Stock</Badge>;
     }
-    if (reorderPoint !== null && quantity < reorderPoint) {
+    if (quantity < 10) { // A generic low stock indicator
         return <Badge variant="secondary" className="bg-warning/10 text-amber-600 dark:text-amber-400 border-warning/20">Low Stock</Badge>;
     }
     return <Badge variant="secondary" className="bg-success/10 text-emerald-600 dark:text-emerald-400 border-success/20">In Stock</Badge>;
@@ -140,25 +125,25 @@ function EmptyInventoryState() {
   );
 }
 
+// Group variants by their parent product
+const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
+  return inventory.reduce((acc, variant) => {
+    const { product_id, product_title, product_status, image_url } = variant;
+    if (!acc[product_id]) {
+      acc[product_id] = { product_id, product_title: product_title || 'Unknown Product', product_status: product_status || 'unknown', image_url, variants: [] };
+    }
+    acc[product_id].variants.push(variant);
+    return acc;
+  }, {} as Record<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[] }>);
+};
 
-export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, suppliers, analyticsData, exportAction }: InventoryClientPageProps) {
+
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { replace, refresh } = useRouter();
-  const { toast } = useToast();
+  const { replace } = useRouter();
 
-  const [inventory, setInventory] = useState(initialInventory);
-  const [selectedRows, setSelectedRows] = useState(new Set<string>());
-  const [expandedRows, setExpandedRows] = useState(new Set<string>());
-  const [isDeleting, startDeleteTransition] = useTransition();
-  const [itemsToDelete, setItemsToDelete] = useState<string[] | null>(null);
-  const [editingItem, setEditingItem] = useState<UnifiedInventoryItem | null>(null);
-  const [historyProductId, setHistoryProductId] = useState<string | null>(null);
-  const [itemForDescription, setItemForDescription] = useState<UnifiedInventoryItem | null>(null);
-
-  useEffect(() => {
-    setInventory(initialInventory);
-  }, [initialInventory]);
+  const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -171,265 +156,122 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     replace(`${pathname}?${params.toString()}`);
   }, 300);
 
-  const handleFilterChange = (type: 'category' | 'supplier', value: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('page', '1'); 
-    if (value && value !== 'all') {
-      params.set(type, value);
-    } else {
-      params.delete(type);
-    }
-    replace(`${pathname}?${params.toString()}`);
-  };
-
-  const handleSelectAll = (checked: boolean | 'indeterminate') => {
-    if (checked === true) {
-      setSelectedRows(new Set(inventory.map(item => item.product_id)));
-    } else {
-      setSelectedRows(new Set());
-    }
-  };
-
-  const handleSelectRow = (productId: string, checked: boolean) => {
-    const newSelectedRows = new Set(selectedRows);
-    if (checked) {
-      newSelectedRows.add(productId);
-    } else {
-      newSelectedRows.delete(productId);
-    }
-    setSelectedRows(newSelectedRows);
-  };
-  
-  const handleDelete = () => {
-    if (!itemsToDelete) return;
-    startDeleteTransition(async () => {
-      const formData = new FormData();
-      formData.append('productIds', JSON.stringify(itemsToDelete));
-      const csrfToken = getCookie('csrf_token');
-      if (csrfToken) {
-        formData.append(CSRF_FORM_NAME, csrfToken);
-      }
-
-      const result = await deleteInventoryItems(formData);
-      if (result.success) {
-        toast({ title: 'Success', description: `${itemsToDelete.length} item(s) deleted.` });
-        refresh(); 
-        setSelectedRows(new Set());
+  const toggleExpandProduct = (productId: string) => {
+    setExpandedProducts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
       } else {
-        toast({ variant: 'destructive', title: 'Error', description: result.error });
+        newSet.add(productId);
       }
-      setItemsToDelete(null);
+      return newSet;
     });
   };
 
-  const toggleExpandRow = (productId: string) => {
-    const newExpandedRows = new Set(expandedRows);
-    if (newExpandedRows.has(productId)) {
-      newExpandedRows.delete(productId);
-    } else {
-      newExpandedRows.add(productId);
-    }
-    setExpandedRows(newExpandedRows);
-  };
-
-  const handleSaveItem = (updatedItem: UnifiedInventoryItem) => {
-    setInventory(prev => prev.map(item => item.product_id === updatedItem.product_id ? updatedItem : item));
-    refresh(); 
-  };
-
-
-  const numSelected = selectedRows.size;
-  const numInventory = inventory.length;
-  const isAllSelected = numSelected > 0 && numSelected === numInventory;
-  const isSomeSelected = numSelected > 0 && numSelected < numInventory;
+  const groupedInventory = useMemo(() => groupVariantsByProduct(initialInventory), [initialInventory]);
   
-  const isFiltered = !!searchParams.get('query') || !!searchParams.get('category') || !!searchParams.get('supplier');
+  const isFiltered = !!searchParams.get('query');
   const showEmptyState = totalCount === 0 && !isFiltered;
   const showNoResultsState = totalCount === 0 && isFiltered;
   
   return (
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value} icon={DollarSign} />
-            <AnalyticsCard title="Total SKUs" value={analyticsData.total_skus} icon={PackageIcon} />
-            <AnalyticsCard title="Items Low on Stock" value={analyticsData.low_stock_items} icon={AlertTriangle} />
-            <AnalyticsCard title="Potential Profit" value={analyticsData.potential_profit} icon={TrendingUp} />
+            <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value || '$0'} icon={DollarSign} />
+            <AnalyticsCard title="Total Products" value={analyticsData.total_products || 0} icon={PackageIcon} />
+            <AnalyticsCard title="Total Variants (SKUs)" value={analyticsData.total_variants || 0} icon={PackageIcon} />
+            <AnalyticsCard title="Items Low on Stock" value={analyticsData.low_stock_items || 0} icon={AlertTriangle} />
         </div>
 
       <div className="flex flex-col md:flex-row items-center gap-2">
         <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-                placeholder="Search by product name or SKU..."
+                placeholder="Search by product title or SKU..."
                 onChange={(e) => handleSearch(e.target.value)}
                 defaultValue={searchParams.get('query')?.toString()}
                 className="pl-10"
             />
         </div>
         <div className="flex w-full md:w-auto gap-2 flex-wrap">
-            <Select
-                onValueChange={(value) => handleFilterChange('supplier', value)}
-                defaultValue={searchParams.get('supplier') || 'all'}
-            >
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Filter by supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Suppliers</SelectItem>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-                onValueChange={(value) => handleFilterChange('category', value)}
-                defaultValue={searchParams.get('category') || 'all'}
-            >
-              <SelectTrigger className="w-full md:w-[200px]">
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <ExportButton exportAction={exportAction} filename="inventory.csv" />
         </div>
       </div>
       
-      <AlertDialog open={!!itemsToDelete} onOpenChange={(open) => !open && setItemsToDelete(null)}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    This action will attempt to permanently delete the selected {itemsToDelete?.length} item(s). This will fail if an item is part of any past sales, to protect your data integrity.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                  {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Yes, delete
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <InventoryEditDialog
-        item={editingItem}
-        onClose={() => setEditingItem(null)}
-        onSave={handleSaveItem}
-      />
-      
-       <InventoryHistoryDialog
-            productId={historyProductId}
-            onClose={() => setHistoryProductId(null)}
-       />
-       
-       <ProductDescriptionGeneratorDialog
-            item={itemForDescription}
-            onClose={() => setItemForDescription(null)}
-            onSaveSuccess={handleSaveItem}
-        />
-
         {showEmptyState ? <EmptyInventoryState /> : (
             <Card>
                 <CardContent className="p-0">
-                <div className="max-h-[65vh] overflow-auto">
+                <div className="max-h-[70vh] overflow-auto">
                     <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
-                        <TableRow>
-                            <TableHead className="w-12">
-                            <Checkbox
-                                checked={isAllSelected ? true : (isSomeSelected ? 'indeterminate' : false)}
-                                onCheckedChange={handleSelectAll}
-                            />
-                            </TableHead>
-                            <TableHead>Product</TableHead>
-                            <TableHead className="text-right">Quantity</TableHead>
-                            <TableHead className="text-right">Total Value</TableHead>
-                            <TableHead className="text-right">Profit Margin</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="w-24 text-center">Actions</TableHead>
-                        </TableRow>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">Variants</TableHead>
+                                <TableHead className="text-right">Total Quantity</TableHead>
+                                <TableHead className="w-16 text-center">Actions</TableHead>
+                            </TableRow>
                         </TableHeader>
                         <TableBody>
                         {showNoResultsState ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="h-24 text-center">
+                                <TableCell colSpan={5} className="h-24 text-center">
                                     No inventory found matching your criteria.
                                 </TableCell>
                             </TableRow>
-                        ) : inventory.map(item => {
-                            const price = item.price || 0;
-                            const cost = item.cost || 0;
-                            const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
-                            const marginColor = margin > 30 ? 'text-success' : margin > 15 ? 'text-amber-500' : 'text-destructive';
-
+                        ) : Object.values(groupedInventory).map(product => {
+                            const totalQty = product.variants.reduce((sum, v) => sum + v.inventory_quantity, 0);
                             return (
-                            <Fragment key={item.product_id}>
+                            <Fragment key={product.product_id}>
                             <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
                                 <TableCell>
-                                <Checkbox
-                                    checked={selectedRows.has(item.product_id)}
-                                    onCheckedChange={(checked) => handleSelectRow(item.product_id, !!checked)}
-                                />
-                                </TableCell>
-                                <TableCell>
-                                <div className="font-medium">{item.product_name}</div>
-                                <div className="text-xs text-muted-foreground">{item.sku}</div>
-                                </TableCell>
-                                <TableCell className="text-right">{item.quantity}</TableCell>
-                                <TableCell className="text-right font-medium">${(item.total_value/100).toFixed(2)}</TableCell>
-                                <TableCell className="text-right">
-                                    <span className={cn('font-semibold', marginColor)}>{margin.toFixed(1)}%</span>
-                                </TableCell>
-                                <TableCell>
-                                <StatusBadge quantity={item.quantity} reorderPoint={item.reorder_point} />
-                                </TableCell>
-                                <TableCell className="text-center">
-                                    <div className="flex items-center justify-center">
-                                    <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setItemForDescription(item)}><Wand2 className="mr-2 h-4 w-4" />Generate Description</DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => setHistoryProductId(item.product_id)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem onSelect={() => setItemsToDelete([item.product_id])} className="text-destructive">
-                                                  <Trash2 className="mr-2 h-4 w-4" />Delete
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8"
-                                            onClick={() => toggleExpandRow(item.product_id)}
-                                        >
-                                            <ChevronDown className={cn("h-4 w-4 transition-transform", expandedRows.has(item.product_id) && "rotate-180")} />
-                                        </Button>
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-10 w-10 rounded-md">
+                                            <AvatarImage src={product.image_url || undefined} alt={product.product_title} />
+                                            <AvatarFallback className="rounded-md bg-muted text-muted-foreground">{product.product_title.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="font-medium">{product.product_title}</div>
                                     </div>
                                 </TableCell>
+                                <TableCell><Badge variant={product.product_status === 'active' ? 'secondary' : 'outline'} className={product.product_status === 'active' ? 'bg-success/10 text-success' : ''}>{product.product_status}</Badge></TableCell>
+                                <TableCell className="text-right">{product.variants.length}</TableCell>
+                                <TableCell className="text-right font-semibold">{totalQty}</TableCell>
+                                <TableCell className="text-center">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleExpandProduct(product.product_id)}>
+                                        <ChevronDown className={cn("h-4 w-4 transition-transform", expandedProducts.has(product.product_id) && "rotate-180")} />
+                                    </Button>
+                                </TableCell>
                             </TableRow>
-                            {expandedRows.has(item.product_id) && (
+                            {expandedProducts.has(product.product_id) && (
                                 <TableRow className="bg-muted/50 hover:bg-muted/80">
-                                    <TableCell colSpan={7} className="p-4">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                            <div><strong className="text-muted-foreground">Category:</strong> {item.category || 'N/A'}</div>
-                                            <div><strong className="text-muted-foreground">Unit Cost:</strong> ${(item.cost/100).toFixed(2)}</div>
-                                            <div><strong className="text-muted-foreground">Supplier:</strong> {item.supplier_name || 'N/A'}</div>
-                                            <div><strong className="text-muted-foreground">Barcode:</strong> {item.barcode || 'N/A'}</div>
+                                    <TableCell colSpan={5} className="p-0">
+                                        <div className="p-4">
+                                            <div className="rounded-md border bg-card">
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>Variant</TableHead>
+                                                            <TableHead>SKU</TableHead>
+                                                            <TableHead className="text-right">Price</TableHead>
+                                                            <TableHead className="text-right">Cost</TableHead>
+                                                            <TableHead className="text-right">Quantity</TableHead>
+                                                            <TableHead>Status</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {product.variants.map(variant => (
+                                                            <TableRow key={variant.id} className="hover:bg-background">
+                                                                <TableCell>{variant.title || 'Default'}</TableCell>
+                                                                <TableCell className="text-muted-foreground">{variant.sku}</TableCell>
+                                                                <TableCell className="text-right">{formatCentsAsCurrency(variant.price)}</TableCell>
+                                                                <TableCell className="text-right">{formatCentsAsCurrency(variant.cost)}</TableCell>
+                                                                <TableCell className="text-right font-medium">{variant.inventory_quantity}</TableCell>
+                                                                <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -443,26 +285,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                 </CardContent>
             </Card>
         )}
-      
-       <AnimatePresence>
-            {numSelected > 0 && (
-                <motion.div
-                    initial={{ y: 100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 100, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="fixed bottom-4 left-1/2 -translate-x-1/2 w-auto"
-                >
-                    <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
-                        <p className="text-sm font-medium">{numSelected} item(s) selected</p>
-                        <Button variant="destructive" size="sm" onClick={() => setItemsToDelete(Array.from(selectedRows))}>Delete Selected</Button>
-                        <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setSelectedRows(new Set())}>
-                           <X className="h-4 w-4"/>
-                        </Button>
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
     </div>
   );
 }

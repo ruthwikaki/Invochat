@@ -55,7 +55,7 @@ import {
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, InventoryLedgerEntry } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -90,7 +90,7 @@ export async function getDashboardData(dateRange: string) {
     const { companyId } = await getAuthContext();
     // This function will need to be updated to work with the new schema
     // return getDashboardMetrics(companyId, dateRange);
-    return { total_revenue: 0, average_sale_value: 0 }; // Placeholder
+    return { total_revenue: 0, average_sale_value: 0, salesTrendData: [], topCustomersData: [], inventoryByCategoryData: [] }; // Placeholder
 }
 
 export async function getCompanySettings() {
@@ -135,9 +135,9 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
 }
 
 
-export async function getInventoryLedger(productId: string) {
+export async function getInventoryLedger(variantId: string): Promise<InventoryLedgerEntry[]> {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerFromDB(companyId, productId);
+    return getInventoryLedgerFromDB(companyId, variantId);
 }
 
 export async function getSuppliersData() {

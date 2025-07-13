@@ -22,7 +22,7 @@ export const TeamMemberSchema = z.object({
 export type TeamMember = z.infer<typeof TeamMemberSchema>;
 
 
-// --- PRODUCT CATALOG (NEW SCHEMA) ---
+// --- PRODUCT CATALOG ---
 export const ProductSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
@@ -31,7 +31,7 @@ export const ProductSchema = z.object({
   handle: z.string().nullable(),
   product_type: z.string().nullable(),
   tags: z.array(z.string()).nullable(),
-  status: z.string(), // active, draft, archived
+  status: z.string().nullable(),
   image_url: z.string().url().nullable(),
   external_product_id: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
@@ -43,7 +43,7 @@ export const ProductVariantSchema = z.object({
   id: z.string().uuid(),
   product_id: z.string().uuid(),
   company_id: z.string().uuid(),
-  sku: z.string(),
+  sku: z.string().nullable(),
   title: z.string().nullable(),
   option1_name: z.string().nullable(),
   option1_value: z.string().nullable(),
@@ -52,9 +52,9 @@ export const ProductVariantSchema = z.object({
   option3_name: z.string().nullable(),
   option3_value: z.string().nullable(),
   barcode: z.string().nullable(),
-  price: z.number().nullable(), // in cents
-  compare_at_price: z.number().nullable(),
-  cost: z.number().nullable(), // in cents
+  price: z.number().int().nullable(), // in cents
+  compare_at_price: z.number().int().nullable(),
+  cost: z.number().int().nullable(), // in cents
   inventory_quantity: z.number().int(),
   external_variant_id: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
@@ -65,13 +65,13 @@ export type ProductVariant = z.infer<typeof ProductVariantSchema>;
 // Combined type for UI display, including parent product info
 export const UnifiedInventoryItemSchema = ProductVariantSchema.extend({
   product_title: z.string(),
-  product_status: z.string(),
+  product_status: z.string().nullable(),
   image_url: z.string().url().nullable(),
 });
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
 
-// --- ORDERS & FULFILLMENT (NEW SCHEMA) ---
+// --- ORDERS & FULFILLMENT ---
 export const OrderSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
@@ -81,11 +81,11 @@ export const OrderSchema = z.object({
   financial_status: z.string().nullable(),
   fulfillment_status: z.string().nullable(),
   currency: z.string().nullable(),
-  subtotal: z.number(),
-  total_tax: z.number().nullable(),
-  total_shipping: z.number().nullable(),
-  total_discounts: z.number().nullable(),
-  total_amount: z.number(),
+  subtotal: z.number().int(),
+  total_tax: z.number().int().nullable(),
+  total_shipping: z.number().int().nullable(),
+  total_discounts: z.number().int().nullable(),
+  total_amount: z.number().int(),
   source_platform: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
@@ -101,10 +101,10 @@ export const OrderLineItemSchema = z.object({
   variant_title: z.string().nullable(),
   sku: z.string().nullable(),
   quantity: z.number().int(),
-  price: z.number(),
-  total_discount: z.number().nullable(),
-  tax_amount: z.number().nullable(),
-  cost_at_time: z.number().nullable(),
+  price: z.number().int(),
+  total_discount: z.number().int().nullable(),
+  tax_amount: z.number().int().nullable(),
+  cost_at_time: z.number().int().nullable(),
   external_line_item_id: z.string().nullable(),
 });
 export type OrderLineItem = z.infer<typeof OrderLineItemSchema>;
@@ -117,7 +117,7 @@ export const CustomerSchema = z.object({
   customer_name: z.string().nullable(),
   email: z.string().email().nullable(),
   total_orders: z.number().int(),
-  total_spent: z.number(), // in cents
+  total_spent: z.number().int(),
   first_order_date: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
 });
@@ -142,8 +142,8 @@ export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
   dead_stock_days: z.number().default(90),
   fast_moving_days: z.number().default(30),
-  currency: z.string().nullable().optional().default('USD'),
-  timezone: z.string().nullable().optional().default('UTC'),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }).nullable(),
 });
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
@@ -225,7 +225,19 @@ export type InventoryRiskItem = any;
 export type CustomerSegmentAnalysisItem = any;
 export type ChannelFee = any;
 export type CompanyInfo = any;
-export type InventoryLedgerEntry = any;
+
+export const InventoryLedgerEntrySchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    variant_id: z.string().uuid(),
+    change_type: z.string(),
+    quantity_change: z.number().int(),
+    new_quantity: z.number().int(),
+    related_id: z.string().uuid().nullable(),
+    notes: z.string().nullable(),
+    created_at: z.string().datetime({ offset: true }),
+});
+export type InventoryLedgerEntry = z.infer<typeof InventoryLedgerEntrySchema>;
 
 
 // CSV mapping types remain the same

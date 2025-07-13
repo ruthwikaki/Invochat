@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { getInventoryLedger } from '@/app/data-actions';
 import type { InventoryLedgerEntry } from '@/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -15,7 +16,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '../ui/badge';
 
 interface InventoryHistoryDialogProps {
-  productId: string | null;
+  variantId: string | null;
   onClose: () => void;
 }
 
@@ -62,17 +63,17 @@ function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
     )
 }
 
-export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryDialogProps) {
+export function InventoryHistoryDialog({ variantId, onClose }: InventoryHistoryDialogProps) {
   const [history, setHistory] = useState<InventoryLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (productId) {
+    if (variantId) {
       const fetchHistory = async () => {
         setLoading(true);
         try {
-          const data = await getInventoryLedger(productId);
+          const data = await getInventoryLedger(variantId);
           setHistory(data);
         } catch (error) {
           toast({
@@ -86,15 +87,15 @@ export function InventoryHistoryDialog({ productId, onClose }: InventoryHistoryD
       };
       fetchHistory();
     }
-  }, [productId, toast]);
+  }, [variantId, toast]);
 
   return (
-    <Dialog open={!!productId} onOpenChange={onClose}>
+    <Dialog open={!!variantId} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Inventory History for Product ID: {productId}
+            Inventory History for Variant ID: {variantId}
           </DialogTitle>
           <DialogDescription>
             A complete audit trail of all stock movements for this item.

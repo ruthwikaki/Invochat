@@ -103,7 +103,7 @@ export async function syncProducts(integration: Integration, accessToken: string
         if (variantsToUpsert.length > 0) {
             const { error: variantUpsertError } = await supabase
                 .from('product_variants')
-                .upsert(variantsToUpsert, { onConflict: 'company_id, external_variant_id' });
+                .upsert(variantsToUpsert, { onConflict: 'company_id, sku' });
                 
             if (variantUpsertError) throw new Error(`Database upsert error for variants: ${variantUpsertError.message}`);
             totalVariantsSynced += variantsToUpsert.length;

@@ -36,7 +36,7 @@ export default async function SalesPage({
       <SalesClientPage
         initialSales={salesData.items}
         totalCount={salesData.totalCount}
-        itemsPerPage={ITEMS_PER_PAGE}
+        itemsPerPage={itemsPerPage}
         analyticsData={analyticsData}
         exportAction={handleExport}
       />

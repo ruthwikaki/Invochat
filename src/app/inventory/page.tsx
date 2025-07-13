@@ -1,7 +1,7 @@
 
 
 import { getUnifiedInventory, getInventoryAnalytics } from '@/app/data-actions';
-import { InventoryClientPage } from '@/components/inventory/inventory-client-page';
+import { InventoryClientPage } from '@/app/inventory/inventory-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 const ITEMS_PER_PAGE = 25; 

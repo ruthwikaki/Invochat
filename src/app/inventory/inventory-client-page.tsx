@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
-import type { UnifiedInventoryItem, Supplier, InventoryAnalytics } from '@/types';
+import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -130,7 +130,7 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
   return inventory.reduce((acc, variant) => {
     const { product_id, product_title, product_status, image_url } = variant;
     if (!acc[product_id]) {
-      acc[product_id] = { product_id, product_title, product_status, image_url, variants: [] };
+      acc[product_id] = { product_id, product_title: product_title || 'Unknown Product', product_status: product_status || 'unknown', image_url, variants: [] };
     }
     acc[product_id].variants.push(variant);
     return acc;

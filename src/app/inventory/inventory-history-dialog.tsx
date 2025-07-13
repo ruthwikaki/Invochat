@@ -13,7 +13,7 @@ import { getErrorMessage } from '@/lib/error-handler';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ArrowDown, ArrowUp, History, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '../ui/badge';
 
 interface InventoryHistoryDialogProps {
   variantId: string | null;
@@ -34,7 +34,7 @@ function ChangeTypeBadge({ changeType }: { changeType: string }) {
     );
 }
 
-function HistoryTableRow({ entry }: { entry: any }) { // Using any for now
+function HistoryTableRow({ entry }: { entry: InventoryLedgerEntry }) {
     const [formattedDate, setFormattedDate] = useState('');
 
     useEffect(() => {
@@ -49,7 +49,7 @@ function HistoryTableRow({ entry }: { entry: any }) { // Using any for now
                 </div>
             </TableCell>
             <TableCell>
-                <ChangeTypeBadge changeType={entry.adjustment_type} />
+                <ChangeTypeBadge changeType={entry.change_type} />
             </TableCell>
             <TableCell className={cn("text-right font-bold", entry.quantity_change > 0 ? 'text-success' : 'text-destructive')}>
                 <span className="flex items-center justify-end gap-1">
@@ -58,13 +58,13 @@ function HistoryTableRow({ entry }: { entry: any }) { // Using any for now
                 </span>
             </TableCell>
             <TableCell className="text-right">{entry.new_quantity}</TableCell>
-            <TableCell>{entry.reason || 'N/A'}</TableCell>
+            <TableCell>{entry.related_id || 'N/A'}</TableCell>
         </TableRow>
     )
 }
 
 export function InventoryHistoryDialog({ variantId, onClose }: InventoryHistoryDialogProps) {
-  const [history, setHistory] = useState<any[]>([]); // Using any for now
+  const [history, setHistory] = useState<InventoryLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -73,13 +73,8 @@ export function InventoryHistoryDialog({ variantId, onClose }: InventoryHistoryD
       const fetchHistory = async () => {
         setLoading(true);
         try {
-          const result = await getInventoryLedger(variantId);
-          if ('error' in result) {
-            toast({ variant: 'destructive', title: 'Error', description: result.error });
-            setHistory([]);
-          } else {
-            setHistory(result as any[]);
-          }
+          const data = await getInventoryLedger(variantId);
+          setHistory(data);
         } catch (error) {
           toast({
             variant: 'destructive',
@@ -100,7 +95,7 @@ export function InventoryHistoryDialog({ variantId, onClose }: InventoryHistoryD
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
-            Inventory History for Variant
+            Inventory History for Variant ID: {variantId}
           </DialogTitle>
           <DialogDescription>
             A complete audit trail of all stock movements for this item.
@@ -127,7 +122,7 @@ export function InventoryHistoryDialog({ variantId, onClose }: InventoryHistoryD
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Change</TableHead>
                   <TableHead className="text-right">New Quantity</TableHead>
-                  <TableHead>Reference/Notes</TableHead>
+                  <TableHead>Reference ID</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

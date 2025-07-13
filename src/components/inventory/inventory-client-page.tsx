@@ -130,7 +130,7 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
   return inventory.reduce((acc, variant) => {
     const { product_id, product_title, product_status, image_url } = variant;
     if (!acc[product_id]) {
-      acc[product_id] = { product_id, product_title, product_status, image_url, variants: [] };
+      acc[product_id] = { product_id, product_title: product_title || 'Unknown Product', product_status: product_status || 'unknown', image_url, variants: [] };
     }
     acc[product_id].variants.push(variant);
     return acc;
