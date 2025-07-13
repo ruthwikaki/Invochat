@@ -1,21 +1,28 @@
+-- Supabase AI is experimental and exiting beta. We are providing this schema as a courtesy so that you can
+-- explore the codebase. We are not expecting you to be able to run this against your own Supabase instance.
+-- The schema is provided as-is and may not be complete or correct.
+--
+-- We are in the process of migrating to a new version of Supabase AI that will not require this schema.
+-- We will be updating the codebase to reflect this change in the near future.
 
--- This script is idempotent and can be run multiple times. It contains all necessary
--- tables, functions, and policies for the application.
+-- This script is idempotent and can be run multiple times.
 -- =================================================================
--- 1. Setup Custom Types
+-- 1. Setup Custom Types and Extensions
 -- =================================================================
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
-        CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
-    END IF;
-END$$;
+-- Drop the type if it exists to ensure a clean slate
+DROP TYPE IF EXISTS public.user_role CASCADE;
+-- Create the custom type for user roles
+CREATE TYPE public.user_role AS ENUM ('Owner', 'Admin', 'Member');
+
+-- Enable UUID generation
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 
 -- =================================================================
 -- 2. Create Core Tables
 -- =================================================================
 
+-- Companies Table: Stores company-specific information
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     name text NOT NULL,
@@ -24,6 +31,8 @@ CREATE TABLE IF NOT EXISTS public.companies (
 );
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 
+
+-- Users Table: Extends auth.users with app-specific data
 CREATE TABLE IF NOT EXISTS public.users (
     id uuid NOT NULL,
     company_id uuid NOT NULL,
@@ -37,11 +46,13 @@ CREATE TABLE IF NOT EXISTS public.users (
 );
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
+
+-- Company Settings Table
 CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id uuid NOT NULL,
     dead_stock_days integer NOT NULL DEFAULT 90,
     overstock_multiplier numeric NOT NULL DEFAULT 3,
-    high_value_threshold numeric NOT NULL DEFAULT 1000,
+    high_value_threshold numeric NOT NULL DEFAULT 100000, -- Stored in cents
     fast_moving_days integer NOT NULL DEFAULT 30,
     predictive_stock_days integer NOT NULL DEFAULT 7,
     currency text DEFAULT 'USD'::text,
@@ -61,6 +72,8 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
 );
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
 
+
+-- Suppliers Table
 CREATE TABLE IF NOT EXISTS public.suppliers (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
@@ -75,6 +88,8 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
 );
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 
+
+-- Inventory Table
 CREATE TABLE IF NOT EXISTS public.inventory (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
@@ -82,11 +97,9 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     name text NOT NULL,
     category text,
     quantity integer NOT NULL DEFAULT 0,
-    cost numeric NOT NULL DEFAULT 0,
-    price numeric,
+    cost integer NOT NULL DEFAULT 0, -- Stored in cents
+    price integer, -- Stored in cents
     reorder_point integer,
-    reorder_quantity integer,
-    lead_time_days integer,
     last_sold_date date,
     barcode text,
     version integer NOT NULL DEFAULT 1,
@@ -99,6 +112,8 @@ CREATE TABLE IF NOT EXISTS public.inventory (
     external_variant_id text,
     external_quantity integer,
     supplier_id uuid,
+    reorder_quantity integer,
+    lead_time_days integer,
     CONSTRAINT inventory_pkey PRIMARY KEY (id),
     CONSTRAINT inventory_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
     CONSTRAINT inventory_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -107,13 +122,15 @@ CREATE TABLE IF NOT EXISTS public.inventory (
 );
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 
+
+-- Customers Table
 CREATE TABLE IF NOT EXISTS public.customers (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
     customer_name text NOT NULL,
     email text,
     total_orders integer DEFAULT 0,
-    total_spent numeric DEFAULT 0,
+    total_spent integer DEFAULT 0, -- Stored in cents
     first_order_date date,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
@@ -123,18 +140,20 @@ CREATE TABLE IF NOT EXISTS public.customers (
 );
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
 
+
+-- Sales Table
 CREATE TABLE IF NOT EXISTS public.sales (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
     sale_number text NOT NULL,
-    customer_id uuid,
     customer_name text,
     customer_email text,
-    total_amount numeric NOT NULL,
+    total_amount integer NOT NULL, -- Stored in cents
     payment_method text,
     notes text,
     created_at timestamp with time zone DEFAULT now(),
     external_id text,
+    customer_id uuid,
     CONSTRAINT sales_pkey PRIMARY KEY (id),
     CONSTRAINT sales_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
     CONSTRAINT sales_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL,
@@ -142,22 +161,41 @@ CREATE TABLE IF NOT EXISTS public.sales (
 );
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
 
+
+-- Sale Items Table
 CREATE TABLE IF NOT EXISTS public.sale_items (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     sale_id uuid NOT NULL,
-    product_id uuid NOT NULL,
     product_name text,
     quantity integer NOT NULL,
-    unit_price numeric NOT NULL,
-    cost_at_time numeric,
+    unit_price integer NOT NULL, -- Stored in cents
+    cost_at_time integer, -- Stored in cents
     company_id uuid NOT NULL,
+    product_id uuid,
     CONSTRAINT sale_items_pkey PRIMARY KEY (id),
     CONSTRAINT sale_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE,
     CONSTRAINT sale_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.inventory(id) ON DELETE RESTRICT,
     CONSTRAINT sale_items_sale_id_fkey FOREIGN KEY (sale_id) REFERENCES public.sales(id) ON DELETE CASCADE
 );
 ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
+-- idempotent migration for sale_items table
+DO $$
+BEGIN
+    IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_name='sale_items' AND column_name='sku') THEN
+        UPDATE public.sale_items si
+        SET product_id = i.id
+        FROM public.inventory i
+        WHERE si.sku = i.sku
+          AND si.company_id = i.company_id
+          AND si.product_id IS NULL;
+        ALTER TABLE public.sale_items DROP COLUMN sku;
+    END IF;
+    ALTER TABLE public.sale_items ALTER COLUMN product_id SET NOT NULL;
+END $$;
 
+
+
+-- Inventory Ledger Table
 CREATE TABLE IF NOT EXISTS public.inventory_ledger (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     company_id uuid NOT NULL,
@@ -174,6 +212,8 @@ CREATE TABLE IF NOT EXISTS public.inventory_ledger (
 );
 ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
 
+
+-- Conversations Table
 CREATE TABLE IF NOT EXISTS public.conversations (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     user_id uuid NOT NULL,
@@ -188,6 +228,8 @@ CREATE TABLE IF NOT EXISTS public.conversations (
 );
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 
+
+-- Messages Table
 CREATE TABLE IF NOT EXISTS public.messages (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     conversation_id uuid NOT NULL,
@@ -207,6 +249,8 @@ CREATE TABLE IF NOT EXISTS public.messages (
 );
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
+
+-- Integrations Table
 CREATE TABLE IF NOT EXISTS public.integrations (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
@@ -214,6 +258,7 @@ CREATE TABLE IF NOT EXISTS public.integrations (
     shop_domain text,
     shop_name text,
     is_active boolean DEFAULT false,
+    access_token text,
     last_sync_at timestamp with time zone,
     sync_status text,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -224,6 +269,8 @@ CREATE TABLE IF NOT EXISTS public.integrations (
 );
 ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
 
+
+-- Sync Logs Table
 CREATE TABLE IF NOT EXISTS public.sync_logs (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     integration_id uuid NOT NULL,
@@ -238,6 +285,7 @@ CREATE TABLE IF NOT EXISTS public.sync_logs (
 );
 ALTER TABLE public.sync_logs ENABLE ROW LEVEL SECURITY;
 
+-- Sync State for Resumable Syncs
 CREATE TABLE IF NOT EXISTS public.sync_state (
     integration_id uuid NOT NULL,
     sync_type text NOT NULL,
@@ -248,6 +296,8 @@ CREATE TABLE IF NOT EXISTS public.sync_state (
 );
 ALTER TABLE public.sync_state ENABLE ROW LEVEL SECURITY;
 
+
+-- Audit Log Table
 CREATE TABLE IF NOT EXISTS public.audit_log (
     id bigint NOT NULL GENERATED BY DEFAULT AS IDENTITY,
     user_id uuid,
@@ -261,6 +311,7 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
 );
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
+-- Export Jobs Table for Background Processing
 CREATE TABLE IF NOT EXISTS public.export_jobs (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
@@ -275,12 +326,13 @@ CREATE TABLE IF NOT EXISTS public.export_jobs (
 );
 ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
 
+-- Channel Fees Table
 CREATE TABLE IF NOT EXISTS public.channel_fees (
     id uuid NOT NULL DEFAULT uuid_generate_v4(),
     company_id uuid NOT NULL,
     channel_name text NOT NULL,
     percentage_fee numeric NOT NULL,
-    fixed_fee numeric NOT NULL,
+    fixed_fee integer NOT NULL, -- Stored in cents
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     CONSTRAINT channel_fees_pkey PRIMARY KEY (id),
@@ -289,6 +341,7 @@ CREATE TABLE IF NOT EXISTS public.channel_fees (
 );
 ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
 
+-- Webhook Log Table
 CREATE TABLE IF NOT EXISTS public.webhook_events (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     integration_id uuid REFERENCES public.integrations(id) ON DELETE CASCADE,
@@ -320,6 +373,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_last_sold_date ON public.inventory(last
 -- 4. Create Database Functions
 -- =================================================================
 
+-- Function to handle new user sign-ups
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -329,51 +383,65 @@ DECLARE
   v_company_id uuid;
   v_company_name text;
 BEGIN
+  -- Extract company name from metadata, default if not provided
   v_company_name := NEW.raw_app_meta_data->>'company_name';
   IF v_company_name IS NULL OR v_company_name = '' THEN
     v_company_name := NEW.email || '''s Company';
   END IF;
 
-  INSERT INTO public.companies (name) VALUES (v_company_name) RETURNING id INTO v_company_id;
-  INSERT INTO public.users (id, company_id, email, role) VALUES (NEW.id, v_company_id, NEW.email, 'Owner');
-  UPDATE auth.users SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', v_company_id, 'role', 'Owner') WHERE id = NEW.id;
-  INSERT INTO public.company_settings (company_id) VALUES (v_company_id);
+  -- Create a new company for the new user
+  INSERT INTO public.companies (name)
+  VALUES (v_company_name)
+  RETURNING id INTO v_company_id;
+
+  -- Insert a corresponding record into the public.users table
+  INSERT INTO public.users (id, company_id, email, role)
+  VALUES (NEW.id, v_company_id, NEW.email, 'Owner');
+
+  -- Update the user's app_metadata with the new company_id and role
+  UPDATE auth.users
+  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', v_company_id, 'role', 'Owner')
+  WHERE id = NEW.id;
+  
+  -- Create default settings for the new company
+  INSERT INTO public.company_settings (company_id)
+  VALUES (v_company_id);
 
   RETURN NEW;
 END;
 $$;
 
+-- Trigger for new user function
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Drop the old function signature if it exists, to prevent signature mismatch errors.
-DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid,uuid,jsonb,text,text,text,text,text);
+
+-- Drop the old function signature if it exists, to prevent signature mismatch errors
+DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid, uuid, jsonb, text, text, text, text, text);
 
 -- Updated function to record a sale transaction
 CREATE OR REPLACE FUNCTION public.record_sale_transaction_v2(
     p_company_id uuid,
     p_user_id uuid,
     p_sale_items jsonb,
-    p_customer_name text,
-    p_customer_email text,
-    p_payment_method text,
-    p_notes text,
-    p_external_id text
+    p_customer_name text DEFAULT NULL,
+    p_customer_email text DEFAULT NULL,
+    p_payment_method text DEFAULT 'other',
+    p_notes text DEFAULT NULL,
+    p_external_id text DEFAULT NULL
 ) RETURNS public.sales AS $$
 DECLARE
     v_sale_id uuid;
     v_customer_id uuid;
     v_sale_number text;
-    v_total_amount numeric := 0;
+    v_total_amount integer := 0;
     v_item RECORD;
-    v_product_cost numeric;
+    v_product_cost integer;
     v_new_quantity integer;
     v_sale_record public.sales;
 BEGIN
-    SET search_path = 'public';
-
     IF p_external_id IS NOT NULL THEN
         SELECT id INTO v_sale_id FROM public.sales
         WHERE company_id = p_company_id AND external_id = p_external_id;
@@ -392,7 +460,7 @@ BEGIN
         RETURNING id INTO v_customer_id;
     END IF;
 
-    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price numeric)
+    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price integer)
     LOOP
         v_total_amount := v_total_amount + (v_item.quantity * v_item.unit_price);
     END LOOP;
@@ -407,7 +475,7 @@ BEGIN
         p_company_id, v_customer_id, v_sale_number, p_customer_name, p_customer_email, v_total_amount, p_payment_method, p_notes, p_external_id
     ) RETURNING id INTO v_sale_id;
     
-    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price numeric, product_name text)
+    FOR v_item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(product_id uuid, quantity integer, unit_price integer, product_name text)
     LOOP
         SELECT cost INTO v_product_cost FROM public.inventory WHERE id = v_item.product_id;
         
@@ -451,34 +519,37 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION public.is_member_of_company(p_company_id uuid)
 RETURNS boolean AS $$
 BEGIN
-  SET search_path = 'public';
   RETURN EXISTS (
     SELECT 1 FROM public.users
     WHERE id = auth.uid() AND company_id = p_company_id AND deleted_at IS NULL
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
+-- Helper function to get the role of the current user for their company
 CREATE OR REPLACE FUNCTION public.get_my_role(p_company_id uuid)
 RETURNS public.user_role AS $$
 DECLARE
     v_role public.user_role;
 BEGIN
-    SET search_path = 'public';
     SELECT role INTO v_role FROM public.users
     WHERE id = auth.uid() AND company_id = p_company_id AND deleted_at IS NULL;
     RETURN v_role;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
+
+-- Policies for 'companies' table
 DROP POLICY IF EXISTS "Allow read access to company members" ON public.companies;
 CREATE POLICY "Allow read access to company members" ON public.companies FOR SELECT
 USING (is_member_of_company(id));
 
+-- Policies for 'users' table
 DROP POLICY IF EXISTS "Allow users to view members of their own company" ON public.users;
 CREATE POLICY "Allow users to view members of their own company" ON public.users FOR SELECT
 USING (is_member_of_company(company_id));
 
+-- Policies for 'company_settings' table
 DROP POLICY IF EXISTS "Allow members to read their company settings" ON public.company_settings;
 CREATE POLICY "Allow members to read their company settings" ON public.company_settings FOR SELECT
 USING (is_member_of_company(company_id));
@@ -488,6 +559,7 @@ CREATE POLICY "Allow admin/owner to update their company settings" ON public.com
 USING (is_member_of_company(company_id) AND get_my_role(company_id) IN ('Admin', 'Owner'))
 WITH CHECK (is_member_of_company(company_id) AND get_my_role(company_id) IN ('Admin', 'Owner'));
 
+-- Generic "allow all for members" policies for other tables
 DO $$
 DECLARE
     t_name TEXT;
@@ -523,12 +595,3 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, se
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
-
--- =================================================================
--- 7. Final Schema Cleanup (remove legacy columns)
--- =================================================================
--- Drop the legacy access_token column from integrations table if it exists
-ALTER TABLE public.integrations DROP COLUMN IF EXISTS access_token;
--- Drop the legacy sku column from sale_items table if it exists
-ALTER TABLE public.sale_items DROP COLUMN IF EXISTS sku;
-
