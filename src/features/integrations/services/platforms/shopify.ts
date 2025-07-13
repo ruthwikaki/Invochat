@@ -89,9 +89,9 @@ export async function syncProducts(integration: Integration, accessToken: string
                         option3_name: shopifyProduct.options[2]?.name,
                         option3_value: variant.option3,
                         barcode: variant.barcode,
-                        price: parseFloat(variant.price) * 100,
-                        compare_at_price: variant.compare_at_price ? parseFloat(variant.compare_at_price) * 100 : null,
-                        cost: variant.inventory_item?.cost ? parseFloat(variant.inventory_item.cost) * 100 : null,
+                        price: Math.round(parseFloat(variant.price) * 100),
+                        compare_at_price: variant.compare_at_price ? Math.round(parseFloat(variant.compare_at_price) * 100) : null,
+                        cost: null, // Cost is not available on the variant endpoint directly
                         inventory_quantity: variant.inventory_quantity || 0,
                         external_variant_id: String(variant.id),
                     });

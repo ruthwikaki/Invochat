@@ -5,7 +5,7 @@ import { InventoryClientPage } from '@/components/inventory/inventory-client-pag
 import { Package } from 'lucide-react';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
-const ITEMS_PER_PAGE = 20; // Products per page, not variants
+const ITEMS_PER_PAGE = 50; // Use a higher limit now that we group by product
 
 export default async function InventoryPage({
   searchParams,
@@ -18,7 +18,7 @@ export default async function InventoryPage({
   const query = searchParams?.query || '';
   const currentPage = parseInt(searchParams?.page || '1', 10);
 
-  // Fetch data in parallel - these are now placeholders until new logic is built
+  // Fetch data in parallel
   const [inventoryData, categories, suppliers, analytics] = await Promise.all([
     getUnifiedInventory({ query, page: currentPage, limit: ITEMS_PER_PAGE }),
     getInventoryCategories(),
@@ -28,7 +28,6 @@ export default async function InventoryPage({
 
   const handleExport = async () => {
     'use server';
-    // This will need to be updated to handle the new product/variant structure
     return exportInventory({ query });
   }
 
