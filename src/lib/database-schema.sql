@@ -1,183 +1,309 @@
--- InvoChat Finalization & Correction Script
--- This script applies only the necessary final changes to the database.
--- It is idempotent and safe to run on the current database state.
 
--- 1. Enable UUID extension if not already enabled
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- InvoChat SaaS Database Schema
+-- Version: 2.0
+-- Description: This script sets up a robust, multi-tenant database schema for a SaaS application.
+-- It includes tables for products, variants, orders, customers, and more, with row-level security
+-- enabled for all company-specific data.
 
--- 2. Clean up any remaining deprecated tables
--- These tables have been replaced by the new schema (products, orders, etc.)
+-- =============================================
+-- 1. INITIAL CLEANUP & EXTENSIONS
+-- =============================================
+-- Drop old tables and functions if they exist to ensure a clean slate.
+-- Using CASCADE to handle dependencies and prevent errors during setup.
 DROP TABLE IF EXISTS public.inventory CASCADE;
 DROP TABLE IF EXISTS public.sales CASCADE;
 DROP TABLE IF EXISTS public.sale_items CASCADE;
 DROP TABLE IF EXISTS public.sync_logs CASCADE;
 DROP TABLE IF EXISTS public.sync_state CASCADE;
+DROP TABLE IF EXISTS public.purchase_orders CASCADE;
+DROP TABLE IF EXISTS public.purchase_order_items CASCADE;
 
--- 3. Alter existing tables to match final schema
--- Remove the deprecated access_token column from integrations table.
--- Tokens are now securely stored in Supabase Vault.
-ALTER TABLE public.integrations DROP COLUMN IF EXISTS access_token;
+-- Drop functions and types with CASCADE to handle dependencies
+DROP FUNCTION IF EXISTS handle_new_user() CASCADE;
+DROP FUNCTION IF EXISTS get_current_company_id() CASCADE;
+DROP FUNCTION IF EXISTS get_my_role(uuid) CASCADE;
+DROP FUNCTION IF EXISTS is_company_member(uuid) CASCADE;
+DROP FUNCTION IF EXISTS update_inventory_from_ledger() CASCADE;
 
+DROP TYPE IF EXISTS user_role CASCADE;
 
--- 4. Create missing functions and triggers
+-- Install necessary extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Function to get the company_id for the currently authenticated user
-CREATE OR REPLACE FUNCTION public.get_current_company_id()
+-- =============================================
+-- 2. CORE TABLE CREATION
+-- =============================================
+
+-- Table for companies (tenants)
+CREATE TABLE IF NOT EXISTS public.companies (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Table for user profiles, linked to a company
+CREATE TABLE IF NOT EXISTS public.users (
+    id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    email text,
+    role text NOT NULL DEFAULT 'Member', -- 'Owner', 'Admin', 'Member'
+    deleted_at timestamptz,
+    created_at timestamptz DEFAULT now()
+);
+
+-- Table for company-specific settings
+CREATE TABLE IF NOT EXISTS public.company_settings (
+    company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
+    dead_stock_days integer NOT NULL DEFAULT 90,
+    fast_moving_days integer NOT NULL DEFAULT 30,
+    overstock_multiplier numeric NOT NULL DEFAULT 3,
+    high_value_threshold numeric NOT NULL DEFAULT 1000,
+    predictive_stock_days integer NOT NULL DEFAULT 7,
+    promo_sales_lift_multiplier real NOT NULL DEFAULT 2.5,
+    currency text DEFAULT 'USD',
+    timezone text DEFAULT 'UTC',
+    subscription_status text DEFAULT 'trial',
+    subscription_plan text DEFAULT 'starter',
+    subscription_expires_at timestamptz,
+    stripe_customer_id text,
+    stripe_subscription_id text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
+);
+
+-- Products table (parent for variants)
+CREATE TABLE IF NOT EXISTS public.products (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text,
+    handle text,
+    product_type text,
+    tags text[],
+    status text,
+    image_url text,
+    external_product_id text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    UNIQUE(company_id, external_product_id)
+);
+
+-- Product Variants table (the actual sellable item with SKU)
+CREATE TABLE IF NOT EXISTS public.product_variants (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    sku text NOT NULL,
+    title text,
+    option1_name text,
+    option1_value text,
+    option2_name text,
+    option2_value text,
+    option3_name text,
+    option3_value text,
+    barcode text,
+    price integer, -- in cents
+    compare_at_price integer, -- in cents
+    cost integer, -- in cents
+    weight numeric,
+    weight_unit text,
+    inventory_quantity integer NOT NULL DEFAULT 0,
+    external_variant_id text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    UNIQUE(company_id, sku)
+);
+
+-- Customers table
+CREATE TABLE IF NOT EXISTS public.customers (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    customer_name text NOT NULL,
+    email text,
+    total_orders integer DEFAULT 0,
+    total_spent integer DEFAULT 0, -- in cents
+    first_order_date date,
+    deleted_at timestamptz,
+    created_at timestamptz DEFAULT now()
+);
+
+-- Orders table
+CREATE TABLE IF NOT EXISTS public.orders (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    order_number text NOT NULL,
+    external_order_id text,
+    customer_id uuid REFERENCES public.customers(id),
+    financial_status text DEFAULT 'pending',
+    fulfillment_status text DEFAULT 'unfulfilled',
+    currency text DEFAULT 'USD',
+    subtotal integer NOT NULL DEFAULT 0,
+    total_tax integer DEFAULT 0,
+    total_shipping integer DEFAULT 0,
+    total_discounts integer DEFAULT 0,
+    total_amount integer NOT NULL,
+    source_platform text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now(),
+    UNIQUE(company_id, external_order_id)
+);
+
+-- Order Line Items table
+CREATE TABLE IF NOT EXISTS public.order_line_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    variant_id uuid REFERENCES public.product_variants(id),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_name text,
+    variant_title text,
+    sku text,
+    quantity integer NOT NULL,
+    price integer NOT NULL, -- in cents
+    total_discount integer DEFAULT 0,
+    tax_amount integer DEFAULT 0,
+    cost_at_time integer, -- cost of the variant at the time of sale
+    external_line_item_id text
+);
+
+-- Inventory Ledger for atomic stock movements
+CREATE TABLE IF NOT EXISTS public.inventory_ledger (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
+    change_type text NOT NULL, -- 'sale', 'restock', 'return', 'adjustment'
+    quantity_change integer NOT NULL,
+    new_quantity integer NOT NULL,
+    related_id uuid, -- e.g., order_id, purchase_order_id
+    notes text,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Suppliers table
+CREATE TABLE IF NOT EXISTS public.suppliers (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    email text,
+    phone text,
+    default_lead_time_days integer,
+    notes text,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Integrations table
+CREATE TABLE IF NOT EXISTS public.integrations (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    platform text NOT NULL,
+    shop_domain text,
+    shop_name text,
+    is_active boolean DEFAULT false,
+    last_sync_at timestamptz,
+    sync_status text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
+);
+
+-- Conversations table for AI chat
+CREATE TABLE IF NOT EXISTS public.conversations (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    last_accessed_at timestamptz DEFAULT now(),
+    is_starred boolean DEFAULT false
+);
+
+-- Messages table for AI chat
+CREATE TABLE IF NOT EXISTS public.messages (
+    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    role text NOT NULL, -- 'user', 'assistant'
+    content text,
+    component text,
+    component_props jsonb,
+    visualization jsonb,
+    confidence numeric,
+    assumptions text[],
+    is_error boolean DEFAULT false,
+    created_at timestamptz DEFAULT now()
+);
+
+-- =============================================
+-- 3. FUNCTIONS & TRIGGERS
+-- =============================================
+
+-- Function to get the current user's company_id
+CREATE OR REPLACE FUNCTION get_current_company_id()
 RETURNS uuid
 LANGUAGE sql
-SECURITY DEFINER
+STABLE
 AS $$
-  SELECT COALESCE(
-    NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'company_id', '')::uuid,
-    (SELECT company_id FROM public.users WHERE id = auth.uid())
-  );
+  SELECT nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'company_id', '')::uuid;
 $$;
-REVOKE ALL ON FUNCTION public.get_current_company_id() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_current_company_id() TO authenticated;
 
 
--- Function to create a company and link it to a new user upon signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
+-- Function to handle new user creation
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  company_id uuid;
-  user_email text;
-  user_id uuid;
+  new_company_id uuid;
+  new_user_role text;
 BEGIN
-  -- Extract user ID and email from the trigger data
-  user_id := new.id;
-  user_email := new.email;
-
   -- Create a new company for the user
   INSERT INTO public.companies (name)
-  VALUES (new.raw_user_meta_data ->> 'company_name')
-  RETURNING id INTO company_id;
+  VALUES (new.raw_app_meta_data ->> 'company_name')
+  RETURNING id INTO new_company_id;
 
-  -- Insert the user into our public.users table
+  -- Insert a profile for the new user, linking them to the new company
   INSERT INTO public.users (id, company_id, email, role)
-  VALUES (user_id, company_id, user_email, 'Owner');
-
-  -- Update the user's app_metadata in auth.users
+  VALUES (new.id, new_company_id, new.email, 'Owner');
+  
+  -- Update the user's app_metadata with the new company_id and role
   UPDATE auth.users
-  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', company_id, 'role', 'Owner')
-  WHERE id = user_id;
-
+  SET raw_app_meta_data = new.raw_app_meta_data || jsonb_build_object('company_id', new_company_id, 'role', 'Owner')
+  WHERE id = new.id;
+  
   RETURN new;
 END;
 $$;
 
--- Trigger to execute handle_new_user on new user creation in auth.users
+-- Trigger to call handle_new_user on new user signup
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW
-  EXECUTE FUNCTION public.handle_new_user();
+  EXECUTE FUNCTION handle_new_user();
 
 
--- Function to update inventory quantities based on ledger entries (CRITICAL)
--- This ensures inventory levels are always accurate.
-CREATE OR REPLACE FUNCTION public.update_inventory_from_ledger()
-RETURNS trigger
+-- Trigger function to update inventory quantity
+CREATE OR REPLACE FUNCTION update_inventory_from_ledger()
+RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  UPDATE public.product_variants
-  SET inventory_quantity = inventory_quantity + NEW.quantity_change,
-      updated_at = NOW()
-  WHERE id = NEW.variant_id;
-  RETURN NEW;
+    UPDATE public.product_variants
+    SET inventory_quantity = NEW.new_quantity
+    WHERE id = NEW.variant_id AND company_id = NEW.company_id;
+    RETURN NEW;
 END;
 $$;
 
--- Trigger to fire the inventory update function after a ledger entry is created.
+-- Trigger to update inventory after a ledger entry is created
 CREATE OR REPLACE TRIGGER on_inventory_ledger_insert
-  AFTER INSERT ON public.inventory_ledger
-  FOR EACH ROW
-  EXECUTE FUNCTION public.update_inventory_from_ledger();
+    AFTER INSERT ON public.inventory_ledger
+    FOR EACH ROW
+    EXECUTE FUNCTION update_inventory_from_ledger();
 
-
--- Function to handle recording an order from a platform like Shopify
--- This is a transactional function to ensure data integrity.
-CREATE OR REPLACE FUNCTION public.record_order_from_platform(
-    p_company_id uuid,
-    p_order_payload jsonb,
-    p_platform text
-)
-RETURNS uuid AS $$
-DECLARE
-    v_customer_id uuid;
-    v_order_id uuid;
-    v_order_number text;
-    v_line_item jsonb;
-    v_variant_id uuid;
-    v_product_id uuid;
-    v_cost_at_time int;
-BEGIN
-    -- Step 1: Find or Create Customer
-    SELECT id INTO v_customer_id FROM public.customers
-    WHERE email = p_order_payload -> 'customer' ->> 'email' AND company_id = p_company_id;
-
-    IF v_customer_id IS NULL THEN
-        INSERT INTO public.customers (company_id, customer_name, email)
-        VALUES (p_company_id, p_order_payload -> 'customer' ->> 'first_name' || ' ' || p_order_payload -> 'customer' ->> 'last_name', p_order_payload -> 'customer' ->> 'email')
-        RETURNING id INTO v_customer_id;
-    END IF;
-
-    -- Step 2: Create or Update Order
-    v_order_number := p_order_payload ->> 'name'; -- Shopify uses 'name' for order number like '#1001'
-
-    INSERT INTO public.orders (
-        id, company_id, order_number, external_order_id, customer_id, financial_status, fulfillment_status,
-        currency, subtotal, total_tax, total_shipping, total_discounts, total_amount, source_platform, created_at, updated_at
-    )
-    VALUES (
-        uuid_generate_v4(), p_company_id, v_order_number, p_order_payload ->> 'id', v_customer_id, p_order_payload ->> 'financial_status',
-        p_order_payload ->> 'fulfillment_status', p_order_payload ->> 'currency',
-        (p_order_payload ->> 'subtotal_price')::numeric * 100, (p_order_payload ->> 'total_tax')::numeric * 100,
-        (p_order_payload ->> 'total_shipping_price_set' -> 'shop_money' ->> 'amount')::numeric * 100,
-        (p_order_payload ->> 'total_discounts')::numeric * 100, (p_order_payload ->> 'total_price')::numeric * 100,
-        p_platform, (p_order_payload ->> 'created_at')::timestamptz, (p_order_payload ->> 'updated_at')::timestamptz
-    )
-    ON CONFLICT (company_id, external_order_id) DO UPDATE SET
-        financial_status = EXCLUDED.financial_status,
-        fulfillment_status = EXCLUDED.fulfillment_status,
-        total_amount = EXCLUDED.total_amount,
-        updated_at = EXCLUDED.updated_at
-    RETURNING id INTO v_order_id;
-
-    -- Step 3: Process Line Items
-    FOR v_line_item IN SELECT * FROM jsonb_array_elements(p_order_payload -> 'line_items')
-    LOOP
-        SELECT id, product_id, cost INTO v_variant_id, v_product_id, v_cost_at_time
-        FROM public.product_variants
-        WHERE external_variant_id = v_line_item ->> 'variant_id' AND company_id = p_company_id;
-
-        IF v_variant_id IS NOT NULL THEN
-            INSERT INTO public.order_line_items (
-                order_id, company_id, variant_id, product_id, product_name, variant_title, sku, quantity, price,
-                total_discount, external_line_item_id, cost_at_time
-            ) VALUES (
-                v_order_id, p_company_id, v_variant_id, v_product_id, v_line_item ->> 'title', v_line_item ->> 'variant_title',
-                v_line_item ->> 'sku', (v_line_item ->> 'quantity')::int, (v_line_item ->> 'price')::numeric * 100,
-                (v_line_item ->> 'total_discount')::numeric * 100, v_line_item ->> 'id', v_cost_at_time
-            ) ON CONFLICT DO NOTHING;
-        END IF;
-    END LOOP;
-
-    RETURN v_order_id;
-END;
-$$ LANGUAGE plpgsql;
-
--- Grant permissions for this function
-GRANT EXECUTE ON FUNCTION public.record_order_from_platform(uuid, jsonb, text) TO service_role;
-
-
--- Final step: Re-enable RLS and create policies for all tables
--- This ensures security policies are correctly applied after all changes.
-
+-- =============================================
+-- 4. ROW-LEVEL SECURITY (RLS)
+-- =============================================
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
@@ -191,57 +317,65 @@ ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.refund_line_items ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE PROCEDURE public.create_rls_policy(table_name TEXT)
+-- Drop any existing RLS helper procedures/functions to avoid conflicts.
+DROP FUNCTION IF EXISTS create_rls_policy(TEXT) CASCADE;
+DROP PROCEDURE IF EXISTS create_rls_policy(TEXT) CASCADE;
+
+-- Helper procedure to create RLS policies dynamically
+CREATE OR REPLACE PROCEDURE create_rls_policy(
+    table_name TEXT
+)
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  EXECUTE format('
-    CREATE POLICY "Users can only see their own company''s data."
-    ON public.%I FOR ALL
-    USING (company_id = public.get_current_company_id());
-  ', table_name);
+    EXECUTE format(
+        '
+        DROP POLICY IF EXISTS "Users can only see their own company''s data." ON public.%I;
+        CREATE POLICY "Users can only see their own company''s data."
+        ON public.%I FOR ALL
+        USING (company_id = public.get_current_company_id());
+        ',
+        table_name, table_name
+    );
 END;
 $$;
 
-DO $$
-DECLARE
-    t_name TEXT;
-BEGIN
-    FOR t_name IN
-        SELECT tablename
-        FROM pg_tables
-        WHERE schemaname = 'public'
-          AND tablename IN (
-            'company_settings', 'products', 'product_variants', 'customers',
-            'orders', 'order_line_items', 'suppliers', 'conversations',
-            'messages', 'integrations', 'inventory_ledger', 'refund_line_items'
-          )
-    LOOP
-        EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY;', t_name);
-        EXECUTE format('DROP POLICY IF EXISTS "Users can only see their own company''s data." ON public.%I;', t_name);
-        CALL public.create_rls_policy(t_name);
-    END LOOP;
-END;
-$$;
 
--- Special policy for the companies table
+-- Apply the RLS policies to all relevant tables
+CALL create_rls_policy('company_settings');
+CALL create_rls_policy('products');
+CALL create_rls_policy('product_variants');
+CALL create_rls_policy('customers');
+CALL create_rls_policy('orders');
+CALL create_rls_policy('order_line_items');
+CALL create_rls_policy('suppliers');
+CALL create_rls_policy('conversations');
+CALL create_rls_policy('messages');
+CALL create_rls_policy('integrations');
+CALL create_rls_policy('inventory_ledger');
+CALL create_rls_policy('refund_line_items');
+
+
+-- Special RLS policies
 DROP POLICY IF EXISTS "Users can only see their own company." ON public.companies;
 CREATE POLICY "Users can only see their own company."
 ON public.companies FOR SELECT
 USING (id = public.get_current_company_id());
 
--- Grant usage on schema to roles
-GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, service_role;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO postgres, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, service_role;
+DROP POLICY IF EXISTS "Users can see other users in their own company." ON public.users;
+CREATE POLICY "Users can see other users in their own company."
+ON public.users FOR SELECT
+USING (company_id = public.get_current_company_id());
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO postgres, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, service_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role;
+-- =============================================
+-- 5. INDEXES FOR PERFORMANCE
+-- =============================================
+CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
+CREATE INDEX IF NOT EXISTS idx_variants_product_id ON public.product_variants(product_id);
+CREATE INDEX IF NOT EXISTS idx_variants_sku_company ON public.product_variants(sku, company_id);
+CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_line_items_order_id ON public.order_line_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_ledger_variant_id ON public.inventory_ledger(variant_id, created_at DESC);
 
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON public.companies, public.company_settings, public.products, public.product_variants, public.customers, public.orders, public.order_line_items, public.suppliers, public.conversations, public.messages, public.integrations TO authenticated;
-
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+-- Final success message
+SELECT 'InvoChat Database Schema v2.0 setup complete.' as status;
