@@ -8,32 +8,72 @@ import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/dat
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 
-// Since this is a simulation, we'll create some mock data.
-const MOCK_FBA_PRODUCTS = [
-    { sku: 'FBA-PROD-001', name: 'Premium FBA Widget', stock: 150, price: 29.99, cost: 15.00, category: 'Widgets' },
-    { sku: 'FBA-PROD-002', name: 'Standard FBA Gadget', stock: 300, price: 19.99, cost: 10.00, category: 'Gadgets' },
-];
+// --- DYNAMIC SIMULATION FOR AMAZON FBA ---
+// Amazon's real SP-API is complex and requires a full OAuth flow.
+// To make this integration demonstrable, we dynamically generate mock data
+// instead of using a static mock array. This simulates a real sync.
 
-const MOCK_FBA_ORDERS = [
-    { id: 'FBA-ORD-101', customer: { name: 'John Doe', email: 'john.doe.fba@example.com' }, total: 49.98, items: [{ sku: 'FBA-PROD-002', name: 'Standard FBA Gadget', quantity: 2, price: 19.99 }, { sku: 'FBA-PROD-001', name: 'Premium FBA Widget', quantity: 1, price: 29.99 }] },
-];
+function generateSimulatedProducts(count: number): any[] {
+    const products = [];
+    for (let i = 1; i <= count; i++) {
+        const id = `FBA-SIM-${String(i).padStart(3, '0')}`;
+        products.push({
+            id,
+            sku: id,
+            name: `Simulated FBA Product #${i}`,
+            inventory_quantity: Math.floor(Math.random() * 200) + 50,
+            price: (Math.random() * 50 + 10).toFixed(2),
+            cost_of_goods: (Math.random() * 25 + 5).toFixed(2),
+            categories: [{ name: 'Simulated Goods' }],
+        });
+    }
+    return products;
+}
 
+function generateSimulatedOrders(products: any[], count: number): any[] {
+    const orders = [];
+    for (let i = 1; i <= count; i++) {
+        const orderId = `FBA-SIM-ORD-${Date.now() + i}`;
+        const numItems = Math.floor(Math.random() * 3) + 1;
+        const line_items = [];
+        let total_price = 0;
+        for (let j = 0; j < numItems; j++) {
+            const product = products[Math.floor(Math.random() * products.length)];
+            const quantity = Math.floor(Math.random() * 2) + 1;
+            line_items.push({
+                sku: product.sku,
+                name: product.name,
+                quantity: quantity,
+                price: product.price,
+            });
+            total_price += product.price * quantity;
+        }
+        orders.push({
+            id: orderId,
+            customer: { first_name: 'Simulated', last_name: 'Customer', email: `fba.customer+${Date.now() + i}@example.com` },
+            total_price: total_price.toFixed(2),
+            line_items,
+        });
+    }
+    return orders;
+}
 
 async function syncProducts(integration: Integration, credentials: { sellerId: string; authToken: string }) {
     const supabase = getServiceRoleClient();
-    logger.info(`[Sync Placeholder] Starting Amazon FBA product sync for Seller ID: ${credentials.sellerId}`);
+    logger.info(`[Sync Simulation] Starting Amazon FBA product sync for Seller ID: ${credentials.sellerId}`);
 
-    const recordsToUpsert = MOCK_FBA_PRODUCTS.map(product => ({
+    const simulatedProducts = generateSimulatedProducts(15); // Generate 15 sample products
+
+    const recordsToUpsert = simulatedProducts.map(product => ({
         company_id: integration.company_id,
         sku: product.sku,
         name: product.name,
-        quantity: product.stock,
-        cost: product.cost,
-        price: product.price,
-        category: product.category,
+        quantity: product.inventory_quantity,
+        cost: Math.round(parseFloat(product.cost_of_goods) * 100),
+        price: Math.round(parseFloat(product.price) * 100),
+        category: product.categories[0]?.name || 'Uncategorized',
         source_platform: 'amazon_fba',
-        external_product_id: product.sku,
-        external_variant_id: product.sku,
+        external_product_id: product.id,
         last_sync_at: new Date().toISOString(),
     }));
 
@@ -42,36 +82,38 @@ async function syncProducts(integration: Integration, credentials: { sellerId: s
         if (upsertError) throw new Error(`Database upsert error for FBA products: ${upsertError.message}`);
     }
     
-    logger.info(`Successfully synced ${recordsToUpsert.length} products for ${integration.shop_name}`);
+    logger.info(`Successfully synced ${recordsToUpsert.length} simulated products for ${integration.shop_name}`);
+    return simulatedProducts;
 }
 
-async function syncSales(integration: Integration, credentials: { sellerId: string; authToken: string }) {
+async function syncSales(integration: Integration, credentials: { sellerId: string; authToken: string }, products: any[]) {
     const supabase = getServiceRoleClient();
-    logger.info(`[Sync Placeholder] Starting Amazon FBA sales sync for Seller ID: ${credentials.sellerId}`);
+    logger.info(`[Sync Simulation] Starting Amazon FBA sales sync for Seller ID: ${credentials.sellerId}`);
+    
+    const simulatedOrders = generateSimulatedOrders(products, 5); // Generate 5 sample orders
     let totalRecordsSynced = 0;
 
-    for (const order of MOCK_FBA_ORDERS) {
-        // Find the cost for each item at the time of sync
-        const itemsWithCost = order.items.map(item => {
-            const product = MOCK_FBA_PRODUCTS.find(p => p.sku === item.sku);
+    for (const order of simulatedOrders) {
+        const itemsWithCost = order.line_items.map((item: any) => {
+            const product = products.find(p => p.sku === item.sku);
             return {
                 ...item,
-                cost_at_time: product?.cost, // Use the cost from our mock product list
+                cost_at_time: product ? Math.round(parseFloat(product.cost_of_goods) * 100) : 0,
             };
         });
 
         const { error } = await supabase.rpc('record_sale_transaction', {
             p_company_id: integration.company_id,
             p_user_id: null,
-            p_customer_name: order.customer.name,
+            p_customer_name: `${order.customer.first_name} ${order.customer.last_name}`,
             p_customer_email: order.customer.email,
             p_payment_method: 'amazon_fba',
             p_notes: `Amazon Order #${order.id}`,
-            p_sale_items: itemsWithCost.map(item => ({
+            p_sale_items: itemsWithCost.map((item: any) => ({
                 sku: item.sku,
                 product_name: item.name,
                 quantity: item.quantity,
-                unit_price: item.price,
+                unit_price: Math.round(parseFloat(item.price) * 100),
                 cost_at_time: item.cost_at_time,
             })),
             p_external_id: order.id
@@ -84,7 +126,7 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
         }
     }
     
-    logger.info(`Successfully synced ${totalRecordsSynced} sales for ${integration.shop_name}`);
+    logger.info(`Successfully synced ${totalRecordsSynced} simulated sales for ${integration.shop_name}`);
 }
 
 export async function runAmazonFbaFullSync(integration: Integration) {
@@ -97,13 +139,13 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         
         const credentials = JSON.parse(credentialsJson);
         
-        logger.info(`[Sync] Starting product sync for ${integration.shop_name}`);
+        logger.info(`[Sync] Starting product sync simulation for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_products' }).eq('id', integration.id);
-        await syncProducts(integration, credentials);
+        const products = await syncProducts(integration, credentials);
 
-        logger.info(`[Sync] Starting sales sync for ${integration.shop_name}`);
+        logger.info(`[Sync] Starting sales sync simulation for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_sales' }).eq('id', integration.id);
-        await syncSales(integration, credentials);
+        await syncSales(integration, credentials, products);
 
         logger.info(`[Sync] Full sync simulation completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
@@ -117,4 +159,3 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         throw e;
     }
 }
-
