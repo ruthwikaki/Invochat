@@ -5,7 +5,7 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration } from '../../types';
-import { invalidateCompanyCache } from '@/services/database';
+import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 import type { Product, ProductVariant } from '@/types';
@@ -174,6 +174,7 @@ export async function runShopifyFullSync(integration: Integration) {
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
         
         await invalidateCompanyCache(integration.company_id, ['dashboard']);
+        await refreshMaterializedViews(integration.company_id);
         
     } catch(e) {
         logError(e, { context: `Shopify sync failed for integration ${integration.id}` });

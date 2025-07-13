@@ -216,3 +216,4 @@ export async function createExportJobInDb(companyId: string, userId: string) { r
 export async function healthCheckFinancialConsistency(companyId: string) { return {} as any; }
 export async function healthCheckInventoryConsistency(companyId: string) { return {} as any; }
 export async function getDbSchemaAndData(companyId: string) { return []; }
+export async function refreshMaterializedViews(companyId: string) {}
