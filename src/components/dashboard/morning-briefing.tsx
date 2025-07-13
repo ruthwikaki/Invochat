@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Bot, Sun, ArrowRight, ServerCrash } from 'lucide-react';
 import { Button } from '../ui/button';
 import Link from 'next/link';
+import type { DashboardMetrics } from '@/types';
 
 interface Briefing {
     greeting: string;

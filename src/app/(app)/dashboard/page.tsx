@@ -4,7 +4,7 @@
 import { AlertTriangle, DollarSign, Package, Users, ShoppingCart, BarChart, TrendingUp, RefreshCw, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
+import { getDashboardData } from '@/app/data-actions';
 import Link from 'next/link';
 import { SalesTrendChart } from '@/components/dashboard/sales-trend-chart';
 import { InventoryCategoryChart } from '@/components/dashboard/inventory-category-chart';

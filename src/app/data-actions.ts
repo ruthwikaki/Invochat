@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -52,7 +51,8 @@ import {
   testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
   getInventoryLedgerFromDB,
-  getHistoricalSalesForSkus
+  getHistoricalSalesForSkus,
+  getDashboardMetrics
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -89,9 +89,7 @@ async function getAuthContext() {
 
 export async function getDashboardData(dateRange: string) {
     const { companyId } = await getAuthContext();
-    // This function will need to be updated to work with the new schema
-    // return getDashboardMetrics(companyId, dateRange);
-    return { total_revenue: 0, average_sale_value: 0, salesTrendData: [], topCustomersData: [], inventoryByCategoryData: [] }; // Placeholder
+    return getDashboardMetrics(companyId, dateRange);
 }
 
 export async function getCompanySettings() {
@@ -238,8 +236,39 @@ export async function getSalesAnalytics() {
 // ... other actions to be refactored ...
 
 // Stubs for functions that need updates
-export async function getReorderReport(): Promise<ReorderSuggestion[]> { return []; }
-export async function getInsightsPageData() { return { summary: '', anomalies: [], topDeadStock: [], topLowStock: [] }; }
+export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
+    const { companyId } = await getAuthContext();
+    return getReorderSuggestionsFromDB(companyId);
+}
+export async function getInsightsPageData() { 
+    const { companyId } = await getAuthContext();
+    const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
+        getAnomalyInsightsFromDB(companyId),
+        getDeadStockReportFromDB(companyId),
+        getAlertsFromDB(companyId),
+    ]);
+
+     const explainedAnomalies = await Promise.all(
+        rawAnomalies.map(async (anomaly) => {
+            // Re-use logic from alert explanation for consistency
+            const { explanation, confidence, suggestedAction } = await generateMorningBriefing({ metrics: {} as any, companyName: '' }); // This is a mock call for now
+            return { ...anomaly, explanation, confidence, suggestedAction, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
+        })
+    );
+    
+    const summary = await generateInsightsSummary({
+        anomalies: explainedAnomalies,
+        lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
+        deadStockCount: topDeadStockData.deadStockItems.length,
+    });
+
+    return {
+        summary,
+        anomalies: explainedAnomalies,
+        topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
+        topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
+    };
+ }
 export async function testSupabaseConnection() { return dbTestSupabase(); }
 export async function testDatabaseQuery() { return dbTestQuery(); }
 export async function testGenkitConnection() { return genkitTest(); }
@@ -248,9 +277,28 @@ export async function getGeneratedProductDescription(productName: string, catego
     return generateProductDescription({ productName, category, keywords });
 }
 
-export async function logUserFeedback(formData: FormData) { return {success: true} }
-export async function getAlertsData() { return [] }
-export async function getDatabaseSchemaAndData() { return [] }
+export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const subjectId = formData.get('subjectId') as string;
+        const subjectType = formData.get('subjectType') as string;
+        const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
+
+        await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
+        
+        return { success: true };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+export async function getAlertsData(): Promise<Alert[]> { 
+    const { companyId } = await getAuthContext();
+    return getAlertsFromDB(companyId);
+}
+export async function getDatabaseSchemaAndData() { 
+    const { companyId } = await getAuthContext();
+    return getDbSchemaAndData(companyId);
+}
 export async function getTeamMembers() {
     const { companyId } = await getAuthContext();
     return getTeamMembersFromDB(companyId);
@@ -346,7 +394,15 @@ export async function getCustomerSegmentAnalysis(): Promise<{ segments: Customer
     const insights = await getCustomerInsights({ segments });
     return { segments, insights };
 }
-export async function getMorningBriefing(range: string) { return {greeting: 'Good morning!', summary: 'Data is being updated for the new schema.'}; }
+export async function getMorningBriefing(dateRange: string) {
+    const { companyId } = await getAuthContext();
+    const [metrics, company] = await Promise.all([
+        getDashboardMetrics(companyId, dateRange),
+        getCompanyById(companyId),
+    ]);
+    return generateMorningBriefing({ metrics, companyName: company?.name });
+}
+
 export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> { return {success: false, error: "Not implemented"}; }
 export async function testMaterializedView() { return {success: true}; }
 export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }

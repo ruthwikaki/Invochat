@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { handleUserMessage } from '@/app/actions';
 import type { Message } from '@/types';
-import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive, Truck, PackagePlus, Tags, BarChartHorizontal, SearchCode } from 'lucide-react';
+import { AlertTriangle, Sparkles, TrendingUp, ChevronsRight, ArrowLeft, Activity, Pyramid, Loader2, Banknote, RefreshCw, Archive, Truck, PackagePlus, Tags, BarChartHorizontal, SearchCode, Recycle, ShieldAlert, Users2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataVisualization } from '@/components/chat/data-visualization';
 import Link from 'next/link';
@@ -86,14 +86,6 @@ const availableAnalyses = [
         prompt: 'Identify my 10 fastest and 10 slowest-moving products over the last 90 days based on units sold.',
         details: "This report shows you which products are moving quickly ('fast-movers') and which are not ('slow-movers'), allowing you to adjust marketing or consider discontinuing items."
     },
-     {
-        key: 'inventory_value',
-        title: 'Inventory Value Report',
-        icon: Archive,
-        description: 'Get a full breakdown of your current inventory value by category.',
-        prompt: 'What is my total inventory value, broken down by category?',
-        details: "This report provides a summary of your inventory's total financial value, grouped by product category. It's useful for financial planning and understanding where your capital is tied up."
-    },
     {
         key: 'profit_margin',
         title: 'Profit Margin Analysis',
@@ -141,6 +133,42 @@ const availableAnalyses = [
         description: 'Analyze the financial impact of a potential sales promotion before you run it.',
         prompt: "What's the impact of a 20% discount on all items in the 'Widgets' category for one week?",
         details: 'Use the chat interface to ask specific "what if" questions about promotions. The AI will analyze past sales velocity to predict the impact on revenue and profit.'
+    },
+    {
+      key: 'aging',
+      title: 'Inventory Aging Report',
+      icon: Archive,
+      description: "See how long your inventory has been sitting on the shelves.",
+      details: "This report is crucial for identifying stale inventory before it becomes dead stock. It groups your inventory into aging buckets (e.g., 0-30 days, 31-60 days).",
+      isNew: true,
+      path: "/reports/inventory-aging"
+    },
+    {
+      key: 'risk',
+      title: 'Inventory Risk Report',
+      icon: ShieldAlert,
+      description: "Identify products that pose the most financial risk to your business.",
+      details: "Calculates a 'Risk Score' for each product based on its value, sales velocity, and age, helping you prioritize actions to mitigate potential losses.",
+      isNew: true,
+      path: "/reports/inventory-risk"
+    },
+    {
+      key: 'lifecycle',
+      title: 'Product Lifecycle Analysis',
+      icon: Recycle,
+      description: "Understand where each product is in its lifecycle (Launch, Growth, Maturity, Decline).",
+      details: "Helps you make better strategic decisions, like when to promote a product, when to reorder heavily, or when to plan for a replacement.",
+      isNew: true,
+      path: "/reports/product-lifecycle"
+    },
+    {
+      key: 'segments',
+      title: 'Customer Segment Analysis',
+      icon: Users2,
+      description: "Discover which products are popular with different customer groups.",
+      details: "See what products are driving new customer acquisition versus what your top spenders are buying. Invaluable for targeted marketing.",
+      isNew: true,
+      path: "/reports/customer-segments"
     }
 ];
 
@@ -152,10 +180,15 @@ function StrategicReports() {
     const [conversationId, setConversationId] = useState<string | null>(null);
     const router = useRouter();
 
-    const handleRunAnalysis = (prompt: string, key: string) => {
+    const handleRunAnalysis = (prompt: string, key: string, path?: string) => {
         // Special cases for scenarios that should be handled in chat
         if (key === 'what_if_promo') {
             router.push(`/chat?q=${encodeURIComponent(prompt)}`);
+            return;
+        }
+
+        if(path) {
+            router.push(path);
             return;
         }
 
@@ -253,9 +286,9 @@ function StrategicReports() {
                             <CardDescription>{analysis.description}</CardDescription>
                         </CardHeader>
                         <CardFooter>
-                            <Button className="w-full" onClick={() => handleRunAnalysis(analysis.prompt, analysis.key)} disabled={isPending}>
+                            <Button className="w-full" onClick={() => handleRunAnalysis(analysis.prompt, analysis.key, analysis.path)} disabled={isPending}>
                                {isPending && currentAnalysisKey === analysis.key ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                {analysis.key.startsWith('what_if') ? 'Go to Chat' : 'Run Analysis'}
+                                {analysis.key.startsWith('what_if') ? 'Go to Chat' : analysis.isNew ? 'View Report' : 'Run Analysis'}
                             </Button>
                         </CardFooter>
                     </Card>
