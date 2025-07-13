@@ -1,19 +1,18 @@
 
-
 'use client';
 
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import React, { useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { ProductUpdateSchema, type ProductUpdateData, type UnifiedInventoryItem, type Location } from '@/types';
+import { ProductUpdateSchema, type ProductUpdateData, type UnifiedInventoryItem } from '@/types';
 import { updateProduct } from '@/app/data-actions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Textarea } from '../ui/textarea';
 
 interface InventoryEditDialogProps {
   item: UnifiedInventoryItem | null;
@@ -33,6 +32,7 @@ export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDial
       cost: item.cost,
       price: item.price,
       barcode: item.barcode,
+      location_note: item.location_note,
     } : undefined,
   });
 
@@ -59,6 +59,7 @@ export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDial
         cost: item.cost,
         price: item.price,
         barcode: item.barcode,
+        location_note: item.location_note,
       });
     }
   }, [item, form]);
@@ -99,6 +100,10 @@ export function InventoryEditDialog({ item, onClose, onSave }: InventoryEditDial
                 <Input id="price" type="number" step="1" {...form.register('price')} />
                  {form.formState.errors.price && <p className="text-sm text-destructive">{form.formState.errors.price.message}</p>}
               </div>
+          </div>
+           <div className="space-y-2">
+            <Label htmlFor="location_note">Location Note</Label>
+            <Textarea id="location_note" {...form.register('location_note')} placeholder="e.g., Shelf A-3, Back room, Bin 42" />
           </div>
           <DialogFooter className="pt-4">
             <DialogClose asChild>

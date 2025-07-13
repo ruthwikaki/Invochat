@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -54,16 +55,16 @@ import {
   getCompanyById,
   reconcileInventoryFromPlatform,
   testMaterializedView as dbTestMaterializedView,
+  createAuditLogInDb,
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, SupplierFormData, SaleCreateInput, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
-import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
@@ -117,7 +118,7 @@ export async function getUnifiedInventory(params: { query?: string; category?: s
 }
 
 export async function getInventoryAnalytics() {
-    const { companyId } await getAuthContext();
+    const { companyId } = await getAuthContext();
     return getInventoryAnalyticsFromDB(companyId);
 }
 
@@ -145,7 +146,7 @@ export async function deleteInventoryItems(formData: FormData): Promise<{ succes
 
 export async function updateProduct(productId: string, data: ProductUpdateData) {
     try {
-        const { companyId, userId } = await getAuthContext();
+        const { companyId } = await getAuthContext();
         const updatedProduct = await updateProductInDb(companyId, productId, data);
         revalidatePath('/inventory');
         return { success: true, updatedItem: updatedProduct };
@@ -296,12 +297,11 @@ export async function getInsightsPageData() {
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
         getAnomalyInsightsFromDB(companyId),
         getDeadStockReportFromDB(companyId),
-        getAlertsFromDB(companyId),
+        getAlertsFromDB(),
     ]);
 
     const explainedAnomalies = await Promise.all(
         rawAnomalies.map(async (anomaly) => {
-            const date = new Date(anomaly.date);
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -389,7 +389,7 @@ export async function getTeamMembers() {
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId, userId } = await getAuthContext();
+        const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const email = formData.get('email') as string;
         await inviteUserToCompanyInDb(companyId, 'Your Company', email);
@@ -414,7 +414,7 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
 
 export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId, userId } = await getAuthContext();
+        const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
@@ -621,4 +621,14 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 
 export async function testMaterializedView() {
     return dbTestMaterializedView();
+}
+
+export async function logPOCreation(poNumber: string, supplierName: string, items: ReorderSuggestion[]) {
+    const { companyId, userId } = await getAuthContext();
+    await createAuditLogInDb(companyId, userId, 'purchase_order_generated', {
+        po_number: poNumber,
+        supplier: supplierName,
+        item_count: items.length,
+        total_value: items.reduce((sum, item) => sum + (item.suggested_reorder_quantity * (item.unit_cost || 0)), 0),
+    });
 }

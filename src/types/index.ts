@@ -54,6 +54,7 @@ export const ProductSchema = z.object({
     price: z.number().int().nullable(), // in cents
     cost: z.number().int(), // in cents
     barcode: z.string().nullable(),
+    location_note: z.string().nullable(),
     created_at: z.string(),
     updated_at: z.string().nullable(),
 });
@@ -65,6 +66,7 @@ export const ProductUpdateSchema = z.object({
   price: z.coerce.number().int().nonnegative('Price must be a non-negative integer (in cents).').optional().nullable(),
   cost: z.coerce.number().int().nonnegative('Cost must be a non-negative integer (in cents).').optional().nullable(),
   barcode: z.string().optional().nullable(),
+  location_note: z.string().optional().nullable(),
 });
 export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
 
@@ -184,6 +186,7 @@ export const UnifiedInventoryItemSchema = z.object({
     supplier_name: z.string().nullable(),
     supplier_id: z.string().uuid().nullable(),
     barcode: z.string().nullable(),
+    location_note: z.string().nullable(),
 });
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
@@ -426,3 +429,9 @@ export const BusinessProfileSchema = z.object({
   product_category_count: z.number().int(),
 });
 export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
+
+// Company information used for PDF generation
+export type CompanyInfo = {
+    name: string;
+    address?: string;
+}

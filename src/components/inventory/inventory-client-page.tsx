@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
@@ -10,12 +9,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { UnifiedInventoryItem, Supplier, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
+import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles, MapPin } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -27,6 +26,7 @@ import { InventoryHistoryDialog } from './inventory-history-dialog';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { ExportButton } from '../ui/export-button';
 import { ProductDescriptionGeneratorDialog } from './product-description-generator';
+import { Loader2 } from 'lucide-react';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
@@ -405,6 +405,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                 <DropdownMenuItem onSelect={() => setEditingItem(item)}><Edit className="mr-2 h-4 w-4" />Edit</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setItemForDescription(item)}><Sparkles className="mr-2 h-4 w-4" />Generate Description</DropdownMenuItem>
                                                 <DropdownMenuItem onSelect={() => setHistoryProductId(item.product_id)}><History className="mr-2 h-4 w-4" />View History</DropdownMenuItem>
+                                                <DropdownMenuSeparator />
                                                 <DropdownMenuItem onSelect={() => setItemsToDelete([item.product_id])} className="text-destructive">
                                                   <Trash2 className="mr-2 h-4 w-4" />Delete
                                                 </DropdownMenuItem>
@@ -428,6 +429,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                             <div><strong className="text-muted-foreground">Category:</strong> {item.category || 'N/A'}</div>
                                             <div><strong className="text-muted-foreground">Unit Cost:</strong> ${(item.cost/100).toFixed(2)}</div>
                                             <div><strong className="text-muted-foreground">Supplier:</strong> {item.supplier_name || 'N/A'}</div>
+                                            <div className="flex items-center gap-1">
+                                                <MapPin className="h-3 w-3 text-muted-foreground" />
+                                                <strong className="text-muted-foreground">Location:</strong> {item.location_note || 'N/A'}
+                                            </div>
                                         </div>
                                     </TableCell>
                                 </TableRow>
