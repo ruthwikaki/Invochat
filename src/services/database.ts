@@ -34,27 +34,12 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     const supabase = getServiceRoleClient();
     
     let query = supabase
-        .from('product_variants')
-        .select(`
-            *,
-            product:products (
-                title,
-                status,
-                image_url
-            )
-        `, { count: 'exact' })
+        .from('product_variants_with_details')
+        .select('*', { count: 'exact' })
         .eq('company_id', companyId);
 
     if (params.query) {
-         const { data: productIdsData, error: productIdsError } = await supabase.from('products').select('id').ilike('title', `%${params.query}%`).eq('company_id', companyId);
-         if (productIdsError) { logError(productIdsError); }
-         const pids = productIdsData?.map(p => p.id) || [];
-
-         let orQuery = `sku.ilike.%${params.query}%`;
-         if (pids.length > 0) {
-             orQuery += `,product_id.in.(${pids.join(',')})`;
-         }
-         query = query.or(orQuery);
+        query = query.or(`product_title.ilike.%${params.query}%,sku.ilike.%${params.query}%`);
     }
     
     const { data, error, count } = await query
@@ -65,16 +50,9 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
         logError(error, { context: 'getUnifiedInventoryFromDB failed' });
         throw error;
     }
-
-    const items = (data || []).map(item => ({
-        ...item,
-        product_title: item.product.title,
-        product_status: item.product.status,
-        image_url: item.product.image_url,
-    }));
     
     return {
-        items: z.array(UnifiedInventoryItemSchema).parse(items),
+        items: z.array(UnifiedInventoryItemSchema).parse(data || []),
         totalCount: count || 0,
     };
 }
@@ -119,8 +97,13 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
     return data || [];
 }
 
-// Stubs for functions that need significant refactoring or are not implemented yet.
-export async function getDashboardMetrics(companyId: string, dateRange: string) { return {}; }
+export async function getDashboardMetrics(companyId: string, dateRange: string) { 
+    const supabase = getServiceRoleClient();
+    const days = parseInt(dateRange.replace('d', ''));
+    const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
+    if (error) throw error;
+    return data;
+}
 export async function getInventoryAnalyticsFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
@@ -128,13 +111,48 @@ export async function getInventoryAnalyticsFromDB(companyId: string) {
     return data;
 }
 
-export async function getSuppliersDataFromDB(companyId: string) { return []; }
-export async function getSupplierByIdFromDB(id: string, companyId: string) { return null; }
-export async function createSupplierInDb(companyId: string, formData: SupplierFormData) { return; }
-export async function updateSupplierInDb(id: string, companyId: string, formData: SupplierFormData) { return; }
-export async function deleteSupplierFromDb(id: string, companyId: string) { return; }
-export async function getCustomersFromDB(companyId: string, params: any) { return {items: [], totalCount: 0}; }
-export async function deleteCustomerFromDb(customerId: string, companyId: string) { return; }
+export async function getSuppliersDataFromDB(companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('suppliers').select('*').eq('company_id', companyId);
+    if(error) throw error;
+    return data || [];
+}
+export async function getSupplierByIdFromDB(id: string, companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('suppliers').select('*').eq('id', id).eq('company_id', companyId).single();
+    if(error) return null;
+    return data;
+}
+export async function createSupplierInDb(companyId: string, formData: SupplierFormData) { 
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('suppliers').insert({ ...formData, company_id: companyId });
+    if (error) throw error;
+}
+export async function updateSupplierInDb(id: string, companyId: string, formData: SupplierFormData) { 
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('suppliers').update(formData).eq('id', id).eq('company_id', companyId);
+    if (error) throw error;
+}
+export async function deleteSupplierFromDb(id: string, companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('suppliers').delete().eq('id', id).eq('company_id', companyId);
+    if (error) throw error;
+}
+export async function getCustomersFromDB(companyId: string, params: any) { 
+    const supabase = getServiceRoleClient();
+    let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
+    if(params.query) {
+        query = query.or(`customer_name.ilike.%${params.query}%,email.ilike.%${params.query}%`);
+    }
+    const { data, error, count } = await query.range(params.offset, params.offset + params.limit - 1);
+    if(error) throw error;
+    return {items: data || [], totalCount: count || 0};
+}
+export async function deleteCustomerFromDb(customerId: string, companyId: string) { 
+     const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', customerId).eq('company_id', companyId);
+    if(error) throw error;
+}
 
 export async function getSalesFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) {
     const supabase = getServiceRoleClient();
@@ -159,10 +177,34 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
-export async function getDeadStockReportFromDB(companyId: string) { return {deadStockItems: [], totalValue: 0, totalUnits: 0}; }
-export async function getReorderSuggestionsFromDB(companyId: string) { return []; }
-export async function getAnomalyInsightsFromDB(companyId: string) { return []; }
-export async function getAlertsFromDB(companyId: string) { return []; }
+export async function getDeadStockReportFromDB(companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
+    if (error) throw error;
+    return {
+        deadStockItems: data || [],
+        totalValue: data.reduce((sum: number, item: any) => sum + item.total_value, 0),
+        totalUnits: data.reduce((sum: number, item: any) => sum + item.quantity, 0),
+    };
+}
+export async function getReorderSuggestionsFromDB(companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
+    if (error) throw error;
+    return data || [];
+}
+export async function getAnomalyInsightsFromDB(companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('detect_anomalies', { p_company_id: companyId });
+    if (error) throw error;
+    return data || [];
+}
+export async function getAlertsFromDB(companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
+    if (error) throw error;
+    return data || [];
+}
 
 export async function getInventoryAgingReportFromDB(companyId: string) {
     const supabase = getServiceRoleClient();
@@ -192,10 +234,23 @@ export async function getCustomerSegmentAnalysisFromDB(companyId: string) {
 }
 
 export async function getCashFlowInsightsFromDB(companyId: string) {
-    return { dead_stock_value: 0, slow_mover_value: 0, dead_stock_threshold_days: 90 };
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
+    if(error) throw error;
+    return data;
 }
-export async function getSupplierPerformanceFromDB(companyId: string) { return []; }
-export async function getInventoryTurnoverFromDB(companyId: string, days: number) { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
+export async function getSupplierPerformanceFromDB(companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_supplier_performance_report', { p_company_id: companyId });
+    if (error) throw error;
+    return data || [];
+}
+export async function getInventoryTurnoverFromDB(companyId: string, days: number) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_inventory_turnover', { p_company_id: companyId, p_days: days });
+    if (error) throw error;
+    return data;
+}
 
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
     const supabase = getServiceRoleClient();
@@ -247,8 +302,17 @@ export async function updateTeamMemberRoleInDb(memberId: string, companyId: stri
     return { success: true };
 }
 
-export async function getChannelFeesFromDB(companyId: string) { return []; }
-export async function upsertChannelFeeInDB(companyId: string, feeData: any) { return; }
+export async function getChannelFeesFromDB(companyId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('channel_fees').select('*').eq('company_id', companyId);
+    if (error) throw error;
+    return data || [];
+}
+export async function upsertChannelFeeInDB(companyId: string, feeData: any) { 
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
+    if (error) throw error;
+}
 export async function getCompanyById(companyId: string) {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('companies').select('name').eq('id', companyId).single();
@@ -261,7 +325,12 @@ export async function testDatabaseQuery() { return {success:true}; }
 export async function testMaterializedView() { return {success:true}; }
 export async function createAuditLogInDb(companyId: string, userId: string | null, action: string, details?: Record<string, any>): Promise<void> {}
 export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {}
-export async function createExportJobInDb(companyId: string, userId: string) { return {} as any; }
+export async function createExportJobInDb(companyId: string, userId: string) { 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('export_jobs').insert({ company_id: companyId, requested_by_user_id: userId }).select().single();
+    if (error) throw error;
+    return data;
+}
 export async function healthCheckFinancialConsistency(companyId: string) { return {} as any; }
 export async function healthCheckInventoryConsistency(companyId: string) { return {} as any; }
 export async function getDbSchemaAndData(companyId: string) { return []; }
@@ -270,3 +339,33 @@ export async function logSuccessfulLogin(userId: string, ip: string) {}
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) { return []; }
 export async function getHistoricalSalesFromDB(companyId: string, days: number) { return []; }
+
+export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
+    if(error) throw error;
+}
+
+export async function logPOCreationInDb(poNumber: string, supplierName: string, items: any[], companyId: string, userId: string) {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('audit_log').insert({
+        company_id: companyId,
+        user_id: userId,
+        action: 'purchase_order_created',
+        details: { poNumber, supplierName, items: items.map(i => ({ sku: i.sku, qty: i.suggested_reorder_quantity })) }
+    });
+    if (error) { logError(error, { context: 'Failed to log PO creation' }); }
+}
+export async function transferStockInDb(companyId: string, userId: string, data: any) { }
+
+export async function logWebhookEvent(integrationId: string, platform: string, webhookId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('webhook_events').insert({ integration_id: integrationId, webhook_id: webhookId });
+    if (error) {
+        if (error.code === '23505') { // unique_violation
+            return { success: false, error: 'Duplicate webhook event' };
+        }
+        throw error;
+    }
+    return { success: true };
+}
