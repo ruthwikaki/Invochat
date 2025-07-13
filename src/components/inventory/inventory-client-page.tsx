@@ -2,20 +2,19 @@
 
 'use client';
 
-import { useState, useMemo, Fragment, useTransition, useEffect } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
-import type { UnifiedInventoryItem, Supplier, InventoryAnalytics } from '@/types';
+import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, MoreHorizontal, ChevronDown, Trash2, Edit, History, X, Download, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles, Wand2 } from 'lucide-react';
+import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 import { Package } from 'lucide-react';
 import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -26,8 +25,6 @@ interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
   totalCount: number;
   itemsPerPage: number;
-  categories: string[];
-  suppliers: Supplier[];
   analyticsData: InventoryAnalytics;
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
@@ -141,10 +138,10 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
 };
 
 
-export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, categories, suppliers, analyticsData, exportAction }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { replace, refresh } = useRouter();
+  const { replace } = useRouter();
 
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
 

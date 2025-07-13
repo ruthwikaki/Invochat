@@ -7,7 +7,6 @@ import { cookies } from 'next/headers';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import {
-  getDashboardMetrics,
   getSettings,
   updateSettingsInDb,
   getInventoryCategoriesFromDB,

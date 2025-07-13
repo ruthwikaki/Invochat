@@ -1,9 +1,7 @@
 
 
-import type { ReactNode } from 'react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
-import type { Integration } from '@/features/integrations/types';
 
 // --- CORE AUTH & COMPANY ---
 export const UserSchema = z.custom<SupabaseUser>();
@@ -24,7 +22,7 @@ export const TeamMemberSchema = z.object({
 export type TeamMember = z.infer<typeof TeamMemberSchema>;
 
 
-// --- PRODUCT CATALOG ---
+// --- PRODUCT CATALOG (NEW SCHEMA) ---
 export const ProductSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
@@ -73,7 +71,7 @@ export const UnifiedInventoryItemSchema = ProductVariantSchema.extend({
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
 
-// --- ORDERS & FULFILLMENT ---
+// --- ORDERS & FULFILLMENT (NEW SCHEMA) ---
 export const OrderSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
@@ -119,12 +117,13 @@ export const CustomerSchema = z.object({
   email: z.string().email().nullable(),
   total_orders: z.number().int(),
   total_spent: z.number().int(), // in cents
+  first_order_date: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Customer = z.infer<typeof CustomerSchema>;
 
 
-// --- SUPPLIERS & PURCHASING ---
+// --- SUPPLIERS ---
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
     name: z.string().min(1),
@@ -197,16 +196,13 @@ export const SupplierFormSchema = z.object({
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 
 export const ProductUpdateSchema = z.object({
-  name: z.string().min(1, 'Product Name is required.'),
-  category: z.string().optional().nullable(),
-  cost: z.coerce.number().int().optional().nullable(),
-  price: z.coerce.number().int().optional().nullable(),
-  barcode: z.string().optional().nullable(),
+  title: z.string().min(1, 'Product Title is required.'),
+  product_type: z.string().optional().nullable(),
 });
 export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
 
 
-// Schemas for AI flows
+// --- OTHER COMPLEX / REPORTING TYPES ---
 export const ReorderSuggestionBaseSchema = z.object({
     variant_id: z.string().uuid(),
     product_id: z.string().uuid(),
@@ -215,13 +211,10 @@ export const ReorderSuggestionBaseSchema = z.object({
     supplier_name: z.string().nullable(),
     current_quantity: z.number().int(),
     suggested_reorder_quantity: z.number().int(),
-    reorder_point: z.number().int().nullable(),
     unit_cost: z.number().int().nullable(),
 });
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionBaseSchema>;
 
-
-// Placeholder for Dashboard and other complex types
 export type DashboardMetrics = any;
 export type InventoryAnalytics = any;
 export type SalesAnalytics = any;
@@ -234,7 +227,6 @@ export type ProductLifecycleAnalysis = any;
 export type InventoryRiskItem = any;
 export type CustomerSegmentAnalysisItem = any;
 export type ChannelFee = any;
-export type BusinessProfile = any;
 export type CompanyInfo = any;
 export type InventoryLedgerEntry = any;
 

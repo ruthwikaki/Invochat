@@ -47,30 +47,40 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     return withPerformanceTracking('getUnifiedInventoryFromDB', async () => {
         const supabase = getServiceRoleClient();
         
-        // This RPC call simplifies fetching product variants with their parent product info.
-        const rpcParams: any = {
-            p_company_id: companyId,
-            p_limit: params.limit || 50,
-            p_offset: params.offset || 0,
-        };
-        if (params.query) {
-            rpcParams.p_search_term = params.query;
-        }
+        let query = supabase
+            .from('product_variants')
+            .select(`
+                *,
+                product:products (
+                    title,
+                    status,
+                    image_url
+                )
+            `, { count: 'exact' })
+            .eq('company_id', companyId);
 
-        const { data, error } = await supabase
-            .rpc('get_inventory_with_products', rpcParams);
+        if (params.query) {
+            query = query.or(`sku.ilike.%${params.query}%,product_title.ilike.%${params.query}%`);
+        }
+        
+        const { data, error, count } = await query
+            .range(params.offset || 0, (params.offset || 0) + (params.limit || 50) - 1);
         
         if (error) {
             logError(error, { context: 'getUnifiedInventoryFromDB failed' });
             throw error;
         }
 
-        const items = z.array(UnifiedInventoryItemSchema).parse(data || []);
-        const totalCount = items[0]?.full_count || 0;
+        const items = (data || []).map(item => ({
+            ...item,
+            product_title: item.product.title,
+            product_status: item.product.status,
+            image_url: item.product.image_url,
+        }));
         
         return {
-            items,
-            totalCount,
+            items: z.array(UnifiedInventoryItemSchema).parse(items),
+            totalCount: count || 0,
         };
     });
 }
@@ -81,7 +91,7 @@ export async function updateProductInDb(companyId: string, productId: string, da
         const supabase = getServiceRoleClient();
         const { data: updated, error } = await supabase
             .from('products')
-            .update({ title: parsedData.name, product_type: parsedData.category, updated_at: new Date().toISOString() })
+            .update({ title: parsedData.title, product_type: parsedData.product_type, updated_at: new Date().toISOString() })
             .eq('id', productId)
             .eq('company_id', companyId)
             .select()
@@ -107,18 +117,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
 }
 
 export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
-    return withPerformanceTracking('getInventoryLedgerFromDB', async () => {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase
-            .from('inventory_adjustments')
-            .select('*')
-            .eq('company_id', companyId)
-            .eq('variant_id', variantId)
-            .order('created_at', { ascending: false });
-            
-        if (error) throw error;
-        return data || [];
-    });
+    return {success: false, error: 'Not implemented for new schema'}; // This needs a new implementation
 }
 
 
@@ -170,10 +169,8 @@ export async function getProductLifecycleAnalysisFromDB(companyId: string) { ret
 export async function getInventoryRiskReportFromDB(companyId: string) { return []; }
 export async function getCustomerSegmentAnalysisFromDB(companyId: string) { return []; }
 export async function getCashFlowInsightsFromDB(companyId: string) {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
-    if (error) throw error;
-    return data;
+    // This function needs to be rewritten based on the new schema
+    return { dead_stock_value: 0, slow_mover_value: 0, dead_stock_threshold_days: 90 };
 }
 export async function getSupplierPerformanceFromDB(companyId: string) { return []; }
 export async function getInventoryTurnoverFromDB(companyId: string, days: number) { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }

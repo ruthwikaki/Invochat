@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import { getInventoryLedger } from '@/app/data-actions';
 import type { InventoryLedgerEntry } from '@/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +13,7 @@ import { getErrorMessage } from '@/lib/error-handler';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ArrowDown, ArrowUp, History, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Badge } from '../ui/badge';
+import { Badge } from '@/components/ui/badge';
 
 interface InventoryHistoryDialogProps {
   variantId: string | null;
@@ -73,8 +73,13 @@ export function InventoryHistoryDialog({ variantId, onClose }: InventoryHistoryD
       const fetchHistory = async () => {
         setLoading(true);
         try {
-          const data = await getInventoryLedger(variantId);
-          setHistory(data);
+          const result = await getInventoryLedger(variantId);
+          if ('error' in result) {
+            toast({ variant: 'destructive', title: 'Error', description: result.error });
+            setHistory([]);
+          } else {
+            setHistory(result as any[]);
+          }
         } catch (error) {
           toast({
             variant: 'destructive',
