@@ -1,32 +1,39 @@
--- This script is designed to be run on an existing database to add missing security features.
--- It is safe to run multiple times.
 
--- 1. Enable UUID extension if not already enabled
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- This script is targeted to fix specific issues in the existing database.
+-- It is safe to run on your current schema.
 
--- 2. Create the webhook_events table for replay attack protection
+-- 1. Create a table to prevent webhook replay attacks
 CREATE TABLE IF NOT EXISTS public.webhook_events (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL PRIMARY KEY,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     integration_id uuid NOT NULL,
     platform text NOT NULL,
     webhook_id text NOT NULL,
-    processed_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT fk_integration
-        FOREIGN KEY(integration_id)
-        REFERENCES integrations(id)
-        ON DELETE CASCADE
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT webhook_events_pkey PRIMARY KEY (id),
+    CONSTRAINT webhook_events_integration_id_fkey FOREIGN KEY (integration_id) REFERENCES public.integrations(id) ON DELETE CASCADE,
+    CONSTRAINT webhook_events_unique_webhook UNIQUE (platform, webhook_id)
 );
-
--- Create a unique index to prevent duplicate webhook IDs per integration
-CREATE UNIQUE INDEX IF NOT EXISTS webhook_events_unique_idx ON public.webhook_events(integration_id, webhook_id);
-
--- Enable Row-Level Security on the new table
 ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can only see their own company's data." ON public.webhook_events
+    FOR SELECT
+    USING (company_id_from_integration(integration_id) = get_current_company_id());
 
--- 3. Fix the RLS policy on customer_addresses to ensure it checks company_id
--- We drop it first to ensure a clean re-creation
+-- 2. Fix the incorrect RLS policy on customer_addresses
+-- This was causing the error: column "company_id" does not exist
+
+-- Drop the old, incorrect policy if it exists from a failed run
 DROP POLICY IF EXISTS "Users can only see their own company's data." ON public.customer_addresses;
-CREATE POLICY "Users can only see their own company's data."
-ON public.customer_addresses
-FOR SELECT
-USING (company_id = get_current_company_id());
+
+-- Create the new, correct policy that checks the company_id from the parent customer
+CREATE POLICY "Users can only see their own company's data." ON public.customer_addresses
+    FOR ALL
+    USING (
+        (
+            SELECT company_id
+            FROM public.customers
+            WHERE id = customer_addresses.customer_id
+        ) = get_current_company_id()
+    );
+
+-- The rest of the schema is assumed to be correct based on previous updates.
+-- This script only applies the necessary fixes.
