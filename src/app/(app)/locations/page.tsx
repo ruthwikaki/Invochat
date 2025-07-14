@@ -1,3 +1,4 @@
+
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 
 export default function LocationsPage() {
