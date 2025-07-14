@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -14,7 +13,6 @@ import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import Papa from 'papaparse';
 import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/data-actions';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
@@ -88,6 +86,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
               description: `${result.createdPoCount} new PO(s) have been generated.`,
             });
             router.push('/purchase-orders');
+            router.refresh();
         } else {
             toast({
               variant: 'destructive',

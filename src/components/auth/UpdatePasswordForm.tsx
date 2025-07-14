@@ -9,8 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-
-const CSRF_FORM_NAME = 'csrf_token';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();

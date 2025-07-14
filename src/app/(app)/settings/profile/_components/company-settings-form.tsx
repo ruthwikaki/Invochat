@@ -14,21 +14,11 @@ import { updateCompanySettings } from '@/app/data-actions';
 import { Loader2 } from 'lucide-react';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
-const SettingsFormSchema = CompanySettingsSchema.omit({ 
-    company_id: true, 
-    created_at: true, 
-    updated_at: true,
-    predictive_stock_days: true,
-    currency: true,
-    timezone: true,
-    tax_rate: true,
-    custom_rules: true,
-    subscription_plan: true,
-    subscription_status: true,
-    subscription_expires_at: true,
-    stripe_customer_id: true,
-    stripe_subscription_id: true,
-    promo_sales_lift_multiplier: true,
+const SettingsFormSchema = CompanySettingsSchema.pick({
+    dead_stock_days: true,
+    fast_moving_days: true,
+    overstock_multiplier: true,
+    high_value_threshold: true
 });
 
 export function CompanySettingsForm({ settings }: { settings: CompanySettings }) {

@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import type { Supplier } from '@/types';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 interface SupplierFormProps {
   initialData?: Supplier;
@@ -38,6 +39,8 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
 
   const onSubmit = (data: SupplierFormData) => {
     startTransition(async () => {
+      // Server actions with forms are still experimental. We'll use a fetch-based approach for now.
+      // This will be updated once the API is stable.
       const action = initialData
         ? updateSupplier(initialData.id, data)
         : createSupplier(data);
@@ -75,7 +78,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="default_lead_time_days">Default Lead Time (days)</Label>
-              <Input id="default_lead_time_days" type="number" {...form.register('default_lead_time_days')} />
+              <Input id="default_lead_time_days" type="number" {...form.register('default_lead_time_days', { valueAsNumber: true })} />
             </div>
           </div>
           <div className="space-y-2">
