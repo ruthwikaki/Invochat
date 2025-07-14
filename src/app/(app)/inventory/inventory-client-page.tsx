@@ -8,16 +8,17 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, TrendingUp, Sparkles } from 'lucide-react';
+import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Package } from 'lucide-react';
+import { Package, Sparkles } from 'lucide-react';
 import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
+import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
 
 
 interface InventoryClientPageProps {
@@ -143,6 +144,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const { replace } = useRouter();
 
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
+  const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -174,6 +176,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const showNoResultsState = totalCount === 0 && isFiltered;
   
   return (
+    <>
+    <InventoryHistoryDialog variant={historyVariant} onClose={() => setHistoryVariant(null)} />
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value || '$0'} icon={DollarSign} />
@@ -255,6 +259,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                             <TableHead className="text-right">Cost</TableHead>
                                                             <TableHead className="text-right">Quantity</TableHead>
                                                             <TableHead>Status</TableHead>
+                                                            <TableHead className="text-center">Actions</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
@@ -266,6 +271,11 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                                 <TableCell className="text-right">{formatCentsAsCurrency(variant.cost)}</TableCell>
                                                                 <TableCell className="text-right font-medium">{variant.inventory_quantity}</TableCell>
                                                                 <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
+                                                                <TableCell className="text-center">
+                                                                    <Button variant="ghost" size="icon" onClick={() => setHistoryVariant(variant)}>
+                                                                        <History className="h-4 w-4" />
+                                                                    </Button>
+                                                                </TableCell>
                                                             </TableRow>
                                                         ))}
                                                     </TableBody>
@@ -285,7 +295,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             </Card>
         )}
     </div>
+    </>
   );
 }
-
-    
