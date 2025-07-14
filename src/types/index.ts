@@ -1,5 +1,3 @@
-
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -110,6 +108,21 @@ export const OrderLineItemSchema = z.object({
 });
 export type OrderLineItem = z.infer<typeof OrderLineItemSchema>;
 
+export const RefundSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    order_id: z.string().uuid(),
+    refund_number: z.string(),
+    status: z.string(),
+    reason: z.string().nullable(),
+    note: z.string().nullable(),
+    total_amount: z.number(),
+    created_by_user_id: z.string().uuid().nullable(),
+    external_refund_id: z.string().nullable(),
+    created_at: z.string().datetime({ offset: true }),
+});
+export type Refund = z.infer<typeof RefundSchema>;
+
 
 // --- CUSTOMERS ---
 export const CustomerSchema = z.object({
@@ -172,6 +185,8 @@ export const CompanySettingsSchema = z.object({
   overstock_multiplier: z.number().default(3),
   high_value_threshold: z.number().default(1000),
   predictive_stock_days: z.number().default(7),
+  currency: z.string().default('USD'),
+  tax_rate: z.number().default(0),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
 });

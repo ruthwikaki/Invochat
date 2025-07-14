@@ -16,8 +16,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'InvoChat - Conversational Inventory Intelligence',
-  description: 'AI-powered inventory management for InvoChat',
+  title: 'ARVO - Conversational Inventory Intelligence',
+  description: 'AI-powered inventory management for ARVO',
 };
 
 export default async function RootLayout({

@@ -1,10 +1,11 @@
+
 'use client'; // Error components must be Client Components
 
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
-import { logger } from '@/lib/logger';
+import { logError } from '@/lib/error-handler';
 
 export default function Error({
   error,
@@ -14,8 +15,8 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log the error to the console
-    logger.error('Global Error Boundary Caught:', error);
+    // Log the error to the console using our new centralized logger
+    logError(error, { context: 'Global Error Boundary' });
   }, [error]);
 
   const isDev = process.env.NODE_ENV === 'development';

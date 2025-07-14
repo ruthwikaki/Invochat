@@ -1,4 +1,3 @@
-
 import { NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { redisClient } from '@/lib/redis';
@@ -25,14 +24,15 @@ async function verifyAdminAuth(): Promise<{ authorized: boolean, error?: string,
         return { authorized: false, error: 'Authentication required.', status: 401 };
     }
 
-    // Fetch the user's role from the public.profiles table
+    // Fetch the user's role from the public.users table (new location)
     const { data: profile, error } = await getServiceRoleClient()
-        .from('profiles')
+        .from('users')
         .select('role')
         .eq('id', user.id)
         .single();
     
     if (error || !profile) {
+        logger.error(`Could not verify user role for user ${user.id}`, error);
         return { authorized: false, error: 'Could not verify user role.', status: 500 };
     }
 
@@ -57,7 +57,7 @@ export async function GET() {
   // Check Database Connection
   try {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('profiles').select('id').limit(1);
+    const { error } = await supabase.from('users').select('id').limit(1);
     if (error) {
       throw error;
     }
