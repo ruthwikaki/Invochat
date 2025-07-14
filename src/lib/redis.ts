@@ -141,6 +141,22 @@ export async function invalidateCompanyCache(companyId: string, types: ('dashboa
     }
 }
 
+
+export async function testRedisConnection() {
+    if (!isRedisEnabled) {
+        return { success: false, isConfigured: false, error: 'Redis is not configured in environment variables.' };
+    }
+    try {
+        const response = await redisClient.ping();
+        if (response !== 'PONG') {
+            throw new Error('Redis did not respond with PONG.');
+        }
+        return { success: true, isConfigured: true };
+    } catch (e) {
+        return { success: false, isConfigured: true, error: getErrorMessage(e) };
+    }
+}
+
 /**
  * Applies a rate limit for a given identifier and action using a sliding window log algorithm.
  * @param identifier A unique string for the user/IP being rate-limited.

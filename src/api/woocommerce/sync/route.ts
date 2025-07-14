@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -19,15 +18,19 @@ const syncSchema = z.object({
 });
 
 /**
- * Validates the signature of a WooCommerce webhook request.
+ * Validates the signature and timestamp of a WooCommerce webhook request.
  * @param request The incoming NextRequest.
- * @returns A promise that resolves to true if the signature is valid, false otherwise.
+ * @returns A promise that resolves to true if the signature is valid and recent, false otherwise.
  */
 async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
     const signature = request.headers.get('x-wc-webhook-signature');
     if (!signature) {
         return false;
     }
+    
+    // WooCommerce does not provide a standard timestamp header for replay protection.
+    // The replay protection based on webhook ID is the primary defense here.
+    // A timestamp check could be added if a custom header is sent from WooCommerce.
 
     const webhookSecret = process.env.WOOCOMMERCE_WEBHOOK_SECRET;
     if (!webhookSecret) {

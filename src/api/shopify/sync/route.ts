@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -19,36 +18,48 @@ const syncSchema = z.object({
 });
 
 /**
- * Validates the HMAC signature of a Shopify webhook request.
+ * Validates the HMAC signature and timestamp of a Shopify webhook request.
  * @param request The incoming NextRequest.
- * @returns A promise that resolves to true if the signature is valid, false otherwise.
+ * @returns A promise that resolves to true if the signature is valid and recent, false otherwise.
  */
 async function validateShopifyWebhook(request: Request): Promise<boolean> {
-  const shopifyHmac = request.headers.get('x-shopify-hmac-sha256');
-  if (!shopifyHmac) {
-    return false; // No signature header present
-  }
+    const shopifyHmac = request.headers.get('x-shopify-hmac-sha256');
+    const shopifyTimestamp = request.headers.get('x-shopify-request-timestamp');
 
-  const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
-  if (!shopifyWebhookSecret) {
-    logError(new Error('SHOPIFY_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
-    return false; // Cannot validate without the secret
-  }
-  
-  const body = await request.text();
+    // 1. Check for presence of required headers
+    if (!shopifyHmac || !shopifyTimestamp) {
+        return false;
+    }
 
-  const hash = crypto
-    .createHmac('sha256', shopifyWebhookSecret)
-    .update(body)
-    .digest('base64');
-  
-  // Use a timing-safe comparison to prevent timing attacks
-  try {
-    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(shopifyHmac));
-  } catch (error) {
-    // This can happen if the buffers have different lengths
-    return false;
-  }
+    // 2. Validate timestamp to prevent replay attacks
+    const requestTime = parseInt(shopifyTimestamp, 10);
+    const now = Math.floor(Date.now() / 1000);
+    const fiveMinutes = 5 * 60;
+    if (Math.abs(now - requestTime) > fiveMinutes) {
+        logError(new Error(`Shopify webhook timestamp is too old. Request time: ${requestTime}, Current time: ${now}`), { status: 408 });
+        return false;
+    }
+
+    const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
+    if (!shopifyWebhookSecret) {
+        logError(new Error('SHOPIFY_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
+        return false; // Cannot validate without the secret
+    }
+    
+    const body = await request.text();
+
+    const hash = crypto
+        .createHmac('sha256', shopifyWebhookSecret)
+        .update(body)
+        .digest('base64');
+    
+    // 3. Compare HMAC signatures using a timing-safe method
+    try {
+        return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(shopifyHmac));
+    } catch (error) {
+        // This can happen if the buffers have different lengths
+        return false;
+    }
 }
 
 

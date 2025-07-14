@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -370,7 +369,7 @@ export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[
 export async function exportInventory(params: { query?: string }) { 
     try {
         const { companyId } = await getAuthContext();
-        const { items } = await db.getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
+        const items = await getPaginatedDataForExport(db.getUnifiedInventoryFromDB, companyId, params);
         const csv = Papa.unparse(items.map(item => ({
             sku: item.sku,
             product_title: item.product_title,
