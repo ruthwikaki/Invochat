@@ -60,7 +60,8 @@ import {
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
+import { DashboardMetricsSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -71,6 +72,7 @@ import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
+import { z } from 'zod';
 
 
 async function getAuthContext() {
@@ -91,9 +93,10 @@ async function getAuthContext() {
 
 // --- Simplified Core Actions ---
 
-export async function getDashboardData(dateRange: string) {
+export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();
-    return getDashboardMetrics(companyId, dateRange);
+    const metrics = await getDashboardMetrics(companyId, dateRange);
+    return DashboardMetricsSchema.parse(metrics);
 }
 
 export async function getCompanySettings() {
@@ -490,8 +493,8 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
         
         const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
         
-        // Invalidate caches related to inventory and purchasing
-        await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
+        revalidatePath('/reordering', 'page');
+        revalidatePath('/dashboard', 'page');
         
         return { success: true, createdPoCount };
     } catch (e) {

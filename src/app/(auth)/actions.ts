@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -74,8 +75,8 @@ export async function login(formData: FormData) {
 
     const companyId = data.user.app_metadata?.company_id;
     if (!companyId) {
-      revalidatePath('/setup-incomplete', 'page');
-      redirect('/setup-incomplete');
+      revalidatePath('/database-setup', 'page');
+      redirect('/database-setup');
     }
 
   } catch (e) {
@@ -166,10 +167,18 @@ export async function requestPasswordReset(formData: FormData) {
     if (!parsed.success) {
         throw new Error(parsed.error.issues[0].message);
     }
+    
+    const { email } = parsed.data;
+
+    const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+    const { limited } = await rateLimit(ip, 'password_reset', config.ratelimit.auth, 300); // 1 req / 5 mins
+    if (limited) {
+      throw new Error('Too many password reset requests. Please try again in 5 minutes.');
+    }
 
     const supabase = getSupabaseClient();
     const { error } = await withTimeout(
-      supabase.auth.resetPasswordForEmail(parsed.data.email, {
+      supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
       }),
       AUTH_TIMEOUT,

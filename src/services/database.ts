@@ -329,7 +329,20 @@ export async function getCompanyById(companyId: string) {
 export async function testSupabaseConnection() { return {isConfigured:true, success:true, user: {}} as any; }
 export async function testDatabaseQuery() { return {success:true}; }
 export async function testMaterializedView() { return {success:true}; }
-export async function createAuditLogInDb(companyId: string, userId: string | null, action: string, details?: Record<string, any>): Promise<void> {}
+
+export async function createAuditLogInDb(companyId: string, userId: string | null, action: string, details?: Record<string, any>): Promise<void> {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('audit_log').insert({
+        company_id: companyId,
+        user_id: userId,
+        action: action,
+        details: details
+    });
+    if (error) {
+        logError(error, { context: 'Failed to create audit log entry' });
+    }
+}
+
 export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {}
 export async function createExportJobInDb(companyId: string, userId: string) { 
     const supabase = getServiceRoleClient();
@@ -353,14 +366,12 @@ export async function reconcileInventoryInDb(companyId: string, integrationId: s
 }
 
 export async function logPOCreationInDb(poNumber: string, supplierName: string, items: any[], companyId: string, userId: string) {
-    const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('audit_log').insert({
-        company_id: companyId,
-        user_id: userId,
-        action: 'purchase_order_created',
-        details: { poNumber, supplierName, items: items.map(i => ({ sku: i.sku, qty: i.suggested_reorder_quantity })) }
+    await createAuditLogInDb(companyId, userId, 'purchase_order_created', { 
+        poNumber, 
+        supplierName, 
+        itemCount: items.length,
+        totalValue: items.reduce((sum, item) => sum + item.suggested_reorder_quantity * item.unit_cost, 0)
     });
-    if (error) { logError(error, { context: 'Failed to log PO creation' }); }
 }
 export async function transferStockInDb(companyId: string, userId: string, data: any) { }
 
