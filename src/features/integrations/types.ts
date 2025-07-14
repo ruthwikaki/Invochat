@@ -1,5 +1,5 @@
-
-
+// This file is obsolete. All types have been consolidated into /src/types/index.ts.
+// It is kept temporarily to prevent breaking existing imports but should be removed.
 export type Platform = 'shopify' | 'woocommerce' | 'amazon_fba';
 
 export type Integration = {
@@ -13,15 +13,4 @@ export type Integration = {
   sync_status: 'syncing_products' | 'syncing_sales' | 'syncing' | 'success' | 'failed' | 'idle' | null;
   created_at: string;
   updated_at: string | null;
-};
-
-export type SyncLog = {
-  id: string;
-  integration_id: string;
-  sync_type: 'products' | 'sales';
-  status: 'started' | 'completed' | 'failed';
-  records_synced: number | null;
-  error_message: string | null;
-  started_at: string;
-  completed_at: string | null;
 };

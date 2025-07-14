@@ -1,13 +1,13 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
-import type { Integration } from '../../types';
+import type { Integration, Product, ProductVariant } from '@/types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
-import type { Product, ProductVariant } from '@/types';
 
 const RATE_LIMIT_DELAY = 500; // 500ms delay between requests
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -116,6 +116,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         cost: null, // WooCommerce does not have a standard cost field
                         inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),
+                        location: null,
                     });
                     continue;
                 }
@@ -141,6 +142,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                     cost: null,
                     inventory_quantity: variantDetails.stock_quantity === null ? 0 : variantDetails.stock_quantity,
                     external_variant_id: String(variantDetails.id),
+                    location: null,
                 });
             }
 

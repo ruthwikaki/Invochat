@@ -178,6 +178,23 @@ export const CompanySettingsSchema = z.object({
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
 
+// --- INTEGRATIONS ---
+export type Platform = 'shopify' | 'woocommerce' | 'amazon_fba';
+
+export type Integration = {
+  id: string;
+  company_id: string;
+  platform: Platform;
+  shop_domain: string | null;
+  shop_name: string | null;
+  is_active: boolean;
+  last_sync_at: string | null;
+  sync_status: 'syncing_products' | 'syncing_sales' | 'syncing' | 'success' | 'failed' | 'idle' | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+
 // --- AI & CHAT ---
 export type Conversation = {
   id: string; // UUID

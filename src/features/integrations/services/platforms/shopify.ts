@@ -1,13 +1,13 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
-import type { Integration } from '../../types';
+import type { Integration, Product, ProductVariant } from '@/types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
-import type { Product, ProductVariant } from '@/types';
 
 const SHOPIFY_API_VERSION = '2024-07';
 const RATE_LIMIT_DELAY = 500; // 500ms delay between requests (2 req/s)
@@ -94,6 +94,7 @@ export async function syncProducts(integration: Integration, accessToken: string
                         cost: null, // Cost is not available on the variant endpoint directly
                         inventory_quantity: variant.inventory_quantity || 0,
                         external_variant_id: String(variant.id),
+                        location: null, // location is not part of this sync
                     });
                 }
             }

@@ -4,7 +4,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Integration, Platform } from '../types';
+import type { Integration, Platform } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import { Loader2, CheckCircle, AlertTriangle, RefreshCw, TestTube2 } from 'lucide-react';
 import {

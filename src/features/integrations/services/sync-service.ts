@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -7,7 +8,7 @@ import { runShopifyFullSync } from './platforms/shopify';
 import { runWooCommerceFullSync } from './platforms/woocommerce';
 import { runAmazonFbaFullSync } from './platforms/amazon_fba';
 import { logger } from '@/lib/logger';
-import type { Integration } from '../types';
+import type { Integration } from '@/types';
 
 /**
  * The main dispatcher for running an integration sync.

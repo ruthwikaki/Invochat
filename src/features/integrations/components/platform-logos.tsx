@@ -1,8 +1,9 @@
 
+
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { Platform } from '../types';
+import type { Platform } from '@/types';
 import { Bot } from 'lucide-react';
 
 function ShopifyLogo({ className }: { className?: string }) {

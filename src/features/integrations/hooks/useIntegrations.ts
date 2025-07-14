@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
 import { getIntegrations } from '@/app/data-actions';
-import { Integration, Platform } from '../types';
+import type { Integration, Platform } from '@/types';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
