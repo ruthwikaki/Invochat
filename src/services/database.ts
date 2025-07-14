@@ -3,8 +3,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -97,12 +97,18 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
     return data || [];
 }
 
-export async function getDashboardMetrics(companyId: string, dateRange: string) { 
+export async function getDashboardMetrics(companyId: string, dateRange: string): Promise<DashboardMetrics> {
     const supabase = getServiceRoleClient();
     const days = parseInt(dateRange.replace('d', ''));
+    if (isNaN(days)) {
+        throw new Error('Invalid date range format provided.');
+    }
     const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
-    if (error) throw error;
-    return data;
+    if (error) {
+        logError(error, { context: 'Failed to get dashboard metrics' });
+        throw new Error('Could not retrieve dashboard metrics from the database.');
+    }
+    return DashboardMetricsSchema.parse(data);
 }
 export async function getInventoryAnalyticsFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();

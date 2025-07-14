@@ -295,7 +295,32 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
 });
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
 
-export type DashboardMetrics = any;
+export const DashboardMetricsSchema = z.object({
+  total_revenue: z.number(),
+  revenue_change: z.number(),
+  total_sales: z.number(),
+  sales_change: z.number(),
+  new_customers: z.number(),
+  customers_change: z.number(),
+  dead_stock_value: z.number(),
+  sales_over_time: z.array(z.object({
+    date: z.string(),
+    total_sales: z.number(),
+  })),
+  top_selling_products: z.array(z.object({
+    product_name: z.string(),
+    total_revenue: z.number(),
+    image_url: z.string().nullable(),
+  })),
+  inventory_summary: z.object({
+    total_value: z.number(),
+    in_stock_value: z.number(),
+    low_stock_value: z.number(),
+    dead_stock_value: z.number(),
+  }),
+});
+export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
+
 export type InventoryAnalytics = any;
 export type SalesAnalytics = any;
 export type CustomerAnalytics = any;

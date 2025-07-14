@@ -121,6 +121,7 @@ export async function syncSales(integration: Integration, accessToken: string) {
     const supabase = getServiceRoleClient();
     logger.info(`[Shopify Sync] Starting sales sync for ${integration.shop_name}`);
     let totalOrdersSynced = 0;
+    const failedOrders: { id: string; reason: string }[] = [];
     
     let nextUrl: string | null = `https://${integration.shop_domain}/admin/api/${SHOPIFY_API_VERSION}/orders.json?status=any&limit=50`;
 
@@ -145,7 +146,9 @@ export async function syncSales(integration: Integration, accessToken: string) {
             });
 
             if (error) {
-                logError(error, { context: `Failed to record synced Shopify order ${order.id}` });
+                const errorMessage = `Failed to record synced Shopify order ${order.id}: ${error.message}`;
+                logError(error, { context: errorMessage });
+                failedOrders.push({ id: order.id, reason: error.message });
             } else {
                 totalOrdersSynced++;
             }
@@ -154,7 +157,11 @@ export async function syncSales(integration: Integration, accessToken: string) {
         nextUrl = parseLinkHeader(response.headers.get('Link'));
     }
 
-    logger.info(`[Shopify Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}`);
+    logger.info(`[Shopify Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}. Failed: ${failedOrders.length}.`);
+    if (failedOrders.length > 0) {
+      // Throw an error to indicate partial failure, allowing the main sync service to handle it.
+      throw new Error(`Shopify sales sync completed with ${failedOrders.length} failed orders. Check logs for details.`);
+    }
 }
 
 export async function runShopifyFullSync(integration: Integration) {

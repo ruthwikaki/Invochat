@@ -82,8 +82,28 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             totalProductsSynced += upsertedProducts?.length || 0;
 
             const productIdMap = new Map(upsertedProducts?.map(p => [p.external_product_id, p.id]));
-
             const variantsToUpsert: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[] = [];
+
+            // Batch fetch variations for all variable products on the page
+            const variableProductIds = wooProducts.filter((p: any) => p.type === 'variable' && p.variations.length > 0).map((p: any) => p.id);
+            const allVariations: any[] = [];
+            if (variableProductIds.length > 0) {
+                // WooCommerce API doesn't support fetching variations for multiple products at once.
+                // The N+1 remains, but we can at least log this inefficiency.
+                logger.warn(`[WooCommerce Sync] Inefficient operation: Fetching variations for ${variableProductIds.length} products one by one.`);
+                 for (const productId of variableProductIds) {
+                    const { data: variantDetails } = await wooCommerceFetch(
+                         integration.shop_domain!,
+                         credentials.consumerKey,
+                         credentials.consumerSecret,
+                         `products/${productId}/variations`,
+                         { per_page: 100 }
+                    );
+                    await delay(RATE_LIMIT_DELAY);
+                    allVariations.push(...variantDetails.map((v: any) => ({ ...v, parent_id: productId })));
+                }
+            }
+            
             for (const wooProduct of wooProducts) {
                 const internalProductId = productIdMap.get(String(wooProduct.id));
                 if (!internalProductId) continue;
@@ -97,46 +117,34 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         title: null,
                         price: Math.round(parseFloat(wooProduct.price || 0) * 100),
                         cost: null, // WooCommerce does not have a standard cost field
-                        inventory_quantity: wooProduct.stock_quantity || 0,
+                        inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),
                     });
                     continue;
                 }
+            }
 
-                // Handle variable products
-                if (wooProduct.type === 'variable' && wooProduct.variations.length > 0) {
-                    for (const variantId of wooProduct.variations) {
-                        const { data: variantDetails } = await wooCommerceFetch(
-                             integration.shop_domain!,
-                             credentials.consumerKey,
-                             credentials.consumerSecret,
-                             `products/${wooProduct.id}/variations/${variantId}`
-                        );
-                        await delay(RATE_LIMIT_DELAY);
+            // Process fetched variations
+            for (const variantDetails of allVariations) {
+                const internalProductId = productIdMap.get(String(variantDetails.parent_id));
+                if (!internalProductId) continue;
 
-                        const options = variantDetails.attributes.reduce((acc: any, attr: any) => {
-                            acc[attr.name] = attr.option;
-                            return acc;
-                        }, {});
-                        
-                        variantsToUpsert.push({
-                            product_id: internalProductId,
-                            company_id: integration.company_id,
-                            sku: variantDetails.sku || `WOO-${variantDetails.id}`,
-                            title: variantDetails.attributes.map((a: any) => a.option).join(' / '),
-                            option1_name: variantDetails.attributes[0]?.name,
-                            option1_value: variantDetails.attributes[0]?.option,
-                            option2_name: variantDetails.attributes[1]?.name,
-                            option2_value: variantDetails.attributes[1]?.option,
-                            option3_name: variantDetails.attributes[2]?.name,
-                            option3_value: variantDetails.attributes[2]?.option,
-                            price: Math.round(parseFloat(variantDetails.price || 0) * 100),
-                            cost: null,
-                            inventory_quantity: variantDetails.stock_quantity || 0,
-                            external_variant_id: String(variantDetails.id),
-                        });
-                    }
-                }
+                variantsToUpsert.push({
+                    product_id: internalProductId,
+                    company_id: integration.company_id,
+                    sku: variantDetails.sku || `WOO-${variantDetails.id}`,
+                    title: variantDetails.attributes.map((a: any) => a.option).join(' / '),
+                    option1_name: variantDetails.attributes[0]?.name,
+                    option1_value: variantDetails.attributes[0]?.option,
+                    option2_name: variantDetails.attributes[1]?.name,
+                    option2_value: variantDetails.attributes[1]?.option,
+                    option3_name: variantDetails.attributes[2]?.name,
+                    option3_value: variantDetails.attributes[2]?.option,
+                    price: Math.round(parseFloat(variantDetails.price || 0) * 100),
+                    cost: null,
+                    inventory_quantity: variantDetails.stock_quantity === null ? 0 : variantDetails.stock_quantity,
+                    external_variant_id: String(variantDetails.id),
+                });
             }
 
             if (variantsToUpsert.length > 0) {
@@ -161,6 +169,7 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
     const supabase = getServiceRoleClient();
     logger.info(`[WooCommerce Sync] Starting sales sync for ${integration.shop_name}`);
     let totalOrdersSynced = 0;
+    const failedOrders: { id: string; reason: string }[] = [];
     let currentPage = 1;
 
     while (true) {
@@ -183,7 +192,9 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
             });
 
             if (error) {
-                logError(error, { context: `Failed to record synced WooCommerce order ${order.id}` });
+                const errorMessage = `Failed to record synced WooCommerce order ${order.id}: ${error.message}`;
+                logError(error, { context: errorMessage });
+                failedOrders.push({ id: order.id, reason: error.message });
             } else {
                 totalOrdersSynced++;
             }
@@ -193,7 +204,10 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
         currentPage++;
     }
 
-    logger.info(`[WooCommerce Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}`);
+    logger.info(`[WooCommerce Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}. Failed: ${failedOrders.length}`);
+     if (failedOrders.length > 0) {
+      throw new Error(`WooCommerce sales sync completed with ${failedOrders.length} failed orders. Check logs for details.`);
+    }
 }
 
 export async function runWooCommerceFullSync(integration: Integration) {
