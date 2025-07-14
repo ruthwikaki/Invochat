@@ -56,6 +56,7 @@ export const ProductVariantSchema = z.object({
   compare_at_price: z.number().int().nullable(),
   cost: z.number().int().nullable(), // in cents
   inventory_quantity: z.number().int(),
+  location: z.string().nullable(),
   external_variant_id: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
@@ -67,8 +68,6 @@ export const UnifiedInventoryItemSchema = ProductVariantSchema.extend({
   product_title: z.string(),
   product_status: z.string().nullable(),
   image_url: z.string().url().nullable(),
-  location_id: z.string().uuid().nullable(),
-  location_name: z.string().nullable(),
 });
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
@@ -329,7 +328,6 @@ export type Anomaly = any;
 export type HealthCheckResult = any;
 export type ChannelFee = any;
 export type CompanyInfo = any;
-export type Location = any;
 
 export const InventoryLedgerEntrySchema = z.object({
     id: z.string().uuid(),

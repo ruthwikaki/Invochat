@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
-import type { UnifiedInventoryItem, InventoryAnalytics, Location } from '@/types';
+import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, Shuffle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,15 +20,12 @@ import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
-import { InventoryTransferDialog } from '@/components/inventory/inventory-transfer-dialog';
-
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
   totalCount: number;
   itemsPerPage: number;
   analyticsData: InventoryAnalytics;
-  locations: Location[];
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
@@ -141,7 +138,7 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
 };
 
 
-export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, locations, exportAction }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -149,7 +146,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
-  const [transferVariant, setTransferVariant] = useState<UnifiedInventoryItem | null>(null);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -174,11 +170,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     });
   };
   
-  const handleTransferSuccess = () => {
-    setTransferVariant(null);
-    router.refresh();
-  }
-
   const groupedInventory = useMemo(() => groupVariantsByProduct(initialInventory), [initialInventory]);
   
   const isFiltered = !!searchParams.get('query');
@@ -188,7 +179,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   return (
     <>
     <InventoryHistoryDialog variant={historyVariant} onClose={() => setHistoryVariant(null)} />
-    <InventoryTransferDialog item={transferVariant} locations={locations} onClose={() => setTransferVariant(null)} onTransferSuccess={handleTransferSuccess} />
 
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -284,13 +274,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                                 <TableCell className="text-right">{formatCentsAsCurrency(variant.cost)}</TableCell>
                                                                 <TableCell className="text-right font-medium">{variant.inventory_quantity}</TableCell>
                                                                 <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
-                                                                <TableCell>{variant.location_name || 'Unassigned'}</TableCell>
+                                                                <TableCell>{variant.location || 'N/A'}</TableCell>
                                                                 <TableCell className="text-center space-x-1">
                                                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setHistoryVariant(variant)}>
                                                                         <History className="h-4 w-4" />
-                                                                    </Button>
-                                                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setTransferVariant(variant)}>
-                                                                        <Shuffle className="h-4 w-4" />
                                                                     </Button>
                                                                 </TableCell>
                                                             </TableRow>
