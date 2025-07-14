@@ -1,186 +1,222 @@
+-- InvoChat Database Schema
+-- Version: 1.3
+-- Description: This script sets up the entire database, including tables,
+--              functions, and row-level security policies. It is designed
+--              to be idempotent and can be run safely on new or existing databases.
 
--- Enable UUID generation
+-- 1. Extensions
+-- -----------------------------------------------------------------------------
 create extension if not exists "uuid-ossp" with schema extensions;
+create extension if not exists pgroonga with schema extensions;
 
--- Create the companies table
+
+-- 2. Helper Functions
+-- These functions are used by policies and business logic.
+-- -----------------------------------------------------------------------------
+
+-- Get the company_id for the currently authenticated user.
+drop function if exists public.get_current_company_id();
+create or replace function public.get_current_company_id()
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'company_id', '')::uuid;
+$$;
+
+
+-- Get the role for the currently authenticated user
+drop function if exists public.get_current_user_role();
+create or replace function public.get_current_user_role()
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+    select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'user_role', '')::text;
+$$;
+
+-- 3. Table Definitions
+-- -----------------------------------------------------------------------------
+
 create table if not exists public.companies (
-    id uuid primary key default gen_random_uuid(),
-    name text not null,
-    created_at timestamptz not null default now(),
-    deleted_at timestamptz
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz not null default now()
 );
-comment on table public.companies is 'Stores company/organization information.';
+alter table public.companies enable row level security;
 
--- Create the users table to link auth.users with companies
-create table if not exists public.users (
-    id uuid primary key references auth.users(id) on delete cascade,
-    company_id uuid not null references public.companies(id) on delete cascade,
-    email text,
-    role text default 'member'::text check (role in ('owner', 'admin', 'member')),
-    deleted_at timestamptz,
-    created_at timestamptz default now()
-);
-comment on table public.users is 'Links Supabase auth users to companies and roles.';
-
--- Create the company_settings table
 create table if not exists public.company_settings (
-    company_id uuid primary key references public.companies(id) on delete cascade,
-    dead_stock_days integer not null default 90,
-    fast_moving_days integer not null default 30,
-    predictive_stock_days integer not null default 7,
-    overstock_multiplier integer not null default 3,
-    high_value_threshold integer not null default 100000, -- Stored in cents
-    currency text default 'USD'::text,
-    timezone text default 'UTC'::text,
-    tax_rate numeric default 0,
-    promo_sales_lift_multiplier real not null default 2.5,
-    custom_rules jsonb,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz,
-    subscription_status text default 'trial'::text,
-    subscription_plan text default 'starter'::text,
-    subscription_expires_at timestamptz,
-    stripe_customer_id text,
-    stripe_subscription_id text
+  company_id uuid primary key references public.companies(id) on delete cascade,
+  dead_stock_days int not null default 90,
+  fast_moving_days int not null default 30,
+  overstock_multiplier int not null default 3,
+  high_value_threshold int not null default 100000, -- in cents
+  predictive_stock_days int not null default 7,
+  promo_sales_lift_multiplier real not null default 2.5,
+  currency text default 'USD',
+  timezone text default 'UTC',
+  tax_rate numeric default 0,
+  subscription_status text default 'trial',
+  subscription_plan text default 'starter',
+  subscription_expires_at timestamptz,
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
 );
-comment on table public.company_settings is 'Stores various business rule settings for each company.';
+alter table public.company_settings enable row level security;
 
--- Create products table
 create table if not exists public.products (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    title text not null,
-    description text,
-    handle text,
-    product_type text,
-    tags text[],
-    status text,
-    image_url text,
-    external_product_id text,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    unique(company_id, external_product_id)
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  title text not null,
+  description text,
+  handle text,
+  product_type text,
+  tags text[],
+  status text,
+  image_url text,
+  external_product_id text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  unique(company_id, external_product_id)
 );
-comment on table public.products is 'Stores parent product information.';
+alter table public.products enable row level security;
 
--- Create product_variants table
 create table if not exists public.product_variants (
-    id uuid primary key default gen_random_uuid(),
-    product_id uuid not null references public.products(id) on delete cascade,
-    company_id uuid not null references public.companies(id) on delete cascade,
-    sku text not null,
-    title text,
-    option1_name text,
-    option1_value text,
-    option2_name text,
-    option2_value text,
-    option3_name text,
-    option3_value text,
-    barcode text,
-    price integer, -- in cents
-    compare_at_price integer, -- in cents
-    cost integer, -- in cents
-    inventory_quantity integer not null default 0,
-    external_variant_id text,
-    created_at timestamptz default now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    unique(company_id, sku),
-    unique(company_id, external_variant_id)
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references public.products(id) on delete cascade,
+  company_id uuid not null references public.companies(id) on delete cascade,
+  sku text,
+  title text,
+  option1_name text,
+  option1_value text,
+  option2_name text,
+  option2_value text,
+  option3_name text,
+  option3_value text,
+  barcode text,
+  price int, -- in cents
+  compare_at_price int, -- in cents
+  cost int, -- in cents
+  inventory_quantity int not null default 0,
+  external_variant_id text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  unique(company_id, sku),
+  unique(company_id, external_variant_id)
 );
-comment on table public.product_variants is 'Stores individual product variants (SKUs).';
+alter table public.product_variants enable row level security;
 
--- Create suppliers table
 create table if not exists public.suppliers (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    name text not null,
-    email text,
-    phone text,
-    default_lead_time_days integer,
-    notes text,
-    created_at timestamptz not null default now(),
-    deleted_at timestamptz
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  name text not null,
+  email text,
+  phone text,
+  default_lead_time_days int,
+  notes text,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
 );
-comment on table public.suppliers is 'Stores supplier and vendor information.';
+alter table public.suppliers enable row level security;
 
--- Create customers table
 create table if not exists public.customers (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    customer_name text not null,
-    email text,
-    total_orders integer default 0,
-    total_spent integer default 0, -- in cents
-    first_order_date date,
-    deleted_at timestamptz,
-    created_at timestamptz default now(),
-    unique(company_id, email)
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  customer_name text,
+  email text,
+  total_orders int default 0,
+  total_spent int default 0,
+  first_order_date date,
+  deleted_at timestamptz,
+  created_at timestamptz not null default now()
 );
-comment on table public.customers is 'Stores customer information.';
+alter table public.customers enable row level security;
 
--- Create orders table
 create table if not exists public.orders (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    order_number text not null,
-    external_order_id text,
-    customer_id uuid references public.customers(id) on delete set null,
-    financial_status text default 'pending'::text,
-    fulfillment_status text default 'unfulfilled'::text,
-    currency text default 'USD'::text,
-    subtotal integer not null default 0, -- in cents
-    total_tax integer default 0,
-    total_shipping integer default 0,
-    total_discounts integer default 0,
-    total_amount integer not null,
-    source_platform text,
-    source_name text,
-    tags text[],
-    notes text,
-    cancelled_at timestamptz,
-    created_at timestamptz default now(),
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    unique(company_id, external_order_id)
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  order_number text not null,
+  external_order_id text,
+  customer_id uuid references public.customers(id) on delete set null,
+  financial_status text default 'pending',
+  fulfillment_status text default 'unfulfilled',
+  currency text default 'USD',
+  subtotal int not null default 0,
+  total_tax int default 0,
+  total_shipping int default 0,
+  total_discounts int default 0,
+  total_amount int not null,
+  source_platform text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz
 );
-comment on table public.orders is 'Stores sales order headers.';
+alter table public.orders enable row level security;
 
--- Create order_line_items table
 create table if not exists public.order_line_items (
-    id uuid primary key default gen_random_uuid(),
-    order_id uuid not null references public.orders(id) on delete cascade,
-    variant_id uuid references public.product_variants(id) on delete set null,
-    company_id uuid not null references public.companies(id) on delete cascade,
-    product_name text not null,
-    variant_title text,
-    sku text,
-    quantity integer not null,
-    price integer not null, -- in cents
-    total_discount integer default 0,
-    tax_amount integer default 0,
-    cost_at_time integer, -- in cents
-    external_line_item_id text,
-    unique(order_id, external_line_item_id)
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders(id) on delete cascade,
+  variant_id uuid references public.product_variants(id) on delete set null,
+  company_id uuid not null references public.companies(id) on delete cascade,
+  product_name text,
+  variant_title text,
+  sku text,
+  quantity int not null,
+  price int not null, -- in cents
+  total_discount int default 0,
+  tax_amount int default 0,
+  cost_at_time int, -- in cents
+  external_line_item_id text,
+  unique(order_id, external_line_item_id)
 );
-comment on table public.order_line_items is 'Stores individual line items for each order.';
+alter table public.order_line_items enable row level security;
 
--- Create inventory_ledger table
+
 create table if not exists public.inventory_ledger (
     id uuid primary key default gen_random_uuid(),
     company_id uuid not null references public.companies(id) on delete cascade,
     variant_id uuid not null references public.product_variants(id) on delete cascade,
     change_type text not null,
-    quantity_change integer not null,
-    new_quantity integer not null,
-    related_id uuid, -- e.g., order_id, refund_id, etc.
+    quantity_change int not null,
+    new_quantity int not null,
+    related_id uuid, -- e.g., order_id, purchase_order_id
     notes text,
     created_at timestamptz not null default now()
 );
-comment on table public.inventory_ledger is 'Transactional log of all inventory movements.';
+alter table public.inventory_ledger enable row level security;
 
--- Create conversations table
+
+create table if not exists public.integrations (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  platform text not null,
+  shop_domain text,
+  shop_name text,
+  is_active boolean default false,
+  last_sync_at timestamptz,
+  sync_status text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  unique(company_id, platform)
+);
+alter table public.integrations enable row level security;
+
+
+create table if not exists public.webhook_events (
+  id uuid primary key default gen_random_uuid(),
+  integration_id uuid not null references public.integrations(id) on delete cascade,
+  webhook_id text not null,
+  processed_at timestamptz default now(),
+  created_at timestamptz default now(),
+  unique(integration_id, webhook_id)
+);
+alter table public.webhook_events enable row level security;
+
 create table if not exists public.conversations (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users(id) on delete cascade,
@@ -190,9 +226,8 @@ create table if not exists public.conversations (
     last_accessed_at timestamptz default now(),
     is_starred boolean default false
 );
-comment on table public.conversations is 'Stores metadata for AI chat conversations.';
+alter table public.conversations enable row level security;
 
--- Create messages table
 create table if not exists public.messages (
     id uuid primary key default gen_random_uuid(),
     conversation_id uuid not null references public.conversations(id) on delete cascade,
@@ -207,531 +242,404 @@ create table if not exists public.messages (
     is_error boolean default false,
     created_at timestamptz default now()
 );
-comment on table public.messages is 'Stores individual messages within a conversation.';
+alter table public.messages enable row level security;
 
--- Create integrations table
-create table if not exists public.integrations (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    platform text not null,
-    shop_domain text,
-    shop_name text,
-    is_active boolean default false,
-    last_sync_at timestamptz,
-    sync_status text,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz,
-    unique(company_id, platform)
-);
-comment on table public.integrations is 'Stores configuration for third-party integrations.';
-
--- Create webhook_events table
-create table if not exists public.webhook_events (
-    id uuid primary key default gen_random_uuid(),
-    integration_id uuid not null references public.integrations(id) on delete cascade,
-    webhook_id text not null,
-    processed_at timestamptz default now(),
-    created_at timestamptz default now(),
-    unique(integration_id, webhook_id)
-);
-comment on table public.webhook_events is 'Logs incoming webhook IDs to prevent replay attacks.';
-
--- Create audit_log table
 create table if not exists public.audit_log (
+  id bigserial primary key,
+  company_id uuid references public.companies(id) on delete set null,
+  user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  details jsonb,
+  created_at timestamptz default now()
+);
+alter table public.audit_log enable row level security;
+
+
+create table if not exists public.channel_fees (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  channel_name text not null,
+  percentage_fee numeric not null,
+  fixed_fee numeric not null,
+  created_at timestamptz default now(),
+  updated_at timestamptz,
+  unique(company_id, channel_name)
+);
+alter table public.channel_fees enable row level security;
+
+create table if not exists public.export_jobs (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  requested_by_user_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending',
+  download_url text,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.export_jobs enable row level security;
+
+create table if not exists public.user_feedback (
     id bigserial primary key,
-    company_id uuid references public.companies(id) on delete set null,
-    user_id uuid references auth.users(id) on delete set null,
-    action text not null,
-    details jsonb,
+    user_id uuid not null references auth.users(id) on delete cascade,
+    company_id uuid not null references public.companies(id) on delete cascade,
+    subject_id text not null, -- Can be anomaly ID, message ID, etc.
+    subject_type text not null, -- 'anomaly_explanation', 'ai_response'
+    feedback text not null, -- 'helpful' or 'unhelpful'
     created_at timestamptz default now()
 );
-comment on table public.audit_log is 'Records important user and system actions.';
+alter table public.user_feedback enable row level security;
 
--- Create export_jobs table
-create table if not exists public.export_jobs (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    requested_by_user_id uuid not null references auth.users(id) on delete cascade,
-    status text not null default 'pending',
-    download_url text,
-    expires_at timestamptz,
-    created_at timestamptz not null default now()
-);
-comment on table public.export_jobs is 'Tracks background data export jobs.';
 
--- Create channel_fees table
-create table if not exists public.channel_fees (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    channel_name text not null,
-    percentage_fee numeric not null,
-    fixed_fee numeric not null,
-    created_at timestamptz default now(),
-    updated_at timestamptz,
-    unique(company_id, channel_name)
-);
-comment on table public.channel_fees is 'Stores fees for sales channels to calculate net margin.';
+-- 4. Indexes
+-- -----------------------------------------------------------------------------
+create index if not exists idx_products_company_id on public.products(company_id);
+create index if not exists idx_product_variants_company_sku on public.product_variants(company_id, sku);
+create index if not exists idx_product_variants_product_id on public.product_variants(product_id);
+create index if not exists idx_orders_company_created_at on public.orders(company_id, created_at desc);
+create index if not exists idx_order_line_items_order_id on public.order_line_items(order_id);
+create index if not exists idx_inventory_ledger_variant_id on public.inventory_ledger(variant_id);
+create index if not exists idx_inventory_ledger_company_id_created_at on public.inventory_ledger(company_id, created_at desc);
+create index if not exists pgrn_products_title on public.products using pgroonga (title);
 
--- Create user_feedback table
-create table if not exists public.user_feedback (
-    id uuid primary key default gen_random_uuid(),
-    company_id uuid not null references public.companies(id) on delete cascade,
-    user_id uuid not null references auth.users(id) on delete cascade,
-    subject_id text not null,
-    subject_type text not null, -- e.g., 'anomaly_explanation', 'ai_response'
-    feedback text not null, -- 'helpful' or 'unhelpful'
-    created_at timestamptz not null default now()
-);
-comment on table public.user_feedback is 'Stores user feedback on AI-generated content.';
 
--- =================================================================
--- HELPER FUNCTIONS
--- =================================================================
+-- 5. Triggers and Functions for Business Logic
+-- -----------------------------------------------------------------------------
 
--- Function to get the company_id from a JWT claim
-create or replace function public.get_current_company_id()
-returns uuid
-language sql stable
-as $$
-  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'company_id', '')::uuid;
-$$;
-
--- Function to get user role from a JWT claim
-create or replace function public.get_current_user_role()
-returns text
-language sql stable
-as $$
-  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'role', '')::text;
-$$;
-
--- Function to get the authenticated user's ID
-create or replace function public.get_current_user_id()
-returns uuid
-language sql stable
-as $$
-  select auth.uid();
-$$;
-
--- =================================================================
--- BUSINESS LOGIC FUNCTIONS
--- =================================================================
-
--- Function to handle new user sign-up
+-- This function runs after a user signs up.
+-- It creates a company for them and links it to their user account.
+drop function if exists public.handle_new_user();
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
-security definer -- required to write to public.users table
+security definer
 as $$
 declare
-  company_id uuid;
-  user_role text;
+  new_company_id uuid;
 begin
-  -- First, create a new company for the user
+  -- Create a new company
   insert into public.companies (name)
-  values (new.raw_app_meta_data->>'company_name')
-  returning id into company_id;
-
-  -- Set the user's role to 'owner'
-  user_role := 'owner';
-
-  -- Now, insert a record into the public.users table
-  insert into public.users (id, company_id, email, role)
-  values (new.id, company_id, new.email, user_role);
+  values (new.raw_user_meta_data ->> 'company_name')
+  returning id into new_company_id;
 
   -- Update the user's app_metadata with the new company_id and role
   update auth.users
-  set raw_app_meta_data = new.raw_app_meta_data || jsonb_build_object('company_id', company_id, 'role', user_role)
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id, 'user_role', 'Owner')
   where id = new.id;
-
+  
   return new;
 end;
 $$;
 
--- Trigger to call handle_new_user on new user creation
+-- Attach the function to the auth.users table as a trigger
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
-
--- Function to update product variant quantity based on ledger entries
+-- This function updates the inventory_quantity on the product_variants table
+-- whenever a new record is inserted into the inventory_ledger.
+drop function if exists public.update_variant_quantity_from_ledger();
 create or replace function public.update_variant_quantity_from_ledger()
 returns trigger
 language plpgsql
 as $$
 begin
   update public.product_variants
-  set inventory_quantity = new.new_quantity
-  where id = new.variant_id and company_id = new.company_id;
+  set inventory_quantity = new.new_quantity,
+      updated_at = now()
+  where id = new.variant_id;
   return new;
 end;
 $$;
 
--- Trigger to update inventory quantity after a new ledger entry
+-- Attach the trigger to the inventory_ledger table
 drop trigger if exists on_inventory_ledger_insert on public.inventory_ledger;
 create trigger on_inventory_ledger_insert
   after insert on public.inventory_ledger
   for each row execute procedure public.update_variant_quantity_from_ledger();
+  
+-- Function to get users for a company
+drop function if exists public.get_users_for_company(uuid);
+create or replace function public.get_users_for_company(p_company_id uuid)
+returns table (id uuid, email text, role text)
+language plpgsql
+as $$
+begin
+  return query
+  select u.id, u.email, u.raw_app_meta_data ->> 'user_role' as role
+  from auth.users u
+  where (u.raw_app_meta_data ->> 'company_id')::uuid = p_company_id
+  and u.deleted_at is null;
+end;
+$$;
 
-
--- Function to record an order from a platform payload
-drop function if exists public.record_order_from_platform(uuid, text, jsonb);
-create or replace function public.record_order_from_platform(
-    p_company_id uuid,
-    p_platform text,
-    p_order_payload jsonb
-)
-returns uuid -- returns the internal order ID
+-- Drop both potential old signatures before creating the correct one
+drop function if exists public.record_order_from_platform(uuid, jsonb, text);
+drop function if exists public.record_order_from_platform(p_company_id uuid, p_order_payload jsonb, p_platform text);
+create or replace function public.record_order_from_platform(p_company_id uuid, p_order_payload jsonb, p_platform text)
+returns void
 language plpgsql
 as $$
 declare
-    v_customer_id uuid;
-    v_order_id uuid;
-    v_variant_id uuid;
-    v_line_item jsonb;
-    v_order_number text;
-    v_financial_status text;
-    v_fulfillment_status text;
-    v_email text;
-    v_customer_name text;
-    v_external_order_id text;
-    v_created_at timestamptz;
+  v_customer_id uuid;
+  v_order_id uuid;
+  line_item jsonb;
+  v_variant_id uuid;
+  v_cost_at_time int;
 begin
-    -- Extract common fields based on platform
-    if p_platform = 'shopify' then
-        v_external_order_id := p_order_payload->>'id';
-        v_order_number := p_order_payload->>'name';
-        v_financial_status := p_order_payload->>'financial_status';
-        v_fulfillment_status := p_order_payload->>'fulfillment_status';
-        v_email := lower(p_order_payload->'customer'->>'email');
-        v_customer_name := (p_order_payload->'customer'->>'first_name') || ' ' || (p_order_payload->'customer'->>'last_name');
-        v_created_at := (p_order_payload->>'created_at')::timestamptz;
-    elsif p_platform = 'woocommerce' then
-        v_external_order_id := p_order_payload->>'id';
-        v_order_number := '#' || (p_order_payload->>'id');
-        v_financial_status := case when (p_order_payload->>'paid')::boolean then 'paid' else 'pending' end;
-        v_fulfillment_status := p_order_payload->>'status';
-        v_email := lower(p_order_payload->'billing'->>'email');
-        v_customer_name := (p_order_payload->'billing'->>'first_name') || ' ' || (p_order_payload->'billing'->>'last_name');
-        v_created_at := (p_order_payload->>'date_created_gmt')::timestamptz;
-    else
-        raise exception 'Unsupported platform: %', p_platform;
-    end if;
+  -- Find or create customer
+  select id into v_customer_id from public.customers
+  where company_id = p_company_id and email = (p_order_payload -> 'customer' ->> 'email');
 
-    -- Find or create customer
-    if v_email is not null then
-        select id into v_customer_id from public.customers where company_id = p_company_id and email = v_email;
-        if v_customer_id is null then
-            insert into public.customers (company_id, customer_name, email, first_order_date)
-            values (p_company_id, v_customer_name, v_email, v_created_at::date)
-            returning id into v_customer_id;
-        end if;
-    end if;
-
-    -- Upsert order header
-    insert into public.orders (
-        company_id, external_order_id, order_number, customer_id, financial_status, fulfillment_status,
-        total_amount, subtotal, total_tax, total_shipping, total_discounts, source_platform, created_at
-    )
+  if v_customer_id is null then
+    insert into public.customers (company_id, customer_name, email)
     values (
-        p_company_id, v_external_order_id, v_order_number, v_customer_id, v_financial_status, v_fulfillment_status,
-        (p_order_payload->>'total_price')::numeric * 100,
-        (p_order_payload->>'subtotal_price')::numeric * 100,
-        (p_order_payload->>'total_tax')::numeric * 100,
-        (p_order_payload->'total_shipping_price'->>'amount')::numeric * 100,
-        (p_order_payload->>'total_discounts')::numeric * 100,
-        p_platform, v_created_at
+      p_company_id,
+      p_order_payload -> 'customer' ->> 'first_name' || ' ' || p_order_payload -> 'customer' ->> 'last_name',
+      p_order_payload -> 'customer' ->> 'email'
     )
-    on conflict (company_id, external_order_id) do update set
-        financial_status = excluded.financial_status,
-        fulfillment_status = excluded.fulfillment_status,
-        updated_at = now()
-    returning id into v_order_id;
-    
-    -- Loop through line items
-    for v_line_item in select * from jsonb_array_elements(p_order_payload->'line_items')
-    loop
-        -- Find variant by SKU
-        select id into v_variant_id from public.product_variants where company_id = p_company_id and sku = v_line_item->>'sku';
+    returning id into v_customer_id;
+  end if;
 
-        if v_variant_id is not null then
-            -- Upsert line item
-            insert into public.order_line_items (
-                order_id, company_id, variant_id, product_name, sku, quantity, price, cost_at_time, external_line_item_id
-            )
-            values (
-                v_order_id, p_company_id, v_variant_id, v_line_item->>'title', v_line_item->>'sku',
-                (v_line_item->>'quantity')::integer,
-                (v_line_item->>'price')::numeric * 100,
-                (select cost from public.product_variants where id = v_variant_id),
-                v_line_item->>'id'
-            )
-            on conflict (order_id, external_line_item_id) do nothing;
-            
-            -- Create inventory ledger entry for sale
-            insert into public.inventory_ledger (company_id, variant_id, change_type, quantity_change, new_quantity, related_id)
-            values (
-                p_company_id,
-                v_variant_id,
-                'sale',
-                -(v_line_item->>'quantity')::integer,
-                (select inventory_quantity from public.product_variants where id = v_variant_id) - (v_line_item->>'quantity')::integer,
-                v_order_id
-            );
-        else
-            -- Log skipped SKU
-            insert into public.audit_log(company_id, action, details)
-            values(p_company_id, 'skipped_line_item', jsonb_build_object('order_id', v_order_id, 'sku', v_line_item->>'sku', 'reason', 'SKU not found in product_variants'));
-        end if;
-    end loop;
-    
-    return v_order_id;
+  -- Create order
+  insert into public.orders (company_id, order_number, external_order_id, customer_id, financial_status, fulfillment_status, total_amount, source_platform, created_at)
+  values (
+    p_company_id,
+    p_order_payload ->> 'name',
+    p_order_payload ->> 'id',
+    v_customer_id,
+    p_order_payload ->> 'financial_status',
+    p_order_payload ->> 'fulfillment_status',
+    (p_order_payload ->> 'total_price')::numeric * 100,
+    p_platform,
+    (p_order_payload ->> 'created_at')::timestamptz
+  )
+  returning id into v_order_id;
+  
+  -- Create line items and update inventory
+  for line_item in select * from jsonb_array_elements(p_order_payload -> 'line_items')
+  loop
+    select id, cost into v_variant_id, v_cost_at_time from public.product_variants
+    where company_id = p_company_id and sku = (line_item ->> 'sku');
+
+    if v_variant_id is not null then
+      insert into public.order_line_items (order_id, company_id, variant_id, product_name, sku, quantity, price, cost_at_time)
+      values (
+        v_order_id,
+        p_company_id,
+        v_variant_id,
+        line_item ->> 'name',
+        line_item ->> 'sku',
+        (line_item ->> 'quantity')::int,
+        (line_item ->> 'price')::numeric * 100,
+        v_cost_at_time
+      );
+      
+      -- Create inventory ledger entry for the sale
+      insert into public.inventory_ledger(company_id, variant_id, change_type, quantity_change, new_quantity, related_id)
+      select
+          p_company_id,
+          v_variant_id,
+          'sale',
+          -(line_item ->> 'quantity')::int,
+          pv.inventory_quantity - (line_item ->> 'quantity')::int,
+          v_order_id
+      from public.product_variants pv
+      where pv.id = v_variant_id;
+    end if;
+  end loop;
 end;
 $$;
 
 
--- =================================================================
--- PERFORMANCE VIEWS
--- =================================================================
-
--- View for dashboard metrics
+-- 6. Performance Views
+-- -----------------------------------------------------------------------------
 drop view if exists public.company_dashboard_metrics;
 create or replace view public.company_dashboard_metrics as
 select
-    p_company_id::uuid as company_id,
-    sum(ol.price * ol.quantity) as total_sales_value,
-    sum((ol.price - coalesce(ol.cost_at_time, 0)) * ol.quantity) as total_profit,
-    avg(o.total_amount) as average_order_value,
-    count(distinct o.id) as total_orders,
-    count(distinct o.customer_id) as total_customers,
-    sum(pv.cost * pv.inventory_quantity) as total_inventory_value,
-    count(distinct p.id) as total_products,
-    count(distinct pv.id) as total_variants
-from orders o
-join order_line_items ol on o.id = ol.order_id
-join product_variants pv on ol.variant_id = pv.id
-join products p on pv.product_id = p.id
-where o.company_id = p_company_id;
-
--- =================================================================
--- RLS (ROW-LEVEL SECURITY) POLICIES
--- =================================================================
-
--- Enable RLS for all relevant tables
-alter table public.companies enable row level security;
-alter table public.users enable row level security;
-alter table public.company_settings enable row level security;
-alter table public.products enable row level security;
-alter table public.product_variants enable row level security;
-alter table public.suppliers enable row level security;
-alter table public.orders enable row level security;
-alter table public.order_line_items enable row level security;
-alter table public.customers enable row level security;
-alter table public.inventory_ledger enable row level security;
-alter table public.conversations enable row level security;
-alter table public.messages enable row level security;
-alter table public.integrations enable row level security;
-alter table public.webhook_events enable row level security;
-alter table public.audit_log enable row level security;
-alter table public.export_jobs enable row level security;
-alter table public.channel_fees enable row level security;
-alter table public.user_feedback enable row level security;
-
--- Disable RLS for auth-managed tables, as auth policies handle them.
--- Use "disable" instead of "bypass"
-alter table auth.users disable row level security;
-
--- POLICIES
-drop policy if exists "Allow full access based on company_id" on public.companies;
-create policy "Allow full access based on company_id" on public.companies for all using (id = get_current_company_id()) with check (id = get_current_company_id());
-
-drop policy if exists "Allow read access for company members" on public.users;
-create policy "Allow read access for company members" on public.users for select using (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.company_settings;
-create policy "Allow full access based on company_id" on public.company_settings for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.products;
-create policy "Allow full access based on company_id" on public.products for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.product_variants;
-create policy "Allow full access based on company_id" on public.product_variants for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.suppliers;
-create policy "Allow full access based on company_id" on public.suppliers for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.orders;
-create policy "Allow full access based on company_id" on public.orders for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.order_line_items;
-create policy "Allow full access based on company_id" on public.order_line_items for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.customers;
-create policy "Allow full access based on company_id" on public.customers for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow full access based on company_id" on public.inventory_ledger;
-create policy "Allow full access based on company_id" on public.inventory_ledger for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow access to own conversations" on public.conversations;
-create policy "Allow access to own conversations" on public.conversations for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-
-drop policy if exists "Allow access to company messages" on public.messages;
-create policy "Allow access to company messages" on public.messages for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow admin access to integrations" on public.integrations;
-create policy "Allow admin access to integrations" on public.integrations for all using (company_id = get_current_company_id() and get_current_user_role() in ('admin', 'owner')) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow read access to all company members for integrations" on public.integrations;
-create policy "Allow read access to all company members for integrations" on public.integrations for select using (company_id = get_current_company_id());
-
-drop policy if exists "Allow access based on company_id" on public.webhook_events;
-create policy "Allow access based on company_id" on public.webhook_events for all using (exists (select 1 from public.integrations i where i.id = webhook_events.integration_id and i.company_id = get_current_company_id())) with check (exists (select 1 from public.integrations i where i.id = webhook_events.integration_id and i.company_id = get_current_company_id()));
-
-drop policy if exists "Allow read access to company members" on public.audit_log;
-create policy "Allow read access to company members" on public.audit_log for select using (company_id = get_current_company_id());
-
-drop policy if exists "Allow access to own export jobs" on public.export_jobs;
-create policy "Allow access to own export jobs" on public.export_jobs for all using (requested_by_user_id = auth.uid()) with check (requested_by_user_id = auth.uid());
-
-drop policy if exists "Allow full access based on company_id" on public.channel_fees;
-create policy "Allow full access based on company_id" on public.channel_fees for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-drop policy if exists "Allow access to own company feedback" on public.user_feedback;
-create policy "Allow access to own company feedback" on public.user_feedback for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
-
-
--- =================================================================
--- INDEXES
--- =================================================================
-
-create index if not exists idx_orders_company_id_created_at on public.orders (company_id, created_at desc);
-create index if not exists idx_product_variants_company_id_sku on public.product_variants (company_id, sku);
-create index if not exists idx_customers_company_id_email on public.customers (company_id, email);
-create index if not exists idx_inventory_ledger_variant_id on public.inventory_ledger (variant_id);
-create index if not exists idx_messages_conversation_id on public.messages (conversation_id);
-
--- Add some missing default uuid generation
-alter table public.customer_addresses alter column id set default gen_random_uuid();
-alter table public.refunds alter column id set default gen_random_uuid();
-alter table public.refund_line_items alter column id set default gen_random_uuid();
-alter table public.discounts alter column id set default gen_random_uuid();
-alter table public.orders alter column id set default gen_random_uuid();
-alter table public.order_line_items alter column id set default gen_random_uuid();
-alter table public.product_variants alter column id set default gen_random_uuid();
-alter table public.inventory_ledger alter column id set default gen_random_uuid();
-alter table public.webhook_events alter column id set default gen_random_uuid();
-
-
--- Drop and recreate get_dashboard_metrics with correct parameter casting
-drop function if exists public.get_dashboard_metrics(uuid, integer);
-create or replace function public.get_dashboard_metrics(
-    p_company_id uuid,
-    p_days integer
-)
-returns table (
-    "companyId" uuid,
-    "totalSalesValue" numeric,
-    "totalProfit" numeric,
-    "averageOrderValue" numeric,
-    "totalOrders" bigint,
-    "totalCustomers" bigint,
-    "totalInventoryValue" numeric,
-    "totalSkus" bigint,
-    "lowStockItemsCount" bigint,
-    "deadStockItemsCount" bigint,
-    "salesTrendData" jsonb,
-    "inventoryByCategoryData" jsonb,
-    "topCustomersData" jsonb
-)
-language sql
-as $$
-with date_series as (
-    select generate_series(
-        date_trunc('day', now() - (p_days - 1) * interval '1 day'),
-        date_trunc('day', now()),
-        '1 day'::interval
-    )::date as "date"
-),
-sales_by_day as (
-    select
-        date_trunc('day', created_at)::date as "date",
-        sum(total_amount) as "daily_sales"
-    from public.orders
-    where
-        company_id = p_company_id
-        and created_at >= now() - (p_days || ' days')::interval
-    group by 1
-),
-trend_data as (
-    select
-        ds.date,
-        coalesce(sbd.daily_sales, 0) as "Sales"
-    from date_series ds
-    left join sales_by_day sbd on ds.date = sbd.date
-    order by ds.date
-),
-category_data as (
-    select
-        coalesce(p.product_type, 'Uncategorized') as name,
-        sum(pv.inventory_quantity * pv.cost) as value
-    from public.product_variants pv
-    join public.products p on pv.product_id = p.id
-    where pv.company_id = p_company_id and pv.inventory_quantity > 0 and pv.cost > 0
-    group by 1
-    order by 2 desc
-    limit 5
-),
-top_customers as (
-    select
-       coalesce(c.customer_name, 'Guest') as name,
-       sum(o.total_amount) as value
-    from public.orders o
-    left join public.customers c on o.customer_id = c.id
-    where o.company_id = p_company_id and o.created_at >= now() - (p_days || ' days')::interval
-    group by 1
-    order by 2 desc
-    limit 5
-),
-main_metrics as (
-    select
-        p_company_id::uuid as company_id,
-        sum(o.total_amount) as total_sales_value,
-        sum(ol.quantity * (ol.price - ol.cost_at_time)) as total_profit,
-        avg(o.total_amount) as average_order_value,
-        count(distinct o.id) as total_orders
-    from public.orders o
-    join public.order_line_items ol on o.id = ol.order_id
-    where o.company_id = p_company_id and o.created_at >= now() - (p_days || ' days')::interval
-),
-inventory_metrics as (
-    select
-        sum(pv.inventory_quantity * pv.cost) as total_inventory_value,
-        count(*) as total_skus
-    from public.product_variants pv
-    where pv.company_id = p_company_id
-),
-alert_counts as (
-    select
-        count(*) filter (where a.type = 'low_stock') as low_stock_items_count,
-        count(*) filter (where a.type = 'dead_stock') as dead_stock_items_count
-    from public.get_alerts(p_company_id) a
-)
-select
-    mm.company_id,
-    coalesce(mm.total_sales_value, 0) / 100.0,
-    coalesce(mm.total_profit, 0) / 100.0,
-    coalesce(mm.average_order_value, 0) / 100.0,
-    coalesce(mm.total_orders, 0),
-    (select count(distinct customer_id) from public.orders where company_id = p_company_id and created_at >= now() - (p_days || ' days')::interval) as total_customers,
-    coalesce(im.total_inventory_value, 0) / 100.0,
-    coalesce(im.total_skus, 0),
-    coalesce(ac.low_stock_items_count, 0),
-    coalesce(ac.dead_stock_items_count, 0),
-    (select jsonb_agg(t) from trend_data t) as sales_trend_data,
-    (select jsonb_agg(c) from category_data c) as inventory_by_category_data,
-    (select jsonb_agg(tc) from top_customers tc) as top_customers_data
+    c.id as company_id,
+    c.name as company_name,
+    coalesce(sum(o.total_amount), 0) as total_revenue,
+    coalesce(count(distinct o.id), 0) as total_orders,
+    coalesce(sum(o.total_amount) / nullif(count(distinct o.id), 0), 0) as avg_order_value,
+    coalesce(sum(oli.price * oli.quantity - oli.cost_at_time * oli.quantity), 0) as total_profit
 from
-    main_metrics mm,
-    inventory_metrics im,
-    alert_counts ac;
+    companies c
+left join orders o on c.id = o.company_id and o.created_at > (now() - interval '30 days')
+left join order_line_items oli on o.id = oli.order_id
+group by
+    c.id, c.name;
+
+
+-- This is a more complex function that uses a date series to ensure we have a row for every day,
+-- even if there were no sales. This is crucial for accurate charting.
+drop function if exists public.get_dashboard_metrics(uuid,integer);
+create or replace function public.get_dashboard_metrics(p_company_id uuid, p_days integer)
+returns table (
+    totalSalesValue numeric,
+    totalProfit numeric,
+    averageOrderValue numeric,
+    totalOrders bigint,
+    totalSkus bigint,
+    totalInventoryValue numeric,
+    lowStockItemsCount bigint,
+    deadStockItemsCount bigint,
+    salesTrendData jsonb,
+    inventoryByCategoryData jsonb,
+    topCustomersData jsonb
+)
+language plpgsql
+as $$
+declare
+    v_end_date date := current_date;
+    v_start_date date := v_end_date - (p_days - 1) * interval '1 day';
+begin
+    return query
+    with date_series as (
+        select generate_series(v_start_date, v_end_date, '1 day'::interval)::date as day
+    ),
+    company_context as (
+        select p_company_id::uuid as company_id
+    ),
+    daily_sales as (
+        select
+            d.day,
+            coalesce(sum(o.total_amount), 0) as daily_revenue
+        from date_series d
+        cross join company_context cc
+        left join public.orders o
+            on o.company_id = cc.company_id
+            and o.created_at::date = d.day
+        group by d.day
+    )
+    select
+        -- Aggregate Metrics
+        (select sum(ds.daily_revenue) from daily_sales ds) as totalSalesValue,
+        (select sum((oli.price - oli.cost_at_time) * oli.quantity) from public.order_line_items oli join public.orders o on oli.order_id = o.id where o.company_id = p_company_id and o.created_at >= v_start_date) as totalProfit,
+        (select avg(o.total_amount) from public.orders o where o.company_id = p_company_id and o.created_at >= v_start_date) as averageOrderValue,
+        (select count(*) from public.orders o where o.company_id = p_company_id and o.created_at >= v_start_date) as totalOrders,
+        (select count(*) from public.product_variants pv where pv.company_id = p_company_id) as totalSkus,
+        (select sum(pv.inventory_quantity * pv.cost) from public.product_variants pv where pv.company_id = p_company_id and pv.cost is not null) as totalInventoryValue,
+        (select count(*) from public.get_reorder_suggestions(p_company_id)) as lowStockItemsCount,
+        (select count(*) from public.get_dead_stock_report(p_company_id)) as deadStockItemsCount,
+
+        -- Charting Data
+        (select jsonb_agg(jsonb_build_object('date', ds.day, 'Sales', ds.daily_revenue)) from daily_sales ds) as salesTrendData,
+        (
+            select jsonb_agg(t) from (
+                select p.product_type as name, sum(pv.inventory_quantity * pv.cost) as value
+                from public.product_variants pv
+                join public.products p on pv.product_id = p.id
+                where pv.company_id = p_company_id and p.product_type is not null and pv.cost is not null
+                group by p.product_type
+                order by value desc
+                limit 5
+            ) t
+        ) as inventoryByCategoryData,
+        (
+             select jsonb_agg(t) from (
+                select c.customer_name as name, sum(o.total_amount) as value
+                from public.orders o
+                join public.customers c on o.customer_id = c.id
+                where o.company_id = p_company_id and o.created_at >= v_start_date
+                group by c.customer_name
+                order by value desc
+                limit 5
+            ) t
+        ) as topCustomersData;
+end;
 $$;
+
+
+-- 7. Row-Level Security (RLS) Policies
+-- These policies ensure that users can only access data for their own company.
+-- -----------------------------------------------------------------------------
+
+-- Companies: Users can see their own company.
+drop policy if exists "Allow full access based on company_id" on public.companies;
+create policy "Allow full access based on company_id" on public.companies
+  for all using (id = get_current_company_id()) with check (id = get_current_company_id());
+
+-- Settings: Users can access their own company's settings.
+drop policy if exists "Allow full access based on company_id" on public.company_settings;
+create policy "Allow full access based on company_id" on public.company_settings
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Products: Users can access their own company's products.
+drop policy if exists "Allow full access based on company_id" on public.products;
+create policy "Allow full access based on company_id" on public.products
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Product Variants: Users can access their own company's variants.
+drop policy if exists "Allow full access based on company_id" on public.product_variants;
+create policy "Allow full access based on company_id" on public.product_variants
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Suppliers: Users can access their own company's suppliers.
+drop policy if exists "Allow full access based on company_id" on public.suppliers;
+create policy "Allow full access based on company_id" on public.suppliers
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Customers: Users can access their own company's customers.
+drop policy if exists "Allow full access based on company_id" on public.customers;
+create policy "Allow full access based on company_id" on public.customers
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Orders: Users can access their own company's orders.
+drop policy if exists "Allow full access based on company_id" on public.orders;
+create policy "Allow full access based on company_id" on public.orders
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Order Line Items: Users can access their own company's line items.
+drop policy if exists "Allow full access based on company_id" on public.order_line_items;
+create policy "Allow full access based on company_id" on public.order_line_items
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Inventory Ledger: Users can access their own company's ledger.
+drop policy if exists "Allow full access based on company_id" on public.inventory_ledger;
+create policy "Allow full access based on company_id" on public.inventory_ledger
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Integrations: Users can access their own company's integrations.
+drop policy if exists "Allow full access based on company_id" on public.integrations;
+create policy "Allow full access based on company_id" on public.integrations
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Webhook Events: Users can access webhooks for their own company.
+drop policy if exists "Allow full access based on company_id" on public.webhook_events;
+create policy "Allow full access based on company_id" on public.webhook_events
+  for all using (company_id = (select company_id from integrations where id = integration_id and company_id = get_current_company_id()))
+  with check (company_id = (select company_id from integrations where id = integration_id and company_id = get_current_company_id()));
+
+-- Conversations: Users can only access their own conversations.
+drop policy if exists "Allow full access to own conversations" on public.conversations;
+create policy "Allow full access to own conversations" on public.conversations
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Messages: Users can only access messages in their own company's conversations.
+drop policy if exists "Allow full access to own messages" on public.messages;
+create policy "Allow full access to own messages" on public.messages
+  for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Audit Log: Admins and Owners can read their company's audit log.
+drop policy if exists "Allow read access to company audit log" on public.audit_log;
+create policy "Allow read access to company audit log" on public.audit_log
+  for select using (company_id = get_current_company_id() and get_current_user_role() in ('Admin', 'Owner'));
+
+-- Channel Fees: Users can access their own company's fees.
+drop policy if exists "Allow full access based on company_id" on public.channel_fees;
+create policy "Allow full access based on company_id" on public.channel_fees
+    for all using (company_id = get_current_company_id()) with check (company_id = get_current_company_id());
+
+-- Export Jobs: Users can access their own export jobs.
+drop policy if exists "Allow access to own export jobs" on public.export_jobs;
+create policy "Allow access to own export jobs" on public.export_jobs
+    for all using (requested_by_user_id = auth.uid()) with check (requested_by_user_id = auth.uid());
+
+-- User Feedback: Users can insert feedback for their own company.
+drop policy if exists "Allow insert for own company" on public.user_feedback;
+create policy "Allow insert for own company" on public.user_feedback
+    for insert with check (company_id = get_current_company_id());
+
+-- Disable RLS for auth.users as it's managed by Supabase Auth.
+alter table auth.users disable row level security;
