@@ -59,7 +59,7 @@ import {
   createPurchaseOrdersInDb
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
-import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
+import { isRedisEnabled, redisClient, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
 import { DashboardMetricsSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
@@ -74,6 +74,7 @@ import { generateProductDescription } from '@/ai/flows/generate-description-flow
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 import { z } from 'zod';
 import { invalidateCompanyCache } from '@/lib/redis';
+import crypto from 'crypto';
 
 
 async function getAuthContext() {
@@ -506,22 +507,33 @@ export async function getInventoryLedger(variantId: string) {
 }
 
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean, error?: string, createdPoCount?: number }> {
+    const { companyId, userId } = await getAuthContext();
+    if (!suggestions || suggestions.length === 0) {
+        return { success: false, error: 'No reorder suggestions provided.' };
+    }
+    if (!isRedisEnabled) {
+        logError(new Error('Redis is not enabled'), { context: 'Distributed lock check failed' });
+        return { success: false, error: 'Cannot create purchase orders because a required service (Redis) is unavailable.' };
+    }
+
+    // Create a unique, sorted key for the lock to ensure consistency
+    const skus = suggestions.map(s => s.sku).sort().join(',');
+    const lockKey = `po-creation:${companyId}:${crypto.createHash('sha256').update(skus).digest('hex')}`;
+    const lockAcquired = await redisClient.set(lockKey, 'locked', 'NX', 'EX', 60);
+
+    if (!lockAcquired) {
+        return { success: false, error: 'Another process is already creating purchase orders for these items. Please wait a moment and try again.' };
+    }
+
     try {
-        const { companyId, userId } = await getAuthContext();
-        
-        if (!suggestions || suggestions.length === 0) {
-            return { success: false, error: 'No reorder suggestions provided.' };
-        }
-        
         const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
-        
-        // Invalidate caches related to inventory and purchasing
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
-        
         return { success: true, createdPoCount };
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
         return { success: false, error: getErrorMessage(e) };
+    } finally {
+        // Release the lock
+        await redisClient.del(lockKey);
     }
 }
-    
