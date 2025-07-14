@@ -125,11 +125,14 @@ const universalChatOrchestrator = ai.defineFlow(
     
     try {
         // Step 1: Let the AI decide if a tool is needed.
+        // SECURITY FIX (#71): Pass user input in the `prompt` field, not as part of the `system` instruction.
+        // This mitigates prompt injection attacks.
         const { toolCalls } = await ai.generate({
           model: aiModel,
           tools: allTools,
           history: conversationHistory.slice(0, -1),
-          prompt: `The user's company ID is ${companyId}. Use this when calling any tool that requires a companyId. User's question: "${userQuery}"`,
+          system: `You are an AI assistant for a business with company ID '${companyId}'. You must use this ID when calling any tool that requires a companyId.`,
+          prompt: userQuery, // User input is now properly separated.
           maxOutputTokens: 2048,
         });
         

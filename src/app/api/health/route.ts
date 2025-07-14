@@ -4,10 +4,52 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { redisClient } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { testGenkitConnection } from '@/services/genkit';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import type { User } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
+async function verifyAdminAuth(): Promise<{ authorized: boolean, error?: string, status?: number }> {
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: { get: (name: string) => cookieStore.get(name)?.value },
+        }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return { authorized: false, error: 'Authentication required.', status: 401 };
+    }
+
+    // Fetch the user's role from the public.profiles table
+    const { data: profile, error } = await getServiceRoleClient()
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+    
+    if (error || !profile) {
+        return { authorized: false, error: 'Could not verify user role.', status: 500 };
+    }
+
+    if (profile.role !== 'Admin') {
+        return { authorized: false, error: 'Forbidden: Requires admin privileges.', status: 403 };
+    }
+
+    return { authorized: true };
+}
+
+
 export async function GET() {
+  const authResult = await verifyAdminAuth();
+  if (!authResult.authorized) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
   let dbStatus: 'healthy' | 'unhealthy' = 'unhealthy';
   let redisStatus: 'healthy' | 'unhealthy' | 'disabled' = 'unhealthy';
   let aiStatus: 'healthy' | 'unhealthy' = 'unhealthy';
@@ -15,7 +57,7 @@ export async function GET() {
   // Check Database Connection
   try {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('users').select('id').limit(1);
+    const { error } = await supabase.from('profiles').select('id').limit(1);
     if (error) {
       throw error;
     }

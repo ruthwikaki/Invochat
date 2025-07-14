@@ -402,3 +402,19 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
     
     return data; // This should be the count of POs created
 }
+
+
+// A new function to fetch the user's profile, including their role.
+export async function getBusinessProfile(userId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    if (error) {
+        logError(error, { context: `Could not fetch profile for user ${userId}`});
+        return null;
+    }
+    return data;
+}

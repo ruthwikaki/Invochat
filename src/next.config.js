@@ -33,9 +33,13 @@ const nextConfig = {
     ],
   },
   async headers() {
+    // SECURITY FIX (#99): Tightened Content Security Policy.
+    // Removed 'unsafe-inline' and 'unsafe-eval' to prevent XSS attacks.
+    // Note: 'unsafe-inline' for styles is temporarily kept for ShadCN compatibility,
+    // but a stricter nonce-based approach would be better long-term.
     const cspHeader = `
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      script-src 'self';
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https://placehold.co;
       font-src 'self';
@@ -43,6 +47,7 @@ const nextConfig = {
       frame-ancestors 'none';
       base-uri 'self';
       form-action 'self';
+      object-src 'none';
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [
