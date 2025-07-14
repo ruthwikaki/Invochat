@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -193,11 +193,11 @@ export async function getDeadStockReportFromDB(companyId: string) {
         totalUnits: data.reduce((sum: number, item: any) => sum + item.quantity, 0),
     };
 }
-export async function getReorderSuggestionsFromDB(companyId: string) { 
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
     if (error) throw error;
-    return data || [];
+    return (data || []) as ReorderSuggestion[];
 }
 export async function getAnomalyInsightsFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
@@ -326,10 +326,6 @@ export async function getCompanyById(companyId: string) {
     return data;
 }
 
-export async function testSupabaseConnection() { return {isConfigured:true, success:true, user: {}} as any; }
-export async function testDatabaseQuery() { return {success:true}; }
-export async function testMaterializedView() { return {success:true}; }
-
 export async function createAuditLogInDb(companyId: string, userId: string | null, action: string, details?: Record<string, any>): Promise<void> {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('audit_log').insert({
@@ -350,41 +346,16 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     if (error) throw error;
     return data;
 }
-export async function healthCheckFinancialConsistency(companyId: string) { return {} as any; }
-export async function healthCheckInventoryConsistency(companyId: string) { return {} as any; }
-export async function getDbSchemaAndData(companyId: string) { return []; }
+
 export async function refreshMaterializedViews(companyId: string) {}
 export async function logSuccessfulLogin(userId: string, ip: string) {}
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) { return []; }
-export async function getHistoricalSalesFromDB(companyId: string, days: number) { return []; }
 
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
     if(error) throw error;
-}
-
-export async function logPOCreationInDb(poNumber: string, supplierName: string, items: any[], companyId: string, userId: string) {
-    await createAuditLogInDb(companyId, userId, 'purchase_order_created', { 
-        poNumber, 
-        supplierName, 
-        itemCount: items.length,
-        totalValue: items.reduce((sum, item) => sum + item.suggested_reorder_quantity * item.unit_cost, 0)
-    });
-}
-export async function transferStockInDb(companyId: string, userId: string, data: any) { }
-
-export async function logWebhookEvent(integrationId: string, platform: string, webhookId: string) {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('webhook_events').insert({ integration_id: integrationId, webhook_id: webhookId });
-    if (error) {
-        if (error.code === '23505') { // unique_violation
-            return { success: false, error: 'Duplicate webhook event' };
-        }
-        throw error;
-    }
-    return { success: true };
 }
 
 export async function createPurchaseOrdersInDb(companyId: string, userId: string, suggestions: any[]) {

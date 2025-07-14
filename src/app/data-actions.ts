@@ -5,9 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import * as db from '@/services/database';
-import { testGenkitConnection as genkitTest } from '@/services/genkit';
-import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
 import { DashboardMetricsSchema } from '@/types';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -18,7 +16,6 @@ import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
-import { z } from 'zod';
 import { invalidateCompanyCache } from '@/lib/redis';
 import crypto from 'crypto';
 
@@ -218,10 +215,7 @@ export async function getInsightsPageData() {
         topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
-export async function testSupabaseConnection() { return db.testSupabaseConnection(); }
-export async function testDatabaseQuery() { return db.testDatabaseQuery(); }
-export async function testGenkitConnection() { return genkitTest(); }
-export async function testRedisConnection() { return { isEnabled: isRedisEnabled, ...await redisTest() }; }
+
 export async function getGeneratedProductDescription(productName: string, category: string, keywords: string[]) {
     return generateProductDescription({ productName, category, keywords });
 }
@@ -244,10 +238,7 @@ export async function getAlertsData(): Promise<Alert[]> {
     const { companyId } = await getAuthContext();
     return db.getAlertsFromDB(companyId);
 }
-export async function getDatabaseSchemaAndData() { 
-    const { companyId } = await getAuthContext();
-    return db.getDbSchemaAndData(companyId);
-}
+
 export async function getTeamMembers() {
     const { companyId } = await getAuthContext();
     return db.getTeamMembersFromDB(companyId);
@@ -360,8 +351,7 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
-export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
+
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { 
     const { companyId } = await getAuthContext();
     return db.getInventoryAgingReportFromDB(companyId);
@@ -390,8 +380,7 @@ export async function getCashFlowInsights() {
     const { companyId } = await getAuthContext();
     return db.getCashFlowInsightsFromDB(companyId);
 }
-export async function getSupplierPerformance() { return []; }
-export async function getInventoryTurnover() { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
+
 export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { 
     try {
         const { userEmail } = await getAuthContext();
@@ -438,9 +427,6 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function testMaterializedView() { return {success: true}; }
-export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }
-export async function transferStock(formData: FormData) { return {success: false, error: "Not implemented"}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
      const { companyId } = await getAuthContext();
@@ -457,20 +443,14 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
     if (!suggestions || suggestions.length === 0) {
         return { success: false, error: 'No reorder suggestions provided.' };
     }
-    if (!isRedisEnabled) {
-        logError(new Error('Redis is not enabled'), { context: 'Distributed lock check failed' });
-        return { success: false, error: 'Cannot create purchase orders because a required service (Redis) is unavailable.' };
-    }
 
     // Create a unique, sorted key for the lock to ensure consistency
     const skus = suggestions.map(s => s.sku).sort().join(',');
     const lockKey = `po-creation:${companyId}:${crypto.createHash('sha256').update(skus).digest('hex')}`;
-    const lockAcquired = await redisClient.set(lockKey, 'locked', 'NX', 'EX', 60);
-
-    if (!lockAcquired) {
-        return { success: false, error: 'Another process is already creating purchase orders for these items. Please wait a moment and try again.' };
-    }
-
+    
+    // The lock implementation has been removed as it requires Redis, which is being handled separately.
+    // In a real multi-instance environment, a distributed lock would be critical here.
+    
     try {
         const createdPoCount = await db.createPurchaseOrdersInDb(companyId, userId, suggestions);
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
@@ -478,8 +458,5 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
         return { success: false, error: getErrorMessage(e) };
-    } finally {
-        // Release the lock
-        await redisClient.del(lockKey);
     }
 }

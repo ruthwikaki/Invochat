@@ -2,9 +2,9 @@
 
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle, CardFooter, CardContent } from '@/components/ui/card';
 import { ShopifyConnectModal } from './ShopifyConnectModal';
 import { WooCommerceConnectModal } from './WooCommerceConnectModal';
 import { AmazonConnectModal } from './AmazonConnectModal';
@@ -17,9 +17,8 @@ import type { Platform } from '../types';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { disconnectIntegration, reconcileInventory } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle } from 'lucide-react';
 
 function PlatformConnectCard({
     platform,
@@ -85,7 +84,7 @@ function ReconciliationCard({ integrationId }: { integrationId: string | undefin
             </CardHeader>
             <CardContent>
                 <Alert>
-                    <CheckCircle className="h-4 w-4" />
+                    <AlertCircle className="h-4 w-4" />
                     <AlertTitle>How it works</AlertTitle>
                     <AlertDescription>
                         This process will fetch the current stock levels from your store and update the "External Quantity" field in InvoChat. It will then create an inventory adjustment to match your local quantity to the platform's quantity.
