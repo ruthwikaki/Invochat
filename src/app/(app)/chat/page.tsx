@@ -17,7 +17,7 @@ export default async function ChatPage({
   const messages: Message[] = conversationId ? await getMessages(conversationId) : [];
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full -m-4 md:-m-6 lg:-m-8">
       {/* The main layout now provides the unified sidebar for all pages. */}
       <main className="flex-1 flex flex-col h-full">
         <ChatInterface
