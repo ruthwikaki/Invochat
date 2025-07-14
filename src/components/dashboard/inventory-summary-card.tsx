@@ -1,7 +1,5 @@
-
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -45,16 +43,16 @@ export function InventorySummaryCard({ data }: InventorySummaryCardProps) {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="relative h-4 w-full rounded-full bg-muted overflow-hidden">
-                    <div className="absolute h-full bg-success" style={{ width: `${inStockPercentage}%`, zIndex: 30 }}></div>
-                    <div className="absolute h-full bg-warning" style={{ width: `${lowStockPercentage}%`, left: `${inStockPercentage}%`, zIndex: 20 }}></div>
-                    <div className="absolute h-full bg-destructive" style={{ width: `${deadStockPercentage}%`, left: `${inStockPercentage + lowStockPercentage}%`, zIndex: 10 }}></div>
+                 <div className="flex h-3 w-full rounded-full overflow-hidden" role="progressbar">
+                    <div className="bg-green-500 transition-all" style={{ width: `${inStockPercentage}%` }}></div>
+                    <div className="bg-amber-500 transition-all" style={{ width: `${lowStockPercentage}%` }}></div>
+                    <div className="bg-red-500 transition-all" style={{ width: `${deadStockPercentage}%` }}></div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <SummaryItem label="Healthy Stock" value={data.in_stock_value} colorClass="bg-success" />
-                    <SummaryItem label="Low Stock" value={data.low_stock_value} colorClass="bg-warning" link="/reordering" />
-                    <SummaryItem label="Dead Stock" value={data.dead_stock_value} colorClass="bg-destructive" link="/dead-stock" />
+                    <SummaryItem label="Healthy Stock" value={data.in_stock_value} colorClass="bg-green-500" />
+                    <SummaryItem label="Low Stock" value={data.low_stock_value} colorClass="bg-amber-500" link="/reordering" />
+                    <SummaryItem label="Dead Stock" value={data.dead_stock_value} colorClass="bg-red-500" link="/dead-stock" />
                 </div>
             </CardContent>
         </Card>

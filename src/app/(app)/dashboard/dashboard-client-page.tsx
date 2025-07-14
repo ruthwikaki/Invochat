@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -13,6 +12,8 @@ import {
   Lightbulb,
   BarChart,
   RefreshCw,
+  Package2,
+  Wallet,
 } from 'lucide-react';
 import {
   Select,
@@ -29,6 +30,8 @@ import { getDashboardData } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import type { DashboardMetrics } from '@/types';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 interface DashboardClientPageProps {
     initialMetrics: DashboardMetrics;
@@ -39,16 +42,18 @@ interface DashboardClientPageProps {
     };
 }
 
-const StatCard = ({ title, value, change, icon: Icon, changeType }: { title: string; value: string; change?: string; icon: React.ElementType; changeType?: 'increase' | 'decrease' | 'neutral' }) => {
-    const changeColor = changeType === 'increase' ? 'text-success' : changeType === 'decrease' ? 'text-destructive' : 'text-muted-foreground';
+const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { title: string; value: string; change?: string; icon: React.ElementType; changeType?: 'increase' | 'decrease' | 'neutral', gradient: string }) => {
+    const changeColor = changeType === 'increase' ? 'text-green-400' : changeType === 'decrease' ? 'text-red-400' : 'text-muted-foreground';
+    
     return (
-        <Card>
+        <Card className="relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm">
+            <div className={cn("absolute -top-1/4 -right-1/4 w-1/2 h-1/2 rounded-full opacity-20 blur-3xl", gradient)}></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
+                <Icon className="h-5 w-5 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{value}</div>
+                <div className="text-3xl font-bold">{value}</div>
                 {change && (
                     <p className={`text-xs ${changeColor}`}>
                         {change} from last period
@@ -75,11 +80,16 @@ export function DashboardClientPage({ initialMetrics, initialBriefing }: Dashboa
     };
     
     return (
-        <div className="space-y-6">
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="space-y-6"
+        >
             <div className="flex flex-col md:flex-row items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-                    <p className="text-sm text-muted-foreground">
+                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+                    <p className="text-muted-foreground">
                         Here's a high-level overview of your business performance.
                     </p>
                 </div>
@@ -98,10 +108,10 @@ export function DashboardClientPage({ initialMetrics, initialBriefing }: Dashboa
             <MorningBriefingCard briefing={briefing} />
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Total Revenue" value={`$${metrics.total_revenue.toLocaleString()}`} change={`${metrics.revenue_change.toFixed(1)}%`} icon={DollarSign} changeType={metrics.revenue_change >= 0 ? 'increase' : 'decrease'} />
-                <StatCard title="Total Sales" value={metrics.total_sales.toLocaleString()} change={`${metrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={metrics.sales_change >= 0 ? 'increase' : 'decrease'} />
-                <StatCard title="New Customers" value={metrics.new_customers.toLocaleString()} change={`${metrics.customers_change.toFixed(1)}%`} icon={Users} changeType={metrics.customers_change >= 0 ? 'increase' : 'decrease'} />
-                <StatCard title="Dead Stock Value" value={`$${metrics.dead_stock_value.toLocaleString()}`} icon={TrendingDown} />
+                <StatCard title="Total Revenue" value={`$${metrics.total_revenue.toLocaleString()}`} change={`${metrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={metrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
+                <StatCard title="Total Sales" value={metrics.total_sales.toLocaleString()} change={`${metrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={metrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
+                <StatCard title="New Customers" value={metrics.new_customers.toLocaleString()} change={`${metrics.customers_change.toFixed(1)}%`} icon={Users} changeType={metrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
+                <StatCard title="Dead Stock Value" value={`$${metrics.dead_stock_value.toLocaleString()}`} icon={TrendingDown} gradient="bg-rose-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -110,6 +120,6 @@ export function DashboardClientPage({ initialMetrics, initialBriefing }: Dashboa
             </div>
             
             <InventorySummaryCard data={metrics.inventory_summary} />
-        </div>
+        </motion.div>
     );
 }
