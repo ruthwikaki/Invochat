@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -13,6 +14,7 @@ import {
   createSupplierInDb,
   updateSupplierInDb,
   deleteSupplierFromDb,
+  getInventoryLedgerFromDB,
   getCustomersFromDB,
   deleteCustomerFromDb,
   getSalesFromDB,
@@ -25,7 +27,6 @@ import {
   updateProductInDb,
   logUserFeedbackInDb,
   getDeadStockReportFromDB,
-  getReorderSuggestionsFromDB,
   getAnomalyInsightsFromDB,
   getDbSchemaAndData,
   healthCheckFinancialConsistency,
@@ -52,7 +53,10 @@ import {
   logPOCreationInDb,
   transferStockInDb,
   logWebhookEvent,
-  getDashboardMetrics
+  getDashboardMetrics,
+  reconcileInventoryInDb,
+  getReorderSuggestionsFromDB,
+  createPurchaseOrdersInDb
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -338,8 +342,26 @@ export async function getCustomerAnalytics() {
     const { companyId } = await getAuthContext();
     return getCustomerAnalyticsFromDB(companyId);
 }
-export async function exportCustomers(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
-export async function exportSales(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
+export async function exportCustomers(params: { query?: string }) { 
+    try {
+        const { companyId } = await getAuthContext();
+        const { items } = await getCustomersFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const csv = Papa.unparse(items);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+export async function exportSales(params: { query?: string }) { 
+    try {
+        const { companyId } = await getAuthContext();
+        const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const csv = Papa.unparse(items);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
     try {
         const dataToExport = suggestions.map(s => ({
@@ -347,8 +369,8 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
             ProductName: s.product_name,
             Supplier: s.supplier_name,
             QuantityToOrder: s.suggested_reorder_quantity,
-            UnitCost: s.unit_cost ? (s.unit_cost).toFixed(2) : 'N/A',
-            TotalCost: s.unit_cost ? ((s.suggested_reorder_quantity * s.unit_cost)).toFixed(2) : 'N/A'
+            UnitCost: s.unit_cost ? (s.unit_cost / 100).toFixed(2) : 'N/A',
+            TotalCost: s.unit_cost ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : 'N/A'
         }));
         const csv = Papa.unparse(dataToExport);
         return { success: true, data: csv };
@@ -356,21 +378,58 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> { return {success: false, error: "Not implemented"}; }
+export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> { 
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const job = await createExportJobInDb(companyId, userId);
+        revalidatePath('/settings/export');
+        return { success: true, jobId: job.id };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
 export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { 
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
 }
-export async function exportInventory(params: { query?: string }) { return {success: false, error: "Not implemented"}; }
+export async function exportInventory(params: { query?: string }) { 
+    try {
+        const { companyId } = await getAuthContext();
+        const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
+        const csv = Papa.unparse(items.map(item => ({
+            sku: item.sku,
+            product_title: item.product_title,
+            variant_title: item.title,
+            status: item.product_status,
+            quantity: item.inventory_quantity,
+            price: item.price ? (item.price / 100).toFixed(2) : null,
+            cost: item.cost ? (item.cost / 100).toFixed(2) : null,
+            category: item.product_type,
+            image_url: item.image_url,
+        })));
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
 export async function getCashFlowInsights() {
     const { companyId } = await getAuthContext();
     return getCashFlowInsightsFromDB(companyId);
 }
 export async function getSupplierPerformance() { return []; }
 export async function getInventoryTurnover() { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
-export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { return {success: false, error: "Not implemented"}; }
+export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { 
+    try {
+        const { userEmail } = await getAuthContext();
+        const insights = await getInsightsPageData();
+        await sendInventoryDigestEmail(userEmail, insights);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
 export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> { 
     const { companyId } = await getAuthContext();
     return getProductLifecycleAnalysisFromDB(companyId);
@@ -397,10 +456,48 @@ export async function getMorningBriefing(dateRange: string) {
     return generateMorningBriefing({ metrics, companyName: company?.name });
 }
 
-export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> { return {success: false, error: "Not implemented"}; }
+export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> { 
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await reconcileInventoryInDb(companyId, integrationId, userId);
+        revalidatePath('/inventory');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
 export async function testMaterializedView() { return {success: true}; }
 export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }
 export async function transferStock(formData: FormData) { return {success: false, error: "Not implemented"}; }
-export async function getReorderReport(): Promise<ReorderSuggestion[]> { return []; }
 
+export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
+     const { companyId } = await getAuthContext();
+    return getReorderSuggestionsFromDB(companyId);
+}
+
+export async function getInventoryLedger(variantId: string) {
+    const { companyId } = await getAuthContext();
+    return getInventoryLedgerFromDB(companyId, variantId);
+}
+
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean, error?: string, createdPoCount?: number }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        
+        if (!suggestions || suggestions.length === 0) {
+            return { success: false, error: 'No reorder suggestions provided.' };
+        }
+        
+        const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
+        
+        // Invalidate caches related to inventory and purchasing
+        await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
+        
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
     
+

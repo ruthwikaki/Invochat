@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
@@ -6,9 +7,9 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
-import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
+import type { UnifiedInventoryItem, InventoryAnalytics, Location } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History } from 'lucide-react';
+import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, Shuffle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
+import { InventoryTransferDialog } from '@/components/inventory/inventory-transfer-dialog';
 
 
 interface InventoryClientPageProps {
@@ -26,6 +28,7 @@ interface InventoryClientPageProps {
   totalCount: number;
   itemsPerPage: number;
   analyticsData: InventoryAnalytics;
+  locations: Location[];
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
@@ -138,13 +141,15 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
 };
 
 
-export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
+export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, locations, exportAction }: InventoryClientPageProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { replace } = useRouter();
+  const router = useRouter();
+  const { replace } = router;
 
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
+  const [transferVariant, setTransferVariant] = useState<UnifiedInventoryItem | null>(null);
 
   const handleSearch = useDebouncedCallback((term: string) => {
     const params = new URLSearchParams(searchParams);
@@ -168,6 +173,11 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
       return newSet;
     });
   };
+  
+  const handleTransferSuccess = () => {
+    setTransferVariant(null);
+    router.refresh();
+  }
 
   const groupedInventory = useMemo(() => groupVariantsByProduct(initialInventory), [initialInventory]);
   
@@ -178,6 +188,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   return (
     <>
     <InventoryHistoryDialog variant={historyVariant} onClose={() => setHistoryVariant(null)} />
+    <InventoryTransferDialog item={transferVariant} locations={locations} onClose={() => setTransferVariant(null)} onTransferSuccess={handleTransferSuccess} />
+
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value || '$0'} icon={DollarSign} />
@@ -259,6 +271,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                             <TableHead className="text-right">Cost</TableHead>
                                                             <TableHead className="text-right">Quantity</TableHead>
                                                             <TableHead>Status</TableHead>
+                                                            <TableHead>Location</TableHead>
                                                             <TableHead className="text-center">Actions</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
@@ -271,9 +284,13 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                                 <TableCell className="text-right">{formatCentsAsCurrency(variant.cost)}</TableCell>
                                                                 <TableCell className="text-right font-medium">{variant.inventory_quantity}</TableCell>
                                                                 <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
-                                                                <TableCell className="text-center">
-                                                                    <Button variant="ghost" size="icon" onClick={() => setHistoryVariant(variant)}>
+                                                                <TableCell>{variant.location_name || 'Unassigned'}</TableCell>
+                                                                <TableCell className="text-center space-x-1">
+                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setHistoryVariant(variant)}>
                                                                         <History className="h-4 w-4" />
+                                                                    </Button>
+                                                                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setTransferVariant(variant)}>
+                                                                        <Shuffle className="h-4 w-4" />
                                                                     </Button>
                                                                 </TableCell>
                                                             </TableRow>

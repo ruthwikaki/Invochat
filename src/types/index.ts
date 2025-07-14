@@ -67,6 +67,8 @@ export const UnifiedInventoryItemSchema = ProductVariantSchema.extend({
   product_title: z.string(),
   product_status: z.string().nullable(),
   image_url: z.string().url().nullable(),
+  location_id: z.string().uuid().nullable(),
+  location_name: z.string().nullable(),
 });
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
@@ -124,7 +126,7 @@ export const CustomerSchema = z.object({
 export type Customer = z.infer<typeof CustomerSchema>;
 
 
-// --- SUPPLIERS ---
+// --- SUPPLIERS & PURCHASING ---
 export const SupplierSchema = z.object({
     id: z.string().uuid(),
     name: z.string().min(1),
@@ -135,6 +137,27 @@ export const SupplierSchema = z.object({
     created_at: z.string().datetime({ offset: true }),
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
+
+export const PurchaseOrderSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    supplier_id: z.string().uuid().nullable(),
+    status: z.string(),
+    po_number: z.string(),
+    total_cost: z.number().int(),
+    expected_arrival_date: z.string().datetime().nullable(),
+    created_at: z.string().datetime({ offset: true }),
+});
+export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
+
+export const PurchaseOrderLineItemSchema = z.object({
+    id: z.string().uuid(),
+    purchase_order_id: z.string().uuid(),
+    variant_id: z.string().uuid(),
+    quantity: z.number().int(),
+    cost: z.number().int(),
+});
+export type PurchaseOrderLineItem = z.infer<typeof PurchaseOrderLineItemSchema>;
 
 
 // --- COMPANY SETTINGS ---
@@ -209,11 +232,19 @@ export const ReorderSuggestionBaseSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
     supplier_name: z.string().nullable(),
+    supplier_id: z.string().uuid().nullable(),
     current_quantity: z.number().int(),
     suggested_reorder_quantity: z.number().int(),
     unit_cost: z.number().nullable(),
 });
-export type ReorderSuggestion = z.infer<typeof ReorderSuggestionBaseSchema>;
+
+export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
+    base_quantity: z.number().int(),
+    adjustment_reason: z.string().nullable(),
+    seasonality_factor: z.number().nullable(),
+    confidence: z.number().min(0).max(1).nullable(),
+});
+export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
 
 export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),

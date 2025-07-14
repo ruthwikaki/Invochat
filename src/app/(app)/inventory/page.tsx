@@ -1,7 +1,9 @@
 
+
 import { getUnifiedInventory, getInventoryAnalytics, exportInventory } from '@/app/data-actions';
 import { InventoryClientPage } from './inventory-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { getLocationsFromDB } from '@/services/database';
 
 const ITEMS_PER_PAGE = 25; 
 
@@ -17,9 +19,10 @@ export default async function InventoryPage({
   const currentPage = parseInt(searchParams?.page || '1', 10);
 
   // Fetch data in parallel
-  const [inventoryData, analytics] = await Promise.all([
+  const [inventoryData, analytics, locations] = await Promise.all([
     getUnifiedInventory({ query, page: currentPage, limit: ITEMS_PER_PAGE }),
     getInventoryAnalytics(),
+    getLocationsFromDB(),
   ]);
 
   const handleExport = async () => {
@@ -38,6 +41,7 @@ export default async function InventoryPage({
         totalCount={inventoryData.totalCount}
         itemsPerPage={ITEMS_PER_PAGE}
         analyticsData={analytics}
+        locations={locations}
         exportAction={handleExport}
       />
     </div>
