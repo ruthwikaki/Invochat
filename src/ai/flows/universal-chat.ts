@@ -27,6 +27,7 @@ import { getPriceOptimizationSuggestions } from './price-optimization-flow';
 import { getMarkdownSuggestions } from './markdown-optimizer-flow';
 import { findHiddenMoney } from './hidden-money-finder-flow';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
+import crypto from 'crypto';
 
 // List of all available tools for the AI to use.
 const allTools = [
@@ -104,7 +105,8 @@ const universalChatOrchestrator = ai.defineFlow(
     }
     
     // --- Redis Caching Logic ---
-    const cacheKey = `aichat:${companyId}:${userQuery.toLowerCase().replace(/\s+/g, '-')}`;
+    const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase()).digest('hex');
+    const cacheKey = `aichat:${companyId}:${queryHash}`;
     if (isRedisEnabled) {
       try {
         const cachedResponse = await redisClient.get(cacheKey);
@@ -166,7 +168,7 @@ const universalChatOrchestrator = ai.defineFlow(
             } catch (e) {
                 logError(e, { context: `Tool execution failed for '${toolCall.name}'` });
                 return {
-                    response: `I tried to use a tool to answer your question, but it failed with the following error: ${getErrorMessage(e)}`,
+                    response: `I tried to use a tool to answer your question, but it failed. Please try rephrasing your question or check the system status.`,
                     data: [],
                     visualization: { type: 'none', title: '' },
                     confidence: 0.1,
@@ -182,7 +184,7 @@ const universalChatOrchestrator = ai.defineFlow(
             model: aiModel,
             history: conversationHistory.slice(0, -1),
             prompt: userQuery,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 1024,
         });
 
         const responseToCache = {

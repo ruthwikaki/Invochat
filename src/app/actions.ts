@@ -9,7 +9,7 @@ import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
-import { generateAnomalyExplanation } from '@/ai/flows/anomaly-explanation-flow';
+import { generateAnomalyExplanation } from '@/ai/flows/alert-explanation-flow';
 import { getBusinessProfile } from '@/services/database';
 
 async function getCompanyIdForChat(): Promise<string> {
@@ -233,6 +233,6 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
 
     } catch(e) {
         logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
-        return { error: getErrorMessage(e) };
+        return { error: 'Sorry, I encountered an unexpected problem and could not respond. Please try again.' };
     }
 }

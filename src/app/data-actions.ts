@@ -5,64 +5,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import {
-  getSettings,
-  updateSettingsInDb,
-  getInventoryCategoriesFromDB,
-  getUnifiedInventoryFromDB,
-  getSupplierByIdFromDB,
-  createSupplierInDb,
-  updateSupplierInDb,
-  deleteSupplierFromDb,
-  getInventoryLedgerFromDB,
-  getCustomersFromDB,
-  deleteCustomerFromDb,
-  getSalesFromDB,
-  getIntegrationsByCompanyId,
-  getInventoryAnalyticsFromDB,
-  getSalesAnalyticsFromDB,
-  getSuppliersDataFromDB,
-  testSupabaseConnection as dbTestSupabase,
-  testDatabaseQuery as dbTestQuery,
-  updateProductInDb,
-  logUserFeedbackInDb,
-  getDeadStockReportFromDB,
-  getAnomalyInsightsFromDB,
-  getDbSchemaAndData,
-  healthCheckFinancialConsistency,
-  healthCheckInventoryConsistency,
-  createExportJobInDb,
-  getAlertsFromDB,
-  getCustomerAnalyticsFromDB,
-  getInventoryAgingReportFromDB,
-  getProductLifecycleAnalysisFromDB,
-  getInventoryRiskReportFromDB,
-  getCustomerSegmentAnalysisFromDB,
-  getTeamMembersFromDB,
-  inviteUserToCompanyInDb,
-  removeTeamMemberFromDb,
-  updateTeamMemberRoleInDb,
-  getChannelFeesFromDB,
-  upsertChannelFeeInDB,
-  getCashFlowInsightsFromDB,
-  getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB,
-  getCompanyById,
-  testMaterializedView as dbTestMaterializedView,
-  createAuditLogInDb,
-  logPOCreationInDb,
-  transferStockInDb,
-  logWebhookEvent,
-  getDashboardMetrics,
-  reconcileInventoryInDb,
-  getReorderSuggestionsFromDB,
-  createPurchaseOrdersInDb
-} from '@/services/database';
+import * as db from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
-import { isRedisEnabled, redisClient, testRedisConnection as redisTest } from '@/lib/redis';
+import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
 import { DashboardMetricsSchema } from '@/types';
-import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
@@ -97,13 +44,13 @@ async function getAuthContext() {
 
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();
-    const metrics = await getDashboardMetrics(companyId, dateRange);
+    const metrics = await db.getDashboardMetrics(companyId, dateRange);
     return DashboardMetricsSchema.parse(metrics);
 }
 
 export async function getCompanySettings() {
     const { companyId } = await getAuthContext();
-    return getSettings(companyId);
+    return db.getSettings(companyId);
 }
 
 export async function updateCompanySettings(formData: FormData) {
@@ -115,28 +62,28 @@ export async function updateCompanySettings(formData: FormData) {
     overstock_multiplier: Number(formData.get('overstock_multiplier')),
     high_value_threshold: Number(formData.get('high_value_threshold')),
   };
-  return updateSettingsInDb(companyId, settings);
+  return db.updateSettingsInDb(companyId, settings);
 }
 
 export async function getUnifiedInventory(params: { query?: string; page?: number, limit?: number }) {
     const { companyId } = await getAuthContext();
-    return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
+    return db.getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
 }
 
 export async function getInventoryAnalytics() {
     const { companyId } = await getAuthContext();
-    return getInventoryAnalyticsFromDB(companyId);
+    return db.getInventoryAnalyticsFromDB(companyId);
 }
 
 export async function getInventoryCategories() {
     const { companyId } = await getAuthContext();
-    return getInventoryCategoriesFromDB(companyId);
+    return db.getInventoryCategoriesFromDB(companyId);
 }
 
 export async function updateProduct(productId: string, data: ProductUpdateData) {
     try {
         const { companyId } = await getAuthContext();
-        const updatedProduct = await updateProductInDb(companyId, productId, data);
+        const updatedProduct = await db.updateProductInDb(companyId, productId, data);
         revalidatePath('/inventory');
         return { success: true, updatedItem: updatedProduct };
     } catch(e) {
@@ -146,18 +93,18 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
 
 export async function getSuppliersData() {
     const { companyId } = await getAuthContext();
-    return getSuppliersDataFromDB(companyId);
+    return db.getSuppliersDataFromDB(companyId);
 }
 
 export async function getSupplierById(id: string) {
     const { companyId } = await getAuthContext();
-    return getSupplierByIdFromDB(id, companyId);
+    return db.getSupplierByIdFromDB(id, companyId);
 }
 
 export async function createSupplier(data: SupplierFormData) {
     try {
         const { companyId } = await getAuthContext();
-        await createSupplierInDb(companyId, data);
+        await db.createSupplierInDb(companyId, data);
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -167,7 +114,7 @@ export async function createSupplier(data: SupplierFormData) {
 export async function updateSupplier(id: string, data: SupplierFormData) {
     try {
         const { companyId } = await getAuthContext();
-        await updateSupplierInDb(id, companyId, data);
+        await db.updateSupplierInDb(id, companyId, data);
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -179,7 +126,7 @@ export async function deleteSupplier(formData: FormData) {
         const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const id = formData.get('id') as string;
-        await deleteSupplierFromDb(id, companyId);
+        await db.deleteSupplierFromDb(id, companyId);
         revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
@@ -189,7 +136,7 @@ export async function deleteSupplier(formData: FormData) {
 
 export async function getIntegrations() {
     const { companyId } = await getAuthContext();
-    return getIntegrationsByCompanyId(companyId);
+    return db.getIntegrationsByCompanyId(companyId);
 }
 
 export async function disconnectIntegration(formData: FormData) {
@@ -198,7 +145,7 @@ export async function disconnectIntegration(formData: FormData) {
         
         const { companyId } = await getAuthContext();
         const id = formData.get('integrationId') as string;
-        await deleteIntegrationFromDb(id, companyId);
+        await db.deleteIntegrationFromDb(id, companyId);
         revalidatePath('/settings/integrations');
         return { success: true };
     } catch (e) {
@@ -210,7 +157,7 @@ export async function getCustomersData(params: { query?: string, page: number })
     const { companyId } = await getAuthContext();
     const limit = 25;
     const offset = (params.page - 1) * limit;
-    return getCustomersFromDB(companyId, { ...params, limit, offset });
+    return db.getCustomersFromDB(companyId, { ...params, limit, offset });
 }
 
 export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
@@ -218,7 +165,7 @@ export async function deleteCustomer(formData: FormData): Promise<{ success: boo
         const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const id = formData.get('id') as string;
-        await deleteCustomerFromDb(id, companyId);
+        await db.deleteCustomerFromDb(id, companyId);
         revalidatePath('/customers');
         return { success: true };
     } catch (e) {
@@ -229,19 +176,19 @@ export async function deleteCustomer(formData: FormData): Promise<{ success: boo
 export async function getSales(params: { query?: string, page: number, limit: number }) {
     const { companyId } = await getAuthContext();
     const offset = (params.page - 1) * params.limit;
-    return getSalesFromDB(companyId, { ...params, offset });
+    return db.getSalesFromDB(companyId, { ...params, offset });
 }
 export async function getSalesAnalytics() {
      const { companyId } = await getAuthContext();
-    return getSalesAnalyticsFromDB(companyId);
+    return db.getSalesAnalyticsFromDB(companyId);
 }
 
 export async function getInsightsPageData() { 
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
-        getAnomalyInsightsFromDB(companyId),
-        getDeadStockReportFromDB(companyId),
-        getAlertsFromDB(companyId),
+        db.getAnomalyInsightsFromDB(companyId),
+        db.getDeadStockReportFromDB(companyId),
+        db.getAlertsFromDB(companyId),
     ]);
 
      const explainedAnomalies = await Promise.all(
@@ -272,8 +219,8 @@ export async function getInsightsPageData() {
         topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
-export async function testSupabaseConnection() { return dbTestSupabase(); }
-export async function testDatabaseQuery() { return dbTestQuery(); }
+export async function testSupabaseConnection() { return db.testSupabaseConnection(); }
+export async function testDatabaseQuery() { return db.testDatabaseQuery(); }
 export async function testGenkitConnection() { return genkitTest(); }
 export async function testRedisConnection() { return { isEnabled: isRedisEnabled, ...await redisTest() }; }
 export async function getGeneratedProductDescription(productName: string, category: string, keywords: string[]) {
@@ -287,7 +234,7 @@ export async function logUserFeedback(formData: FormData): Promise<{ success: bo
         const subjectType = formData.get('subjectType') as string;
         const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
 
-        await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
+        await db.logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
         
         return { success: true };
     } catch(e) {
@@ -296,15 +243,15 @@ export async function logUserFeedback(formData: FormData): Promise<{ success: bo
 }
 export async function getAlertsData(): Promise<Alert[]> { 
     const { companyId } = await getAuthContext();
-    return getAlertsFromDB(companyId);
+    return db.getAlertsFromDB(companyId);
 }
 export async function getDatabaseSchemaAndData() { 
     const { companyId } = await getAuthContext();
-    return getDbSchemaAndData(companyId);
+    return db.getDbSchemaAndData(companyId);
 }
 export async function getTeamMembers() {
     const { companyId } = await getAuthContext();
-    return getTeamMembersFromDB(companyId);
+    return db.getTeamMembersFromDB(companyId);
 }
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
@@ -312,7 +259,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         validateCSRF(formData);
         const email = formData.get('email') as string;
         // Company name is hardcoded as it's not available here, needs a better solution in a real app
-        await inviteUserToCompanyInDb(companyId, 'Your Company', email);
+        await db.inviteUserToCompanyInDb(companyId, 'Your Company', email);
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -325,7 +272,7 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
-        return await removeTeamMemberFromDb(memberId, companyId, userId);
+        return await db.removeTeamMemberFromDb(memberId, companyId, userId);
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -338,14 +285,14 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
         
-        return await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        return await db.updateTeamMemberRoleInDb(memberId, companyId, newRole);
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
 }
 export async function getCustomerAnalytics() {
     const { companyId } = await getAuthContext();
-    return getCustomerAnalyticsFromDB(companyId);
+    return db.getCustomerAnalyticsFromDB(companyId);
 }
 
 // Refactored to handle data in chunks to prevent memory exhaustion
@@ -370,7 +317,7 @@ async function getPaginatedDataForExport(fetchFunction: (companyId: string, para
 export async function exportCustomers(params: { query?: string }) { 
     try {
         const { companyId } = await getAuthContext();
-        const items = await getPaginatedDataForExport(getCustomersFromDB, companyId, params);
+        const items = await getPaginatedDataForExport(db.getCustomersFromDB, companyId, params);
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -380,7 +327,7 @@ export async function exportCustomers(params: { query?: string }) {
 export async function exportSales(params: { query?: string }) { 
     try {
         const { companyId } = await getAuthContext();
-        const items = await getPaginatedDataForExport(getSalesFromDB, companyId, params);
+        const items = await getPaginatedDataForExport(db.getSalesFromDB, companyId, params);
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -407,7 +354,7 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
 export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> { 
     try {
         const { companyId, userId } = await getAuthContext();
-        const job = await createExportJobInDb(companyId, userId);
+        const job = await db.createExportJobInDb(companyId, userId);
         revalidatePath('/settings/export');
         return { success: true, jobId: job.id };
     } catch (e) {
@@ -418,12 +365,12 @@ export async function getInventoryConsistencyReport(): Promise<HealthCheckResult
 export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { 
     const { companyId } = await getAuthContext();
-    return getInventoryAgingReportFromDB(companyId);
+    return db.getInventoryAgingReportFromDB(companyId);
 }
 export async function exportInventory(params: { query?: string }) { 
     try {
         const { companyId } = await getAuthContext();
-        const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
+        const { items } = await db.getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
         const csv = Papa.unparse(items.map(item => ({
             sku: item.sku,
             product_title: item.product_title,
@@ -442,7 +389,7 @@ export async function exportInventory(params: { query?: string }) {
 }
 export async function getCashFlowInsights() {
     const { companyId } = await getAuthContext();
-    return getCashFlowInsightsFromDB(companyId);
+    return db.getCashFlowInsightsFromDB(companyId);
 }
 export async function getSupplierPerformance() { return []; }
 export async function getInventoryTurnover() { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
@@ -458,15 +405,15 @@ export async function sendInventoryDigestEmailAction(): Promise<{ success: boole
 }
 export async function getProductLifecycleAnalysis(): Promise<ProductLifecycleAnalysis> { 
     const { companyId } = await getAuthContext();
-    return getProductLifecycleAnalysisFromDB(companyId);
+    return db.getProductLifecycleAnalysisFromDB(companyId);
 }
 export async function getInventoryRiskReport(): Promise<InventoryRiskItem[]> { 
     const { companyId } = await getAuthContext();
-    return getInventoryRiskReportFromDB(companyId);
+    return db.getInventoryRiskReportFromDB(companyId);
 }
 export async function getCustomerSegmentAnalysis(): Promise<{ segments: CustomerSegmentAnalysisItem[], insights: { analysis: string, suggestion: string } | null }> { 
     const { companyId } = await getAuthContext();
-    const segments = await getCustomerSegmentAnalysisFromDB(companyId);
+    const segments = await db.getCustomerSegmentAnalysisFromDB(companyId);
     if (segments.length === 0) {
         return { segments, insights: null };
     }
@@ -476,8 +423,8 @@ export async function getCustomerSegmentAnalysis(): Promise<{ segments: Customer
 export async function getMorningBriefing(dateRange: string) {
     const { companyId } = await getAuthContext();
     const [metrics, company] = await Promise.all([
-        getDashboardMetrics(companyId, dateRange),
-        getCompanyById(companyId),
+        db.getDashboardMetrics(companyId, dateRange),
+        db.getCompanyById(companyId),
     ]);
     return generateMorningBriefing({ metrics, companyName: company?.name });
 }
@@ -485,7 +432,7 @@ export async function getMorningBriefing(dateRange: string) {
 export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> { 
     try {
         const { companyId, userId } = await getAuthContext();
-        await reconcileInventoryInDb(companyId, integrationId, userId);
+        await db.reconcileInventoryInDb(companyId, integrationId, userId);
         revalidatePath('/inventory');
         return { success: true };
     } catch (e) {
@@ -498,12 +445,12 @@ export async function transferStock(formData: FormData) { return {success: false
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
      const { companyId } = await getAuthContext();
-    return getReorderSuggestionsFromDB(companyId);
+    return db.getReorderSuggestionsFromDB(companyId);
 }
 
 export async function getInventoryLedger(variantId: string) {
     const { companyId } = await getAuthContext();
-    return getInventoryLedgerFromDB(companyId, variantId);
+    return db.getInventoryLedgerFromDB(companyId, variantId);
 }
 
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean, error?: string, createdPoCount?: number }> {
@@ -526,7 +473,7 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
     }
 
     try {
-        const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
+        const createdPoCount = await db.createPurchaseOrdersInDb(companyId, userId, suggestions);
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
         return { success: true, createdPoCount };
     } catch (e) {

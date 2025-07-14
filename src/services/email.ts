@@ -15,7 +15,7 @@ import { config } from '@/config/app-config';
 // Initialize Resend with the API key from environment variables.
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+const fromEmail = process.env.EMAIL_FROM;
 const isProduction = config.app.environment === 'production';
 
 const canSendEmails = !!resendApiKey && !!fromEmail;
