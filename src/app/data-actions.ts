@@ -73,6 +73,7 @@ import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 import { z } from 'zod';
+import { invalidateCompanyCache } from '@/lib/redis';
 
 
 async function getAuthContext() {
@@ -345,10 +346,30 @@ export async function getCustomerAnalytics() {
     const { companyId } = await getAuthContext();
     return getCustomerAnalyticsFromDB(companyId);
 }
+
+// Refactored to handle data in chunks to prevent memory exhaustion
+async function getPaginatedDataForExport(fetchFunction: (companyId: string, params: any) => Promise<{ items: any[], totalCount: number }>, companyId: string, params: { query?: string }) {
+    const allItems = [];
+    let page = 1;
+    const limit = 1000; // Process 1000 records at a time
+    let hasMore = true;
+
+    while(hasMore) {
+        const { items, totalCount } = await fetchFunction(companyId, { ...params, page, limit });
+        allItems.push(...items);
+        if (allItems.length >= totalCount) {
+            hasMore = false;
+        } else {
+            page++;
+        }
+    }
+    return allItems;
+}
+
 export async function exportCustomers(params: { query?: string }) { 
     try {
         const { companyId } = await getAuthContext();
-        const { items } = await getCustomersFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const items = await getPaginatedDataForExport(getCustomersFromDB, companyId, params);
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -358,13 +379,14 @@ export async function exportCustomers(params: { query?: string }) {
 export async function exportSales(params: { query?: string }) { 
     try {
         const { companyId } = await getAuthContext();
-        const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const items = await getPaginatedDataForExport(getSalesFromDB, companyId, params);
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
 }
+
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
     try {
         const dataToExport = suggestions.map(s => ({
@@ -493,8 +515,8 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
         
         const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
         
-        revalidatePath('/reordering', 'page');
-        revalidatePath('/dashboard', 'page');
+        // Invalidate caches related to inventory and purchasing
+        await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
         
         return { success: true, createdPoCount };
     } catch (e) {
@@ -503,4 +525,3 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
     }
 }
     
-

@@ -66,10 +66,11 @@ export async function runSync(integrationId: string, companyId: string, attempt 
         // to be potentially retried from where it left off.
         
         if (attempt < MAX_ATTEMPTS) {
-            const delayMs = Math.pow(2, attempt) * 2000; // Exponential backoff starts at 2s, then 4s
+            const delayMs = Math.pow(2, attempt) * 2000; // Exponential backoff starts at 2s, then 4s, then 8s
             logger.info(`[Sync Service] Retrying sync for ${integration.id} in ${delayMs}ms...`);
             await new Promise(resolve => setTimeout(resolve, delayMs));
-            return runSync(integrationId, companyId, attempt + 1); // Recursive call for retry
+            // IMPORTANT: Use 'return' here to correctly chain the promise from the recursive call.
+            return runSync(integrationId, companyId, attempt + 1);
         } else {
             logger.error(`[Sync Service] Max retries reached for integration ${integration.id}. Marking as failed.`);
             // Update status to failed only after all retries are exhausted

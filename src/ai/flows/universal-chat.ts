@@ -128,6 +128,7 @@ const universalChatOrchestrator = ai.defineFlow(
           tools: allTools,
           history: conversationHistory.slice(0, -1),
           prompt: `The user's company ID is ${companyId}. Use this when calling any tool that requires a companyId. User's question: "${userQuery}"`,
+          maxOutputTokens: 2048,
         });
         
         // Step 2: If a tool is chosen, execute it.
@@ -141,7 +142,7 @@ const universalChatOrchestrator = ai.defineFlow(
                 // Step 3: Use a second AI call to formulate a natural language response from the tool's data.
                 const { output: finalOutput } = await finalResponsePrompt(
                     { userQuery, toolResult: toolResult.output },
-                    { model: aiModel }
+                    { model: aiModel, maxOutputTokens: 2048 }
                 );
 
                 if (!finalOutput) {
@@ -181,6 +182,7 @@ const universalChatOrchestrator = ai.defineFlow(
             model: aiModel,
             history: conversationHistory.slice(0, -1),
             prompt: userQuery,
+            maxOutputTokens: 2048,
         });
 
         const responseToCache = {

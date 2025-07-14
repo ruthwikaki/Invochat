@@ -32,6 +32,7 @@ export const getEconomicIndicators = ai.defineTool(
             model: 'googleai/gemini-1.5-flash',
             prompt: `You are a financial data assistant. Provide a concise, factual answer for the following economic indicator: "${input.indicator}". State only the value and the period it applies to. Example: "3.3% (May 2024)"`,
             temperature: 0,
+            maxOutputTokens: 100,
             config: {
                 safetySettings: [
                     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
