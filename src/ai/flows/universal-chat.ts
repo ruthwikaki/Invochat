@@ -29,11 +29,13 @@ import { findHiddenMoney } from './hidden-money-finder-flow';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
 
-// List of all available tools for the AI to use.
-const allTools = [
+// SECURITY FIX (#81): Prevent AI recursion.
+// This list of tools is carefully curated to only include data retrieval and analysis tools.
+// It EXCLUDES any tool that is a wrapper around another AI flow (like findHiddenMoney, getSupplierAnalysisTool, etc.).
+// This prevents the main chat agent from calling other agents, which could lead to infinite loops and high costs.
+const safeToolsForOrchestrator = [
     getEconomicIndicators, 
     getReorderSuggestions, 
-    getSupplierAnalysisTool, 
     getDeadStockReport, 
     getInventoryTurnoverReport,
     getDemandForecast,
@@ -42,12 +44,15 @@ const allTools = [
     getNetMarginByChannel,
     getMarginTrends,
     getSalesVelocity,
-    getBundleSuggestions,
-    getPriceOptimizationSuggestions,
-    getMarkdownSuggestions,
     getPromotionalImpactAnalysis,
-    findHiddenMoney,
+    // The following tools are wrappers around AI flows and are EXCLUDED to prevent recursion.
+    // getSupplierAnalysisTool, 
+    // getBundleSuggestions,
+    // getPriceOptimizationSuggestions,
+    // getMarkdownSuggestions,
+    // findHiddenMoney,
 ];
+
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 const finalResponsePrompt = ai.definePrompt({
@@ -129,7 +134,7 @@ const universalChatOrchestrator = ai.defineFlow(
         // This mitigates prompt injection attacks.
         const { toolCalls } = await ai.generate({
           model: aiModel,
-          tools: allTools,
+          tools: safeToolsForOrchestrator,
           history: conversationHistory.slice(0, -1),
           system: `You are an AI assistant for a business with company ID '${companyId}'. You must use this ID when calling any tool that requires a companyId.`,
           prompt: userQuery, // User input is now properly separated.
