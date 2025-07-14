@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -372,6 +372,31 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
     }
     
     return data; // This should be the count of POs created
+}
+
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithSupplier[]> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('purchase_orders')
+        .select(`
+            *,
+            supplier_name:suppliers(name)
+        `)
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        logError(error, { context: 'Failed to fetch purchase orders' });
+        throw error;
+    }
+    
+    // The query returns { supplier_name: { name: 'Supplier A' } }, so we need to flatten it.
+    const flattenedData = data.map(po => ({
+        ...po,
+        supplier_name: po.supplier_name ? (po.supplier_name as any).name : 'N/A'
+    }));
+
+    return flattenedData as PurchaseOrderWithSupplier[];
 }
 
 

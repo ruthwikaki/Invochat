@@ -9,7 +9,7 @@ import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSch
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { User, CsvMappingInput, CsvMappingOutput } from '@/types';
 import { revalidatePath } from 'next/cache';

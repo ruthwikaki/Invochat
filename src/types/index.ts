@@ -149,6 +149,11 @@ export const PurchaseOrderSchema = z.object({
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
+export const PurchaseOrderWithSupplierSchema = PurchaseOrderSchema.extend({
+    supplier_name: z.string().nullable(),
+});
+export type PurchaseOrderWithSupplier = z.infer<typeof PurchaseOrderWithSupplierSchema>;
+
 export const PurchaseOrderLineItemSchema = z.object({
     id: z.string().uuid(),
     purchase_order_id: z.string().uuid(),

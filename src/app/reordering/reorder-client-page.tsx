@@ -12,10 +12,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { Badge } from '../ui/badge';
 import Papa from 'papaparse';
+import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/data-actions';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -60,6 +60,7 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
 export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: ReorderSuggestion[] }) {
   const router = useRouter();
   const { toast } = useToast();
+  const [isPending, startTransition] = useTransition();
   const [selectedSuggestions, setSelectedSuggestions] = useState<ReorderSuggestion[]>(initialSuggestions);
 
   const handleSelect = (suggestion: ReorderSuggestion, checked: boolean) => {
@@ -72,32 +73,54 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
     setSelectedSuggestions(checked ? initialSuggestions : []);
   };
   
+  const handleCreatePOs = () => {
+    startTransition(async () => {
+        if (selectedSuggestions.length === 0) {
+            toast({ variant: 'destructive', title: 'No items selected', description: 'Please select items to create purchase orders for.' });
+            return;
+        }
+
+        const result = await createPurchaseOrdersFromSuggestions(selectedSuggestions);
+        
+        if (result.success) {
+            toast({
+              title: 'Purchase Orders Created!',
+              description: `${result.createdPoCount} new PO(s) have been generated.`,
+            });
+            router.push('/purchase-orders');
+        } else {
+            toast({
+              variant: 'destructive',
+              title: 'Error Creating POs',
+              description: result.error,
+            });
+        }
+    });
+  };
+  
   const handleExport = () => {
-    if (selectedSuggestions.length === 0) {
-      toast({ variant: 'destructive', title: 'No items selected', description: 'Please select items to export.' });
-      return;
-    }
+    startTransition(async () => {
+        if (selectedSuggestions.length === 0) {
+            toast({ variant: 'destructive', title: 'No items selected', description: 'Please select items to export.' });
+            return;
+        }
 
-    const dataToExport = selectedSuggestions.map(s => ({
-      SKU: s.sku,
-      ProductName: s.product_name,
-      Supplier: s.supplier_name,
-      QuantityToOrder: s.suggested_reorder_quantity,
-      UnitCost: s.unit_cost ? (s.unit_cost / 100).toFixed(2) : 'N/A',
-      TotalCost: s.unit_cost ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : 'N/A'
-    }));
-
-    const csv = Papa.unparse(dataToExport);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `reorder-report-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: 'Export Complete', description: 'Your reorder report has been downloaded.' });
+        const result = await exportReorderSuggestions(selectedSuggestions);
+        if (result.success && result.data) {
+            const blob = new Blob([result.data], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `reorder-report-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast({ title: 'Export Complete', description: 'Your reorder report has been downloaded.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Export Failed', description: result.error });
+        }
+    });
   };
   
   const isAllSelected = initialSuggestions.length > 0 && selectedSuggestions.length === initialSuggestions.length;
@@ -127,7 +150,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
       <Card>
         <CardHeader>
           <CardTitle>AI-Enhanced Reorder Suggestions</CardTitle>
-          <CardDescription>Select items to export for your purchasing team. The AI has adjusted quantities based on historical sales data and seasonality.</CardDescription>
+          <CardDescription>Select items to automatically generate purchase orders. The AI has adjusted quantities based on historical sales data and seasonality.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[65vh] overflow-auto">
@@ -187,8 +210,12 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                 >
                     <div className="flex items-center gap-4 bg-background/80 backdrop-blur-lg border rounded-full p-2 pl-4 shadow-2xl">
                         <p className="text-sm font-medium">{selectedSuggestions.length} item(s) selected</p>
-                        <Button onClick={handleExport}>
-                             <Download className="mr-2 h-4 w-4" /> Export Selected to CSV
+                        <Button onClick={handleExport} variant="outline" size="sm" disabled={isPending}>
+                             <Download className="mr-2 h-4 w-4" /> Export to CSV
+                        </Button>
+                        <Button onClick={handleCreatePOs} size="sm" disabled={isPending}>
+                            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                             <ShoppingCart className="mr-2 h-4 w-4" /> Create PO(s)
                         </Button>
                     </div>
                 </motion.div>

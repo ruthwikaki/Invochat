@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import * as db from '@/services/database';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, PurchaseOrderWithSupplier } from '@/types';
 import { DashboardMetricsSchema } from '@/types';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -454,9 +454,16 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
     try {
         const createdPoCount = await db.createPurchaseOrdersInDb(companyId, userId, suggestions);
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
+        revalidatePath('/purchase-orders');
+        revalidatePath('/reordering');
         return { success: true, createdPoCount };
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> {
+    const { companyId } = await getAuthContext();
+    return db.getPurchaseOrdersFromDB(companyId);
 }
