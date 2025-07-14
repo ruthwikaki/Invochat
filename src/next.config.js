@@ -33,14 +33,10 @@ const nextConfig = {
     ],
   },
   async headers() {
-    // SECURITY FIX (#99): Tightened Content Security Policy.
-    // Removed 'unsafe-inline' and 'unsafe-eval' to prevent XSS attacks.
-    // Note: 'unsafe-inline' for styles is temporarily kept for ShadCN compatibility,
-    // but a stricter nonce-based approach would be better long-term.
     const cspHeader = `
       default-src 'self';
       script-src 'self';
-      style-src 'self' 'unsafe-inline';
+      style-src 'self';
       img-src 'self' data: https://placehold.co;
       font-src 'self';
       connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com;
@@ -62,6 +58,10 @@ const nextConfig = {
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
+          },
+          {
+              key: 'X-XSS-Protection',
+              value: '1; mode=block',
           },
           {
             key: 'X-Frame-Options',

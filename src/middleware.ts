@@ -12,8 +12,8 @@ export async function middleware(req: NextRequest) {
   });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
@@ -84,7 +84,7 @@ export async function middleware(req: NextRequest) {
     
     // User is logged in but company setup is incomplete
     if (!companyId && !isSetupIncompleteRoute && !isPublicRoute && pathname !== '/test-supabase') {
-        return NextResponse.redirect(new URL('/setup-incomplete', req.url));
+        return NextResponse.redirect(new URL('/env-check', req.url));
     }
     
     // User has completed setup but is trying to access the setup page

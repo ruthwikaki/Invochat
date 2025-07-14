@@ -16,9 +16,9 @@ dotenvConfig();
 // This schema validates all critical environment variables on application startup.
 // If any variable is missing or invalid, the app will render an error page.
 const EnvSchema = z.object({
-  NEXT_PUBLIC_SITE_URL: z.string().url({ message: "Must be a valid URL." }),
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
+  SITE_URL: z.string().url({ message: "Must be a valid URL." }),
+  SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
+  SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
   GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
   REDIS_URL: z.string().optional(),
@@ -56,8 +56,8 @@ const parseFloatWithDefault = (value: string | undefined, defaultValue: number):
 
 export const config = {
   app: {
-    name: process.env.NEXT_PUBLIC_APP_NAME || 'InvoChat',
-    url: envValidation.success ? envValidation.data.NEXT_PUBLIC_SITE_URL : 'http://localhost:3000',
+    name: process.env.APP_NAME || 'InvoChat',
+    url: envValidation.success ? envValidation.data.SITE_URL : 'http://localhost:3000',
     environment: process.env.NODE_ENV || 'development',
   },
   ai: {
@@ -70,6 +70,13 @@ export const config = {
     import: 10, // 10 imports per hour
     sync: 10, // 10 syncs per hour
   },
+  import: {
+    maxFileSizeMB: 10,
+    batchSize: 500,
+  },
+  integrations: {
+    syncDelayMs: 500, // Delay between API calls during sync
+  },
   chat: {
     quickActions: [
       "What should I order today?",
@@ -78,6 +85,11 @@ export const config = {
       "Top products this month",
     ],
   },
+  redis: {
+    ttl: {
+        aiQuery: 3600, // 1 hour
+    }
+  }
 };
 
 // A type alias for convenience

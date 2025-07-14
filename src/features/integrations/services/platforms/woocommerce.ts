@@ -8,8 +8,9 @@ import type { Integration, Product, ProductVariant } from '@/types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
+import { config } from '@/config/app-config';
 
-const RATE_LIMIT_DELAY = 500; // 500ms delay between requests
+const RATE_LIMIT_DELAY = config.integrations.syncDelayMs;
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function wooCommerceFetch(
@@ -52,7 +53,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             'products',
             { per_page: 50, page: currentPage }
         );
-        await delay(RATE_LIMIT_DELAY);
+        // No synchronous delay here
 
         if (wooProducts.length === 0) break;
 
@@ -96,7 +97,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                          `products/${productId}/variations`,
                          { per_page: 100 }
                     );
-                    await delay(RATE_LIMIT_DELAY);
+                    // No synchronous delay here
                     allVariations.push(...variantDetails.map((v: any) => ({ ...v, parent_id: productId })));
                 }
             }
@@ -179,7 +180,7 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
             'orders',
             { per_page: 50, page: currentPage }
         );
-        await delay(RATE_LIMIT_DELAY);
+        // No synchronous delay here
         
         if (orders.length === 0) break;
 

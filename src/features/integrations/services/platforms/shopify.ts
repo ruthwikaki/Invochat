@@ -8,9 +8,10 @@ import type { Integration, Product, ProductVariant } from '@/types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
+import { config } from '@/config/app-config';
 
 const SHOPIFY_API_VERSION = '2024-07';
-const RATE_LIMIT_DELAY = 500; // 500ms delay between requests (2 req/s)
+const RATE_LIMIT_DELAY = config.integrations.syncDelayMs;
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -35,7 +36,8 @@ export async function syncProducts(integration: Integration, accessToken: string
         const response = await fetch(nextUrl, {
             headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         });
-        await delay(RATE_LIMIT_DELAY);
+        
+        // No synchronous delay here; the process runs in the background.
 
         if (!response.ok) throw new Error(`Shopify API product fetch error (${response.status}): ${await response.text()}`);
 
@@ -129,7 +131,8 @@ export async function syncSales(integration: Integration, accessToken: string) {
         const response = await fetch(nextUrl, {
             headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         });
-        await delay(RATE_LIMIT_DELAY);
+        
+        // No synchronous delay here
 
         if (!response.ok) throw new Error(`Shopify API order fetch error (${response.status}): ${await response.text()}`);
 

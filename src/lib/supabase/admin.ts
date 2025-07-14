@@ -21,7 +21,7 @@ export function getServiceRoleClient(): SupabaseClient {
 
   // Startup validation is now handled centrally in src/config/app-config.ts and the root layout.
   // This check is a safeguard.
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseServiceRoleKey) {
