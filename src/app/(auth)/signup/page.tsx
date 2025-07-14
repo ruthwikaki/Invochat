@@ -20,21 +20,12 @@ export default function SignupPage({
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // Try to get the CSRF token immediately
-    const token = getCookie('csrf_token');
-    if (token) {
-      setCsrfToken(token);
-    } else {
-      // If not found, try again after a short delay
-      const timeout = setTimeout(() => {
-        const retryToken = getCookie('csrf_token');
-        if (retryToken) {
-          setCsrfToken(retryToken);
-        }
-      }, 100);
-      
-      return () => clearTimeout(timeout);
-    }
+    // This function now correctly handles fetching the token client-side
+    const fetchToken = () => {
+        const token = getCookie('csrf_token');
+        setCsrfToken(token);
+    };
+    fetchToken();
   }, []);
 
   if (success) {
@@ -42,7 +33,7 @@ export default function SignupPage({
       <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 p-4">
          <div className="mb-8 flex items-center gap-3 text-3xl font-bold">
           <InvoChatLogo className="h-10 w-10 text-primary" />
-           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">InvoChat</h1>
+           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">ARVO</h1>
         </div>
         <Card className="w-full max-w-sm text-center mx-auto bg-slate-800/80 border-slate-700/50 text-white">
           <CardHeader>
@@ -72,7 +63,7 @@ export default function SignupPage({
         </div>
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold">
         <InvoChatLogo className="h-10 w-10 text-primary" />
-        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">InvoChat</h1>
+        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">ARVO</h1>
       </div>
       <Card className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
         <CardHeader className="p-0 text-center">

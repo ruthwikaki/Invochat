@@ -19,21 +19,12 @@ export default function LoginPage({
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // Try to get the CSRF token immediately
-    const token = getCookie('csrf_token');
-    if (token) {
-      setCsrfToken(token);
-    } else {
-      // If not found, try again after a short delay
-      const timeout = setTimeout(() => {
-        const retryToken = getCookie('csrf_token');
-        if (retryToken) {
-          setCsrfToken(retryToken);
-        }
-      }, 100);
-      
-      return () => clearTimeout(timeout);
-    }
+    // This function now correctly handles fetching the token client-side
+    const fetchToken = () => {
+        const token = getCookie('csrf_token');
+        setCsrfToken(token);
+    };
+    fetchToken();
   }, []);
 
   return (
@@ -48,7 +39,7 @@ export default function LoginPage({
           <div className="flex justify-center items-center gap-3 mb-4">
             <InvoChatLogo className="h-10 w-10 text-blue-500" />
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              InvoChat
+              ARVO
             </h1>
           </div>
           <CardTitle className="text-xl font-semibold text-slate-200">Welcome to Intelligent Inventory</CardTitle>

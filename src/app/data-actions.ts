@@ -5,7 +5,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import * as db from '@/services/database';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, PurchaseOrderWithSupplier } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, PurchaseOrderWithSupplier, InventoryAgingReportItem } from '@/types';
 import { DashboardMetricsSchema } from '@/types';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -444,10 +444,6 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
         return { success: false, error: 'No reorder suggestions provided.' };
     }
 
-    // Create a unique, sorted key for the lock to ensure consistency
-    const skus = suggestions.map(s => s.sku).sort().join(',');
-    const lockKey = `po-creation:${companyId}:${crypto.createHash('sha256').update(skus).digest('hex')}`;
-    
     // The lock implementation has been removed as it requires Redis, which is being handled separately.
     // In a real multi-instance environment, a distributed lock would be critical here.
     

@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
@@ -12,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import type { InventoryLedgerEntry, UnifiedInventoryItem } from '@/types';
 import { cn } from '@/lib/utils';
-import { Package, ShoppingCart, RefreshCcw, Shuffle, AlertCircle } from 'lucide-react';
+import { Package, ShoppingCart, RefreshCcw, AlertCircle } from 'lucide-react';
 
 interface InventoryHistoryDialogProps {
   variant: UnifiedInventoryItem | null;
@@ -27,10 +26,6 @@ const getChangeTypeInfo = (type: string) => {
             return { icon: Package, color: 'text-green-500', label: 'Purchase' };
         case 'reconciliation':
              return { icon: RefreshCcw, color: 'text-blue-500', label: 'Reconciliation' };
-        case 'transfer_in':
-            return { icon: Shuffle, color: 'text-emerald-500', label: 'Transfer In'};
-        case 'transfer_out':
-            return { icon: Shuffle, color: 'text-orange-500', label: 'Transfer Out'};
         case 'manual_adjustment':
         default:
             return { icon: AlertCircle, color: 'text-gray-500', label: 'Adjustment' };
