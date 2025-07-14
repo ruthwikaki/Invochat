@@ -61,7 +61,8 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
-  const publicRoutes = ['/quick-test', '/env-check'];
+  // The /env-check route has been removed from public access to prevent information exposure.
+  const publicRoutes = ['/quick-test'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isPublicRoute = publicRoutes.includes(pathname);
   

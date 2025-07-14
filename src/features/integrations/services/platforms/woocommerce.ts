@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -88,9 +89,6 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             const variableProductIds = wooProducts.filter((p: any) => p.type === 'variable' && p.variations.length > 0).map((p: any) => p.id);
             const allVariations: any[] = [];
             if (variableProductIds.length > 0) {
-                // WooCommerce API doesn't support fetching variations for multiple products at once.
-                // The N+1 remains, but we can at least log this inefficiency.
-                logger.warn(`[WooCommerce Sync] Inefficient operation: Fetching variations for ${variableProductIds.length} products one by one.`);
                  for (const productId of variableProductIds) {
                     const { data: variantDetails } = await wooCommerceFetch(
                          integration.shop_domain!,

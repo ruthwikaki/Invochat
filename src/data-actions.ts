@@ -56,10 +56,12 @@ import {
   getDashboardMetrics,
   reconcileInventoryInDb,
   getReorderSuggestionsFromDB,
+  createPurchaseOrdersInDb
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
+import { DashboardMetricsSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -70,6 +72,7 @@ import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
+import { z } from 'zod';
 
 
 async function getAuthContext() {
@@ -90,9 +93,10 @@ async function getAuthContext() {
 
 // --- Simplified Core Actions ---
 
-export async function getDashboardData(dateRange: string) {
+export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();
-    return getDashboardMetrics(companyId, dateRange);
+    const metrics = await getDashboardMetrics(companyId, dateRange);
+    return DashboardMetricsSchema.parse(metrics);
 }
 
 export async function getCompanySettings() {
@@ -405,7 +409,7 @@ export async function exportInventory(params: { query?: string }) {
             quantity: item.inventory_quantity,
             price: item.price ? (item.price / 100).toFixed(2) : null,
             cost: item.cost ? (item.cost / 100).toFixed(2) : null,
-            category: item.category,
+            category: item.product_type,
             image_url: item.image_url,
         })));
         return { success: true, data: csv };
@@ -468,13 +472,34 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 export async function testMaterializedView() { return {success: true}; }
 export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }
 export async function transferStock(formData: FormData) { return {success: false, error: "Not implemented"}; }
+
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
      const { companyId } = await getAuthContext();
     return getReorderSuggestionsFromDB(companyId);
 }
+
 export async function getInventoryLedger(variantId: string) {
     const { companyId } = await getAuthContext();
     return getInventoryLedgerFromDB(companyId, variantId);
 }
 
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean, error?: string, createdPoCount?: number }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        
+        if (!suggestions || suggestions.length === 0) {
+            return { success: false, error: 'No reorder suggestions provided.' };
+        }
+        
+        const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
+        
+        // Invalidate caches related to inventory and purchasing
+        await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
+        
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
     

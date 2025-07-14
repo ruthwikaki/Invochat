@@ -375,3 +375,19 @@ export async function logWebhookEvent(integrationId: string, platform: string, w
     }
     return { success: true };
 }
+
+export async function createPurchaseOrdersInDb(companyId: string, userId: string, suggestions: any[]) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_suggestions: suggestions
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to execute create_purchase_orders_from_suggestions RPC' });
+        throw new Error('Database error while creating purchase orders.');
+    }
+    
+    return data; // This should be the count of POs created
+}

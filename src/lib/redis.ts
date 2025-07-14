@@ -171,7 +171,7 @@ export async function rateLimit(
         pipeline.zadd(key, now, now.toString());
         // Get the count of all requests within the window
         pipeline.zcard(key);
-        // Set an expiry on the key to clean up old data automatically
+        // Set an expiry on the key to clean up old data automatically, preventing memory leaks.
         pipeline.expire(key, windowSeconds);
 
         const results = await pipeline.exec();
