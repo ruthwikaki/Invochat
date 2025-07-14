@@ -6,7 +6,9 @@ import { z } from 'zod';
 import { runSync } from '@/features/integrations/services/sync-service';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
+import { rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
@@ -14,6 +16,12 @@ const syncSchema = z.object({
 
 export async function POST(request: Request) {
     try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600); // Limit to 10 syncs per hour
+        if (limited) {
+            return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
+        }
+        
         const cookieStore = cookies();
         const authSupabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,

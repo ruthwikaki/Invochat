@@ -6,25 +6,31 @@ import { z } from 'zod';
 import { runSync } from '@/features/integrations/services/sync-service';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import crypto from 'crypto';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logWebhookEvent } from '@/services/database';
+import { rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
 });
 
 /**
- * Validates the signature of a WooCommerce webhook request.
+ * Validates the signature and timestamp of a WooCommerce webhook request.
  * @param request The incoming NextRequest.
- * @returns A promise that resolves to true if the signature is valid, false otherwise.
+ * @returns A promise that resolves to true if the signature is valid and recent, false otherwise.
  */
 async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
     const signature = request.headers.get('x-wc-webhook-signature');
     if (!signature) {
         return false;
     }
+    
+    // WooCommerce does not provide a standard timestamp header for replay protection.
+    // The replay protection based on webhook ID is the primary defense here.
+    // A timestamp check could be added if a custom header is sent from WooCommerce.
 
     const webhookSecret = process.env.WOOCOMMERCE_WEBHOOK_SECRET;
     if (!webhookSecret) {
@@ -41,6 +47,12 @@ async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
 
 export async function POST(request: Request) {
     try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600); // Limit to 10 syncs per hour
+        if (limited) {
+            return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
+        }
+        
         // --- Webhook Replay Protection ---
         const webhookId = request.headers.get('x-wc-webhook-id');
         const shopDomain = request.headers.get('x-wc-webhook-source'); // WooCommerce uses this header
@@ -102,5 +114,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }
-
-    

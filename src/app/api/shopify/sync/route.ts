@@ -6,51 +6,71 @@ import { z } from 'zod';
 import { runSync } from '@/features/integrations/services/sync-service';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import crypto from 'crypto';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logWebhookEvent } from '@/services/database';
+import { rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
 });
 
 /**
- * Validates the HMAC signature of a Shopify webhook request.
+ * Validates the HMAC signature and timestamp of a Shopify webhook request.
  * @param request The incoming NextRequest.
- * @returns A promise that resolves to true if the signature is valid, false otherwise.
+ * @returns A promise that resolves to true if the signature is valid and recent, false otherwise.
  */
 async function validateShopifyWebhook(request: Request): Promise<boolean> {
-  const shopifyHmac = request.headers.get('x-shopify-hmac-sha256');
-  if (!shopifyHmac) {
-    return false; // No signature header present
-  }
+    const shopifyHmac = request.headers.get('x-shopify-hmac-sha256');
+    const shopifyTimestamp = request.headers.get('x-shopify-request-timestamp');
 
-  const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
-  if (!shopifyWebhookSecret) {
-    logError(new Error('SHOPIFY_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
-    return false; // Cannot validate without the secret
-  }
-  
-  const body = await request.text();
+    // 1. Check for presence of required headers
+    if (!shopifyHmac || !shopifyTimestamp) {
+        return false;
+    }
 
-  const hash = crypto
-    .createHmac('sha256', shopifyWebhookSecret)
-    .update(body)
-    .digest('base64');
-  
-  // Use a timing-safe comparison to prevent timing attacks
-  try {
-    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(shopifyHmac));
-  } catch (error) {
-    // This can happen if the buffers have different lengths
-    return false;
-  }
+    // 2. Validate timestamp to prevent replay attacks
+    const requestTime = parseInt(shopifyTimestamp, 10);
+    const now = Math.floor(Date.now() / 1000);
+    const fiveMinutes = 5 * 60;
+    if (Math.abs(now - requestTime) > fiveMinutes) {
+        logError(new Error(`Shopify webhook timestamp is too old. Request time: ${requestTime}, Current time: ${now}`), { status: 408 });
+        return false;
+    }
+
+    const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
+    if (!shopifyWebhookSecret) {
+        logError(new Error('SHOPIFY_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
+        return false; // Cannot validate without the secret
+    }
+    
+    const body = await request.text();
+
+    const hash = crypto
+        .createHmac('sha256', shopifyWebhookSecret)
+        .update(body)
+        .digest('base64');
+    
+    // 3. Compare HMAC signatures using a timing-safe method
+    try {
+        return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(shopifyHmac));
+    } catch (error) {
+        // This can happen if the buffers have different lengths
+        return false;
+    }
 }
 
 
 export async function POST(request: Request) {
     try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600); // Limit to 10 syncs per hour
+        if (limited) {
+            return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
+        }
+
         // --- Webhook Replay Protection ---
         const webhookId = request.headers.get('x-shopify-webhook-id');
         const shopDomain = request.headers.get('x-shopify-shop-domain');
@@ -121,5 +141,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
-
-    
