@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -17,7 +18,6 @@ import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const ALLOWED_MIME_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain', 'application/csv'];
 const BATCH_SIZE = 500;
 
 export type ImportResult = {
@@ -261,10 +261,6 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         }
         if (file.size > MAX_FILE_SIZE_BYTES) {
             return { success: false, isDryRun, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
-        }
-        if (!ALLOWED_MIME_TYPES.some(allowedType => file.type.startsWith(allowedType)) && !file.name.endsWith('.csv')) {
-             logger.warn(`[Data Import] Blocked invalid file type: ${file.type} with name ${file.name}`);
-            return { success: false, isDryRun, summaryMessage: `Invalid file type. Only CSV files are allowed.` };
         }
         
         const fileContent = await file.text();

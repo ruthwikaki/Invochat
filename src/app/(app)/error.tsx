@@ -19,6 +19,8 @@ export default function Error({
     logger.error('Global Error Boundary Caught:', error);
   }, [error]);
 
+  const isDev = process.env.NODE_ENV === 'development';
+
   return (
     <div className="flex items-center justify-center min-h-dvh bg-muted/40 p-4">
         <Card className="w-full max-w-md text-center">
@@ -32,9 +34,11 @@ export default function Error({
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md mb-4 font-mono text-left">
-                    Error: {error.message}
-                </p>
+                {isDev && (
+                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md mb-4 font-mono text-left">
+                      Error: {error.message}
+                  </p>
+                )}
                 <Button
                     onClick={
                     // Attempt to recover by trying to re-render the segment
