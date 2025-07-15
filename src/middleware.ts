@@ -42,7 +42,16 @@ export async function middleware(req: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
+  const { pathname } = req.nextUrl;
 
+  const isPublicRoute = pathname.startsWith('/login') ||
+                       pathname.startsWith('/signup') ||
+                       pathname.startsWith('/forgot-password') ||
+                       pathname.startsWith('/update-password') ||
+                       pathname.startsWith('/database-setup') ||
+                       pathname.startsWith('/env-check');
+
+  // Handle CSRF token
   if (!req.cookies.has(CSRF_COOKIE_NAME)) {
     const csrfToken = generateCSRFToken();
     response.cookies.set({
@@ -55,25 +64,17 @@ export async function middleware(req: NextRequest) {
     });
   }
 
-  const { pathname } = req.nextUrl;
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/forgot-password') || pathname.startsWith('/update-password');
-  const isPublicRoute = pathname.startsWith('/database-setup') || pathname.startsWith('/env-check');
-
+  // Handle user authentication and redirection
   if (user) {
-    // If the user is logged in, redirect them from auth pages to the app root.
-    if (isAuthRoute) {
-      return NextResponse.redirect(new URL('/', req.url));
-    }
-
-    // Handle the case where the user's account is not fully set up
     const companyId = user.app_metadata?.company_id;
     if (!companyId && !isPublicRoute) {
       return NextResponse.redirect(new URL('/env-check', req.url));
     }
-    
+    if (isPublicRoute && pathname !== '/env-check' && pathname !== '/database-setup') {
+      return NextResponse.redirect(new URL('/', req.url));
+    }
   } else {
-    // If the user is not logged in, redirect them from protected pages to the login page.
-    if (!isAuthRoute && !isPublicRoute) {
+    if (!isPublicRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
