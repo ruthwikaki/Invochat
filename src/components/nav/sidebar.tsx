@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 import { Button } from '../ui/button';
+import { cn } from '@/lib/utils';
 
 
 const mainNav = [
@@ -99,7 +100,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2">
             <InvoChatLogo className="h-8 w-8 text-primary" />
-            <span className="text-lg font-semibold">InvoChat</span>
+            <span className="text-lg font-semibold">ARVO</span>
         </div>
       </SidebarHeader>
       
@@ -107,7 +108,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
              <Link href="/chat" legacyBehavior passHref>
-                <SidebarMenuButton isActive={isChatActive}>
+                <SidebarMenuButton isActive={isChatActive} className="bg-primary/10 text-primary hover:bg-primary/20" variant="secondary">
                     <MessageSquare />
                     <span>New Chat</span>
                 </SidebarMenuButton>

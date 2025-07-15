@@ -49,7 +49,7 @@ function ChatWelcomePanel() {
             transition={{ duration: 0.5, delay: 0.5 }}
             className="mt-2 max-w-md text-muted-foreground"
         >
-          Ask me anything about your inventory.
+          Ask me anything about your inventory. I can analyze sales, find dead stock, and suggest reorders.
         </motion.p>
       </div>
     );
@@ -221,7 +221,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
             <Button
                 type="submit"
                 size="icon"
-                className="rounded-full bg-gradient-to-br from-primary to-violet-500 text-white shadow-lg hover:scale-105 transition-transform"
+                className="rounded-full bg-primary text-white shadow-lg hover:scale-105 transition-transform"
                 disabled={isPending || !input.trim()}
             >
                 <ArrowRight className="h-5 w-5" />

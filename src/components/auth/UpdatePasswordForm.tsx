@@ -61,6 +61,7 @@ export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePas
                 required
                 placeholder="••••••••"
                 autoComplete="new-password"
+                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
            />
         </div>
          <div className="grid gap-2">
@@ -70,6 +71,7 @@ export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePas
             name="confirmPassword"
             placeholder="••••••••"
             required
+            className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
           />
         </div>
         {error && (

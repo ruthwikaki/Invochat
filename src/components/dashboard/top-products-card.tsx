@@ -42,7 +42,7 @@ export function TopProductsCard({ data }: TopProductsCardProps) {
                 <div className="flex-1 truncate">
                   <p className="font-medium">{product.product_name}</p>
                 </div>
-                <div className="font-semibold">{formatCentsAsCurrency(product.total_revenue)}</div>
+                <div className="font-semibold font-tabular">{formatCentsAsCurrency(product.total_revenue)}</div>
               </motion.li>
             ))}
           </ul>

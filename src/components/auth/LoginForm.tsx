@@ -19,7 +19,7 @@ function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
         <Button 
             type="submit" 
             disabled={disabled || pending} 
-            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transition-all duration-300 ease-in-out hover:opacity-90 hover:shadow-xl disabled:opacity-50 rounded-lg"
+            className="w-full h-12 text-base font-semibold bg-primary text-primary-foreground shadow-lg transition-all duration-300 ease-in-out hover:bg-primary/90 hover:shadow-xl disabled:opacity-50 rounded-lg"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
         </Button>
@@ -58,7 +58,7 @@ export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
                 type="email"
                 placeholder="you@company.com"
                 required
-                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-blue-500 focus:border-transparent"
+                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
             />
         </div>
         
@@ -67,7 +67,7 @@ export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
             <Label htmlFor="password" className="text-slate-300">Password</Label>
             <Link
                 href="/forgot-password"
-                className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                className="text-sm text-primary/80 hover:text-primary transition-colors"
             >
                 Forgot password?
             </Link>

@@ -8,67 +8,71 @@ body {
  
 @layer base {
   :root {
-    --background: 0 0% 98%; /* Off-white #FAFAFA */
-    --foreground: 222.2 47.4% 11.2%; /* Gray-900 */
+    --background: 220 20% 99%; /* Lighter Gray */
+    --foreground: 224 71% 4%; /* Near Black */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
+    --card-foreground: 224 71% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
-    --primary: 257 58% 51%; /* Deep Purple #6B46C1 */
+    --popover-foreground: 224 71% 4%;
+    --primary: 251 54% 45%; /* Indigo */
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 13% 91%; /* Slate */
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 220 13% 91%;
-    --muted-foreground: 215.4 16.3% 46.9%; /* Gray-600 */
-    --accent: 220 13% 91%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 349 89% 53%; /* Rose */
+    --secondary: 220 14% 96%; /* Gray-100 */
+    --secondary-foreground: 224 71% 4%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%; /* Gray-500 */
+    --accent: 257 58% 51%; /* Original Purple for AI Features */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%; /* Red */
     --destructive-foreground: 0 0% 100%;
-    --success: 154 75% 42%; /* Emerald */
+    --success: 142 76% 36%; /* Green */
     --success-foreground: 0 0% 100%;
-    --warning: 40 95% 52%; /* Amber */
-    --warning-foreground: 222.2 47.4% 11.2%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 257 58% 51%; /* Deep Purple for focus ring */
-    --radius: 0.5rem;
-    --chart-1: 257 58% 51%; /* Deep Purple */
-    --chart-2: 220 13% 61%; /* Slate-400 */
-    --chart-3: 154 75% 42%; /* Emerald */
-    --chart-4: 40 95% 52%;  /* Amber */
-    --chart-5: 349 89% 53%; /* Rose */
+    --warning: 38 92% 50%; /* Amber */
+    --warning-foreground: 224 71% 4%;
+    --border: 220 13% 91%; /* Gray-200 */
+    --input: 220 13% 91%;
+    --ring: 251 54% 45%; /* Indigo for focus ring */
+    --radius: 0.5rem; /* 8px */
+
+    /* Chart Colors */
+    --chart-1: 251 54% 45%; /* Indigo */
+    --chart-2: 142 76% 36%; /* Green */
+    --chart-3: 38 92% 50%; /* Amber */
+    --chart-4: 0 84% 60%; /* Red */
+    --chart-5: 217 91% 60%; /* Blue */
   }
  
   .dark {
     --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
+    --foreground: 220 20% 99%;
+    --card: 224 71% 6%; /* Slightly lighter than bg */
+    --card-foreground: 220 20% 99%;
     --popover: 224 71% 4%;
-    --popover-foreground: 213 31% 91%;
-    --primary: 257 68% 61%; /* Lighter Purple for dark mode */
-    --primary-foreground: 222 47% 11%;
+    --popover-foreground: 220 20% 99%;
+    --primary: 251 64% 65%; /* Lighter Indigo */
+    --primary-foreground: 224 71% 4%;
     --secondary: 217 33% 17%;
-    --secondary-foreground: 213 31% 91%;
+    --secondary-foreground: 220 20% 99%;
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 213 31% 91%;
-    --destructive: 349 80% 63%; /* Lighter Rose */
-    --destructive-foreground: 213 31% 91%;
-    --success: 154 65% 52%; /* Lighter Emerald */
-    --success-foreground: 213 31% 91%;
-    --warning: 40 85% 62%; /* Lighter Amber */
-    --warning-foreground: 213 31% 91%;
+    --accent: 257 68% 61%; /* Lighter Purple */
+    --accent-foreground: 224 71% 4%;
+    --destructive: 0 74% 50%; /* Darker Red */
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 66% 46%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 82% 60%;
+    --warning-foreground: 224 71% 4%;
     --border: 217 33% 17%;
     --input: 217 33% 17%;
-    --ring: 257 68% 61%; /* Lighter Purple */
+    --ring: 251 64% 65%;
     --radius: 0.5rem;
-    --chart-1: 257 68% 61%;
-    --chart-2: 217 33% 37%;
-    --chart-3: 154 65% 52%;
-    --chart-4: 40 85% 62%;
-    --chart-5: 349 80% 63%;
+
+    /* Chart Colors */
+    --chart-1: 251 64% 65%;
+    --chart-2: 142 66% 46%;
+    --chart-3: 38 82% 60%;
+    --chart-4: 0 74% 50%;
+    --chart-5: 217 81% 70%;
   }
 }
  
@@ -78,5 +82,8 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+  .font-tabular {
+    font-feature-settings: 'tnum' on;
   }
 }

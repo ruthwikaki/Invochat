@@ -41,6 +41,7 @@ export function SalesChart({ data }: SalesChartProps) {
               tickLine={false}
               axisLine={false}
               tickFormatter={(value) => `$${value / 1000}k`}
+              className="font-tabular"
             />
             <Tooltip
               cursor={{fill: 'hsl(var(--accent))'}}

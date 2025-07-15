@@ -76,7 +76,7 @@ function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | 
             <Tooltip delayDuration={100}>
                 <TooltipTrigger asChild>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground cursor-help">
-                        <BrainCircuit className="h-3 w-3" />
+                        <BrainCircuit className="h-3 w-3 text-accent" />
                         <span className={cn('font-semibold', confidenceColor)}>{confidencePercentage}% confident</span>
                     </div>
                 </TooltipTrigger>
@@ -98,12 +98,12 @@ function BotAvatar({ isError }: { isError?: boolean }) {
             animate={{ scale: 1, rotate: 0 }}
             transition={{ duration: 0.5, type: 'spring', stiffness: 150 }}
             className={cn(
-                'h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-primary via-violet-500 to-purple-600 flex items-center justify-center shadow-lg',
+                'h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-primary to-violet-500 flex items-center justify-center shadow-lg',
                 isError && 'from-destructive/80 to-rose-500/80'
             )}
         >
             <Avatar className={cn('h-8 w-8 bg-card')}>
-                <AvatarFallback className={cn('bg-transparent text-primary-foreground', isError && 'text-destructive')}>
+                <AvatarFallback className={cn('bg-transparent text-primary-foreground', isError && 'text-destructive-foreground')}>
                    {isError ? <AlertTriangle className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
                 </AvatarFallback>
             </Avatar>
@@ -154,7 +154,7 @@ export function ChatMessage({
         {!isUserMessage && <BotAvatar isError={message.isError} />}
         
         <div className={cn(
-            'relative max-w-xl rounded-2xl px-4 py-3 shadow-lg space-y-2',
+            'relative max-w-xl rounded-2xl px-4 py-3 shadow-md space-y-2',
             isUserMessage
                 ? 'rounded-br-none bg-primary text-primary-foreground'
                 : 'rounded-bl-none bg-card text-card-foreground',

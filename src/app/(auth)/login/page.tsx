@@ -30,15 +30,15 @@ export default function LoginPage({
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
       <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/10 to-slate-900" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(79,70,229,0.3),rgba(255,255,255,0))]" />
       </div>
 
       <Card className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
         <CardHeader className="p-0 text-center">
           <div className="flex justify-center items-center gap-3 mb-4">
-            <InvoChatLogo className="h-10 w-10 text-blue-500" />
-            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            <InvoChatLogo className="h-10 w-10 text-primary" />
+            <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">
               ARVO
             </h1>
           </div>
@@ -58,7 +58,7 @@ export default function LoginPage({
           />
           <div className="mt-6 text-center text-sm text-slate-400">
             Don't have an account?{' '}
-            <Link href="/signup" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
+            <Link href="/signup" className="font-semibold text-primary/90 hover:text-primary transition-colors">
               Sign up
             </Link>
           </div>
