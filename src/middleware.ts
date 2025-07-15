@@ -44,14 +44,17 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = req.nextUrl;
 
-  const isPublicRoute = pathname.startsWith('/login') ||
-                       pathname.startsWith('/signup') ||
-                       pathname.startsWith('/forgot-password') ||
-                       pathname.startsWith('/update-password') ||
-                       pathname.startsWith('/database-setup') ||
-                       pathname.startsWith('/env-check');
+  const publicRoutes = [
+    '/login',
+    '/signup',
+    '/forgot-password',
+    '/update-password',
+    '/database-setup',
+    '/env-check',
+  ];
 
-  // Handle CSRF token
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+
   if (!req.cookies.has(CSRF_COOKIE_NAME)) {
     const csrfToken = generateCSRFToken();
     response.cookies.set({
@@ -59,22 +62,21 @@ export async function middleware(req: NextRequest) {
       value: csrfToken,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      httpOnly: false,
+      httpOnly: false, 
       path: '/',
     });
   }
 
-  // Handle user authentication and redirection
   if (user) {
     const companyId = user.app_metadata?.company_id;
-    if (!companyId && !isPublicRoute) {
+    if (!companyId && pathname !== '/env-check' && pathname !== '/database-setup') {
       return NextResponse.redirect(new URL('/env-check', req.url));
     }
-    if (isPublicRoute && pathname !== '/env-check' && pathname !== '/database-setup') {
-      return NextResponse.redirect(new URL('/', req.url));
+    if (isPublicRoute) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } else {
-    if (!isPublicRoute) {
+    if (!isPublicRoute && pathname !== '/') {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }

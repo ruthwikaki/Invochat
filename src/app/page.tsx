@@ -1,36 +1,29 @@
 
-import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
-import { DashboardClientPage } from './(app)/dashboard/dashboard-client-page';
-import { Sidebar, SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/nav/sidebar';
-import ErrorBoundary from '@/components/error-boundary';
-import { Toaster } from '@/components/ui/toaster';
+import { redirect } from 'next/navigation';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
-export default async function DashboardPage() {
-    const dateRange = '90d';
-    
-    // Fetch data in parallel
-    const [metrics, briefing] = await Promise.all([
-        getDashboardData(dateRange),
-        getMorningBriefing(dateRange),
-    ]);
+export default async function RootPage() {
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  );
 
-    return (
-      <SidebarProvider>
-      <div className="relative flex h-dvh w-full bg-background">
-        <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(theme(colors.border)_1px,transparent_1px)] [background-size:32px_32px]"></div>
-        <Sidebar>
-            <AppSidebar />
-        </Sidebar>
-        <SidebarInset className="flex flex-1 flex-col overflow-y-auto">
-          <ErrorBoundary onReset={() => {}}>
-            <div className="flex-1 p-4 md:p-6 lg:p-8">
-              <DashboardClientPage initialMetrics={metrics} initialBriefing={briefing} />
-            </div>
-          </ErrorBoundary>
-        </SidebarInset>
-        <Toaster />
-      </div>
-    </SidebarProvider>
-    );
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (session) {
+    redirect('/dashboard');
+  } else {
+    redirect('/login');
+  }
 }
