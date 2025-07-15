@@ -1,6 +1,6 @@
 
 import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
-import { DashboardClientPage } from './dashboard-client-page';
+import { DashboardClientPage } from './dashboard/dashboard-client-page';
 
 export default async function DashboardPage() {
     // For now, we fetch with a default date range.

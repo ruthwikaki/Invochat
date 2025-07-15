@@ -56,30 +56,24 @@ export async function middleware(req: NextRequest) {
   }
 
   const { pathname } = req.nextUrl;
-  const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
-  const publicRoutes = ['/database-setup', '/env-check'];
-  const isAuthRoute = authRoutes.includes(pathname);
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/forgot-password') || pathname.startsWith('/update-password');
+  const isPublicRoute = pathname.startsWith('/database-setup') || pathname.startsWith('/env-check');
 
   if (user) {
+    // If the user is logged in, redirect them from auth pages to the app root.
     if (isAuthRoute) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
+      return NextResponse.redirect(new URL('/', req.url));
     }
 
+    // Handle the case where the user's account is not fully set up
     const companyId = user.app_metadata?.company_id;
-    if (!companyId && !isPublicRoute && pathname !== '/env-check') {
-        return NextResponse.redirect(new URL('/env-check', req.url));
+    if (!companyId && !isPublicRoute) {
+      return NextResponse.redirect(new URL('/env-check', req.url));
     }
     
-    if (companyId && pathname === '/env-check') {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
   } else {
-    // User is not logged in.
-    // If they are trying to access a protected route, redirect to login.
-    const isProtectedRoute = !isAuthRoute && !isPublicRoute && pathname !== '/';
-    if (isProtectedRoute) {
+    // If the user is not logged in, redirect them from protected pages to the login page.
+    if (!isAuthRoute && !isPublicRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
