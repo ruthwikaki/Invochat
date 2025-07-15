@@ -164,16 +164,19 @@ export async function testRedisConnection() {
  * @param action A descriptor for the action being limited (e.g., 'auth', 'ai_chat').
  * @param limit The maximum number of requests allowed in the window.
  * @param windowSeconds The duration of the window in seconds.
+ * @param failClosed If true, the rate limiter will block requests if Redis is unavailable. Defaults to false.
  * @returns A promise resolving to an object with `limited` (boolean) and `remaining` (number) properties.
  */
 export async function rateLimit(
     identifier: string,
     action: string,
     limit: number,
-    windowSeconds: number
+    windowSeconds: number,
+    failClosed: boolean = false
 ): Promise<{ limited: boolean; remaining: number }> {
     if (!isRedisEnabled) {
-        return { limited: false, remaining: limit };
+        // If Redis is not enabled, fail open or closed based on the flag.
+        return { limited: failClosed, remaining: failClosed ? 0 : limit };
     }
 
     try {
@@ -208,10 +211,8 @@ export async function rateLimit(
 
         return { limited: isLimited, remaining };
     } catch (error) {
-        logger.error(`[Redis] Rate limiting failed for action "${action}"`, error);
-        // DESIGN CHOICE: Fail open. If Redis fails, we do not want to block users.
-        // This prevents a Redis outage from becoming a full application outage.
-        // For actions requiring higher security, a "fail closed" approach might be considered.
-        return { limited: false, remaining: limit };
+        logger.error(`[Redis] Rate limiting failed for action "${action}". Failing ${failClosed ? 'closed' : 'open'}.`, error);
+        // If Redis fails, fail open or closed based on the flag. This is a critical design choice.
+        return { limited: failClosed, remaining: failClosed ? 0 : limit };
     }
 }

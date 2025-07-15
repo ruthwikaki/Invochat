@@ -143,7 +143,7 @@ export async function getMessages(conversationId: string) {
 export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60);
+        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60, true);
         if (limited) {
             return { error: 'You have reached the request limit. Please try again in a minute.' };
         }

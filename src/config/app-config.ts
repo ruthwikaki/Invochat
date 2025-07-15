@@ -89,7 +89,7 @@ export const config = {
   },
   integrations: {
     syncDelayMs: 500, // Delay between API calls during sync
-    webhookReplayWindowSeconds: 60, // 60 seconds
+    webhookReplayWindowSeconds: 300, // 5 minutes
   },
   chat: {
     quickActions: [

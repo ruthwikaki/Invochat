@@ -52,7 +52,7 @@ export async function login(formData: FormData) {
     const { email, password } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'auth', 5, 60);
+    const { limited } = await rateLimit(ip, 'auth', 5, 60, true); // Fail closed
     if (limited) {
       throw new Error('Too many requests. Please try again in a minute.');
     }
@@ -107,7 +107,7 @@ export async function signup(formData: FormData) {
     const { email, password, companyName } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'auth', 5, 60);
+    const { limited } = await rateLimit(ip, 'auth', 5, 60, true); // Fail closed
     if (limited) {
       logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
       throw new Error('Too many requests. Please try again in a minute.');
@@ -166,7 +166,7 @@ export async function requestPasswordReset(formData: FormData) {
     const { email } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'password_reset', 3, 300); // 3 reqs / 5 mins
+    const { limited } = await rateLimit(ip, 'password_reset', 3, 300, true); // Fail closed
     if (limited) {
       throw new Error('Too many password reset requests. Please try again in 5 minutes.');
     }
