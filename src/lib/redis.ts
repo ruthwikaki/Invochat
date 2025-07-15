@@ -2,7 +2,7 @@
 import Redis from 'ioredis';
 import { logger } from './logger';
 import { getErrorMessage } from './error-handler';
-import { config } from '@/config/app-config';
+import { config } from './app-config';
 
 // A private, module-level variable to hold the singleton instance.
 let redis: Redis | null = null;

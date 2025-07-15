@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -519,7 +518,7 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
         const idempotencyKey = crypto.randomUUID();
         const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions, idempotencyKey);
         
-        await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
+        revalidatePath('/purchase-orders', 'page');
         
         return { success: true, createdPoCount };
     } catch (e) {
@@ -528,4 +527,3 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
     }
 }
     
-
