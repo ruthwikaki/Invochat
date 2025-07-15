@@ -403,6 +403,18 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     return flattenedData as PurchaseOrderWithSupplier[];
 }
 
+export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sku: string): Promise<{ sale_date: string; total_quantity: number }[]> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_historical_sales_for_sku', {
+        p_company_id: companyId,
+        p_sku: sku,
+    });
+    if (error) {
+        logError(error, { context: 'Failed to get historical sales for single SKU' });
+        throw new Error('Could not retrieve historical sales data.');
+    }
+    return data || [];
+}
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
 export async function logPOCreationInDb(poNumber: string, supplierName: string, items: any[], companyId: string, userId: string) {}
@@ -417,4 +429,3 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
-

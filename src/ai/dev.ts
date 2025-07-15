@@ -21,3 +21,4 @@ import '@/ai/flows/morning-briefing-flow.ts';
 import '@/ai/flows/alert-explanation-flow.ts';
 import '@/ai/flows/generate-description-flow.ts';
 import '@/ai/flows/customer-insights-flow.ts';
+import '@/ai/flows/product-demand-forecast-flow.ts';

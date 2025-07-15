@@ -23,6 +23,7 @@ import { logError, getErrorMessage } from '@/lib/error-handler';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
 import { withTimeout } from '@/lib/async-utils';
+import { getProductDemandForecast } from './product-demand-forecast-flow';
 
 // AI RECURSION VULNERABILITY FIX:
 // This list of tools is now strictly curated to only include pure data retrieval functions.
@@ -41,6 +42,7 @@ const safeToolsForOrchestrator = [
     getMarginTrends,
     getSalesVelocity,
     getPromotionalImpactAnalysis,
+    getProductDemandForecast,
 ];
 
 
