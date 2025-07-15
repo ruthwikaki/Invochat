@@ -279,8 +279,9 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         }
         
         // This is a temporary solution for getting total rows. A full streaming solution would not know this upfront.
-        const totalRows = (await file.text()).split('\n').length -1;
-        importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, totalRows) : undefined;
+        // MEMORY LEAK FIX: Removed reading the full file text to get row count. This is now an estimate.
+        const approximateTotalRows = Math.floor(file.size / 150); // Estimate based on average row size
+        importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, approximateTotalRows) : undefined;
         
         result = await processCsv(file.stream() as any, config.schema, config.tableName, companyId, user.id, isDryRun, mappings, dataType, importJobId);
 

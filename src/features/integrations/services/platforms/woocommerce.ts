@@ -88,18 +88,20 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             // Batch fetch variations for all variable products on the page
             const variableProductIds = wooProducts.filter((p: any) => p.type === 'variable' && p.variations.length > 0).map((p: any) => p.id);
             const allVariations: any[] = [];
+            
+            // N+1 Query Fix: Instead of looping, batch variation fetches.
             if (variableProductIds.length > 0) {
-                 for (const productId of variableProductIds) {
-                    const { data: variantDetails } = await wooCommerceFetch(
+                 const variationPromises = variableProductIds.map(productId => 
+                    wooCommerceFetch(
                          integration.shop_domain!,
                          credentials.consumerKey,
                          credentials.consumerSecret,
                          `products/${productId}/variations`,
                          { per_page: 100 }
-                    );
-                    // No synchronous delay here
-                    allVariations.push(...variantDetails.map((v: any) => ({ ...v, parent_id: productId })));
-                }
+                    ).then(res => res.data.map((v: any) => ({ ...v, parent_id: productId })))
+                );
+                const results = await Promise.all(variationPromises);
+                results.forEach(vars => allVariations.push(...vars));
             }
             
             for (const wooProduct of wooProducts) {
