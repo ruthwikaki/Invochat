@@ -35,8 +35,8 @@ const nextConfig = {
   async headers() {
     const cspHeader = `
       default-src 'self';
-      script-src 'self';
-      style-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      style-src 'self' 'unsafe-inline';
       img-src 'self' data: https://placehold.co;
       font-src 'self';
       connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com;
@@ -60,8 +60,8 @@ const nextConfig = {
             value: 'nosniff',
           },
           {
-              key: 'X-XSS-Protection',
-              value: '1; mode=block',
+            key: 'X-XSS-Protection',
+            value: '1; mode=block'
           },
           {
             key: 'X-Frame-Options',

@@ -92,9 +92,9 @@ const StatusBadge = ({ quantity }: { quantity: number }) => {
         return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">Out of Stock</Badge>;
     }
     if (quantity < 10) { // A generic low stock indicator
-        return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20">Low Stock</Badge>;
+        return <Badge variant="secondary" className="bg-warning/10 text-amber-600 dark:text-amber-400 border-warning/20">Low Stock</Badge>;
     }
-    return <Badge variant="secondary" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">In Stock</Badge>;
+    return <Badge variant="secondary" className="bg-success/10 text-success-foreground border-success/20">In Stock</Badge>;
 };
 
 function EmptyInventoryState() {
@@ -304,8 +304,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                     </div>
                                 </TableCell>
                                 <TableCell><Badge variant={product.product_status === 'active' ? 'secondary' : 'outline'} className={cn(
-                                    product.product_status === 'active' ? 'bg-green-500/10 text-green-600' : 
-                                    product.product_status === 'draft' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-500/10 text-gray-500'
+                                    product.product_status === 'active' ? 'bg-success/10 text-success-foreground' : 
+                                    product.product_status === 'draft' ? 'bg-warning/10 text-amber-600 dark:text-amber-400' : 'bg-gray-500/10 text-gray-500'
                                     )}>{product.product_status}</Badge></TableCell>
                                 <TableCell className="text-right font-tabular">{product.variants.length}</TableCell>
                                 <TableCell className="text-right font-semibold font-tabular">{totalQty}</TableCell>
