@@ -126,14 +126,23 @@ function EmptyInventoryState() {
 
 // Group variants by their parent product
 const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
-  return inventory.reduce((acc, variant) => {
-    const { product_id, product_title, product_status, image_url } = variant;
-    if (!acc[product_id]) {
-      acc[product_id] = { product_id, product_title: product_title || 'Unknown Product', product_status: product_status || 'unknown', image_url, variants: [] };
+  const productMap: Record<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[] }> = {};
+  
+  inventory.forEach(variant => {
+    const productId = variant.product_id;
+    if (!productMap[productId]) {
+      productMap[productId] = {
+        product_id: productId,
+        product_title: variant.product_title || 'Unknown Product',
+        product_status: variant.product_status || 'unknown',
+        image_url: variant.image_url,
+        variants: []
+      };
     }
-    acc[product_id].variants.push(variant);
-    return acc;
-  }, {} as Record<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[] }>);
+    productMap[productId].variants.push(variant);
+  });
+  
+  return Object.values(productMap);
 };
 
 
@@ -223,7 +232,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                     No inventory found matching your criteria.
                                 </TableCell>
                             </TableRow>
-                        ) : Object.values(groupedInventory).map(product => {
+                        ) : groupedInventory.map(product => {
                             const totalQty = product.variants.reduce((sum, v) => sum + v.inventory_quantity, 0);
                             return (
                             <Fragment key={product.product_id}>

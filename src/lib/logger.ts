@@ -28,7 +28,21 @@ const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
     };
     console.log(JSON.stringify(logObject));
   } else {
-    console.log(`${timestamp} [${level}] - ${message}`, ...optionalParams);
+    // In development, use console methods that provide better formatting and stack traces.
+    switch (level) {
+        case 'DEBUG':
+            console.debug(`${timestamp} [${level}] - ${message}`, ...optionalParams);
+            break;
+        case 'INFO':
+            console.info(`${timestamp} [${level}] - ${message}`, ...optionalParams);
+            break;
+        case 'WARN':
+            console.warn(`${timestamp} [${level}] - ${message}`, ...optionalParams);
+            break;
+        case 'ERROR':
+            console.error(`${timestamp} [${level}] - ${message}`, ...optionalParams);
+            break;
+    }
   }
 };
 

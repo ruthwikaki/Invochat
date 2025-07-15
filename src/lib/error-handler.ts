@@ -26,21 +26,28 @@ export function getErrorMessage(error: unknown): string {
     return error;
   }
   try {
-    return JSON.stringify(error);
+    // Attempt to stringify, but handle potential circular references
+    return JSON.stringify(error, null, 2);
   } catch {
-    return 'An unknown error occurred.';
+    return 'An unknown and non-stringifiable error occurred.';
   }
 }
 
 /**
- * A type-safe error logger.
+ * A type-safe error logger. It automatically captures the stack trace if available.
  * @param error The error to log.
  * @param context Additional context for the error log.
  */
 export function logError(error: unknown, context: Record<string, unknown> = {}) {
     const message = getErrorMessage(error);
-    logger.error(message, {
+    
+    // Construct a log object with context and error details
+    const logObject = {
         ...context,
-        errorObject: isError(error) ? error : undefined,
-    });
+        // If the error is an actual Error object, include its stack for better debugging.
+        ...(isError(error) && { stack: error.stack }),
+    };
+
+    // Use the centralized logger
+    logger.error(message, logObject);
 }

@@ -1,6 +1,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../logger';
+import { envValidation } from '@/config/app-config';
 
 // A private, module-level variable to cache the client instance.
 // It starts as null and will be populated on the first call to getServiceRoleClient.
@@ -21,22 +22,26 @@ export function getServiceRoleClient(): SupabaseClient {
 
   // Startup validation is now handled centrally in src/config/app-config.ts and the root layout.
   // This check is a safeguard.
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    // This error will now be caught by the application's error boundaries
-    // because it's thrown during a request, not at startup.
-    throw new Error('Database admin client is not configured. Critical environment variables (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) are missing.');
+  if (!envValidation.success) {
+     const errorDetails = envValidation.error.flatten().fieldErrors;
+     const errorMessage = `Supabase admin client cannot be initialized due to missing environment variables: ${JSON.stringify(errorDetails)}`;
+     logger.error(errorMessage);
+     // This error will now be caught by the application's error boundaries
+     // because it's thrown during a request, not at startup.
+     throw new Error(errorMessage);
   }
   
   // Create, cache, and return the client instance.
-  supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-          autoRefreshToken: false,
-          persistSession: false
+  supabaseAdmin = createClient(
+      envValidation.data.SUPABASE_URL, 
+      envValidation.data.SUPABASE_SERVICE_ROLE_KEY, 
+      {
+          auth: {
+              autoRefreshToken: false,
+              persistSession: false
+          }
       }
-  });
+  );
 
   logger.info('[Supabase Admin] Lazily initialized Supabase admin client.');
 
