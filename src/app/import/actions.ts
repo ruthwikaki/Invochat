@@ -69,7 +69,7 @@ async function createImportJob(companyId: string, userId: string, importType: st
 
 async function updateImportJob(importId: string, updates: Partial<ImportResult>) {
     const supabase = getServiceRoleClient();
-    await supabase.from('imports').update({
+    const { error } = await supabase.from('imports').update({
         processed_rows: updates.processedCount,
         failed_rows: updates.errorCount,
         errors: updates.errors,
@@ -77,6 +77,22 @@ async function updateImportJob(importId: string, updates: Partial<ImportResult>)
         status: (updates.errorCount ?? 0) > 0 ? 'completed_with_errors' : 'completed',
         completed_at: new Date().toISOString()
     }).eq('id', importId);
+
+    if (error) {
+      logError(error, { context: 'Failed to update import job', importId });
+    }
+}
+
+async function failImportJob(importId: string, errorMessage: string) {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('imports').update({
+        status: 'failed',
+        errors: [{ row: 0, message: errorMessage, data: {} }],
+        completed_at: new Date().toISOString()
+    }).eq('id', importId);
+     if (error) {
+      logError(error, { context: 'Failed to mark import job as failed', importId });
+    }
 }
 
 
@@ -221,6 +237,10 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
     const isDryRun = formData.get('dryRun') === 'true';
     const mappingsStr = formData.get('mappings') as string | null;
     const mappings = mappingsStr ? JSON.parse(mappingsStr) : {};
+    const file = formData.get('file') as File | null;
+    const dataType = formData.get('dataType') as string;
+    
+    let importJobId: string | undefined;
 
     try {
         const { user, companyId, userRole } = await getAuthContextForImport();
@@ -237,9 +257,6 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
 
         validateCSRF(formData);
 
-        const file = formData.get('file') as File | null;
-        const dataType = formData.get('dataType') as string;
-        
         if (!file || file.size === 0) {
             return { success: false, isDryRun, summaryMessage: 'No file was uploaded or the file is empty.' };
         }
@@ -263,7 +280,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         
         // This is a temporary solution for getting total rows. A full streaming solution would not know this upfront.
         const totalRows = (await file.text()).split('\n').length -1;
-        const importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, totalRows) : undefined;
+        importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, totalRows) : undefined;
         
         result = await processCsv(file.stream() as any, config.schema, config.tableName, companyId, user.id, isDryRun, mappings, dataType, importJobId);
 
@@ -282,7 +299,11 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: true, isDryRun, ...result };
 
     } catch (error) {
+        const errorMessage = getErrorMessage(error);
         logError(error, { context: 'handleDataImport action' });
-        return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${getErrorMessage(error)}` };
+        if (importJobId) {
+            await failImportJob(importJobId, errorMessage);
+        }
+        return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${errorMessage}` };
     }
 }

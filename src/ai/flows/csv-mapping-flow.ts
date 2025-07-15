@@ -38,7 +38,15 @@ const csvMappingPrompt = ai.definePrompt({
 });
 
 export async function suggestCsvMappings(input: CsvMappingInput): Promise<CsvMappingOutput> {
-  const { output } = await csvMappingPrompt(input);
+  // Sanitize headers before passing to AI to prevent prompt injection with malicious characters.
+  const sanitizedInput: CsvMappingInput = {
+    ...input,
+    csvHeaders: input.csvHeaders.map(h => 
+      h.replace(/[^\w\s-]/g, '').substring(0, 100)
+    ),
+  };
+  
+  const { output } = await csvMappingPrompt(sanitizedInput);
   if (!output) {
     return {
       mappings: [],
@@ -47,3 +55,4 @@ export async function suggestCsvMappings(input: CsvMappingInput): Promise<CsvMap
   }
   return output;
 }
+

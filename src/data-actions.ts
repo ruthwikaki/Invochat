@@ -3,7 +3,7 @@
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import {
   getSettings,
@@ -60,7 +60,7 @@ import {
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
-import { DashboardMetricsSchema } from '@/types';
+import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -373,6 +373,7 @@ export async function exportSales(params: { query?: string }) {
 }
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
     try {
+        const { companyId, userId } = await getAuthContext();
         const dataToExport = suggestions.map(s => ({
             SKU: s.sku,
             ProductName: s.product_name,
@@ -382,6 +383,10 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
             TotalCost: s.unit_cost ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : 'N/A'
         }));
         const csv = Papa.unparse(dataToExport);
+        await createAuditLogInDb(companyId, userId, 'data_export', {
+            type: 'reorder_suggestions',
+            recordCount: suggestions.length,
+        });
         return { success: true, data: csv };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -405,7 +410,7 @@ export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[
 }
 export async function exportInventory(params: { query?: string }) { 
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
         const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
         const csv = Papa.unparse(items.map(item => ({
             sku: item.sku,
@@ -418,6 +423,12 @@ export async function exportInventory(params: { query?: string }) {
             category: item.product_type,
             image_url: item.image_url,
         })));
+
+        await createAuditLogInDb(companyId, userId, 'data_export', {
+            type: 'inventory',
+            recordCount: items.length,
+        });
+
         return { success: true, data: csv };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -498,7 +509,8 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
         if (!suggestionsString) {
              return { success: false, error: 'No reorder suggestions provided.' };
         }
-        const suggestions: ReorderSuggestion[] = JSON.parse(suggestionsString);
+
+        const suggestions = ReorderSuggestionSchema.array().parse(JSON.parse(suggestionsString));
         
         if (!suggestions || suggestions.length === 0) {
             return { success: false, error: 'No reorder suggestions provided.' };

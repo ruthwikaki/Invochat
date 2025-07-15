@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import type { Platform } from '@/features/integrations/types';
 import { createOrUpdateSecret } from '@/features/integrations/services/encryption';
+import { rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
 
 const connectSchema = z.object({
   storeUrl: z.string().url({ message: 'Please enter a valid store URL (e.g., https://your-store.com).' }),
@@ -18,6 +20,12 @@ export async function POST(request: Request) {
     const platform: Platform = 'woocommerce';
 
     try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'connect', config.ratelimit.connect, 3600);
+        if (limited) {
+            return NextResponse.json({ error: 'Too many connection attempts. Please try again in an hour.' }, { status: 429 });
+        }
+
         const cookieStore = cookies();
         const authSupabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,

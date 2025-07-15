@@ -34,8 +34,7 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
     // 2. Validate timestamp to prevent replay attacks
     const requestTime = parseInt(shopifyTimestamp, 10);
     const now = Math.floor(Date.now() / 1000);
-    const fiveMinutes = 5 * 60;
-    if (Math.abs(now - requestTime) > fiveMinutes) {
+    if (Math.abs(now - requestTime) > config.integrations.webhookReplayWindowSeconds) {
         logError(new Error(`Shopify webhook timestamp is too old. Request time: ${requestTime}, Current time: ${now}`), { status: 408 });
         return false;
     }
@@ -105,7 +104,7 @@ export async function POST(request: Request) {
             }
         );
         const { data: { user } } = await authSupabase.auth.getUser();
-        const companyId = user?.app_metadata?.company_id;
+        let companyId = user?.app_metadata?.company_id;
 
         // An action can be triggered by an authenticated user OR a valid webhook
         const isUserTriggered = !!(user && companyId);
@@ -124,6 +123,17 @@ export async function POST(request: Request) {
         }
 
         const { integrationId } = parsed.data;
+
+        // If triggered by webhook, we need to look up the companyId
+        if (isWebhookTriggered && !companyId) {
+            const supabase = getServiceRoleClient();
+             const { data: integration } = await supabase.from('integrations').select('company_id').eq('id', integrationId).single();
+             if (!integration) {
+                return NextResponse.json({ error: 'Integration not found for webhook.' }, { status: 404 });
+             }
+             companyId = integration.company_id;
+        }
+
 
         // Intentionally not awaiting this to allow for a quick response to the client.
         // This process runs in the background. In a production app with very large stores,

@@ -66,12 +66,14 @@ export const config = {
     model: process.env.AI_MODEL || 'googleai/gemini-1.5-flash',
     historyLimit: 10,
     maxOutputTokens: 2048,
+    timeoutMs: 30000, // 30 second timeout for AI calls
   },
   ratelimit: {
     auth: 5, // 5 requests per minute
     ai: 20, // 20 requests per minute
     import: 10, // 10 imports per hour
     sync: 10, // 10 syncs per hour
+    connect: 5, // 5 integration connection attempts per hour
   },
   import: {
     maxFileSizeMB: 10,
@@ -79,6 +81,7 @@ export const config = {
   },
   integrations: {
     syncDelayMs: 500, // Delay between API calls during sync
+    webhookReplayWindowSeconds: 60, // 60 seconds
   },
   chat: {
     quickActions: [
@@ -91,9 +94,11 @@ export const config = {
   redis: {
     ttl: {
         aiQuery: 3600, // 1 hour
+        performanceMetrics: 86400, // 24 hours
     }
   }
 };
 
 // A type alias for convenience
 export type AppConfig = typeof config;
+

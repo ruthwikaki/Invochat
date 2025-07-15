@@ -22,6 +22,7 @@ import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMargin
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
+import { withTimeout } from '@/lib/async-utils';
 
 // AI RECURSION VULNERABILITY FIX:
 // This list of tools is now strictly curated to only include pure data retrieval functions.
@@ -120,7 +121,7 @@ const universalChatOrchestrator = ai.defineFlow(
     try {
         // PROMPT INJECTION FIX: The `system` prompt is now static and does not contain user-controllable data like companyId.
         // Data access is enforced at the database layer via RLS, not at the prompt layer. This is the correct, secure approach.
-        const { toolCalls } = await ai.generate({
+        const generatePromise = ai.generate({
           model: aiModel,
           tools: safeToolsForOrchestrator,
           history: conversationHistory.slice(0, -1),
@@ -128,6 +129,12 @@ const universalChatOrchestrator = ai.defineFlow(
           prompt: userQuery, // User input is properly separated.
           maxOutputTokens: config.ai.maxOutputTokens, // TOKEN LIMIT FIX: Enforce token limits
         });
+
+        const { toolCalls } = await withTimeout(
+          generatePromise,
+          config.ai.timeoutMs,
+          'The AI model took too long to respond.'
+        );
         
         // Step 2: If a tool is chosen, execute it.
         if (toolCalls && toolCalls.length > 0) {
@@ -178,12 +185,18 @@ const universalChatOrchestrator = ai.defineFlow(
 
         // Step 4: If no tool is called, the AI should answer directly.
         logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
-        const { text } = await ai.generate({
+        const directResponsePromise = ai.generate({
             model: aiModel,
             history: conversationHistory.slice(0, -1),
             prompt: userQuery,
             maxOutputTokens: config.ai.maxOutputTokens, // TOKEN LIMIT FIX
         });
+
+        const { text } = await withTimeout(
+            directResponsePromise,
+            config.ai.timeoutMs,
+            'The AI model took too long to respond.'
+        );
 
         const responseToCache = {
             response: text,
@@ -203,9 +216,9 @@ const universalChatOrchestrator = ai.defineFlow(
         logError(e, { context: `Universal Chat Flow failed for query: "${userQuery}"` });
 
         // Check for specific AI service availability errors
-        if (errorMessage.includes('503') || errorMessage.includes('unavailable')) {
+        if (errorMessage.includes('503') || errorMessage.includes('unavailable') || errorMessage.includes('timed out')) {
              return {
-                response: `I'm sorry, but the AI service is currently unavailable. This may be a temporary issue. Please try again in a few moments.`,
+                response: `I'm sorry, but the AI service is currently unavailable or took too long to respond. This may be a temporary issue. Please try again in a few moments.`,
                 data: [],
                 visualization: { type: 'none', title: '' },
                 confidence: 0.0,

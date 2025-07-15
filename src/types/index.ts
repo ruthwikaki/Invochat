@@ -277,10 +277,10 @@ export const ReorderSuggestionBaseSchema = z.object({
 });
 
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
-    base_quantity: z.number().int(),
-    adjustment_reason: z.string().nullable(),
-    seasonality_factor: z.number().nullable(),
-    confidence: z.number().min(0).max(1).nullable(),
+    base_quantity: z.number().int().optional(),
+    adjustment_reason: z.string().nullable().optional(),
+    seasonality_factor: z.number().nullable().optional(),
+    confidence: z.number().min(0).max(1).nullable().optional(),
 });
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
 
