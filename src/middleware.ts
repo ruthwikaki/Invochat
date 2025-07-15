@@ -20,7 +20,6 @@ export async function middleware(req: NextRequest) {
           return req.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          // The official pattern is to update request and response cookies
           req.cookies.set({ name, value, ...options });
           response = NextResponse.next({
             request: {
@@ -42,10 +41,8 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // This call refreshes the session and mutates `response` via the cookie handlers
   const { data: { user } } = await supabase.auth.getUser();
 
-  // --- Start CSRF Cookie Handling ---
   if (!req.cookies.has(CSRF_COOKIE_NAME)) {
     const csrfToken = generateCSRFToken();
     response.cookies.set({
@@ -57,54 +54,36 @@ export async function middleware(req: NextRequest) {
       path: '/',
     });
   }
-  // --- End CSRF Cookie Handling ---
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
-  const publicRoutes = ['/quick-test', '/database-setup', '/env-check'];
+  const publicRoutes = ['/database-setup', '/env-check'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isPublicRoute = publicRoutes.includes(pathname);
-  
-  // --- Start Redirect Logic ---
+
   if (user) {
-    if (pathname === '/update-password' && req.nextUrl.searchParams.has('code')) {
-      // Allow password reset even when logged in
-      return response;
-    }
     if (isAuthRoute) {
-      // User is logged in and tries to access auth page -> redirect to dashboard
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-    if (pathname === '/') {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
-    const companyId = user.app_metadata?.company_id || user.user_metadata?.company_id;
-    const isSetupIncompleteRoute = pathname === '/setup-incomplete';
-    
-    // User is logged in but company setup is incomplete
-    if (!companyId && !isSetupIncompleteRoute && !isPublicRoute && pathname !== '/test-supabase') {
+    const companyId = user.app_metadata?.company_id;
+    if (!companyId && !isPublicRoute && pathname !== '/env-check') {
         return NextResponse.redirect(new URL('/env-check', req.url));
     }
     
-    // User has completed setup but is trying to access the setup page
-    if (companyId && isSetupIncompleteRoute) {
+    if (companyId && pathname === '/env-check') {
         return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
   } else {
-    // User is not logged in
-    if (pathname === '/') {
-        return NextResponse.redirect(new URL('/login', req.url));
-    }
-
-    if (!isAuthRoute && !isPublicRoute && pathname !== '/update-password') {
+    // User is not logged in.
+    // If they are trying to access a protected route, redirect to login.
+    const isProtectedRoute = !isAuthRoute && !isPublicRoute && pathname !== '/';
+    if (isProtectedRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
-  // --- End Redirect Logic ---
 
-  // For all allowed paths, return the response (which now has session and CSRF cookies)
   return response;
 }
 

@@ -1,8 +1,30 @@
-// This page is effectively disabled because the middleware at `src/middleware.ts`
-// will always redirect any request to the root path ('/') to either '/login' or '/chat'.
-// This component is here to satisfy Next.js's requirement for a root page,
-// but it will never be rendered to the user. Its existence prevents client-side
-// routing conflicts with the middleware.
-export default function HomePage() {
-  return null;
+
+import { redirect } from 'next/navigation';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+// This page now acts as the root entry point and handles redirection.
+// It checks for an active session and redirects the user to the appropriate
+// page (/dashboard or /login), preventing the 404 error.
+export default async function HomePage() {
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
+
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (session) {
+    redirect('/dashboard');
+  } else {
+    redirect('/login');
+  }
 }
