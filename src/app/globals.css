@@ -8,55 +8,55 @@ body {
  
 @layer base {
   :root {
-    --background: 220 20% 99%; /* Lighter Gray */
-    --foreground: 224 71% 4%; /* Near Black */
+    --background: 240 10% 99%;
+    --foreground: 224 71% 4%;
     --card: 0 0% 100%;
     --card-foreground: 224 71% 4%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 71% 4%;
-    --primary: 251 54% 45%; /* Indigo */
+    --primary: 257 88% 63%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%; /* Gray-100 */
+    --secondary: 220 14% 96%;
     --secondary-foreground: 224 71% 4%;
     --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%; /* Gray-500 */
-    --accent: 257 58% 51%; /* Original Purple for AI Features */
+    --muted-foreground: 220 9% 46%;
+    --accent: 257 88% 63%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 84% 60%; /* Red */
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 76% 36%; /* Green */
+    --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%; /* Amber */
+    --warning: 38 92% 50%;
     --warning-foreground: 224 71% 4%;
-    --border: 220 13% 91%; /* Gray-200 */
+    --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 251 54% 45%; /* Indigo for focus ring */
-    --radius: 0.5rem; /* 8px */
+    --ring: 257 88% 63%;
+    --radius: 0.5rem;
 
     /* Chart Colors */
-    --chart-1: 251 54% 45%; /* Indigo */
-    --chart-2: 142 76% 36%; /* Green */
-    --chart-3: 38 92% 50%; /* Amber */
-    --chart-4: 0 84% 60%; /* Red */
-    --chart-5: 217 91% 60%; /* Blue */
+    --chart-1: 257 88% 63%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 0 84% 60%;
+    --chart-5: 217 91% 60%;
   }
  
   .dark {
     --background: 224 71% 4%;
     --foreground: 220 20% 99%;
-    --card: 224 71% 6%; /* Slightly lighter than bg */
+    --card: 224 71% 6%;
     --card-foreground: 220 20% 99%;
     --popover: 224 71% 4%;
     --popover-foreground: 220 20% 99%;
-    --primary: 251 64% 65%; /* Lighter Indigo */
+    --primary: 257 88% 73%;
     --primary-foreground: 224 71% 4%;
     --secondary: 217 33% 17%;
     --secondary-foreground: 220 20% 99%;
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
-    --accent: 257 68% 61%; /* Lighter Purple */
+    --accent: 257 88% 73%;
     --accent-foreground: 224 71% 4%;
-    --destructive: 0 74% 50%; /* Darker Red */
+    --destructive: 0 74% 50%;
     --destructive-foreground: 0 0% 100%;
     --success: 142 66% 46%;
     --success-foreground: 0 0% 100%;
@@ -64,11 +64,11 @@ body {
     --warning-foreground: 224 71% 4%;
     --border: 217 33% 17%;
     --input: 217 33% 17%;
-    --ring: 251 64% 65%;
+    --ring: 257 88% 73%;
     --radius: 0.5rem;
 
     /* Chart Colors */
-    --chart-1: 251 64% 65%;
+    --chart-1: 257 88% 73%;
     --chart-2: 142 66% 46%;
     --chart-3: 38 82% 60%;
     --chart-4: 0 74% 50%;

@@ -404,7 +404,7 @@ export const DeadStockItemSchema = z.object({
   sku: z.string(),
   product_name: z.string(),
   quantity: z.number().int(),
-  total_value: z.number().int(), // in cents
+  total_value: z.number(),
   last_sale_date: z.string().nullable(),
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;

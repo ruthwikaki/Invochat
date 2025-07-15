@@ -44,7 +44,7 @@ interface DashboardClientPageProps {
 }
 
 const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { title: string; value: string; change?: string; icon: React.ElementType; changeType?: 'increase' | 'decrease' | 'neutral', gradient: string }) => {
-    const changeColor = changeType === 'increase' ? 'text-green-600 dark:text-green-400' : changeType === 'decrease' ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground';
+    const changeColor = changeType === 'increase' ? 'text-success' : changeType === 'decrease' ? 'text-destructive' : 'text-muted-foreground';
     
     return (
         <Card className="relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm">

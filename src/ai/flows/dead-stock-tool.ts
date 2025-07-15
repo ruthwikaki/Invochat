@@ -15,10 +15,10 @@ export const getDeadStockReport = ai.defineTool(
     name: 'getDeadStockReport',
     description:
       "Use this tool to get a report of dead stock items. Dead stock are items that haven't sold in a long time (e.g., over 90 days). Use this when the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products'.",
-    input: z.object({
+    inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get the report for."),
     }),
-    output: z.array(DeadStockItemSchema),
+    outputSchema: z.array(DeadStockItemSchema),
   },
   async (input): Promise<any[]> => {
     logger.info(`[Dead Stock Tool] Getting report for company: ${input.companyId}`);

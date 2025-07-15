@@ -43,14 +43,13 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/auth/callback'];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
-  if (!session && !publicRoutes.some(route => pathname.startsWith(route))) {
-    // If not logged in and not on a public route, redirect to login
+  if (!session && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
-  if (session && publicRoutes.some(route => pathname.startsWith(route))) {
-    // If logged in and on a public route, redirect to dashboard
+  if (session && isPublicRoute) {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
@@ -64,8 +63,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - api/ (API routes)
+     * - api/ (API routes which have their own auth)
+     * - database-setup and env-check pages
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|database-setup|env-check).*)',
   ],
 }
