@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
 
 function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -28,11 +28,16 @@ function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface LoginFormProps {
     error: string | null;
-    csrfToken: string;
 }
 
-export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
+export function LoginForm({ error: initialError }: LoginFormProps) {
   const [error, setError] = useState(initialError);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    // This effect runs only on the client after hydration
+    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+  }, []);
 
   useEffect(() => {
     setError(initialError);
@@ -49,7 +54,7 @@ export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
 
   return (
     <form action={login} className="space-y-4" onChange={handleInteraction}>
-        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
+        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input

@@ -1,16 +1,26 @@
 
+'use server';
 import { logger } from './logger';
 import { cookies } from 'next/headers';
+import crypto from 'crypto';
 
 export const CSRF_COOKIE_NAME = 'csrf_token';
 export const CSRF_FORM_NAME = 'csrf_token';
 
 /**
- * Generates a CSRF token using the global crypto.randomUUID(),
- * which is available in both Node.js and Edge runtimes.
+ * Generates a CSRF token using crypto.randomUUID() and sets it as a cookie.
+ * This should be called from a Server Component or Route Handler that renders the form.
  */
-export function generateCSRFToken(): string {
-  return crypto.randomUUID();
+export function generateCSRFToken(): void {
+  const token = crypto.randomUUID();
+  cookies().set({
+    name: CSRF_COOKIE_NAME,
+    value: token,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    sameSite: 'strict',
+  });
 }
 
 /**

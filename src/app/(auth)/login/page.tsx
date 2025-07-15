@@ -13,7 +13,7 @@ export default function LoginPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
-  const csrfToken = generateCSRFToken();
+  generateCSRFToken();
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">
@@ -42,7 +42,6 @@ export default function LoginPage({
           )}
           <LoginForm 
             error={error} 
-            csrfToken={csrfToken}
           />
           <div className="mt-6 text-center text-sm text-slate-400">
             Don't have an account?{' '}

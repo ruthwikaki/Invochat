@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -22,11 +22,16 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface ForgotPasswordFormProps {
     error: string | null;
-    csrfToken: string;
 }
 
-export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPasswordFormProps) {
+export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormProps) {
   const [error, setError] = useState(initialError);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    // This effect runs only on the client after hydration
+    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+  }, []);
 
   useEffect(() => {
     setError(initialError);
@@ -43,7 +48,7 @@ export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPas
 
   return (
     <form action={requestPasswordReset} className="grid gap-4" onChange={handleInteraction}>
-      <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
+      {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
       <div className="grid gap-2">
         <Label htmlFor="email" className="text-slate-300">Email</Label>
         <Input

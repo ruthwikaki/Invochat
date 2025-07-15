@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -23,11 +23,16 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface SignupFormProps {
     error: string | null;
-    csrfToken: string;
 }
 
-export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) {
+export function SignupForm({ error: initialError }: SignupFormProps) {
     const [error, setError] = useState(initialError);
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        // This effect runs only on the client after hydration
+        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    }, []);
     
     useEffect(() => {
         setError(initialError);
@@ -45,7 +50,7 @@ export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) 
 
     return (
         <form action={signup} className="grid gap-4" onChange={handleInteraction}>
-            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
+            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
                 <Input

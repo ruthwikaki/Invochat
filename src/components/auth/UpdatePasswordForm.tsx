@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME } from '@/lib/csrf';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -22,11 +22,16 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface UpdatePasswordFormProps {
     error: string | null;
-    csrfToken: string;
 }
 
-export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePasswordFormProps) {
+export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormProps) {
     const [error, setError] = useState(initialError);
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        // This effect runs only on the client after hydration
+        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    }, []);
 
     useEffect(() => {
         setError(initialError);
@@ -52,7 +57,7 @@ export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePas
     
   return (
     <form action={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
-        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
+        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="grid gap-2">
           <Label htmlFor="password" className="text-slate-300">New Password</Label>
            <PasswordInput

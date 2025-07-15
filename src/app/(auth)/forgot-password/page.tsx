@@ -14,7 +14,7 @@ export default function ForgotPasswordPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
-  const csrfToken = generateCSRFToken();
+  generateCSRFToken();
   
   if (success) {
     return (
@@ -57,10 +57,7 @@ export default function ForgotPasswordPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <ForgotPasswordForm 
-            error={error}
-            csrfToken={csrfToken}
-          />
+          <ForgotPasswordForm error={error} />
           <div className="mt-4 text-center text-sm text-slate-400">
             Remembered your password?{' '}
             <Link href="/login" className="underline text-primary/90 hover:text-primary">

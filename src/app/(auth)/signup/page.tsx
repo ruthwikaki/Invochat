@@ -14,7 +14,7 @@ export default function SignupPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
-  const csrfToken = generateCSRFToken();
+  generateCSRFToken();
 
   if (success) {
     return (
@@ -63,7 +63,6 @@ export default function SignupPage({
         <CardContent className="p-0">
           <SignupForm 
             error={error}
-            csrfToken={csrfToken}
           />
           <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}
