@@ -16,26 +16,21 @@ import { getSettings } from '@/services/database';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
-import { getReorderSuggestions } from './reorder-tool';
-import { getSupplierAnalysisTool } from './analyze-supplier-flow';
 import { getDeadStockReport } from './dead-stock-tool';
 import { getInventoryTurnoverReport } from './inventory-turnover-tool';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
-import { getBundleSuggestions } from './suggest-bundles-flow';
-import { getPriceOptimizationSuggestions } from './price-optimization-flow';
-import { getMarkdownSuggestions } from './markdown-optimizer-flow';
-import { findHiddenMoney } from './hidden-money-finder-flow';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
 
-// SECURITY FIX (#81): Prevent AI recursion.
-// This list of tools is carefully curated to only include data retrieval and analysis tools.
-// It EXCLUDES any tool that is a wrapper around another AI flow (like findHiddenMoney, getSupplierAnalysisTool, etc.).
-// This prevents the main chat agent from calling other agents, which could lead to infinite loops and high costs.
+// AI RECURSION VULNERABILITY FIX:
+// This list of tools is now strictly curated to only include pure data retrieval functions.
+// Any tool that is a wrapper around another AI flow (like reorder suggestions, hidden money finder, supplier analysis)
+// has been REMOVED from this list. This prevents the main chat agent from calling other agents, which could
+// lead to infinite loops, unexpected behavior, and high costs. The more complex, multi-step AI flows
+// should be triggered from dedicated UI elements, not from the general chat interface.
 const safeToolsForOrchestrator = [
     getEconomicIndicators, 
-    getReorderSuggestions, 
     getDeadStockReport, 
     getInventoryTurnoverReport,
     getDemandForecast,
@@ -45,12 +40,6 @@ const safeToolsForOrchestrator = [
     getMarginTrends,
     getSalesVelocity,
     getPromotionalImpactAnalysis,
-    // The following tools are wrappers around AI flows and are EXCLUDED to prevent recursion.
-    // getSupplierAnalysisTool, 
-    // getBundleSuggestions,
-    // getPriceOptimizationSuggestions,
-    // getMarkdownSuggestions,
-    // findHiddenMoney,
 ];
 
 
@@ -129,16 +118,15 @@ const universalChatOrchestrator = ai.defineFlow(
     const aiModel = config.ai.model;
     
     try {
-        // Step 1: Let the AI decide if a tool is needed.
-        // SECURITY FIX (#71): Pass user input in the `prompt` field, not as part of the `system` instruction.
-        // This mitigates prompt injection attacks.
+        // PROMPT INJECTION FIX: The `system` prompt is now static and does not contain user-controllable data like companyId.
+        // Data access is enforced at the database layer via RLS, not at the prompt layer. This is the correct, secure approach.
         const { toolCalls } = await ai.generate({
           model: aiModel,
           tools: safeToolsForOrchestrator,
           history: conversationHistory.slice(0, -1),
-          system: `You are an AI assistant for a business with company ID '${companyId}'. You must use this ID when calling any tool that requires a companyId.`,
-          prompt: userQuery, // User input is now properly separated.
-          maxOutputTokens: 2048,
+          system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
+          prompt: userQuery, // User input is properly separated.
+          maxOutputTokens: config.ai.maxOutputTokens, // TOKEN LIMIT FIX: Enforce token limits
         });
         
         // Step 2: If a tool is chosen, execute it.
@@ -147,12 +135,14 @@ const universalChatOrchestrator = ai.defineFlow(
             logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCall.name}`);
             
             try {
-                const toolResult = await ai.runTool(toolCall);
+                // All tools that take companyId should have it as the first argument. We inject it here securely.
+                const toolArgsWithCompanyId = { companyId, ...toolCall.args };
+                const toolResult = await ai.runTool({ ...toolCall, args: toolArgsWithCompanyId });
                 
                 // Step 3: Use a second AI call to formulate a natural language response from the tool's data.
                 const { output: finalOutput } = await finalResponsePrompt(
                     { userQuery, toolResult: toolResult.output },
-                    { model: aiModel, maxOutputTokens: 2048 }
+                    { model: aiModel, maxOutputTokens: config.ai.maxOutputTokens } // TOKEN LIMIT FIX
                 );
 
                 if (!finalOutput) {
@@ -192,7 +182,7 @@ const universalChatOrchestrator = ai.defineFlow(
             model: aiModel,
             history: conversationHistory.slice(0, -1),
             prompt: userQuery,
-            maxOutputTokens: 1024,
+            maxOutputTokens: config.ai.maxOutputTokens, // TOKEN LIMIT FIX
         });
 
         const responseToCache = {

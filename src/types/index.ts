@@ -1,3 +1,4 @@
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -41,7 +42,7 @@ export const ProductVariantSchema = z.object({
   id: z.string().uuid(),
   product_id: z.string().uuid(),
   company_id: z.string().uuid(),
-  sku: z.string().nullable(),
+  sku: z.string(),
   title: z.string().nullable(),
   option1_name: z.string().nullable(),
   option1_value: z.string().nullable(),
@@ -116,7 +117,7 @@ export const RefundSchema = z.object({
     status: z.string(),
     reason: z.string().nullable(),
     note: z.string().nullable(),
-    total_amount: z.number(),
+    total_amount: z.number().int(), // in cents
     created_by_user_id: z.string().uuid().nullable(),
     external_refund_id: z.string().nullable(),
     created_at: z.string().datetime({ offset: true }),
@@ -131,7 +132,7 @@ export const CustomerSchema = z.object({
   customer_name: z.string().nullable(),
   email: z.string().email().nullable(),
   total_orders: z.number().int(),
-  total_spent: z.number().int(),
+  total_spent: z.number().int(), // in cents
   first_order_date: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
 });
@@ -156,8 +157,9 @@ export const PurchaseOrderSchema = z.object({
     supplier_id: z.string().uuid().nullable(),
     status: z.string(),
     po_number: z.string(),
-    total_cost: z.number().int(),
+    total_cost: z.number().int(), // in cents
     expected_arrival_date: z.string().datetime().nullable(),
+    idempotency_key: z.string().nullable(),
     created_at: z.string().datetime({ offset: true }),
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
@@ -172,7 +174,7 @@ export const PurchaseOrderLineItemSchema = z.object({
     purchase_order_id: z.string().uuid(),
     variant_id: z.string().uuid(),
     quantity: z.number().int(),
-    cost: z.number().int(),
+    cost: z.number().int(), // in cents
 });
 export type PurchaseOrderLineItem = z.infer<typeof PurchaseOrderLineItemSchema>;
 
@@ -183,7 +185,7 @@ export const CompanySettingsSchema = z.object({
   dead_stock_days: z.number().default(90),
   fast_moving_days: z.number().default(30),
   overstock_multiplier: z.number().default(3),
-  high_value_threshold: z.number().default(1000),
+  high_value_threshold: z.number().default(100000), // in cents
   predictive_stock_days: z.number().default(7),
   currency: z.string().default('USD'),
   tax_rate: z.number().default(0),
@@ -271,7 +273,7 @@ export const ReorderSuggestionBaseSchema = z.object({
     supplier_id: z.string().uuid().nullable(),
     current_quantity: z.number().int(),
     suggested_reorder_quantity: z.number().int(),
-    unit_cost: z.number().nullable(),
+    unit_cost: z.number().int().nullable(), // in cents
 });
 
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
@@ -286,7 +288,7 @@ export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),
   product_name: z.string(),
   quantity: z.number(),
-  total_value: z.number(),
+  total_value: z.number().int(), // in cents
   days_since_last_sale: z.number(),
 });
 export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
@@ -295,7 +297,7 @@ export const InventoryRiskItemSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
     quantity: z.number(),
-    total_value: z.number(),
+    total_value: z.number().int(), // in cents
     risk_score: z.number(),
 });
 export type InventoryRiskItem = z.infer<typeof InventoryRiskItemSchema>;
@@ -305,7 +307,7 @@ export const ProductLifecycleStageSchema = z.object({
   sku: z.string(),
   product_name: z.string(),
   stage: z.enum(['Launch', 'Growth', 'Maturity', 'Decline']),
-  total_revenue: z.number(),
+  total_revenue: z.number().int(), // in cents
   total_quantity: z.number(),
 });
 export type ProductLifecycleStage = z.infer<typeof ProductLifecycleStageSchema>;
@@ -325,34 +327,34 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
     segment: z.enum(['New Customers', 'Repeat Customers', 'Top Spenders']),
     sku: z.string(),
     product_name: z.string(),
-    total_revenue: z.number(),
+    total_revenue: z.number().int(), // in cents
     total_quantity: z.number(),
     customer_count: z.number(),
 });
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
 
 export const DashboardMetricsSchema = z.object({
-  total_revenue: z.number(),
+  total_revenue: z.number().int(), // in cents
   revenue_change: z.number(),
   total_sales: z.number(),
   sales_change: z.number(),
   new_customers: z.number(),
   customers_change: z.number(),
-  dead_stock_value: z.number(),
+  dead_stock_value: z.number().int(), // in cents
   sales_over_time: z.array(z.object({
     date: z.string(),
-    total_sales: z.number(),
+    total_sales: z.number().int(), // in cents
   })),
   top_selling_products: z.array(z.object({
     product_name: z.string(),
-    total_revenue: z.number(),
+    total_revenue: z.number().int(), // in cents
     image_url: z.string().nullable(),
   })),
   inventory_summary: z.object({
-    total_value: z.number(),
-    in_stock_value: z.number(),
-    low_stock_value: z.number(),
-    dead_stock_value: z.number(),
+    total_value: z.number().int(), // in cents
+    in_stock_value: z.number().int(), // in cents
+    low_stock_value: z.number().int(), // in cents
+    dead_stock_value: z.number().int(), // in cents
   }),
 });
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
@@ -402,7 +404,7 @@ export const DeadStockItemSchema = z.object({
   sku: z.string(),
   product_name: z.string(),
   quantity: z.number().int(),
-  total_value: z.number(),
+  total_value: z.number().int(), // in cents
   last_sale_date: z.string().nullable(),
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
@@ -423,7 +425,7 @@ export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSc
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
-    total_profit: z.number(),
+    total_profit: z.number().int(), // in cents
     total_sales_count: z.number(),
     distinct_products_sold: z.number(),
     average_margin: z.number(),

@@ -81,7 +81,7 @@ async function updateImportJob(importId: string, updates: Partial<ImportResult>)
 
 
 async function processCsv<T extends z.ZodType>(
-    fileContent: string,
+    fileContentStream: NodeJS.ReadableStream,
     schema: T,
     tableName: string,
     companyId: string,
@@ -92,108 +92,92 @@ async function processCsv<T extends z.ZodType>(
     importId?: string
 ): Promise<Omit<ImportResult, 'success' | 'isDryRun'>> {
     
-    let contentToParse = fileContent;
+    return new Promise((resolve, reject) => {
+        const validRows: z.infer<T>[] = [];
+        const validationErrors: { row: number; message: string; data: Record<string, any> }[] = [];
+        let rowCount = 0;
+        
+        const parser = Papa.parse(Papa.NODE_STREAM_INPUT, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: header => header.trim().toLowerCase(),
+            step: async (results, parser) => {
+                rowCount++;
+                if (rowCount > 10000) {
+                    parser.abort();
+                    return reject(new Error('File exceeds the maximum of 10,000 rows per import.'));
+                }
 
-    if (mappings && Object.keys(mappings).length > 0) {
-        contentToParse = Papa.unparse(
-            Papa.parse(fileContent, { header: true, skipEmptyLines: true }).data.map((row: any) => {
-                const newRow: Record<string, any> = {};
-                for (const originalHeader in row) {
-                    if (mappings[originalHeader]) {
-                        newRow[mappings[originalHeader]] = row[originalHeader];
+                let row = results.data as Record<string, any>;
+                if (mappings && Object.keys(mappings).length > 0) {
+                    const newRow: Record<string, any> = {};
+                    for (const originalHeader in row) {
+                        if (mappings[originalHeader]) {
+                            newRow[mappings[originalHeader]] = row[originalHeader];
+                        }
+                    }
+                    row = newRow;
+                }
+
+                row.company_id = companyId;
+                const result = schema.safeParse(row);
+
+                if (result.success) {
+                    validRows.push(result.data);
+                } else {
+                    const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
+                    validationErrors.push({ row: rowCount + 1, message: errorMessage, data: results.data });
+                }
+            },
+            complete: async () => {
+                if (isDryRun) {
+                    return resolve({
+                        processedCount: validRows.length,
+                        errorCount: validationErrors.length,
+                        errors: validationErrors,
+                        summaryMessage: validationErrors.length > 0
+                          ? `[Dry Run] Found ${validationErrors.length} errors in ${rowCount} rows. No data was written.`
+                          : `[Dry Run] This file is valid. Uncheck "Dry Run" to import ${validRows.length} rows.`
+                    });
+                }
+                
+                let processedCount = 0;
+                if (validRows.length > 0) {
+                    const supabase = getServiceRoleClient();
+                    if (!supabase) return reject(new Error('Supabase admin client not initialized.'));
+
+                    const rpcMap = { 'product-costs': 'batch_upsert_costs', 'suppliers': 'batch_upsert_suppliers', 'historical-sales': 'batch_import_sales' };
+                    const rpcToCall = rpcMap[importType as keyof typeof rpcMap];
+                    if (!rpcToCall) return reject(new Error(`Unsupported import type for batch processing: ${importType}`));
+
+                    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+                        const batch = validRows.slice(i, i + BATCH_SIZE);
+                        const { error: dbError } = await supabase.rpc(rpcToCall, { p_records: batch, p_company_id: companyId, p_user_id: userId });
+                        if (dbError) {
+                            logError(dbError, { context: `Transactional database error for ${importType}` });
+                            validationErrors.push({ row: 0, message: `Database error during batch import: ${dbError.message}`, data: {} });
+                        } else {
+                            processedCount += batch.length;
+                        }
                     }
                 }
-                return newRow;
-            })
-        );
-    }
+                
+                const hadErrors = validationErrors.length > 0;
+                const summaryMessage = hadErrors
+                    ? `Partial import complete. ${processedCount} rows imported, ${validationErrors.length} rows had errors.`
+                    : `Import complete. ${processedCount} rows imported successfully.`;
 
-    const { data: rows, errors: parsingErrors } = Papa.parse<Record<string, unknown>>(contentToParse, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: header => header.trim().toLowerCase(),
+                if (importId) {
+                    await updateImportJob(importId, { processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
+                }
+
+                resolve({ importId, processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
+            },
+            error: (error) => reject(error)
+        });
+        
+        fileContentStream.pipe(parser);
     });
-
-    if (rows.length > 10000) {
-        throw new Error('File exceeds the maximum of 10,000 rows per import.');
-    }
-
-    const validationErrors: { row: number; message: string; data: Record<string, any> }[] = [];
-    parsingErrors.forEach(e => validationErrors.push({ row: e.row, message: e.message, data: e.row ? rows[e.row] : {} }));
-    
-    const validRows: z.infer<T>[] = [];
-
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        row.company_id = companyId;
-        const result = schema.safeParse(row);
-
-        if (result.success) {
-            validRows.push(result.data);
-        } else {
-            const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
-            validationErrors.push({ row: i + 2, message: errorMessage, data: row });
-        }
-    }
-
-    if (isDryRun) {
-        return {
-            processedCount: validRows.length,
-            errorCount: validationErrors.length,
-            errors: validationErrors,
-            summaryMessage: validationErrors.length > 0
-              ? `[Dry Run] Found ${validationErrors.length} errors in ${rows.length} rows. No data was written.`
-              : `[Dry Run] This file is valid. Uncheck "Dry Run" to import ${validRows.length} rows.`
-        };
-    }
-
-    let processedCount = 0;
-    if (validRows.length > 0) {
-        const supabase = getServiceRoleClient();
-        if (!supabase) throw new Error('Supabase admin client not initialized.');
-
-        const rpcMap = {
-            'product-costs': 'batch_upsert_costs',
-            'suppliers': 'batch_upsert_suppliers',
-            'historical-sales': 'batch_import_sales',
-        };
-
-        const rpcToCall = rpcMap[importType as keyof typeof rpcMap];
-        if (!rpcToCall) throw new Error(`Unsupported import type for batch processing: ${importType}`);
-
-        for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
-            const batch = validRows.slice(i, i + BATCH_SIZE);
-            const { error: dbError } = await supabase.rpc(rpcToCall, {
-                p_records: batch,
-                p_company_id: companyId,
-                p_user_id: userId,
-            });
-
-            if (dbError) {
-                logError(dbError, { context: `Transactional database error for ${importType}` });
-                validationErrors.push({ row: 0, message: `Database error during batch import: ${dbError.message}`, data: {} });
-            } else {
-                processedCount += batch.length;
-            }
-        }
-    }
-
-    const hadErrors = validationErrors.length > 0;
-    const summaryMessage = hadErrors
-        ? `Partial import complete. ${processedCount} rows imported, ${validationErrors.length} rows had errors.`
-        : `Import complete. ${processedCount} rows imported successfully.`;
-
-    if (importId) {
-        await updateImportJob(importId, { processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
-    }
-
-    return {
-        importId,
-        processedCount,
-        errorCount: validationErrors.length,
-        errors: validationErrors,
-        summaryMessage: summaryMessage
-    };
 }
 
 
@@ -263,7 +247,6 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             return { success: false, isDryRun, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
         }
         
-        const fileContent = await file.text();
         let result: Omit<ImportResult, 'success' | 'isDryRun'>;
         let requiresViewRefresh = false;
 
@@ -278,9 +261,11 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             throw new Error(`Unsupported data type: ${dataType}`);
         }
         
-        const importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, Papa.parse(fileContent, {header: true, skipEmptyLines: true}).data.length) : undefined;
+        // This is a temporary solution for getting total rows. A full streaming solution would not know this upfront.
+        const totalRows = (await file.text()).split('\n').length -1;
+        const importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, totalRows) : undefined;
         
-        result = await processCsv(fileContent, config.schema, config.tableName, companyId, user.id, isDryRun, mappings, dataType, importJobId);
+        result = await processCsv(file.stream() as any, config.schema, config.tableName, companyId, user.id, isDryRun, mappings, dataType, importJobId);
 
         if (!isDryRun && (result.processedCount || 0) > 0) {
             await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);

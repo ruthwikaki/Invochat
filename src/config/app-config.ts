@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview Centralized, environment-aware configuration for InvoChat.
  *
@@ -22,8 +23,9 @@ const EnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
   GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
   REDIS_URL: z.string().optional(),
-  ENCRYPTION_KEY: z.string().length(64, { message: "Must be a 64-character hex string (32 bytes)."}).optional(),
-  ENCRYPTION_IV: z.string().length(32, { message: "Must be a 32-character hex string (16 bytes)."}).optional(),
+  ENCRYPTION_KEY: z.string().length(64, { message: "Must be a 64-character hex string (32 bytes)."}),
+  ENCRYPTION_IV: z.string().length(32, { message: "Must be a 32-character hex string (16 bytes)."}),
+  HEALTH_CHECK_API_KEY: z.string().min(1, { message: "Is not set. Required for health check endpoint security."}),
 }).refine(data => {
     // If one encryption var is set, the other must be too.
     if (data.ENCRYPTION_KEY || data.ENCRYPTION_IV) {
@@ -56,13 +58,14 @@ const parseFloatWithDefault = (value: string | undefined, defaultValue: number):
 
 export const config = {
   app: {
-    name: process.env.APP_NAME || 'InvoChat',
+    name: process.env.APP_NAME || 'ARVO',
     url: envValidation.success ? envValidation.data.SITE_URL : 'http://localhost:3000',
     environment: process.env.NODE_ENV || 'development',
   },
   ai: {
     model: process.env.AI_MODEL || 'googleai/gemini-1.5-flash',
     historyLimit: 10,
+    maxOutputTokens: 2048,
   },
   ratelimit: {
     auth: 5, // 5 requests per minute

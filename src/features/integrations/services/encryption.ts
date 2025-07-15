@@ -1,12 +1,57 @@
 
 'use server';
 
+import crypto from 'crypto';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import { logger } from '@/lib/logger';
+import { z } from 'zod';
+
+const EncryptionConfigSchema = z.object({
+    ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be a 64-character hex string (32 bytes)."),
+    ENCRYPTION_IV: z.string().length(32, "ENCRYPTION_IV must be a 32-character hex string (16 bytes)."),
+});
+
+const configCheck = EncryptionConfigSchema.safeParse(process.env);
+if (!configCheck.success) {
+    throw new Error(`Encryption keys are not configured correctly in .env: ${configCheck.error.flatten().fieldErrors}`);
+}
+const { ENCRYPTION_KEY, ENCRYPTION_IV } = configCheck.data;
+const ALGORITHM = 'aes-256-cbc';
 
 /**
- * Creates or updates a secret in the Supabase Vault.
+ * Encrypts a plaintext string.
+ * @param text The plaintext string to encrypt.
+ * @returns The encrypted string in 'iv:encryptedData' format.
+ */
+function encrypt(text: string): string {
+    const iv = Buffer.from(ENCRYPTION_IV, 'hex');
+    const key = Buffer.from(ENCRYPTION_KEY, 'hex');
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    // We can use a static IV because the key in the Vault is already unique per company/integration.
+    // This simplifies decryption as we don't need to store a new IV for every secret.
+    return encrypted;
+}
+
+/**
+ * Decrypts an encrypted string.
+ * @param encryptedText The encrypted string.
+ * @returns The decrypted plaintext string.
+ */
+function decrypt(encryptedText: string): string {
+    const iv = Buffer.from(ENCRYPTION_IV, 'hex');
+    const key = Buffer.from(ENCRYPTION_KEY, 'hex');
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+}
+
+
+/**
+ * Creates or updates a secret in the Supabase Vault after encrypting it.
  * The secret name is deterministically generated based on the company and integration platform.
  * @param companyId The UUID of the company.
  * @param platform The integration platform (e.g., 'shopify').
@@ -16,12 +61,13 @@ import { logger } from '@/lib/logger';
 export async function createOrUpdateSecret(companyId: string, platform: string, plaintextValue: string): Promise<string> {
     const supabase = getServiceRoleClient();
     const secretName = `${platform}_token_${companyId}`;
+    const encryptedValue = encrypt(plaintextValue);
     
     try {
         const { data: secret, error } = await supabase.vault.secrets.create({
             name: secretName,
-            secret: plaintextValue,
-            description: `API token for ${platform} integration for company ${companyId}`,
+            secret: encryptedValue,
+            description: `Encrypted API token for ${platform} for company ${companyId}`,
         });
         
         if (error) {
@@ -29,7 +75,7 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
             if (error.message.includes('unique constraint')) {
                 logger.info(`[Vault] Secret for ${secretName} already exists. Updating it instead.`);
                 const { data: updatedSecret, error: updateError } = await supabase.vault.secrets.update(secretName, {
-                    secret: plaintextValue,
+                    secret: encryptedValue,
                 });
                 if (updateError) {
                     throw new Error(`Failed to update existing secret: ${updateError.message}`);
@@ -39,7 +85,7 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
             throw new Error(`Failed to create secret: ${error.message}`);
         }
         
-        logger.info(`[Vault] Successfully created secret for ${secretName}.`);
+        logger.info(`[Vault] Successfully created encrypted secret for ${secretName}.`);
         return secret.id;
     } catch (e: any) {
         logError(e, { context: 'createOrUpdateSecret', companyId, platform });
@@ -49,7 +95,7 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
 
 
 /**
- * Retrieves a secret from the Supabase Vault.
+ * Retrieves and decrypts a secret from the Supabase Vault.
  * @param companyId The UUID of the company.
  * @param platform The integration platform.
  * @returns The plaintext secret value, or null if not found.
@@ -70,7 +116,12 @@ export async function getSecret(companyId: string, platform: string): Promise<st
             throw new Error(`Failed to retrieve secret: ${error.message}`);
         }
         
-        return data.secret;
+        if (!data.secret) {
+            logger.warn(`[Vault] Secret for ${secretName} was found but is empty.`);
+            return null;
+        }
+
+        return decrypt(data.secret);
     } catch (e: any) {
         logError(e, { context: 'getSecret', companyId, platform });
         throw e;

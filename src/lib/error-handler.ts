@@ -4,6 +4,8 @@
  */
 import { logger } from './logger';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 /**
  * Type guard to check if an unknown value is an Error object.
  * @param error The value to check.
@@ -34,7 +36,8 @@ export function getErrorMessage(error: unknown): string {
 }
 
 /**
- * A type-safe error logger. It automatically captures the stack trace if available.
+ * A type-safe error logger. It automatically captures the stack trace if available
+ * but redacts it in production logs to prevent information disclosure.
  * @param error The error to log.
  * @param context Additional context for the error log.
  */
@@ -42,11 +45,17 @@ export function logError(error: unknown, context: Record<string, unknown> = {}) 
     const message = getErrorMessage(error);
     
     // Construct a log object with context and error details
-    const logObject = {
+    const logObject: Record<string, unknown> = {
         ...context,
-        // If the error is an actual Error object, include its stack for better debugging.
-        ...(isError(error) && { stack: error.stack }),
     };
+    
+    // In development, we want the full stack trace for easier debugging.
+    // In production, we explicitly OMIT the stack trace from logs to prevent leaking sensitive information.
+    if (!isProduction) {
+        if (isError(error)) {
+            logObject.stack = error.stack;
+        }
+    }
 
     // Use the centralized logger
     logger.error(message, logObject);
