@@ -72,11 +72,11 @@ export async function middleware(req: NextRequest) {
       return response;
     }
     if (isAuthRoute) {
-      // User is logged in and tries to access auth page -> redirect to chat
-      return NextResponse.redirect(new URL('/chat', req.url));
+      // User is logged in and tries to access auth page -> redirect to dashboard
+      return NextResponse.redirect(new URL('/dashboard', req.url));
     }
     if (pathname === '/') {
-      return NextResponse.redirect(new URL('/chat', req.url));
+      return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
     const companyId = user.app_metadata?.company_id || user.user_metadata?.company_id;
@@ -89,7 +89,7 @@ export async function middleware(req: NextRequest) {
     
     // User has completed setup but is trying to access the setup page
     if (companyId && isSetupIncompleteRoute) {
-        return NextResponse.redirect(new URL('/chat', req.url));
+        return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
   } else {
