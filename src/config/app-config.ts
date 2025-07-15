@@ -4,6 +4,7 @@
  *
  * This file consolidates all external configuration, pulling from environment
  * variables with sensible defaults. This is crucial for security and for
+
  * operating the application across different environments (dev, staging, prod).
  */
 import { config as dotenvConfig } from 'dotenv';
@@ -18,14 +19,21 @@ dotenvConfig();
 // If any variable is missing or invalid, the app will render an error page.
 const EnvSchema = z.object({
   SITE_URL: z.string().url({ message: "Must be a valid URL." }),
+  NEXT_PUBLIC_SITE_URL: z.string().url({ message: "Must be a valid URL." }),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
   SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
-  SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
   GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
   REDIS_URL: z.string().optional(),
   ENCRYPTION_KEY: z.string().length(64, { message: "Must be a 64-character hex string (32 bytes)."}),
   ENCRYPTION_IV: z.string().length(32, { message: "Must be a 32-character hex string (16 bytes)."}),
   HEALTH_CHECK_API_KEY: z.string().min(1, { message: "Is not set. Required for health check endpoint security."}),
+  SHOPIFY_WEBHOOK_SECRET: z.string().optional(),
+  WOOCOMMERCE_WEBHOOK_SECRET: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().email().optional(),
+  EMAIL_TEST_RECIPIENT: z.string().email().optional(),
 }).refine(data => {
     // If one encryption var is set, the other must be too.
     if (data.ENCRYPTION_KEY || data.ENCRYPTION_IV) {
@@ -101,5 +109,3 @@ export const config = {
 
 // A type alias for convenience
 export type AppConfig = typeof config;
-
-

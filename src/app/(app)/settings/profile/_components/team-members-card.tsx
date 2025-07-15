@@ -73,8 +73,20 @@ export function TeamMembersCard() {
             }
         },
     });
-    const { mutate: remove } = useMutation({ mutationFn: removeFormAction });
-    const { mutate: updateRole } = useMutation({ mutationFn: updateFormAction });
+    
+    const { mutate: remove } = useMutation({
+        mutationFn: removeFormAction,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+        }
+    });
+
+    const { mutate: updateRole } = useMutation({
+        mutationFn: updateFormAction,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+        }
+    });
 
     const onInvite = handleSubmit((data) => {
         const formData = new FormData();
@@ -156,4 +168,3 @@ export function TeamMembersCard() {
         </Card>
     );
 }
-

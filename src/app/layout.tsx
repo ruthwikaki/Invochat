@@ -9,6 +9,8 @@ import { AppInitializer } from '@/components/app-initializer';
 import { envValidation } from '@/config/app-config';
 import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
 import { AuthProvider } from '@/context/auth-context';
+import { QueryClientProvider } from '@/context/query-client-provider';
+
 
 const inter = Inter({
   subsets: ['latin'],
@@ -46,12 +48,14 @@ export default async function RootLayout({
             enableSystem
             disableTransitionOnChange
         >
+          <QueryClientProvider>
             <AuthProvider>
                 <AppInitializer>
                     {children}
                 </AppInitializer>
                 <Toaster />
             </AuthProvider>
+          </QueryClientProvider>
         </ThemeProvider>
       </body>
     </html>
