@@ -43,6 +43,7 @@ const nextConfig = {
       frame-ancestors 'none';
       base-uri 'self';
       form-action 'self';
+      object-src 'none';
     `.replace(/\s{2,}/g, ' ').trim();
 
     return [
@@ -57,6 +58,10 @@ const nextConfig = {
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block'
           },
           {
             key: 'X-Frame-Options',
