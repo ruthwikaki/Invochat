@@ -115,7 +115,7 @@ export async function updateCompanySettings(formData: FormData) {
   return updateSettingsInDb(companyId, settings);
 }
 
-export async function getUnifiedInventory(params: { query?: string; page?: number, limit?: number }) {
+export async function getUnifiedInventory(params: { query?: string; page?: number, limit?: number, status?: string, sortBy?: string, sortDirection?: string }) {
     const { companyId } = await getAuthContext();
     return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
 }
@@ -407,7 +407,8 @@ export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
 }
-export async function exportInventory(params: { query?: string }) { 
+
+export async function exportInventory(params: { query?: string, status?: string; sortBy?: string; sortDirection?: string }) { 
     try {
         const { companyId, userId } = await getAuthContext();
         const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });

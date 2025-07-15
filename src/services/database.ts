@@ -29,7 +29,7 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
     return CompanySettingsSchema.parse(data);
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number, limit?: number; offset?: number; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number, limit?: number; offset?: number; status?: string; sortBy?: string; sortDirection?: string; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     const supabase = getServiceRoleClient();
     
     let query = supabase
@@ -40,11 +40,17 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     if (params.query) {
         query = query.or(`product_title.ilike.%${params.query}%,sku.ilike.%${params.query}%`);
     }
+    
+    if (params.status && params.status !== 'all') {
+        query = query.eq('product_status', params.status);
+    }
 
     const limit = Math.min(params.limit || 50, 100); // Enforce max limit
+    const sortBy = params.sortBy || 'product_title';
+    const sortDirection = params.sortDirection === 'desc' ? 'desc' : 'asc';
     
     const { data, error, count } = await query
-        .order('created_at', { ascending: false })
+        .order(sortBy, { ascending: sortDirection === 'asc' })
         .range(params.offset || 0, (params.offset || 0) + limit - 1);
     
     if (error) {

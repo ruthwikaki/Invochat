@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, Shuffle } from 'lucide-react';
+import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, ArrowDownUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,14 +19,17 @@ import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
   totalCount: number;
   itemsPerPage: number;
   analyticsData: InventoryAnalytics;
-  exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
+  exportAction: (params: { query: string; status: string; sortBy: string; sortDirection: string; }) => Promise<{ success: boolean; data?: string; error?: string }>;
 }
+
+type SortableColumn = 'product_title' | 'product_status' | 'total_quantity';
 
 const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, value: string | number, icon: React.ElementType, label?: string }) => (
     <Card>
@@ -35,7 +38,7 @@ const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, val
             <Icon className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{typeof value === 'number' && !Number.isInteger(value) ? formatCentsAsCurrency(value) : value}</div>
+            <div className="text-2xl font-bold font-tabular">{typeof value === 'number' && !Number.isInteger(value) ? formatCentsAsCurrency(value) : value.toLocaleString()}</div>
             {label && <p className="text-xs text-muted-foreground">{label}</p>}
         </CardContent>
     </Card>
@@ -89,9 +92,9 @@ const StatusBadge = ({ quantity }: { quantity: number }) => {
         return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">Out of Stock</Badge>;
     }
     if (quantity < 10) { // A generic low stock indicator
-        return <Badge variant="secondary" className="bg-warning/10 text-amber-600 dark:text-amber-400 border-warning/20">Low Stock</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20">Low Stock</Badge>;
     }
-    return <Badge variant="secondary" className="bg-success/10 text-emerald-600 dark:text-emerald-400 border-success/20">In Stock</Badge>;
+    return <Badge variant="secondary" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">In Stock</Badge>;
 };
 
 function EmptyInventoryState() {
@@ -126,7 +129,7 @@ function EmptyInventoryState() {
 
 // Group variants by their parent product
 const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
-  const productMap: Record<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[] }> = {};
+  const productMap: Record<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[], total_quantity: number }> = {};
   
   inventory.forEach(variant => {
     const productId = variant.product_id;
@@ -136,13 +139,31 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
         product_title: variant.product_title || 'Unknown Product',
         product_status: variant.product_status || 'unknown',
         image_url: variant.image_url,
-        variants: []
+        variants: [],
+        total_quantity: 0
       };
     }
     productMap[productId].variants.push(variant);
+    productMap[productId].total_quantity += variant.inventory_quantity;
   });
   
   return Object.values(productMap);
+};
+
+const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }: { column: SortableColumn, label: string, currentSort: SortableColumn, currentDirection: 'asc' | 'desc', onSort: (column: SortableColumn) => void }) => {
+    const isActive = column === currentSort;
+    return (
+        <TableHead className="cursor-pointer" onClick={() => onSort(column)}>
+            <div className="flex items-center gap-2">
+                {label}
+                {isActive ? (
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", currentDirection === 'asc' && "rotate-180")} />
+                ) : (
+                    <ArrowDownUp className="h-4 w-4 text-muted-foreground/50" />
+                )}
+            </div>
+        </TableHead>
+    );
 };
 
 
@@ -155,16 +176,37 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
 
-  const handleSearch = useDebouncedCallback((term: string) => {
+  const query = searchParams.get('query') || '';
+  const status = searchParams.get('status') || 'all';
+  const sortBy = (searchParams.get('sortBy') as SortableColumn) || 'product_title';
+  const sortDirection = searchParams.get('sortDirection') === 'desc' ? 'desc' : 'asc';
+  
+  const createUrlWithParams = (newParams: Record<string, string>) => {
     const params = new URLSearchParams(searchParams);
-    params.set('page', '1'); 
-    if (term) {
-      params.set('query', term);
-    } else {
-      params.delete('query');
-    }
-    replace(`${pathname}?${params.toString()}`);
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
+    });
+    // Reset page on filter/sort change
+    params.set('page', '1');
+    return `${pathname}?${params.toString()}`;
+  }
+
+  const handleSearch = useDebouncedCallback((term: string) => {
+    replace(createUrlWithParams({ query: term }));
   }, 300);
+
+  const handleStatusChange = (newStatus: string) => {
+    replace(createUrlWithParams({ status: newStatus }));
+  };
+  
+  const handleSort = (column: SortableColumn) => {
+    const newDirection = sortBy === column && sortDirection === 'asc' ? 'desc' : 'asc';
+    replace(createUrlWithParams({ sortBy: column, sortDirection: newDirection }));
+  };
 
   const toggleExpandProduct = (productId: string) => {
     setExpandedProducts(prev => {
@@ -180,17 +222,21 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   
   const groupedInventory = useMemo(() => groupVariantsByProduct(initialInventory), [initialInventory]);
   
-  const isFiltered = !!searchParams.get('query');
+  const isFiltered = !!query || status !== 'all';
   const showEmptyState = totalCount === 0 && !isFiltered;
   const showNoResultsState = totalCount === 0 && isFiltered;
   
+  const handleExport = () => {
+    return exportAction({ query, status, sortBy, sortDirection });
+  }
+
   return (
     <>
     <InventoryHistoryDialog variant={historyVariant} onClose={() => setHistoryVariant(null)} />
 
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value || '$0'} icon={DollarSign} />
+            <AnalyticsCard title="Total Inventory Value" value={formatCentsAsCurrency(analyticsData.total_inventory_value || 0)} icon={DollarSign} />
             <AnalyticsCard title="Total Products" value={analyticsData.total_products || 0} icon={PackageIcon} />
             <AnalyticsCard title="Total Variants (SKUs)" value={analyticsData.total_variants || 0} icon={PackageIcon} />
             <AnalyticsCard title="Items Low on Stock" value={analyticsData.low_stock_items || 0} icon={AlertTriangle} />
@@ -202,12 +248,23 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             <Input
                 placeholder="Search by product title or SKU..."
                 onChange={(e) => handleSearch(e.target.value)}
-                defaultValue={searchParams.get('query')?.toString()}
+                defaultValue={query}
                 className="pl-10"
             />
         </div>
         <div className="flex w-full md:w-auto gap-2 flex-wrap">
-            <ExportButton exportAction={exportAction} filename="inventory.csv" />
+            <Select onValueChange={handleStatusChange} defaultValue={status}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+            <ExportButton exportAction={handleExport} filename="inventory.csv" />
         </div>
       </div>
       
@@ -218,10 +275,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                     <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                             <TableRow>
-                                <TableHead>Product</TableHead>
-                                <TableHead>Status</TableHead>
+                                <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                                <SortableHeader column="product_status" label="Status" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
                                 <TableHead className="text-right">Variants</TableHead>
-                                <TableHead className="text-right">Total Quantity</TableHead>
+                                <SortableHeader column="total_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
                                 <TableHead className="w-16 text-center">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -246,9 +303,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                         <div className="font-medium">{product.product_title}</div>
                                     </div>
                                 </TableCell>
-                                <TableCell><Badge variant={product.product_status === 'active' ? 'secondary' : 'outline'} className={product.product_status === 'active' ? 'bg-success/10 text-success' : ''}>{product.product_status}</Badge></TableCell>
-                                <TableCell className="text-right">{product.variants.length}</TableCell>
-                                <TableCell className="text-right font-semibold">{totalQty}</TableCell>
+                                <TableCell><Badge variant={product.product_status === 'active' ? 'secondary' : 'outline'} className={cn(
+                                    product.product_status === 'active' ? 'bg-green-500/10 text-green-600' : 
+                                    product.product_status === 'draft' ? 'bg-yellow-500/10 text-yellow-600' : 'bg-gray-500/10 text-gray-500'
+                                    )}>{product.product_status}</Badge></TableCell>
+                                <TableCell className="text-right font-tabular">{product.variants.length}</TableCell>
+                                <TableCell className="text-right font-semibold font-tabular">{totalQty}</TableCell>
                                 <TableCell className="text-center">
                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleExpandProduct(product.product_id)}>
                                         <ChevronDown className={cn("h-4 w-4 transition-transform", expandedProducts.has(product.product_id) && "rotate-180")} />
@@ -278,9 +338,9 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                             <TableRow key={variant.id} className="hover:bg-background">
                                                                 <TableCell>{variant.title || 'Default'}</TableCell>
                                                                 <TableCell className="text-muted-foreground">{variant.sku}</TableCell>
-                                                                <TableCell className="text-right">{formatCentsAsCurrency(variant.price)}</TableCell>
-                                                                <TableCell className="text-right">{formatCentsAsCurrency(variant.cost)}</TableCell>
-                                                                <TableCell className="text-right font-medium">{variant.inventory_quantity}</TableCell>
+                                                                <TableCell className="text-right font-tabular">{formatCentsAsCurrency(variant.price)}</TableCell>
+                                                                <TableCell className="text-right font-tabular">{formatCentsAsCurrency(variant.cost)}</TableCell>
+                                                                <TableCell className="text-right font-medium font-tabular">{variant.inventory_quantity}</TableCell>
                                                                 <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
                                                                 <TableCell>{variant.location || 'N/A'}</TableCell>
                                                                 <TableCell className="text-center space-x-1">

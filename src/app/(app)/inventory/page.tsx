@@ -12,20 +12,26 @@ export default async function InventoryPage({
   searchParams?: {
     query?: string;
     page?: string;
+    status?: string;
+    sortBy?: string;
+    sortDirection?: string;
   };
 }) {
   const query = searchParams?.query || '';
   const currentPage = parseInt(searchParams?.page || '1', 10);
+  const status = searchParams?.status || 'all';
+  const sortBy = searchParams?.sortBy || 'product_title';
+  const sortDirection = searchParams?.sortDirection || 'asc';
 
   // Fetch data in parallel
   const [inventoryData, analytics] = await Promise.all([
-    getUnifiedInventory({ query, page: currentPage, limit: ITEMS_PER_PAGE }),
+    getUnifiedInventory({ query, page: currentPage, limit: ITEMS_PER_PAGE, status, sortBy, sortDirection }),
     getInventoryAnalytics(),
   ]);
 
-  const handleExport = async () => {
+  const handleExport = async (params: { query: string; status: string; sortBy: string; sortDirection: string; }) => {
     'use server';
-    return exportInventory({ query });
+    return exportInventory(params);
   }
 
   return (
