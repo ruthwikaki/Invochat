@@ -61,7 +61,7 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
   const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
-  const publicRoutes = ['/quick-test', '/database-setup'];
+  const publicRoutes = ['/quick-test', '/database-setup', '/env-check'];
   const isAuthRoute = authRoutes.includes(pathname);
   const isPublicRoute = publicRoutes.includes(pathname);
   
@@ -94,6 +94,10 @@ export async function middleware(req: NextRequest) {
 
   } else {
     // User is not logged in
+    if (pathname === '/') {
+        return NextResponse.redirect(new URL('/login', req.url));
+    }
+
     if (!isAuthRoute && !isPublicRoute && pathname !== '/update-password') {
       return NextResponse.redirect(new URL('/login', req.url));
     }
