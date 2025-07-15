@@ -1,276 +1,289 @@
 
--- Enable UUID generation
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- This script is designed to be idempotent and can be run multiple times.
 
--- Drop dependent views first to allow table modifications
+-- Drop dependent views first to allow table modifications.
 DROP VIEW IF EXISTS public.product_variants_with_details;
 
--- Create companies table
-CREATE TABLE IF NOT EXISTS public.companies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow individual read access" ON public.companies FOR SELECT USING (auth.uid() IN (SELECT user_id FROM users WHERE company_id = id));
+-- Add company_id columns where they are missing.
+ALTER TABLE public.product_variants
+ADD COLUMN IF NOT EXISTS company_id UUID;
 
--- Create users table to link auth.users with companies
-CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    email TEXT,
-    role TEXT CHECK (role IN ('owner', 'admin', 'member')) DEFAULT 'member',
-    created_at TIMESTAMPTZ DEFAULT now(),
-    deleted_at TIMESTAMPTZ
-);
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow users to view their own company users" ON public.users FOR SELECT USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
+ALTER TABLE public.order_line_items
+ADD COLUMN IF NOT EXISTS company_id UUID;
 
--- Function to create a company and link the first user (owner)
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  company_id_var UUID;
-  user_role TEXT;
+ALTER TABLE public.refund_line_items
+ADD COLUMN IF NOT EXISTS company_id UUID;
+
+ALTER TABLE public.audit_log
+ADD COLUMN IF NOT EXISTS company_id UUID;
+
+ALTER TABLE public.audit_log
+ADD COLUMN IF NOT EXISTS user_id UUID;
+
+-- Add foreign key constraints for company_id.
+-- We add them with validation disabled initially to handle existing data, then validate.
+DO $$
 BEGIN
-  -- Create a new company for the new user
-  INSERT INTO public.companies (name)
-  VALUES (new.raw_app_meta_data->>'company_name')
-  RETURNING id INTO company_id_var;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'product_variants_company_id_fkey' AND conrelid = 'public.product_variants'::regclass
+  ) THEN
+    ALTER TABLE public.product_variants ADD CONSTRAINT product_variants_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE NOT VALID;
+    ALTER TABLE public.product_variants VALIDATE CONSTRAINT product_variants_company_id_fkey;
+  END IF;
 
-  -- Insert into our public users table
-  INSERT INTO public.users (id, company_id, email, role)
-  VALUES (new.id, company_id_var, new.email, 'owner');
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'order_line_items_company_id_fkey' AND conrelid = 'public.order_line_items'::regclass
+  ) THEN
+    ALTER TABLE public.order_line_items ADD CONSTRAINT order_line_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE NOT VALID;
+    ALTER TABLE public.order_line_items VALIDATE CONSTRAINT order_line_items_company_id_fkey;
+  END IF;
 
-  -- Update the user's app_metadata with the company_id and role
-  UPDATE auth.users
-  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', company_id_var, 'role', 'owner')
-  WHERE id = new.id;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'refund_line_items_company_id_fkey' AND conrelid = 'public.refund_line_items'::regclass
+  ) THEN
+    ALTER TABLE public.refund_line_items ADD CONSTRAINT refund_line_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE NOT VALID;
+    ALTER TABLE public.refund_line_items VALIDATE CONSTRAINT refund_line_items_company_id_fkey;
+  END IF;
   
-  RETURN new;
-END;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'audit_log_company_id_fkey' AND conrelid = 'public.audit_log'::regclass
+  ) THEN
+    ALTER TABLE public.audit_log ADD CONSTRAINT audit_log_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE NOT VALID;
+    ALTER TABLE public.audit_log VALIDATE CONSTRAINT audit_log_company_id_fkey;
+  END IF;
+
+END $$;
+
+-- Clean up obsolete columns from product_variants table.
+ALTER TABLE public.product_variants
+DROP COLUMN IF EXISTS weight,
+DROP COLUMN IF EXISTS weight_unit;
+
+-- Make SKU nullable as it might not exist for all variants initially.
+ALTER TABLE public.product_variants
+ALTER COLUMN sku DROP NOT NULL;
+
+-- Make variant title nullable as it might be a default/simple product.
+ALTER TABLE public.product_variants
+ALTER COLUMN title DROP NOT NULL,
+ALTER COLUMN title SET DEFAULT NULL;
+
+
+-- Recreate the product_variants_with_details view with the correct structure.
+CREATE OR REPLACE VIEW public.product_variants_with_details
+AS
+SELECT
+  pv.id,
+  pv.product_id,
+  pv.company_id,
+  p.title AS product_title,
+  p.status AS product_status,
+  p.product_type,
+  p.image_url,
+  pv.sku,
+  pv.title,
+  pv.option1_name,
+  pv.option1_value,
+  pv.option2_name,
+  pv.option2_value,
+  pv.option3_name,
+  pv.option3_value,
+  pv.barcode,
+  pv.price,
+  pv.compare_at_price,
+  pv.cost,
+  pv.inventory_quantity,
+  pv.location,
+  pv.external_variant_id,
+  pv.created_at,
+  pv.updated_at
+FROM
+  public.product_variants pv
+  LEFT JOIN public.products p ON pv.product_id = p.id;
+
+
+-- Helper function to get company_id from user's claims.
+CREATE OR REPLACE FUNCTION public.get_my_company_id()
+RETURNS UUID
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT (auth.jwt()->'app_metadata'->>'company_id')::uuid
 $$;
 
--- Trigger to call the function on new user signup
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
-
--- Create company_settings table
-CREATE TABLE IF NOT EXISTS public.company_settings (
-    company_id UUID PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
-    dead_stock_days INT NOT NULL DEFAULT 90,
-    fast_moving_days INT NOT NULL DEFAULT 30,
-    overstock_multiplier NUMERIC NOT NULL DEFAULT 3,
-    high_value_threshold NUMERIC NOT NULL DEFAULT 1000,
-    predictive_stock_days INT NOT NULL DEFAULT 7,
-    currency TEXT DEFAULT 'USD',
-    timezone TEXT DEFAULT 'UTC',
-    tax_rate NUMERIC DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ
-);
-ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow company members to access settings" ON public.company_settings FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify products table
-ALTER TABLE public.products ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.products ALTER COLUMN title SET NOT NULL;
-ALTER TABLE public.products ALTER COLUMN created_at SET NOT NULL;
-ALTER TABLE public.products ALTER COLUMN created_at SET DEFAULT now();
+-- Enable Row-Level Security on all company-specific tables.
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.products FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify product_variants table
-ALTER TABLE public.product_variants DROP COLUMN IF EXISTS weight;
-ALTER TABLE public.product_variants DROP COLUMN IF EXISTS weight_unit;
-ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.product_variants ALTER COLUMN sku SET NOT NULL;
-ALTER TABLE public.product_variants ALTER COLUMN inventory_quantity SET DEFAULT 0;
-ALTER TABLE public.product_variants ALTER COLUMN title DROP NOT NULL;
 ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.product_variants FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify suppliers table
-ALTER TABLE public.suppliers ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.suppliers ALTER COLUMN created_at SET NOT NULL;
-ALTER TABLE public.suppliers ALTER COLUMN created_at SET DEFAULT now();
-ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.suppliers FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify orders table
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.orders FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify order_line_items table
-ALTER TABLE public.order_line_items ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
 ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.order_line_items FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify customers table
-ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.customers FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify purchase_orders table
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
+ALTER TABLE public.customer_addresses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.refunds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.refund_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.purchase_orders FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify purchase_order_line_items table
-ALTER TABLE public.purchase_order_line_items ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
 ALTER TABLE public.purchase_order_line_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.purchase_order_line_items FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify inventory_ledger table
-ALTER TABLE public.inventory_ledger ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
 ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.inventory_ledger FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Modify integrations table
-ALTER TABLE public.integrations ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE;
 ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow full access to company members" ON public.integrations FOR ALL USING (company_id = (SELECT company_id FROM users WHERE id = auth.uid()));
-
--- Recreate the view with all necessary columns
-CREATE OR REPLACE VIEW public.product_variants_with_details AS
-SELECT
-    pv.id,
-    pv.product_id,
-    pv.company_id,
-    pv.sku,
-    pv.title,
-    pv.inventory_quantity,
-    pv.price,
-    pv.cost,
-    pv.location,
-    p.title AS product_title,
-    p.status AS product_status,
-    p.product_type AS category,
-    p.image_url
-FROM
-    public.product_variants pv
-JOIN
-    public.products p ON pv.product_id = p.id;
+ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 
--- Secure search function
-CREATE OR REPLACE FUNCTION public.search_products(p_company_id UUID, p_query TEXT)
+-- Drop existing policies before creating new ones to avoid conflicts.
+DROP POLICY IF EXISTS "Allow ALL for service_role" ON public.products;
+DROP POLICY IF EXISTS "Allow company members to read" ON public.products;
+
+DROP POLICY IF EXISTS "Allow ALL for service_role" ON public.product_variants;
+DROP POLICY IF EXISTS "Allow company members to read" ON public.product_variants;
+
+DROP POLICY IF EXISTS "Allow ALL for service_role" ON public.orders;
+DROP POLICY IF EXISTS "Allow company members to read" ON public.orders;
+
+-- Create policies for all tables.
+CREATE POLICY "Allow ALL for service_role" ON public.products FOR ALL TO service_role;
+CREATE POLICY "Allow company members to read" ON public.products FOR SELECT USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.product_variants FOR ALL TO service_role;
+CREATE POLICY "Allow company members to read" ON public.product_variants FOR SELECT USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.orders FOR ALL TO service_role;
+CREATE POLICY "Allow company members to read" ON public.orders FOR SELECT USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.order_line_items FOR ALL TO service_role;
+CREATE POLICY "Allow company members to read" ON public.order_line_items FOR SELECT USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.customers FOR ALL TO service_role;
+CREATE POLICY "Allow company members to manage" ON public.customers FOR ALL USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.customer_addresses FOR ALL TO service_role;
+
+CREATE POLICY "Allow ALL for service_role" ON public.refunds FOR ALL TO service_role;
+CREATE POLICY "Allow company members to read" ON public.refunds FOR SELECT USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.refund_line_items FOR ALL TO service_role;
+
+CREATE POLICY "Allow ALL for service_role" ON public.suppliers FOR ALL TO service_role;
+CREATE POLICY "Allow company members to manage" ON public.suppliers FOR ALL USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.purchase_orders FOR ALL TO service_role;
+CREATE POLICY "Allow company members to manage" ON public.purchase_orders FOR ALL USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.purchase_order_line_items FOR ALL TO service_role;
+
+CREATE POLICY "Allow ALL for service_role" ON public.inventory_ledger FOR ALL TO service_role;
+CREATE POLICY "Allow company members to read" ON public.inventory_ledger FOR SELECT USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.integrations FOR ALL TO service_role;
+CREATE POLICY "Allow company members to manage" ON public.integrations FOR ALL USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.company_settings FOR ALL TO service_role;
+CREATE POLICY "Allow company members to manage" ON public.company_settings FOR ALL USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.channel_fees FOR ALL TO service_role;
+
+CREATE POLICY "Allow ALL for service_role" ON public.export_jobs FOR ALL TO service_role;
+CREATE POLICY "Allow users to manage their own export jobs" ON public.export_jobs FOR ALL USING (requested_by_user_id = auth.uid());
+
+CREATE POLICY "Allow ALL for service_role" ON public.webhook_events FOR ALL TO service_role;
+
+CREATE POLICY "Allow ALL for service_role" ON public.audit_log FOR ALL TO service_role;
+CREATE POLICY "Allow admins to read audit logs for their company" ON public.audit_log FOR SELECT USING (company_id = public.get_my_company_id());
+
+CREATE POLICY "Allow ALL for service_role" ON public.conversations FOR ALL TO service_role;
+CREATE POLICY "Allow user to manage their own conversations" ON public.conversations FOR ALL USING (user_id = auth.uid());
+
+CREATE POLICY "Allow ALL for service_role" ON public.messages FOR ALL TO service_role;
+CREATE POLICY "Allow user to manage messages in their conversations" ON public.messages FOR ALL USING (company_id = public.get_my_company_id());
+
+-- Add Indexes for Performance
+CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_company_id ON public.product_variants(company_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON public.product_variants(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON public.product_variants(sku);
+CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
+CREATE INDEX IF NOT EXISTS idx_orders_external_order_id ON public.orders(external_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_line_items_order_id ON public.order_line_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_line_items_variant_id ON public.order_line_items(variant_id);
+CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
+CREATE INDEX IF NOT EXISTS idx_customers_email ON public.customers(email);
+CREATE INDEX IF NOT EXISTS idx_suppliers_company_id ON public.suppliers(company_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_ledger_variant_id ON public.inventory_ledger(variant_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_ledger_company_id_created_at ON public.inventory_ledger(company_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(user_id);
+
+
+-- Create the secure full-text search function
+CREATE OR REPLACE FUNCTION public.search_products(
+    p_company_id UUID,
+    p_search_term TEXT
+)
 RETURNS TABLE (
-    product_id UUID,
-    variant_id UUID,
-    product_title TEXT,
-    variant_title TEXT,
-    sku TEXT,
+    id UUID,
+    company_id UUID,
+    title TEXT,
+    description TEXT,
+    product_type TEXT,
     image_url TEXT,
-    rank REAL
+    relevance REAL
 )
 LANGUAGE plpgsql
 AS $$
 BEGIN
     RETURN QUERY
     SELECT
-        p.id AS product_id,
-        pv.id AS variant_id,
-        p.title AS product_title,
-        pv.title AS variant_title,
-        pv.sku,
+        p.id,
+        p.company_id,
+        p.title,
+        p.description,
+        p.product_type,
         p.image_url,
-        ts_rank_cd(p.fts, websearch_to_tsquery('english', p_query)) AS rank
+        ts_rank_cd(p.fts_document, websearch_to_tsquery('english', p_search_term)) AS relevance
     FROM
-        public.products p
-    JOIN
-        public.product_variants pv ON p.id = pv.product_id
+        public.products AS p
     WHERE
         p.company_id = p_company_id
-        AND p.fts @@ websearch_to_tsquery('english', p_query)
+        AND p.fts_document @@ websearch_to_tsquery('english', p_search_term)
     ORDER BY
-        rank DESC;
+        relevance DESC;
 END;
 $$;
 
 
--- Add Full-Text Search Vector
-ALTER TABLE public.products ADD COLUMN IF NOT EXISTS fts tsvector
-GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || coalesce(description, '') || ' ' || coalesce(product_type, ''))) STORED;
+-- Add the full-text search document column
+ALTER TABLE public.products
+ADD COLUMN IF NOT EXISTS fts_document tsvector;
 
--- Create index on the FTS vector
-CREATE INDEX IF NOT EXISTS products_fts_idx ON public.products USING gin(fts);
+-- Create the index on that column
+CREATE INDEX IF NOT EXISTS products_fts_document_idx ON public.products USING GIN (fts_document);
 
--- Add other crucial indexes
-CREATE INDEX IF NOT EXISTS idx_users_company_id ON public.users(company_id);
-CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
-CREATE INDEX IF NOT EXISTS idx_variants_company_id_sku ON public.product_variants(company_id, sku);
-CREATE INDEX IF NOT EXISTS idx_variants_product_id ON public.product_variants(product_id);
-CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
-CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
-CREATE INDEX IF NOT EXISTS idx_line_items_order_id ON public.order_line_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_line_items_variant_id ON public.order_line_items(variant_id);
-CREATE INDEX IF NOT EXISTS idx_customers_company_id_email ON public.customers(company_id, email);
-CREATE INDEX IF NOT EXISTS idx_suppliers_company_id ON public.suppliers(company_id);
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_company_id ON public.purchase_orders(company_id);
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier_id ON public.purchase_orders(supplier_id);
-CREATE INDEX IF NOT EXISTS idx_po_line_items_po_id ON public.purchase_order_line_items(purchase_order_id);
-CREATE INDEX IF NOT EXISTS idx_po_line_items_variant_id ON public.purchase_order_line_items(variant_id);
-CREATE INDEX IF NOT EXISTS idx_ledger_company_variant ON public.inventory_ledger(company_id, variant_id);
-CREATE INDEX IF NOT EXISTS idx_integrations_company_id ON public.integrations(company_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON public.conversations(user_id);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages(conversation_id);
+-- Create a trigger to automatically update the fts_document column
+CREATE OR REPLACE FUNCTION update_products_fts_document()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.fts_document := to_tsvector('english',
+        coalesce(NEW.title, '') || ' ' ||
+        coalesce(NEW.description, '') || ' ' ||
+        coalesce(NEW.product_type, '')
+    );
+    RETURN NEW;
+END;
+$$;
 
--- Ensure all tables are owned by the correct roles
-ALTER TABLE public.companies OWNER TO postgres;
-ALTER TABLE public.users OWNER TO postgres;
-ALTER TABLE public.company_settings OWNER TO postgres;
-ALTER TABLE public.products OWNER TO postgres;
-ALTER TABLE public.product_variants OWNER TO postgres;
-ALTER TABLE public.suppliers OWNER TO postgres;
-ALTER TABLE public.orders OWNER TO postgres;
-ALTER TABLE public.order_line_items OWNER TO postgres;
-ALTER TABLE public.customers OWNER TO postgres;
-ALTER TABLE public.purchase_orders OWNER TO postgres;
-ALTER TABLE public.purchase_order_line_items OWNER TO postgres;
-ALTER TABLE public.inventory_ledger OWNER TO postgres;
-ALTER TABLE public.integrations OWNER TO postgres;
-ALTER TABLE public.conversations OWNER TO postgres;
-ALTER TABLE public.messages OWNER TO postgres;
-ALTER TABLE public.webhook_events OWNER TO postgres;
-ALTER TABLE public.export_jobs OWNER TO postgres;
-ALTER TABLE public.audit_log OWNER TO postgres;
+-- Drop trigger if it exists before creating it
+DROP TRIGGER IF EXISTS tsvectorupdate ON public.products;
 
-GRANT ALL ON TABLE public.companies TO postgres, service_role;
-GRANT ALL ON TABLE public.users TO postgres, service_role;
-GRANT ALL ON TABLE public.company_settings TO postgres, service_role;
-GRANT ALL ON TABLE public.products TO postgres, service_role;
-GRANT ALL ON TABLE public.product_variants TO postgres, service_role;
-GRANT ALL ON TABLE public.suppliers TO postgres, service_role;
-GRANT ALL ON TABLE public.orders TO postgres, service_role;
-GRANT ALL ON TABLE public.order_line_items TO postgres, service_role;
-GRANT ALL ON TABLE public.customers TO postgres, service_role;
-GRANT ALL ON TABLE public.purchase_orders TO postgres, service_role;
-GRANT ALL ON TABLE public.purchase_order_line_items TO postgres, service_role;
-GRANT ALL ON TABLE public.inventory_ledger TO postgres, service_role;
-GRANT ALL ON TABLE public.integrations TO postgres, service_role;
-GRANT ALL ON TABLE public.conversations TO postgres, service_role;
-GRANT ALL ON TABLE public.messages TO postgres, service_role;
-GRANT ALL ON TABLE public.webhook_events TO postgres, service_role;
-GRANT ALL ON TABLE public.export_jobs TO postgres, service_role;
-GRANT ALL ON TABLE public.audit_log TO postgres, service_role;
-
-GRANT ALL ON FUNCTION public.handle_new_user() TO postgres, service_role;
-GRANT ALL ON FUNCTION public.search_products(UUID, TEXT) TO postgres, service_role, authenticated;
-
--- Grant usage on schemas
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA realtime TO anon, authenticated, service_role;
-GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
-
--- Grant sequence permissions
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA realtime TO postgres, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO postgres, service_role;
+CREATE TRIGGER tsvectorupdate
+BEFORE INSERT OR UPDATE ON public.products
+FOR EACH ROW
+EXECUTE FUNCTION update_products_fts_document();
