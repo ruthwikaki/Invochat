@@ -1,14 +1,11 @@
 
-'use client';
-
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { CheckCircle } from 'lucide-react';
 import { SignupForm } from '@/components/auth/SignupForm';
-import { getCookie } from '@/lib/csrf';
+import { generateCSRFToken } from '@/lib/csrf';
 
 export default function SignupPage({
   searchParams,
@@ -17,16 +14,7 @@ export default function SignupPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // This function now correctly handles fetching the token client-side
-    const fetchToken = () => {
-        const token = getCookie('csrf_token');
-        setCsrfToken(token);
-    };
-    fetchToken();
-  }, []);
+  const csrfToken = generateCSRFToken();
 
   if (success) {
     return (

@@ -22,7 +22,7 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface ForgotPasswordFormProps {
     error: string | null;
-    csrfToken: string | null;
+    csrfToken: string;
 }
 
 export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPasswordFormProps) {
@@ -43,7 +43,7 @@ export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPas
 
   return (
     <form action={requestPasswordReset} className="grid gap-4" onChange={handleInteraction}>
-      {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+      <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
       <div className="grid gap-2">
         <Label htmlFor="email" className="text-slate-300">Email</Label>
         <Input

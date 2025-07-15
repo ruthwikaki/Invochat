@@ -28,7 +28,7 @@ function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface LoginFormProps {
     error: string | null;
-    csrfToken: string | null;
+    csrfToken: string;
 }
 
 export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
@@ -49,7 +49,7 @@ export function LoginForm({ error: initialError, csrfToken }: LoginFormProps) {
 
   return (
     <form action={login} className="space-y-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input

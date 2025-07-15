@@ -1,13 +1,10 @@
 
-'use client';
-
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { getCookie } from '@/lib/csrf';
+import { generateCSRFToken } from '@/lib/csrf';
 
 export default function LoginPage({
   searchParams,
@@ -16,16 +13,7 @@ export default function LoginPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    // This function now correctly handles fetching the token client-side
-    const fetchToken = () => {
-        const token = getCookie('csrf_token');
-        setCsrfToken(token);
-    };
-    fetchToken();
-  }, []);
+  const csrfToken = generateCSRFToken();
 
   return (
     <div className="relative flex items-center justify-center min-h-dvh w-full overflow-hidden bg-slate-900 text-white p-4">

@@ -22,7 +22,7 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface UpdatePasswordFormProps {
     error: string | null;
-    csrfToken: string | null;
+    csrfToken: string;
 }
 
 export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePasswordFormProps) {
@@ -52,7 +52,7 @@ export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePas
     
   return (
     <form action={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
         <div className="grid gap-2">
           <Label htmlFor="password" className="text-slate-300">New Password</Label>
            <PasswordInput

@@ -23,7 +23,7 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface SignupFormProps {
     error: string | null;
-    csrfToken: string | null;
+    csrfToken: string;
 }
 
 export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) {
@@ -45,7 +45,7 @@ export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) 
 
     return (
         <form action={signup} className="grid gap-4" onChange={handleInteraction}>
-            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+            <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
                 <Input
