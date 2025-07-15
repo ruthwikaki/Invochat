@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -14,6 +15,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/data-actions';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -78,7 +80,12 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
             return;
         }
 
-        const result = await createPurchaseOrdersFromSuggestions(selectedSuggestions);
+        const formData = new FormData();
+        const csrfToken = getCookie(CSRF_FORM_NAME);
+        if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
+        formData.append('suggestions', JSON.stringify(selectedSuggestions));
+
+        const result = await createPurchaseOrdersFromSuggestions(formData);
         
         if (result.success) {
             toast({

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -28,7 +29,7 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
     return CompanySettingsSchema.parse(data);
 }
 
-export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number; limit?: number; offset?: number; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
+export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number, limit?: number; offset?: number; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     const supabase = getServiceRoleClient();
     
     let query = supabase
@@ -39,10 +40,12 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     if (params.query) {
         query = query.or(`product_title.ilike.%${params.query}%,sku.ilike.%${params.query}%`);
     }
+
+    const limit = Math.min(params.limit || 50, 100); // Enforce max limit
     
     const { data, error, count } = await query
         .order('created_at', { ascending: false })
-        .range(params.offset || 0, (params.offset || 0) + (params.limit || 50) - 1);
+        .range(params.offset || 0, (params.offset || 0) + limit - 1);
     
     if (error) {
         logError(error, { context: 'getUnifiedInventoryFromDB failed' });
@@ -148,7 +151,8 @@ export async function getCustomersFromDB(companyId: string, params: any) {
     if(params.query) {
         query = query.or(`customer_name.ilike.%${params.query}%,email.ilike.%${params.query}%`);
     }
-    const { data, error, count } = await query.range(params.offset, params.offset + params.limit - 1);
+    const limit = Math.min(params.limit || 25, 100);
+    const { data, error, count } = await query.range(params.offset, params.offset + limit - 1);
     if(error) throw error;
     return {items: data || [], totalCount: count || 0};
 }
@@ -164,7 +168,8 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     if(params.query) {
         query = query.or(`order_number.ilike.%${params.query}%`);
     }
-    const { data, error, count } = await query.order('created_at', {ascending: false}).range(params.offset, params.offset + params.limit - 1);
+    const limit = Math.min(params.limit || 25, 100);
+    const { data, error, count } = await query.order('created_at', {ascending: false}).range(params.offset, params.offset + limit - 1);
     if (error) throw error;
     return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
 }
@@ -356,12 +361,13 @@ export async function reconcileInventoryInDb(companyId: string, integrationId: s
     if(error) throw error;
 }
 
-export async function createPurchaseOrdersInDb(companyId: string, userId: string, suggestions: any[]) {
+export async function createPurchaseOrdersInDb(companyId: string, userId: string, suggestions: any[], idempotencyKey?: string) {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
         p_company_id: companyId,
         p_user_id: userId,
-        p_suggestions: suggestions
+        p_suggestions: suggestions,
+        p_idempotency_key: idempotencyKey,
     });
 
     if (error) {
@@ -411,3 +417,4 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
+

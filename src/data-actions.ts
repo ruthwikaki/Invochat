@@ -29,8 +29,6 @@ import {
   getDeadStockReportFromDB,
   getAnomalyInsightsFromDB,
   getDbSchemaAndData,
-  healthCheckFinancialConsistency,
-  healthCheckInventoryConsistency,
   createExportJobInDb,
   getAlertsFromDB,
   getCustomerAnalyticsFromDB,
@@ -56,7 +54,8 @@ import {
   getDashboardMetrics,
   reconcileInventoryInDb,
   getReorderSuggestionsFromDB,
-  createPurchaseOrdersInDb
+  createPurchaseOrdersInDb,
+  getPurchaseOrdersFromDB
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
@@ -73,6 +72,7 @@ import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 import { z } from 'zod';
+import crypto from 'crypto';
 
 
 async function getAuthContext() {
@@ -234,6 +234,11 @@ export async function getSalesAnalytics() {
     return getSalesAnalyticsFromDB(companyId);
 }
 
+export async function getPurchaseOrders() {
+    const { companyId } = await getAuthContext();
+    return getPurchaseOrdersFromDB(companyId);
+}
+
 export async function getInsightsPageData() { 
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
@@ -281,6 +286,7 @@ export async function getGeneratedProductDescription(productName: string, catego
 export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
+        validateCSRF(formData);
         const subjectId = formData.get('subjectId') as string;
         const subjectType = formData.get('subjectType') as string;
         const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
@@ -483,17 +489,24 @@ export async function getInventoryLedger(variantId: string) {
     return getInventoryLedgerFromDB(companyId, variantId);
 }
 
-export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean, error?: string, createdPoCount?: number }> {
+export async function createPurchaseOrdersFromSuggestions(formData: FormData): Promise<{ success: boolean, error?: string, createdPoCount?: number }> {
     try {
+        validateCSRF(formData);
         const { companyId, userId } = await getAuthContext();
+
+        const suggestionsString = formData.get('suggestions') as string;
+        if (!suggestionsString) {
+             return { success: false, error: 'No reorder suggestions provided.' };
+        }
+        const suggestions: ReorderSuggestion[] = JSON.parse(suggestionsString);
         
         if (!suggestions || suggestions.length === 0) {
             return { success: false, error: 'No reorder suggestions provided.' };
         }
         
-        const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
+        const idempotencyKey = crypto.randomUUID();
+        const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions, idempotencyKey);
         
-        // Invalidate caches related to inventory and purchasing
         await invalidateCompanyCache(companyId, ['dashboard', 'alerts']);
         
         return { success: true, createdPoCount };
@@ -503,3 +516,4 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
     }
 }
     
+
