@@ -68,10 +68,12 @@ export async function login(formData: FormData) {
       throw new Error(error?.message || 'Login failed. Check credentials or confirm your email.');
     }
     
+    // Check for company_id which indicates the initial setup trigger has run.
     const companyId = data.user.app_metadata?.company_id;
     if (!companyId) {
-      revalidatePath('/database-setup', 'page');
-      redirect('/database-setup');
+      // This is a rare edge case where the user exists but isn't linked to a company.
+      // Redirecting to login with a generic error is safer than exposing an incomplete state.
+      throw new Error('User account is not fully configured. Please contact support.');
     }
 
   } catch (e) {
@@ -122,7 +124,7 @@ export async function signup(formData: FormData) {
           options: {
               emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
               data: {
-                  company_name: companyName,
+                  company_name: companyName, // This data is used by the handle_new_user trigger
               }
           }
       }),
