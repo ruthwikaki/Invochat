@@ -13,7 +13,7 @@ import { withTimeout } from '@/lib/async-utils';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { config } from '@/config/app-config';
 
-const AUTH_TIMEOUT = config.ai.timeoutMs; // Use a consistent timeout
+const AUTH_TIMEOUT = config.ai.timeoutMs;
 
 function getSupabaseClient() {
     const cookieStore = cookies();

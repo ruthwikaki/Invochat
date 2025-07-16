@@ -9,30 +9,37 @@ import { z } from 'zod';
 
 const EncryptionConfigSchema = z.object({
     ENCRYPTION_KEY: z.string().length(64, "ENCRYPTION_KEY must be a 64-character hex string (32 bytes)."),
-    ENCRYPTION_IV: z.string().length(32, "ENCRYPTION_IV must be a 32-character hex string (16 bytes)."),
 });
 
 const configCheck = EncryptionConfigSchema.safeParse(process.env);
 if (!configCheck.success) {
-    throw new Error(`Encryption keys are not configured correctly in .env: ${configCheck.error.flatten().fieldErrors}`);
+    throw new Error(`Encryption key is not configured correctly in .env: ${configCheck.error.flatten().fieldErrors}`);
 }
-const { ENCRYPTION_KEY, ENCRYPTION_IV } = configCheck.data;
+const { ENCRYPTION_KEY } = configCheck.data;
 const ALGORITHM = 'aes-256-cbc';
 
 function encrypt(text: string): string {
-    const iv = Buffer.from(ENCRYPTION_IV, 'hex');
+    // Generate a unique IV for each encryption
+    const iv = crypto.randomBytes(16);
     const key = Buffer.from(ENCRYPTION_KEY, 'hex');
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    return encrypted;
+    // Prepend the IV to the encrypted text for use during decryption
+    return iv.toString('hex') + ':' + encrypted;
 }
 
 function decrypt(encryptedText: string): string {
-    const iv = Buffer.from(ENCRYPTION_IV, 'hex');
+    const parts = encryptedText.split(':');
+    if (parts.length !== 2) {
+        throw new Error('Invalid encrypted text format.');
+    }
+    const iv = Buffer.from(parts[0], 'hex');
+    const encryptedData = parts[1];
+    
     const key = Buffer.from(ENCRYPTION_KEY, 'hex');
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     return decrypted;
 }

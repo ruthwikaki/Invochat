@@ -76,17 +76,25 @@ export function TeamMembersCard() {
     
     const { mutate: remove } = useMutation({
         mutationFn: removeFormAction,
-        onSuccess: () => {
-            toast({ title: "Member Removed" });
-            queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+        onSuccess: (result) => {
+            if (result.success) {
+                toast({ title: "Member Removed" });
+                queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+            } else {
+                 toast({ variant: 'destructive', title: "Error", description: result.error });
+            }
         }
     });
 
     const { mutate: updateRole } = useMutation({
         mutationFn: updateFormAction,
-         onSuccess: () => {
-            toast({ title: "Role Updated" });
-            queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+         onSuccess: (result) => {
+            if (result.success) {
+                toast({ title: "Role Updated" });
+                queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+            } else {
+                 toast({ variant: 'destructive', title: "Error", description: result.error });
+            }
         }
     });
 

@@ -30,13 +30,11 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
     useEffect(() => {
-        // This effect runs only on the client after hydration
         setCsrfToken(getCookie(CSRF_COOKIE_NAME));
     }, []);
     
     useEffect(() => {
         setError(initialError);
-        // Clear the error from the URL as soon as the component loads with an error.
         if (initialError) {
             const url = new URL(window.location.href);
             url.searchParams.delete('error');

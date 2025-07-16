@@ -313,8 +313,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const email = formData.get('email') as string;
-        // Company name is hardcoded as it's not available here, needs a better solution in a real app
-        await inviteUserToCompanyInDb(companyId, 'Your Company', email);
+        await inviteUserToCompanyInDb(companyId, email);
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
