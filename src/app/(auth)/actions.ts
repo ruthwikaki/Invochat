@@ -12,6 +12,7 @@ import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { config } from '@/config/app-config';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 const AUTH_TIMEOUT = config.ai.timeoutMs;
 
@@ -112,15 +113,16 @@ export async function signup(formData: FormData) {
     }
 
     const supabase = getSupabaseClient();
+    const adminSupabase = getServiceRoleClient();
     
-    const { data, error } = await withTimeout(
+    const { data: { user }, error } = await withTimeout(
       supabase.auth.signUp({
           email,
           password,
           options: {
               emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
               data: {
-                  company_name: companyName,
+                  company_name: companyName, // Temporarily store in metadata
               }
           }
       }),
@@ -132,8 +134,19 @@ export async function signup(formData: FormData) {
         throw new Error(error.message);
     }
 
-    if (!data.user) {
+    if (!user) {
         throw new Error("An unexpected error occurred during signup.");
+    }
+    
+    // Call the database function to create company, user profile, and update metadata
+    const { error: handleNewUserError } = await adminSupabase.rpc('handle_new_user');
+
+    if (handleNewUserError) {
+        logger.error('handle_new_user function failed:', handleNewUserError);
+        // This is a critical failure. We should ideally try to clean up the user.
+        // For now, we will log it and the user will have an incomplete account.
+        await adminSupabase.auth.admin.deleteUser(user.id);
+        throw new Error('Failed to set up your company account. Please contact support.');
     }
     
   } catch(e) {
