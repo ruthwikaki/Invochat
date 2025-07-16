@@ -11,9 +11,6 @@ import { getSecret } from '../encryption';
 import { config } from '@/config/app-config';
 
 const SHOPIFY_API_VERSION = '2024-07';
-const RATE_LIMIT_DELAY = config.integrations.syncDelayMs;
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 function parseLinkHeader(linkHeader: string | null): string | null {
     if (!linkHeader) return null;
@@ -36,8 +33,6 @@ export async function syncProducts(integration: Integration, accessToken: string
         const response = await fetch(nextUrl, {
             headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         });
-        
-        // No synchronous delay here; the process runs in the background.
 
         if (!response.ok) throw new Error(`Shopify API product fetch error (${response.status}): ${await response.text()}`);
 
@@ -131,8 +126,6 @@ export async function syncSales(integration: Integration, accessToken: string) {
         const response = await fetch(nextUrl, {
             headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         });
-        
-        // No synchronous delay here
 
         if (!response.ok) throw new Error(`Shopify API order fetch error (${response.status}): ${await response.text()}`);
 
@@ -162,7 +155,6 @@ export async function syncSales(integration: Integration, accessToken: string) {
 
     logger.info(`[Shopify Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}. Failed: ${failedOrders.length}.`);
     if (failedOrders.length > 0) {
-      // Throw an error to indicate partial failure, allowing the main sync service to handle it.
       throw new Error(`Shopify sales sync completed with ${failedOrders.length} failed orders. Check logs for details.`);
     }
 }

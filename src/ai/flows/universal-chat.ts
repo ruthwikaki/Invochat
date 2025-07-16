@@ -25,12 +25,6 @@ import crypto from 'crypto';
 import { withTimeout } from '@/lib/async-utils';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
 
-// AI RECURSION VULNERABILITY FIX:
-// This list of tools is now strictly curated to only include pure data retrieval functions.
-// Any tool that is a wrapper around another AI flow (like reorder suggestions, hidden money finder, supplier analysis)
-// has been REMOVED from this list. This prevents the main chat agent from calling other agents, which could
-// lead to infinite loops, unexpected behavior, and high costs. The more complex, multi-step AI flows
-// should be triggered from dedicated UI elements, not from the general chat interface.
 const safeToolsForOrchestrator = [
     getEconomicIndicators, 
     getDeadStockReport, 
@@ -121,15 +115,13 @@ const universalChatOrchestrator = ai.defineFlow(
     const aiModel = config.ai.model;
     
     try {
-        // PROMPT INJECTION FIX: The `system` prompt is now static and does not contain user-controllable data like companyId.
-        // Data access is enforced at the database layer via RLS, not at the prompt layer. This is the correct, secure approach.
         const generatePromise = ai.generate({
           model: aiModel,
           tools: safeToolsForOrchestrator,
           history: conversationHistory.slice(0, -1),
           system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
-          prompt: userQuery, // User input is properly separated.
-          maxOutputTokens: config.ai.maxOutputTokens, // TOKEN LIMIT FIX: Enforce token limits
+          prompt: userQuery,
+          maxOutputTokens: config.ai.maxOutputTokens,
         });
 
         const { toolCalls } = await withTimeout(
@@ -138,27 +130,23 @@ const universalChatOrchestrator = ai.defineFlow(
           'The AI model took too long to respond.'
         );
         
-        // Step 2: If a tool is chosen, execute it.
         if (toolCalls && toolCalls.length > 0) {
             const toolCall = toolCalls[0];
             logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCall.name}`);
             
             try {
-                // All tools that take companyId should have it as the first argument. We inject it here securely.
                 const toolArgsWithCompanyId = { companyId, ...toolCall.args };
                 const toolResult = await ai.runTool({ ...toolCall, args: toolArgsWithCompanyId });
                 
-                // Step 3: Use a second AI call to formulate a natural language response from the tool's data.
                 const { output: finalOutput } = await finalResponsePrompt(
                     { userQuery, toolResult: toolResult.output },
-                    { model: aiModel, maxOutputTokens: config.ai.maxOutputTokens } // TOKEN LIMIT FIX
+                    { model: aiModel, maxOutputTokens: config.ai.maxOutputTokens }
                 );
 
                 if (!finalOutput) {
                     throw new Error('The AI model did not return a valid final response object after tool use.');
                 }
                 
-                // If the tool output has its own nested data (like the supplier analysis flow), use that for the visualization.
                 const dataForVisualization = toolResult.output.performanceData || toolResult.output;
                 
                 const responseToCache = {
@@ -185,13 +173,12 @@ const universalChatOrchestrator = ai.defineFlow(
             }
         }
 
-        // Step 4: If no tool is called, the AI should answer directly.
         logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
         const directResponsePromise = ai.generate({
             model: aiModel,
             history: conversationHistory.slice(0, -1),
             prompt: userQuery,
-            maxOutputTokens: config.ai.maxOutputTokens, // TOKEN LIMIT FIX
+            maxOutputTokens: config.ai.maxOutputTokens,
         });
 
         const { text } = await withTimeout(
@@ -217,7 +204,6 @@ const universalChatOrchestrator = ai.defineFlow(
         const errorMessage = getErrorMessage(e);
         logError(e, { context: `Universal Chat Flow failed for query: "${userQuery}"` });
 
-        // Check for specific AI service availability errors
         if (errorMessage.includes('503') || errorMessage.includes('unavailable') || errorMessage.includes('timed out')) {
              return {
                 response: `I'm sorry, but the AI service is currently unavailable or took too long to respond. This may be a temporary issue. Please try again in a few moments.`,
@@ -235,8 +221,8 @@ const universalChatOrchestrator = ai.defineFlow(
             visualization: { type: 'none', title: '' },
             confidence: 0.0,
             assumptions: ['An unexpected error occurred in the AI processing flow.'],
-            isError: true, // Custom flag to indicate an error state in the UI
-        } as any; // Cast to any to allow the `isError` flag
+            isError: true,
+        } as any;
     }
   }
 );

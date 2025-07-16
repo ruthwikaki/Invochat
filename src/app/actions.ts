@@ -116,7 +116,6 @@ export async function getMessages(conversationId: string) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return [];
 
-        // Update last accessed time
         await supabase
             .from('conversations')
             .update({ last_accessed_at: new Date().toISOString() })
@@ -164,7 +163,6 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
         };
         await saveMessage(userMessageToSave);
 
-        // Fetch recent messages for history
         const cookieStore = cookies();
         const supabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -222,7 +220,8 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
             assumptions: response.assumptions,
             created_at: new Date().toISOString(),
             component,
-            componentProps
+            componentProps,
+            isError: (response as any).isError || false,
         };
 
         await saveMessage({ ...newMessage, id: undefined, created_at: undefined });

@@ -10,9 +10,6 @@ import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 import { config } from '@/config/app-config';
 
-const RATE_LIMIT_DELAY = config.integrations.syncDelayMs;
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 async function wooCommerceFetch(
     storeUrl: string,
     consumerKey: string,
@@ -53,7 +50,6 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             'products',
             { per_page: 50, page: currentPage }
         );
-        // No synchronous delay here
 
         if (wooProducts.length === 0) break;
 
@@ -85,11 +81,9 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             const productIdMap = new Map(upsertedProducts?.map(p => [p.external_product_id, p.id]));
             const variantsToUpsert: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[] = [];
 
-            // Batch fetch variations for all variable products on the page
             const variableProductIds = wooProducts.filter((p: any) => p.type === 'variable' && p.variations.length > 0).map((p: any) => p.id);
             const allVariations: any[] = [];
             
-            // N+1 Query Fix: Instead of looping, batch variation fetches.
             if (variableProductIds.length > 0) {
                  const variationPromises = variableProductIds.map(productId => 
                     wooCommerceFetch(
@@ -108,7 +102,6 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 const internalProductId = productIdMap.get(String(wooProduct.id));
                 if (!internalProductId) continue;
 
-                // Handle simple products (no variants)
                 if (wooProduct.type === 'simple') {
                     variantsToUpsert.push({
                         product_id: internalProductId,
@@ -116,7 +109,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         sku: wooProduct.sku || `WOO-${wooProduct.id}`,
                         title: null,
                         price: Math.round(parseFloat(wooProduct.price || 0) * 100),
-                        cost: null, // WooCommerce does not have a standard cost field
+                        cost: null,
                         inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),
                         location: null,
@@ -125,7 +118,6 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 }
             }
 
-            // Process fetched variations
             for (const variantDetails of allVariations) {
                 const internalProductId = productIdMap.get(String(variantDetails.parent_id));
                 if (!internalProductId) continue;
@@ -182,7 +174,6 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
             'orders',
             { per_page: 50, page: currentPage }
         );
-        // No synchronous delay here
         
         if (orders.length === 0) break;
 
