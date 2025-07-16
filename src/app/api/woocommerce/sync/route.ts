@@ -17,21 +17,12 @@ const syncSchema = z.object({
   integrationId: z.string().uuid(),
 });
 
-/**
- * Validates the signature and timestamp of a WooCommerce webhook request.
- * @param request The incoming NextRequest.
- * @returns A promise that resolves to true if the signature is valid and recent, false otherwise.
- */
 async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
     const signature = request.headers.get('x-wc-webhook-signature');
     if (!signature) {
         return false;
     }
     
-    // WooCommerce does not provide a standard timestamp header for replay protection.
-    // The replay protection based on webhook ID is the primary defense here.
-    // A timestamp check could be added if a custom header is sent from WooCommerce.
-
     const webhookSecret = process.env.WOOCOMMERCE_WEBHOOK_SECRET;
     if (!webhookSecret) {
         logError(new Error('WOOCOMMERCE_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
@@ -48,21 +39,20 @@ async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600); // Limit to 10 syncs per hour
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600);
         if (limited) {
             return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
         }
         
-        // --- Webhook Replay Protection ---
         const webhookId = request.headers.get('x-wc-webhook-id');
-        const shopDomain = request.headers.get('x-wc-webhook-source'); // WooCommerce uses this header
+        const shopDomain = request.headers.get('x-wc-webhook-source');
         
         if (webhookId && shopDomain) {
             const supabase = getServiceRoleClient();
             const { data: integration } = await supabase
                 .from('integrations')
                 .select('id')
-                .eq('shop_domain', shopDomain) // Find integration by its domain
+                .eq('shop_domain', shopDomain)
                 .single();
 
             if (integration) {
@@ -73,8 +63,6 @@ export async function POST(request: Request) {
                 }
             }
         }
-        // --- End Webhook Replay Protection ---
-
 
         const cookieStore = cookies();
         const authSupabase = createServerClient(
@@ -85,7 +73,7 @@ export async function POST(request: Request) {
             }
         );
         const { data: { user } } = await authSupabase.auth.getUser();
-        const companyId = user?.app_metadata?.company_id;
+        let companyId = user?.app_metadata?.company_id;
 
         const isUserTriggered = !!(user && companyId);
         const isWebhookTriggered = await validateWooCommerceWebhook(request.clone());
@@ -103,6 +91,19 @@ export async function POST(request: Request) {
 
         const { integrationId } = parsed.data;
         
+        if (isWebhookTriggered && !companyId) {
+            const supabase = getServiceRoleClient();
+             const { data: integration } = await supabase.from('integrations').select('company_id').eq('id', integrationId).single();
+             if (!integration) {
+                return NextResponse.json({ error: 'Integration not found for webhook.' }, { status: 404 });
+             }
+             companyId = integration.company_id;
+        }
+
+        if (!companyId) {
+             return NextResponse.json({ error: 'Company could not be determined for sync operation.' }, { status: 400 });
+        }
+
         runSync(integrationId, companyId).catch(err => {
              logError(err, { context: 'Background sync failed', integrationId });
         });

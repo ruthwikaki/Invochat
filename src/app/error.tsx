@@ -35,7 +35,7 @@ export default function Error({
             </CardHeader>
             <CardContent>
                 {isDev && (
-                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md mb-4 font-mono text-left">
+                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md mb-4 font-mono text-left max-h-40 overflow-auto">
                       Error: {error.message}
                   </p>
                 )}

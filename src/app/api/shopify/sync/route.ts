@@ -17,21 +17,14 @@ const syncSchema = z.object({
   integrationId: z.string().uuid(),
 });
 
-/**
- * Validates the HMAC signature and timestamp of a Shopify webhook request.
- * @param request The incoming NextRequest.
- * @returns A promise that resolves to true if the signature is valid and recent, false otherwise.
- */
 async function validateShopifyWebhook(request: Request): Promise<boolean> {
     const shopifyHmac = request.headers.get('x-shopify-hmac-sha256');
     const shopifyTimestamp = request.headers.get('x-shopify-request-timestamp');
 
-    // 1. Check for presence of required headers
     if (!shopifyHmac || !shopifyTimestamp) {
         return false;
     }
 
-    // 2. Validate timestamp to prevent replay attacks
     const requestTime = parseInt(shopifyTimestamp, 10);
     const now = Math.floor(Date.now() / 1000);
     if (Math.abs(now - requestTime) > config.integrations.webhookReplayWindowSeconds) {
@@ -42,7 +35,7 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
     const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
     if (!shopifyWebhookSecret) {
         logError(new Error('SHOPIFY_WEBHOOK_SECRET is not set. Cannot validate webhook.'));
-        return false; // Cannot validate without the secret
+        return false;
     }
     
     const body = await request.text();
@@ -52,11 +45,9 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
         .update(body)
         .digest('base64');
     
-    // 3. Compare HMAC signatures using a timing-safe method
     try {
         return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(shopifyHmac));
     } catch (error) {
-        // This can happen if the buffers have different lengths
         return false;
     }
 }
@@ -65,12 +56,11 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600); // Limit to 10 syncs per hour
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600);
         if (limited) {
             return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
         }
 
-        // --- Webhook Replay Protection ---
         const webhookId = request.headers.get('x-shopify-webhook-id');
         const shopDomain = request.headers.get('x-shopify-shop-domain');
         
@@ -85,16 +75,12 @@ export async function POST(request: Request) {
             if (integration) {
                 const { success, error } = await logWebhookEvent(integration.id, 'shopify', webhookId);
                 if (!success) {
-                    // This means the webhook ID has been processed before.
                     logError(new Error(`Shopify webhook replay attempt detected: ${webhookId}`), { status: 409 });
                     return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
                 }
             }
         }
-        // --- End Webhook Replay Protection ---
 
-
-        // --- Server-side Authentication & Authorization ---
         const cookieStore = cookies();
         const authSupabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -106,9 +92,7 @@ export async function POST(request: Request) {
         const { data: { user } } = await authSupabase.auth.getUser();
         let companyId = user?.app_metadata?.company_id;
 
-        // An action can be triggered by an authenticated user OR a valid webhook
         const isUserTriggered = !!(user && companyId);
-        // The clone is needed because the body can only be read once.
         const isWebhookTriggered = await validateShopifyWebhook(request.clone());
         
         if (!isUserTriggered && !isWebhookTriggered) {
@@ -124,7 +108,6 @@ export async function POST(request: Request) {
 
         const { integrationId } = parsed.data;
 
-        // If triggered by webhook, we need to look up the companyId
         if (isWebhookTriggered && !companyId) {
             const supabase = getServiceRoleClient();
              const { data: integration } = await supabase.from('integrations').select('company_id').eq('id', integrationId).single();
@@ -134,10 +117,10 @@ export async function POST(request: Request) {
              companyId = integration.company_id;
         }
 
+        if (!companyId) {
+             return NextResponse.json({ error: 'Company could not be determined for sync operation.' }, { status: 400 });
+        }
 
-        // Intentionally not awaiting this to allow for a quick response to the client.
-        // This process runs in the background. In a production app with very large stores,
-        // this would be offloaded to a dedicated background worker/queue system (e.g., BullMQ, Inngest).
         runSync(integrationId, companyId).catch(err => {
              logError(err, { context: 'Background sync failed', integrationId });
         });

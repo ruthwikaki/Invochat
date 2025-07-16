@@ -310,10 +310,11 @@ export async function getTeamMembers() {
 }
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userEmail } = await getAuthContext();
         validateCSRF(formData);
         const email = formData.get('email') as string;
-        await inviteUserToCompanyInDb(companyId, email);
+        const company = await getCompanyById(companyId);
+        await inviteUserToCompanyInDb(companyId, company?.name || 'your company', email);
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -326,7 +327,9 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
-        return await removeTeamMemberFromDb(memberId, companyId, userId);
+        const result = await removeTeamMemberFromDb(memberId, companyId, userId);
+        revalidatePath('/settings/profile');
+        return { success: result.success, error: result.error };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -339,7 +342,9 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
         
-        return await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        const result = await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        revalidatePath('/settings/profile');
+        return { success: result.success, error: result.error };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
