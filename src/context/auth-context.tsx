@@ -49,7 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === 'SIGNED_IN') {
           router.refresh();
         } else if (event === 'SIGNED_OUT') {
-          router.push('/login');
+          // The middleware will handle the redirect to /login
+          router.refresh();
         }
       }
     );

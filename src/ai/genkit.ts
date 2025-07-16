@@ -11,6 +11,7 @@ import { envValidation } from '@/config/app-config';
 logger.info('[Genkit] Initializing Genkit with Google AI plugin...');
 
 // Directly export the configured 'ai' instance.
+// The Firebase plugin has been removed to resolve the authentication conflict.
 export const ai = genkit({
     plugins: [
         googleAI({ apiKey: process.env.GOOGLE_API_KEY })
