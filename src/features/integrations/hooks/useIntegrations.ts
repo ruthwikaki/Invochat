@@ -1,42 +1,33 @@
 
-
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { getIntegrations } from '@/app/data-actions';
 import type { Integration, Platform } from '@/types';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useIntegrations() {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [integrations, setIntegrations] = useState<Integration[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const queryClient = useQueryClient();
     const [isSyncing, startSyncTransition] = useTransition();
-    
-    useEffect(() => {
-        if (!user) { // Don't fetch if no user
-            setLoading(false);
-            return;
-        }
-        async function fetchIntegrations() {
-            try {
-                const data = await getIntegrations();
-                setIntegrations(data);
-            } catch (e: any) {
-                setError(e.message);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchIntegrations();
-    }, [user]);
+
+    const { data: integrations, isLoading, error } = useQuery<Integration[], Error>({
+        queryKey: ['integrations'],
+        queryFn: getIntegrations,
+        enabled: !!user, // Only fetch if the user is logged in
+    });
     
     const triggerSync = (integrationId: string, platform: Platform) => {
         startSyncTransition(async () => {
+            // Optimistically update the UI
+            queryClient.setQueryData<Integration[]>(['integrations'], (oldData) => 
+                oldData ? oldData.map(i => i.id === integrationId ? { ...i, sync_status: 'syncing' } : i) : []
+            );
+
             try {
                 const payload = { integrationId };
                 const apiUrl = `/api/${platform}/sync`;
@@ -59,14 +50,20 @@ export function useIntegrations() {
                 
                 const result = await response.json();
                 toast({ title: 'Sync Started', description: result.message || 'Your data will be updated shortly.'});
-                setIntegrations(prev => 
-                    prev.map(i => i.id === integrationId ? { ...i, sync_status: 'syncing' } : i)
-                );
+                
             } catch(e) {
                 toast({ variant: 'destructive', title: 'Sync Failed', description: getErrorMessage(e) });
+                // On failure, invalidate the query to refetch and revert the optimistic update
+                queryClient.invalidateQueries({ queryKey: ['integrations'] });
             }
         });
     };
 
-    return { integrations, loading, error, triggerSync };
+    return { 
+        integrations: integrations || [], 
+        loading: isLoading, 
+        error: error ? error.message : null, 
+        triggerSync,
+        isSyncing
+    };
 }

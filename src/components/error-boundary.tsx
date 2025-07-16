@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
@@ -27,11 +28,12 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    logger.error('React Error Boundary Caught:', { error, errorInfo });
+    logger.error('React Error Boundary Caught:', { error: error.message, componentStack: errorInfo.componentStack });
   }
 
   public render() {
     if (this.state.hasError) {
+      const isDev = process.env.NODE_ENV === 'development';
       return (
         <div className="flex items-center justify-center h-full p-4">
             <Card className="w-full max-w-md text-center">
@@ -45,7 +47,7 @@ class ErrorBoundary extends Component<Props, State> {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {this.state.error?.message && (
+                    {isDev && this.state.error?.message && (
                         <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md mb-4 font-mono text-left max-h-40 overflow-auto">
                            Error: {this.state.error.message}
                         </p>

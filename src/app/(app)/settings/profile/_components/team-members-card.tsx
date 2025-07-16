@@ -77,13 +77,15 @@ export function TeamMembersCard() {
     const { mutate: remove } = useMutation({
         mutationFn: removeFormAction,
         onSuccess: () => {
+            toast({ title: "Member Removed" });
             queryClient.invalidateQueries({ queryKey: ['teamMembers']});
         }
     });
 
     const { mutate: updateRole } = useMutation({
         mutationFn: updateFormAction,
-        onSuccess: () => {
+         onSuccess: () => {
+            toast({ title: "Role Updated" });
             queryClient.invalidateQueries({ queryKey: ['teamMembers']});
         }
     });

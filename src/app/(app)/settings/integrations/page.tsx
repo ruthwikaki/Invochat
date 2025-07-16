@@ -4,6 +4,8 @@ import { IntegrationsClientPage } from "@/features/integrations/components/Integ
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query';
+import { getIntegrations } from "@/app/data-actions";
 
 function IntegrationsLoadingSkeleton() {
     return (
@@ -29,16 +31,24 @@ function IntegrationsLoadingSkeleton() {
     )
 }
 
-export default function IntegrationsPage() {
+export default async function IntegrationsPage() {
+    const queryClient = new QueryClient();
+    await queryClient.prefetchQuery({
+        queryKey: ['integrations'],
+        queryFn: getIntegrations,
+    });
+
     return (
         <div className="space-y-6">
             <AppPageHeader 
                 title="Integrations"
                 description="Connect your e-commerce platforms and other services to sync data automatically."
             />
-            <Suspense fallback={<IntegrationsLoadingSkeleton />}>
-                <IntegrationsClientPage />
-            </Suspense>
+            <HydrationBoundary state={dehydrate(queryClient)}>
+                <Suspense fallback={<IntegrationsLoadingSkeleton />}>
+                    <IntegrationsClientPage />
+                </Suspense>
+            </HydrationBoundary>
         </div>
     )
 }
