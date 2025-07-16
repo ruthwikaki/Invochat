@@ -20,11 +20,13 @@ export default function DatabaseSetupPage() {
         </CardHeader>
         <CardContent className="text-center space-y-4">
             <p className="text-sm text-muted-foreground">
-                You must run a one-time setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for ARVO to work correctly.
+                You must run a setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for ARVO to work correctly.
             </p>
             <div className="text-left p-4 bg-muted rounded-md border text-sm">
                 <p>1. In your project, find the file located at: <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></p>
-                <p>2. Copy the entire contents of this file.</p>
+                <p className="font-semibold mt-2">IMPORTANT: If you have run a script before and are seeing errors, please use the migration script instead:</p>
+                <p><code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/migration-2024-07-17.sql</code></p>
+                <p className="mt-2">2. Copy the entire contents of the correct file.</p>
                 <p>3. Go to your Supabase project dashboard and navigate to the <span className="font-semibold">SQL Editor</span>.</p>
                 <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">"Run"</span>.</p>
             </div>
