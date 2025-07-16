@@ -82,17 +82,3 @@ export function useAuth() {
   }
   return context;
 }
-
-// Helper hook to require authentication
-export function useRequireAuth(redirectTo = '/login') {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push(redirectTo);
-    }
-  }, [user, loading, router, redirectTo]);
-
-  return { user, loading };
-}
