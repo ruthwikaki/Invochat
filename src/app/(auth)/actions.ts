@@ -122,7 +122,7 @@ export async function signup(formData: FormData) {
           options: {
               emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
               data: {
-                  company_name: companyName, // Temporarily store in metadata
+                  company_name: companyName, // Temporarily store in metadata for the DB function
               }
           }
       }),
@@ -138,13 +138,13 @@ export async function signup(formData: FormData) {
         throw new Error("An unexpected error occurred during signup.");
     }
     
-    // Call the database function to create company, user profile, and update metadata
-    const { error: handleNewUserError } = await adminSupabase.rpc('handle_new_user');
+    // As the new user, call the database function to create the company and user profile.
+    // The handle_new_user function uses the JWT of the calling user to get their ID and metadata.
+    const { error: handleNewUserError } = await supabase.rpc('handle_new_user');
 
     if (handleNewUserError) {
         logger.error('handle_new_user function failed:', handleNewUserError);
-        // This is a critical failure. We should ideally try to clean up the user.
-        // For now, we will log it and the user will have an incomplete account.
+        // This is a critical failure. Clean up the partially created user.
         await adminSupabase.auth.admin.deleteUser(user.id);
         throw new Error('Failed to set up your company account. Please contact support.');
     }
