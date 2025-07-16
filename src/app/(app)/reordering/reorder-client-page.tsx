@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -14,8 +13,8 @@ import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import Papa from 'papaparse';
 import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/data-actions';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -26,18 +25,18 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     const confidenceColor = confidence > 0.7 
         ? 'text-success' 
         : confidence > 0.4 
-        ? 'text-amber-500' 
+        ? 'text-warning' 
         : 'text-destructive';
 
     const confidenceIcon = confidence < 0.4 
         ? <AlertTriangle className="h-4 w-4 mr-1 text-destructive" /> 
-        : <BrainCircuit className="h-4 w-4" />;
+        : <BrainCircuit className="h-4 w-4 text-accent" />;
 
     return (
          <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <span className="flex items-center gap-1 cursor-help text-primary">
+                    <span className="flex items-center gap-1 cursor-help text-accent">
                         {confidenceIcon}
                         AI Adjusted
                     </span>
@@ -49,7 +48,7 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
                          <p className="text-xs"><strong className={cn(confidenceColor)}>Confidence:</strong> {(suggestion.confidence * 100).toFixed(0)}%</p>
                     )}
                     {suggestion.seasonality_factor && (
-                         <p className="text-xs"><strong>Seasonality Factor:</strong> {suggestion.seasonality_factor.toFixed(2)}x</p>
+                         <p className="text-xs font-tabular"><strong>Seasonality Factor:</strong> {suggestion.seasonality_factor.toFixed(2)}x</p>
                     )}
                 </TooltipContent>
             </Tooltip>
@@ -80,14 +79,19 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
             return;
         }
 
-        const result = await createPurchaseOrdersFromSuggestions(selectedSuggestions);
+        const formData = new FormData();
+        const csrfToken = getCookie(CSRF_FORM_NAME);
+        if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
+        formData.append('suggestions', JSON.stringify(selectedSuggestions));
+
+        const result = await createPurchaseOrdersFromSuggestions(formData);
         
         if (result.success) {
             toast({
               title: 'Purchase Orders Created!',
               description: `${result.createdPoCount} new PO(s) have been generated.`,
             });
-            router.push('/purchase-orders'); // A page that doesn't exist yet, but logical destination
+            router.push('/purchase-orders');
             router.refresh();
         } else {
             toast({
@@ -111,7 +115,6 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
             const blob = new Blob([result.data], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.setAttribute('href', url);
             link.setAttribute('download', `reorder-report-${new Date().toISOString().split('T')[0]}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
@@ -186,9 +189,9 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                         <div className="text-xs text-muted-foreground">{suggestion.sku}</div>
                     </TableCell>
                     <TableCell>{suggestion.supplier_name}</TableCell>
-                    <TableCell className="text-right">{suggestion.current_quantity}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">{suggestion.base_quantity}</TableCell>
-                    <TableCell className="text-right font-bold text-primary">{suggestion.suggested_reorder_quantity}</TableCell>
+                    <TableCell className="text-right font-tabular">{suggestion.current_quantity}</TableCell>
+                    <TableCell className="text-right text-muted-foreground font-tabular">{suggestion.base_quantity}</TableCell>
+                    <TableCell className="text-right font-bold text-primary font-tabular">{suggestion.suggested_reorder_quantity}</TableCell>
                     <TableCell>
                         <AiReasoning suggestion={suggestion} />
                     </TableCell>
