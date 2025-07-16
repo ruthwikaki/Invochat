@@ -15,13 +15,13 @@ This project requires a few environment variables to connect to its services.
     ```bash
     cp .env.example .env
     ```
-2.  Open the newly created `.env` file and add your credentials. The file contains comments explaining where to find each value.
+2.  Open the newly created `.env` file and add your credentials. The file contains comments explaining where to find each value. **You must generate your own `ENCRYPTION_KEY` and `ENCRYPTION_IV` for the application to start.**
 
 ### 2. Database Setup
 
 For the application to function correctly, you must run a one-time setup script in your Supabase project.
 
-1.  In this project, find the file located at `src/lib/database-schema.sql`.
+1.  In this project, find the file located at: `src/lib/database-schema.sql`.
 2.  Copy the **entire contents** of this file.
 3.  Navigate to the **SQL Editor** in your Supabase project dashboard.
 4.  Paste the copied SQL code into the editor and click **"Run"**.
