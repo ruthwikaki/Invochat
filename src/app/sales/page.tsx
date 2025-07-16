@@ -1,3 +1,4 @@
+
 import { getSales, exportSales, getSalesAnalytics } from '@/app/data-actions';
 import { SalesClientPage } from '@/components/sales/sales-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -20,9 +21,9 @@ export default async function SalesPage({
     getSalesAnalytics(),
   ]);
 
-  const handleExport = async () => {
+  const handleExport = async (params: { query: string }) => {
     'use server';
-    return exportSales({ query });
+    return exportSales(params);
   }
 
   return (

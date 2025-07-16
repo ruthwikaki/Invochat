@@ -2,7 +2,7 @@
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import {
   getSettings,
@@ -42,15 +42,9 @@ import {
   getChannelFeesFromDB,
   upsertChannelFeeInDB,
   getCashFlowInsightsFromDB,
-  getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB,
   getCompanyById,
   testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
-  logPOCreationInDb,
-  transferStockInDb,
-  logWebhookEvent,
-  getDashboardMetrics,
   reconcileInventoryInDb,
   getReorderSuggestionsFromDB,
   createPurchaseOrdersInDb,
@@ -155,6 +149,7 @@ export async function createSupplier(data: SupplierFormData) {
     try {
         const { companyId } = await getAuthContext();
         await createSupplierInDb(companyId, data);
+        revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -165,6 +160,7 @@ export async function updateSupplier(id: string, data: SupplierFormData) {
     try {
         const { companyId } = await getAuthContext();
         await updateSupplierInDb(id, companyId, data);
+        revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -310,11 +306,12 @@ export async function getTeamMembers() {
 }
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId, userEmail } = await getAuthContext();
+        const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const email = formData.get('email') as string;
         const company = await getCompanyById(companyId);
         await inviteUserToCompanyInDb(companyId, company?.name || 'your company', email);
+        revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -441,8 +438,7 @@ export async function getCashFlowInsights() {
     const { companyId } = await getAuthContext();
     return getCashFlowInsightsFromDB(companyId);
 }
-export async function getSupplierPerformance() { return []; }
-export async function getInventoryTurnover() { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
+
 export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { 
     try {
         const { userEmail } = await getAuthContext();
@@ -490,8 +486,6 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
     }
 }
 export async function testMaterializedView() { return {success: true}; }
-export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }
-export async function transferStock(formData: FormData) { return {success: false, error: "Not implemented"}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
      const { companyId } = await getAuthContext();

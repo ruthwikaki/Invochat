@@ -9,7 +9,7 @@ import { AppInitializer } from '@/components/app-initializer';
 import { envValidation } from '@/config/app-config';
 import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
 import { AuthProvider } from '@/context/auth-context';
-import { QueryClientProvider } from '@/context/query-client-provider';
+import { QueryClientProvider } from '@tanstack/react-query';
 
 
 const inter = Inter({
