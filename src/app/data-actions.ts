@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -203,11 +202,10 @@ export async function disconnectIntegration(formData: FormData) {
     }
 }
 
-export async function getCustomersData(params: { query?: string, page: number }) {
+export async function getCustomersData(params: { query?: string, page: number, limit: number }) {
     const { companyId } = await getAuthContext();
-    const limit = 25;
-    const offset = (params.page - 1) * limit;
-    return getCustomersFromDB(companyId, { ...params, limit, offset });
+    const offset = (params.page - 1) * params.limit;
+    return getCustomersFromDB(companyId, { ...params, offset });
 }
 
 export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {

@@ -1,4 +1,3 @@
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -151,14 +150,14 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
     const { error } = await supabase.from('suppliers').delete().eq('id', id).eq('company_id', companyId);
     if (error) throw error;
 }
-export async function getCustomersFromDB(companyId: string, params: any) { 
+export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const supabase = getServiceRoleClient();
     let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(params.query) {
         query = query.or(`customer_name.ilike.%${params.query}%,email.ilike.%${params.query}%`);
     }
     const limit = Math.min(params.limit || 25, 100);
-    const { data, error, count } = await query.range(params.offset, params.offset + limit - 1);
+    const { data, error, count } = await query.order('created_at', { ascending: false }).range(params.offset, params.offset + limit - 1);
     if(error) throw error;
     return {items: data || [], totalCount: count || 0};
 }
