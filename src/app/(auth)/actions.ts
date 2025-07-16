@@ -1,3 +1,4 @@
+
 'use server';
 
 import { z } from 'zod';
@@ -10,8 +11,9 @@ import { logger } from '@/lib/logger';
 import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { config } from '@/config/app-config';
 
-const AUTH_TIMEOUT = 15000; // 15 seconds
+const AUTH_TIMEOUT = config.ai.timeoutMs; // Use a consistent timeout
 
 function getSupabaseClient() {
     const cookieStore = cookies();
@@ -51,7 +53,7 @@ export async function login(formData: FormData) {
     const { email, password } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'auth', 5, 60, true); // Fail closed
+    const { limited } = await rateLimit(ip, 'auth', config.ratelimit.auth, 60, true);
     if (limited) {
       throw new Error('Too many requests. Please try again in a minute.');
     }
@@ -64,15 +66,11 @@ export async function login(formData: FormData) {
     );
 
     if (error || !data.session) {
+      // Use a more specific error for unconfirmed emails
+      if (error?.message.includes('Email not confirmed')) {
+        throw new Error('Please confirm your email before signing in.');
+      }
       throw new Error(error?.message || 'Login failed. Check credentials or confirm your email.');
-    }
-    
-    // Check for company_id which indicates the initial setup trigger has run.
-    const companyId = data.user.app_metadata?.company_id;
-    if (!companyId) {
-      // This is a rare edge case where the user exists but isn't linked to a company.
-      // Redirecting to login with a generic error is safer than exposing an incomplete state.
-      throw new Error('User account is not fully configured. Please contact support.');
     }
 
   } catch (e) {
@@ -84,7 +82,7 @@ export async function login(formData: FormData) {
       return redirect(`/login?error=${encodeURIComponent(errorMessage)}`);
   }
   
-  revalidatePath('/dashboard', 'page');
+  revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
 
@@ -108,7 +106,7 @@ export async function signup(formData: FormData) {
     const { email, password, companyName } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'auth', 5, 60, true); // Fail closed
+    const { limited } = await rateLimit(ip, 'auth', config.ratelimit.auth, 60, true);
     if (limited) {
       logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
       throw new Error('Too many requests. Please try again in a minute.');
@@ -167,7 +165,7 @@ export async function requestPasswordReset(formData: FormData) {
     const { email } = parsed.data;
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'password_reset', 3, 300, true); // Fail closed
+    const { limited } = await rateLimit(ip, 'password_reset', 3, 300, true);
     if (limited) {
       throw new Error('Too many password reset requests. Please try again in 5 minutes.');
     }
