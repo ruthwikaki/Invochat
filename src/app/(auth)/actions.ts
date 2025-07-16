@@ -66,7 +66,6 @@ export async function login(formData: FormData) {
     );
 
     if (error || !data.session) {
-      // Use a more specific error for unconfirmed emails
       if (error?.message.includes('Email not confirmed')) {
         throw new Error('Please confirm your email before signing in.');
       }
@@ -121,7 +120,7 @@ export async function signup(formData: FormData) {
           options: {
               emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
               data: {
-                  company_name: companyName, // This data is used by the handle_new_user trigger
+                  company_name: companyName,
               }
           }
       }),

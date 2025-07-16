@@ -19,27 +19,15 @@ if (!configCheck.success) {
 const { ENCRYPTION_KEY, ENCRYPTION_IV } = configCheck.data;
 const ALGORITHM = 'aes-256-cbc';
 
-/**
- * Encrypts a plaintext string.
- * @param text The plaintext string to encrypt.
- * @returns The encrypted string in 'iv:encryptedData' format.
- */
 function encrypt(text: string): string {
     const iv = Buffer.from(ENCRYPTION_IV, 'hex');
     const key = Buffer.from(ENCRYPTION_KEY, 'hex');
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    // We can use a static IV because the key in the Vault is already unique per company/integration.
-    // This simplifies decryption as we don't need to store a new IV for every secret.
     return encrypted;
 }
 
-/**
- * Decrypts an encrypted string.
- * @param encryptedText The encrypted string.
- * @returns The decrypted plaintext string.
- */
 function decrypt(encryptedText: string): string {
     const iv = Buffer.from(ENCRYPTION_IV, 'hex');
     const key = Buffer.from(ENCRYPTION_KEY, 'hex');
@@ -50,14 +38,6 @@ function decrypt(encryptedText: string): string {
 }
 
 
-/**
- * Creates or updates a secret in the Supabase Vault after encrypting it.
- * The secret name is deterministically generated based on the company and integration platform.
- * @param companyId The UUID of the company.
- * @param platform The integration platform (e.g., 'shopify').
- * @param plaintextValue The raw value of the secret to store (e.g., an API token).
- * @returns The UUID of the created or updated secret.
- */
 export async function createOrUpdateSecret(companyId: string, platform: string, plaintextValue: string): Promise<string> {
     const supabase = getServiceRoleClient();
     const secretName = `${platform}_token_${companyId}`;
@@ -71,7 +51,6 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
         });
         
         if (error) {
-            // If the secret already exists, try to update it instead.
             if (error.message.includes('unique constraint')) {
                 logger.info(`[Vault] Secret for ${secretName} already exists. Updating it instead.`);
                 const { data: updatedSecret, error: updateError } = await supabase.vault.secrets.update(secretName, {
@@ -93,13 +72,6 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
     }
 }
 
-
-/**
- * Retrieves and decrypts a secret from the Supabase Vault.
- * @param companyId The UUID of the company.
- * @param platform The integration platform.
- * @returns The plaintext secret value, or null if not found.
- */
 export async function getSecret(companyId: string, platform: string): Promise<string | null> {
     const supabase = getServiceRoleClient();
     const secretName = `${platform}_token_${companyId}`;
@@ -108,7 +80,6 @@ export async function getSecret(companyId: string, platform: string): Promise<st
         const { data, error } = await supabase.vault.secrets.retrieve(secretName);
         
         if (error) {
-            // A 404 error is expected if the secret doesn't exist, so we handle it gracefully.
             if (error.message.includes('404')) {
                 logger.warn(`[Vault] Secret not found for ${secretName}`);
                 return null;
@@ -126,51 +97,4 @@ export async function getSecret(companyId: string, platform: string): Promise<st
         logError(e, { context: 'getSecret', companyId, platform });
         throw e;
     }
-}
-
-/**
- * Deletes a secret from the Supabase Vault.
- * @param companyId The UUID of the company.
- * @param platform The integration platform.
- */
-export async function deleteSecret(companyId: string, platform: string): Promise<void> {
-    const supabase = getServiceRoleClient();
-    const secretName = `${platform}_token_${companyId}`;
-    
-    try {
-        const { error } = await supabase.vault.secrets.delete(secretName);
-        
-        if (error && !error.message.includes('404')) {
-            throw new Error(`Failed to delete secret: ${error.message}`);
-        }
-        
-        logger.info(`[Vault] Successfully deleted secret for ${secretName}.`);
-    } catch (e: any) {
-        logError(e, { context: 'deleteSecret', companyId, platform });
-        throw e;
-    }
-}
-
-/**
- * A stub function for a key rotation process.
- * In a real implementation, this would involve creating a new key in the KMS,
- * re-encrypting all secrets for a company with the new key, and then updating
- * the vault to use the new key ID.
- * @param companyId The UUID of the company.
- * @param platform The integration platform to rotate keys for.
- */
-export async function rotateEncryptionKeys(companyId: string, platform: string): Promise<{ success: boolean; message: string }> {
-    logger.info(`[Vault] Key rotation initiated for company ${companyId}, platform ${platform}.`);
-    // This is a placeholder for a complex workflow. A real implementation would:
-    // 1. Generate a new encryption key version in the Key Management Service.
-    // 2. Fetch the current encrypted secret from the vault.
-    // 3. Decrypt the secret with the old key.
-    // 4. Re-encrypt the secret with the new key.
-    // 5. Update the secret in the vault with the new encrypted value and new key_id.
-    // 6. Log the rotation event in the audit trail.
-    logger.warn(`[Vault] This is a stub function. No keys were actually rotated.`);
-    return {
-        success: true,
-        message: 'Key rotation process simulated. No actual changes were made.'
-    };
 }

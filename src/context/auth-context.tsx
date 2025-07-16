@@ -23,7 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = createBrowserSupabaseClient();
 
   useEffect(() => {
-    // Check active session
     const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -38,18 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkSession();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
 
-        // Handle sign in/out navigation
         if (event === 'SIGNED_IN') {
           router.refresh();
         } else if (event === 'SIGNED_OUT') {
-          // The middleware will handle the redirect to /login
           router.refresh();
         }
       }

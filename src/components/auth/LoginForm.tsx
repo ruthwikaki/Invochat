@@ -35,7 +35,6 @@ export function LoginForm({ error: initialError }: LoginFormProps) {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
   useEffect(() => {
-    // This effect runs only on the client after hydration
     setCsrfToken(getCookie(CSRF_COOKIE_NAME));
   }, []);
 
