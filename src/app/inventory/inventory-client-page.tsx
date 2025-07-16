@@ -17,7 +17,7 @@ import { Package, Sparkles } from 'lucide-react';
 import { ExportButton } from '@/components/ui/export-button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
-import { InventoryHistoryDialog } from './inventory-history-dialog';
+import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface InventoryClientPageProps {

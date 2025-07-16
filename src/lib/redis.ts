@@ -1,4 +1,3 @@
-
 import Redis from 'ioredis';
 import { logger } from './logger';
 import { getErrorMessage } from './error-handler';

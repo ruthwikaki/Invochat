@@ -1,4 +1,3 @@
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -527,4 +526,3 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
         return { success: false, error: getErrorMessage(e) };
     }
 }
-    

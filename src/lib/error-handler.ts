@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Centralized, type-safe error handling utilities.
  */
