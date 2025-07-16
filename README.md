@@ -1,7 +1,7 @@
 
-# InvoChat - Conversational Inventory Intelligence
+# ARVO - Conversational Inventory Intelligence
 
-This is a Next.js starter project for InvoChat, an AI-powered inventory management application.
+This is a Next.js starter project for ARVO, an AI-powered inventory management application.
 
 ## Getting Started
 
@@ -74,7 +74,7 @@ For production environments with a large number of users, you may need to adjust
 # apphosting.yaml
 runConfig:
   # Increase this value for better performance under load
-  maxInstances: 10
+  maxInstances: 50
 ```
 
 ### Database Performance
