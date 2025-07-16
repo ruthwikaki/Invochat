@@ -1,5 +1,4 @@
 
-      
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm';
@@ -39,5 +38,3 @@ export default function UpdatePasswordPage({
     </div>
   );
 }
-
-    
