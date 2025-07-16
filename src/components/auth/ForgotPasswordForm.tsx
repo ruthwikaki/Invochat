@@ -1,4 +1,5 @@
 
+      
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -70,3 +71,5 @@ export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormPr
     </form>
   );
 }
+
+    
