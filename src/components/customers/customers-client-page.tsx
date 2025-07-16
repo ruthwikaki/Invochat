@@ -167,7 +167,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     startDeleteTransition(async () => {
       const formData = new FormData();
       formData.append('id', customerToDelete.id);
-      const csrfToken = getCookie('csrf_token');
+      const csrfToken = getCookie(CSRF_FORM_NAME);
       if (csrfToken) {
           formData.append(CSRF_FORM_NAME, csrfToken);
       }

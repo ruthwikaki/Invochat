@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -110,7 +109,7 @@ export function IntegrationsClientPage() {
     const handleDisconnect = async (integrationId: string) => {
         const formData = new FormData();
         formData.append('integrationId', integrationId);
-        const csrfToken = getCookie('csrf_token');
+        const csrfToken = getCookie(CSRF_FORM_NAME);
         if (csrfToken) {
             formData.append(CSRF_FORM_NAME, csrfToken);
         }
