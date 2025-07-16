@@ -1,3 +1,4 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -38,19 +39,32 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = req.nextUrl;
 
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/auth/callback'];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
+  // Special handling for initial setup pages
+  if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check')) {
+    return response;
+  }
+
   // If the user is not logged in and is trying to access a protected route, redirect to login
-  if (!session && !isPublicRoute) {
+  if (!user && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
+  // If the user IS logged in but doesn't have a company_id, they need to run the setup script.
+  if (user && !user.app_metadata.company_id) {
+    // Allow access to the env-check page, but redirect from anywhere else.
+    if (!pathname.startsWith('/env-check')) {
+        return NextResponse.redirect(new URL('/env-check', req.url));
+    }
+  }
+
   // If the user is logged in and is trying to access a public-only route (like login), redirect to dashboard
-  if (session && isPublicRoute) {
+  if (user && isPublicRoute) {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
@@ -65,8 +79,7 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - api/ (API routes which have their own auth)
-     * - database-setup and env-check pages
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/|database-setup|env-check).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
   ],
 }
