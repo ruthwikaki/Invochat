@@ -15,6 +15,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/comp
 import { cn } from '@/lib/utils';
 import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/data-actions';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getErrorMessage } from '@/lib/error-handler';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -84,20 +85,19 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
         if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
         formData.append('suggestions', JSON.stringify(selectedSuggestions));
 
-        const result = await createPurchaseOrdersFromSuggestions(formData);
-        
-        if (result.success) {
+        try {
+            const result = await createPurchaseOrdersFromSuggestions(formData);
             toast({
               title: 'Purchase Orders Created!',
               description: `${result.createdPoCount} new PO(s) have been generated.`,
             });
             router.push('/purchase-orders');
             router.refresh();
-        } else {
+        } catch (e) {
             toast({
               variant: 'destructive',
               title: 'Error Creating POs',
-              description: result.error,
+              description: getErrorMessage(e),
             });
         }
     });

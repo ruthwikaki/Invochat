@@ -1,447 +1,429 @@
+--
+-- Enforce RLS for all tables in the public schema
+--
+create or replace function public.enable_rls_for_all_tables(schema_name text)
+returns void
+language plpgsql
+as $$
+declare
+    table_record record;
+begin
+    for table_record in
+        select tablename
+        from pg_tables
+        where schemaname = schema_name
+    loop
+        execute format('alter table %I.%I enable row level security', schema_name, table_record.tablename);
+        
+        -- Drop the policy if it exists, to ensure this script is re-runnable
+        execute format('drop policy if exists "Allow all access to own company data" on %I.%I', schema_name, table_record.tablename);
 
--- Enable UUID generation
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        -- Create a generic policy assuming a `company_id` column exists
+        if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = schema_name
+            and table_name = table_record.tablename
+            and column_name = 'company_id'
+        ) then
+             execute format('create policy "Allow all access to own company data" on %I.%I for all using (company_id = public.get_company_id());', schema_name, table_record.tablename);
+        
+        -- Special handling for the 'companies' table itself
+        elsif table_record.tablename = 'companies' then
+             execute format('create policy "Allow all access to own company data" on %I.%I for all using (id = public.get_company_id());', schema_name, table_record.tablename);
+        
+        -- Special handling for webhook_events table
+        elsif table_record.tablename = 'webhook_events' then
+             execute format('
+                create policy "Allow all access to own company data" on %I.%I for all 
+                using (
+                    integration_id in (select id from public.integrations where company_id = public.get_company_id())
+                );', schema_name, table_record.tablename);
 
--- Enable the pg_tgrm extension for trigram-based string matching (for fuzzy search)
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";
-
-
--- =============================================
--- SECTION 1: CORE TABLES
--- =============================================
-
--- Companies Table
--- Stores information about each company using the application.
-CREATE TABLE IF NOT EXISTS public.companies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- Users Table (public schema)
--- Stores application-specific user data, linking auth.users to a company.
-CREATE TABLE IF NOT EXISTS public.users (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    email TEXT,
-    role TEXT CHECK (role IN ('Owner', 'Admin', 'Member')) DEFAULT 'Member',
-    deleted_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Company Settings Table
--- Stores company-specific configuration for business logic.
-CREATE TABLE IF NOT EXISTS public.company_settings (
-    company_id UUID PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
-    dead_stock_days INT NOT NULL DEFAULT 90,
-    fast_moving_days INT NOT NULL DEFAULT 30,
-    overstock_multiplier INT NOT NULL DEFAULT 3,
-    high_value_threshold INT NOT NULL DEFAULT 100000,
-    predictive_stock_days INT NOT NULL DEFAULT 7,
-    currency TEXT DEFAULT 'USD',
-    timezone TEXT DEFAULT 'UTC',
-    tax_rate NUMERIC DEFAULT 0,
-    custom_rules JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ
-);
-
--- Products Table
--- Stores base product information.
-CREATE TABLE IF NOT EXISTS public.products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    description TEXT,
-    handle TEXT,
-    product_type TEXT,
-    tags TEXT[],
-    status TEXT,
-    image_url TEXT,
-    external_product_id TEXT,
-    fts_document TSVECTOR, -- For full-text search
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ,
-    CONSTRAINT uq_product_company_external_id UNIQUE(company_id, external_product_id)
-);
-CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
-CREATE INDEX IF NOT EXISTS idx_products_fts_document ON public.products USING GIN(fts_document);
-CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON public.products USING GIN (title gin_trgm_ops);
+        end if;
+    end loop;
+end;
+$$;
 
 
--- Product Variants Table
--- Stores individual product variants (SKUs).
-CREATE TABLE IF NOT EXISTS public.product_variants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    sku TEXT NOT NULL,
-    title TEXT,
-    option1_name TEXT,
-    option1_value TEXT,
-    option2_name TEXT,
-    option2_value TEXT,
-    option3_name TEXT,
-    option3_value TEXT,
-    barcode TEXT,
-    price INT,
-    compare_at_price INT,
-    cost INT,
-    inventory_quantity INT NOT NULL DEFAULT 0,
-    location TEXT,
-    external_variant_id TEXT,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ,
-    CONSTRAINT uq_variant_company_sku UNIQUE(company_id, sku),
-    CONSTRAINT uq_variant_company_external_id UNIQUE(company_id, external_variant_id)
-);
-CREATE INDEX IF NOT EXISTS idx_variants_company_id ON public.product_variants(company_id);
-CREATE INDEX IF NOT EXISTS idx_variants_product_id ON public.product_variants(product_id);
-CREATE INDEX IF NOT EXISTS idx_variants_sku_trgm ON public.product_variants USING GIN (sku gin_trgm_ops);
+--
+-- Creates a company and a user profile upon new user signup.
+-- This function is called by a trigger on the auth.users table.
+--
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  company_id uuid;
+  user_email text;
+  company_name text;
+  user_role text;
+begin
+  -- Extract details from the new user record
+  user_email := new.email;
+  company_name := new.raw_app_meta_data->>'company_name';
+  user_role := 'Owner'; -- The first user is always the Owner
 
--- Inventory Ledger Table
--- Records every stock movement for full audit history.
-CREATE TABLE IF NOT EXISTS public.inventory_ledger (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    variant_id UUID NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    change_type TEXT NOT NULL,
-    quantity_change INT NOT NULL,
-    new_quantity INT NOT NULL,
-    related_id UUID,
-    notes TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_ledger_company_id ON public.inventory_ledger(company_id);
-CREATE INDEX IF NOT EXISTS idx_ledger_variant_id ON public.inventory_ledger(variant_id);
+  -- Create a new company for the user
+  insert into public.companies (name)
+  values (company_name)
+  returning id into company_id;
 
--- Suppliers Table
-CREATE TABLE IF NOT EXISTS public.suppliers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    default_lead_time_days INT,
-    notes TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_suppliers_company_id ON public.suppliers(company_id);
+  -- Create a corresponding user profile in the public.users table
+  insert into public.users (id, company_id, email, role)
+  values (new.id, company_id, user_email, user_role);
 
--- Purchase Orders Table
-CREATE TABLE IF NOT EXISTS public.purchase_orders (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id UUID REFERENCES public.suppliers(id) ON DELETE SET NULL,
-    status TEXT NOT NULL DEFAULT 'Draft',
-    po_number TEXT NOT NULL,
-    total_cost INT NOT NULL,
-    expected_arrival_date DATE,
-    idempotency_key UUID,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_po_company_id ON public.purchase_orders(company_id);
-CREATE INDEX IF NOT EXISTS idx_po_supplier_id ON public.purchase_orders(supplier_id);
+  -- Update the user's app_metadata in the auth schema with the new company_id and role
+  update auth.users
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', company_id, 'role', user_role)
+  where id = new.id;
 
--- Purchase Order Line Items Table
-CREATE TABLE IF NOT EXISTS public.purchase_order_line_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    purchase_order_id UUID NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
-    variant_id UUID NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    quantity INT NOT NULL,
-    cost INT NOT NULL,
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_po_line_items_po_id ON public.purchase_order_line_items(purchase_order_id);
-CREATE INDEX IF NOT EXISTS idx_po_line_items_variant_id ON public.purchase_order_line_items(variant_id);
+  return new;
+end;
+$$;
+
+--
+-- Trigger to call handle_new_user on new user creation
+--
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 
--- =============================================
--- SECTION 2: SALES & CUSTOMER TABLES
--- =============================================
+--
+-- Utility function to get the current user's company_id
+--
+create or replace function public.get_company_id()
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+    select nullif(current_setting('request.jwt.claims', true)::jsonb->'app_metadata'->>'company_id', '')::uuid;
+$$;
 
--- Customers Table
-CREATE TABLE IF NOT EXISTS public.customers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    customer_name TEXT NOT NULL,
-    email TEXT,
-    total_orders INT DEFAULT 0,
-    total_spent INT DEFAULT 0,
-    first_order_date DATE,
-    deleted_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
-CREATE INDEX IF NOT EXISTS idx_customers_email ON public.customers(company_id, email);
-
--- Orders Table
-CREATE TABLE IF NOT EXISTS public.orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    order_number TEXT NOT NULL,
-    external_order_id TEXT,
-    customer_id UUID REFERENCES public.customers(id),
-    financial_status TEXT DEFAULT 'pending',
-    fulfillment_status TEXT DEFAULT 'unfulfilled',
-    currency TEXT DEFAULT 'USD',
-    subtotal INT NOT NULL DEFAULT 0,
-    total_tax INT DEFAULT 0,
-    total_shipping INT DEFAULT 0,
-    total_discounts INT DEFAULT 0,
-    total_amount INT NOT NULL,
-    source_platform TEXT,
-    source_name TEXT,
-    tags TEXT[],
-    notes TEXT,
-    cancelled_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_orders_company_id ON public.orders(company_id);
-CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
-
--- Order Line Items Table
-CREATE TABLE IF NOT EXISTS public.order_line_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    variant_id UUID NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    product_name TEXT NOT NULL,
-    variant_title TEXT,
-    sku TEXT NOT NULL,
-    quantity INT NOT NULL,
-    price INT NOT NULL,
-    total_discount INT DEFAULT 0,
-    tax_amount INT DEFAULT 0,
-    cost_at_time INT,
-    fulfillment_status TEXT DEFAULT 'unfulfilled',
-    requires_shipping BOOLEAN DEFAULT true,
-    external_line_item_id TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_order_line_items_order_id ON public.order_line_items(order_id);
+--
+-- Helper function to get a user's role within a company
+--
+create or replace function public.get_user_role(user_id uuid, company_id uuid)
+returns text
+language sql
+security definer
+as $$
+  select role from public.users
+  where id = user_id and company_id = company_id;
+$$;
 
 
--- =============================================
--- SECTION 3: INTEGRATION & METADATA TABLES
--- =============================================
+--
+-- RPC to get users associated with a company
+--
+create or replace function public.get_users_for_company(p_company_id uuid)
+returns table (id uuid, email text, role text)
+language plpgsql
+as $$
+begin
+  if (select public.get_company_id()) = p_company_id then
+    return query
+    select u.id, u.email, u.role
+    from public.users u
+    where u.company_id = p_company_id and u.deleted_at is null;
+  else
+    raise exception 'User is not authorized to access this company.';
+  end if;
+end;
+$$;
 
--- Integrations Table
-CREATE TABLE IF NOT EXISTS public.integrations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    platform TEXT NOT NULL,
-    shop_domain TEXT,
-    shop_name TEXT,
-    is_active BOOLEAN DEFAULT false,
-    last_sync_at TIMESTAMPTZ,
-    sync_status TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ
-);
-CREATE INDEX IF NOT EXISTS idx_integrations_company_id ON public.integrations(company_id);
+--
+-- RPC to remove a user from a company (soft delete)
+--
+create or replace function public.remove_user_from_company(
+    p_user_id uuid,
+    p_company_id uuid,
+    p_performing_user_id uuid
+)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+    performing_user_role text;
+begin
+    -- Check if the performing user is an Admin or Owner of the company
+    select get_user_role(p_performing_user_id, p_company_id) into performing_user_role;
+    if performing_user_role not in ('Admin', 'Owner') then
+        raise exception 'Only Admins or Owners can remove users.';
+    end if;
 
--- Conversations Table
-CREATE TABLE IF NOT EXISTS public.conversations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    last_accessed_at TIMESTAMPTZ DEFAULT now(),
-    is_starred BOOLEAN DEFAULT false
-);
+    -- Update the user's record to mark as deleted
+    update public.users
+    set deleted_at = now()
+    where id = p_user_id and company_id = p_company_id;
 
--- Messages Table
-CREATE TABLE IF NOT EXISTS public.messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    role TEXT NOT NULL,
-    content TEXT,
-    component TEXT,
-    component_props JSONB,
-    visualization JSONB,
-    confidence NUMERIC,
-    assumptions TEXT[],
-    is_error BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
+    -- Remove company-specific metadata from auth.users
+    update auth.users
+    set raw_app_meta_data = raw_app_meta_data - 'company_id' - 'role'
+    where id = p_user_id;
+end;
+$$;
 
--- Webhook Events Table
-CREATE TABLE IF NOT EXISTS public.webhook_events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    integration_id UUID NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
-    webhook_id TEXT NOT NULL,
-    processed_at TIMESTAMPTZ DEFAULT now(),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    CONSTRAINT uq_webhook_event UNIQUE(integration_id, webhook_id)
-);
+--
+-- RPC to update a user's role
+--
+create or replace function public.update_user_role_in_company(
+    p_user_id uuid,
+    p_company_id uuid,
+    p_new_role text
+)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+    -- Update the role in the public.users table
+    update public.users
+    set role = p_new_role
+    where id = p_user_id and company_id = p_company_id;
 
+    -- Update the role in the auth.users app_metadata
+    update auth.users
+    set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('role', p_new_role)
+    where id = p_user_id;
+end;
+$$;
 
--- =============================================
--- SECTION 4: VIEWS
--- =============================================
+--
+-- Full Text Search Setup for Products
+--
+alter table products
+add column fts_document tsvector;
 
--- product_variants_with_details VIEW
--- A unified view to get product and variant details together.
-CREATE OR REPLACE VIEW public.product_variants_with_details
-WITH (security_invoker=true)
-AS
-SELECT
-    pv.id,
-    pv.product_id,
-    pv.company_id,
+create or replace function update_fts_document()
+returns trigger as $$
+begin
+    new.fts_document := to_tsvector('english',
+        coalesce(new.title, '') || ' ' ||
+        coalesce(new.description, '') || ' ' ||
+        coalesce(array_to_string(new.tags, ' '), '')
+    );
+    return new;
+end;
+$$ language plpgsql;
+
+create trigger fts_update_trigger
+before insert or update on products
+for each row
+execute function update_fts_document();
+
+-- Create a GIN index for faster full-text search
+create index idx_products_fts on products using gin(fts_document);
+
+--
+-- Create indexes for performance
+--
+create index if not exists idx_product_variants_sku on product_variants(company_id, sku);
+create index if not exists idx_orders_company_created on orders(company_id, created_at desc);
+create index if not exists idx_order_line_items_order_id on order_line_items(order_id);
+create index if not exists idx_inventory_ledger_variant_id on inventory_ledger(variant_id, created_at desc);
+create index if not exists idx_orders_company_created_status ON orders(company_id, created_at DESC, status);
+create index if not exists idx_order_line_items_variant_order ON order_line_items(variant_id, order_id);
+
+--
+-- Materialized Views for Performance
+--
+create materialized view if not exists daily_sales as
+select
+  date_trunc('day', o.created_at) as sale_date,
+  o.company_id,
+  sum(oli.quantity) as total_quantity,
+  sum(oli.price * oli.quantity) as total_revenue
+from orders o
+join order_line_items oli on o.id = oli.order_id
+group by 1, 2;
+
+create unique index if not exists on daily_sales(sale_date, company_id);
+
+--
+-- View to unify product and variant details for easy querying
+--
+create or replace view product_variants_with_details with (security_invoker=true) as
+select
+    pv.*,
     p.title as product_title,
-    pv.title,
-    pv.sku,
-    p.description,
-    p.handle,
-    p.product_type,
-    p.tags,
     p.status as product_status,
-    p.image_url,
-    pv.option1_name, pv.option1_value,
-    pv.option2_name, pv.option2_value,
-    pv.option3_name, pv.option3_value,
-    pv.barcode,
-    pv.price,
-    pv.compare_at_price,
-    pv.cost,
-    pv.inventory_quantity,
-    pv.location,
-    pv.external_variant_id,
-    pv.created_at,
-    pv.updated_at
-FROM
-    public.product_variants pv
-JOIN
-    public.products p ON pv.product_id = p.id;
+    p.image_url as image_url,
+    p.product_type
+from product_variants pv
+join products p on pv.product_id = p.id;
 
--- orders_view
--- A unified view to get order and customer details together.
-CREATE OR REPLACE VIEW public.orders_view
-AS
-SELECT
+--
+-- View to unify orders with customer details
+--
+create or replace view orders_view as
+select
     o.*,
     c.customer_name,
-    c.email as customer_email
-FROM
-    public.orders o
-LEFT JOIN
-    public.customers c ON o.customer_id = c.id;
+    c.email as customer_email,
+    i.shop_name
+from orders o
+left join customers c on o.customer_id = c.id
+left join integrations i on o.source_platform = i.platform and o.company_id = i.company_id;
+
+--
+-- View to unify customers with total spend and order counts
+--
+create or replace view customers_view as
+select
+    c.id,
+    c.company_id,
+    c.customer_name,
+    c.email,
+    c.first_order_date,
+    c.created_at,
+    coalesce(o.total_orders, 0) as total_orders,
+    coalesce(o.total_spent, 0) as total_spent
+from customers c
+left join (
+    select
+        customer_id,
+        count(*) as total_orders,
+        sum(total_amount) as total_spent
+    from orders
+    group by customer_id
+) o on c.id = o.customer_id
+where c.deleted_at is null;
 
 
--- =============================================
--- SECTION 5: FUNCTIONS & TRIGGERS
--- =============================================
+--
+-- Create a transactionally-safe function to record a sale
+--
+create or replace function record_sale_transaction(
+    p_company_id uuid,
+    p_user_id uuid, -- Can be null for automated syncs
+    p_customer_name text,
+    p_customer_email text,
+    p_payment_method text,
+    p_notes text,
+    p_sale_items jsonb[],
+    p_external_id text default null
+)
+returns void as $$
+declare
+    v_customer_id uuid;
+    v_order_id uuid;
+    sale_item jsonb;
+    v_variant_id uuid;
+    v_quantity int;
+    v_unit_price int;
+    v_cost_at_time int;
+    v_product_name text;
+begin
+    -- Find or create the customer
+    select id into v_customer_id from customers where email = p_customer_email and company_id = p_company_id;
+    if v_customer_id is null then
+        insert into customers (company_id, customer_name, email)
+        values (p_company_id, p_customer_name, p_customer_email)
+        returning id into v_customer_id;
+    end if;
 
--- Function to get the company_id for the current user
-CREATE OR REPLACE FUNCTION public.get_company_id()
-RETURNS UUID AS $$
-BEGIN
-    RETURN (SELECT raw_app_meta_data->>'company_id' FROM auth.users WHERE id = auth.uid())::UUID;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+    -- Create the order
+    insert into orders (company_id, customer_id, order_number, total_amount, source_platform, external_order_id, financial_status, fulfillment_status)
+    values (p_company_id, v_customer_id, 'SALE-' || substr(uuid_generate_v4()::text, 1, 8), 0, 'manual', p_external_id, 'paid', 'fulfilled')
+    returning id into v_order_id;
+    
+    -- Loop through sale items
+    foreach sale_item in array p_sale_items
+    loop
+        select id, product_title into v_variant_id, v_product_name from product_variants_with_details where sku = sale_item->>'sku' and company_id = p_company_id;
+        v_quantity := (sale_item->>'quantity')::int;
+        v_unit_price := (sale_item->>'unit_price')::int;
+        v_cost_at_time := (sale_item->>'cost_at_time')::int;
+
+        if v_variant_id is null then
+            -- In a real app, might want to handle this more gracefully
+            raise exception 'Product with SKU % not found', sale_item->>'sku';
+        end if;
+        
+        -- Insert into order_line_items
+        insert into order_line_items (order_id, company_id, variant_id, product_name, sku, quantity, price, cost_at_time)
+        values (v_order_id, p_company_id, v_variant_id, v_product_name, sale_item->>'sku', v_quantity, v_unit_price, v_cost_at_time);
+        
+        -- Update inventory (will trigger ledger insert)
+        update product_variants set inventory_quantity = inventory_quantity - v_quantity where id = v_variant_id;
+    end loop;
+    
+    -- Update the order total
+    update orders set total_amount = (
+        select sum(quantity * price) from order_line_items where order_id = v_order_id
+    ) where id = v_order_id;
+
+    -- Create audit log
+    insert into audit_log (company_id, user_id, action, details)
+    values (p_company_id, p_user_id, 'manual_sale_created', jsonb_build_object('order_id', v_order_id));
+
+end;
+$$ language plpgsql;
 
 
--- Function to handle new user creation
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
-DECLARE
-  v_company_id UUID;
-  v_company_name TEXT;
-  v_user_role TEXT := 'Owner';
-BEGIN
-  -- Check if company_id already exists in app_metadata
-  IF (new.raw_app_meta_data->>'company_id') IS NOT NULL THEN
-    -- User is being invited to an existing company
-    v_company_id := (new.raw_app_meta_data->>'company_id')::UUID;
-    v_user_role := 'Member';
-  ELSE
-    -- This is a new signup, create a new company
-    v_company_name := new.raw_app_meta_data->>'company_name';
-    INSERT INTO public.companies (name) VALUES (v_company_name) RETURNING id INTO v_company_id;
-  END IF;
+--
+-- Create a transactionally-safe function to create Purchase Orders from suggestions
+--
+create or replace function create_purchase_orders_from_suggestions(
+    p_company_id uuid,
+    p_user_id uuid,
+    p_suggestions jsonb,
+    p_idempotency_key uuid default null
+)
+returns integer as $$
+declare
+    supplier_id uuid;
+    new_po_id uuid;
+    suggestion jsonb;
+    total_cost integer;
+    po_count integer := 0;
+begin
+    -- Check for idempotency
+    if p_idempotency_key is not null and exists (select 1 from purchase_orders where idempotency_key = p_idempotency_key) then
+        return 0; -- A previous request with the same key was already processed.
+    end if;
 
-  -- Insert into public.users
-  INSERT INTO public.users (id, company_id, email, role)
-  VALUES (new.id, v_company_id, new.email, v_user_role);
+    -- Group suggestions by supplier
+    for supplier_id in select distinct (value->>'supplier_id')::uuid from jsonb_array_elements(p_suggestions)
+    loop
+        -- Begin a transaction for this supplier's PO
+        begin
+            total_cost := 0;
 
-  -- Update the app_metadata on the auth.users table
-  UPDATE auth.users
-  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', v_company_id, 'role', v_user_role)
-  WHERE id = new.id;
+            insert into purchase_orders (company_id, supplier_id, status, po_number, total_cost, idempotency_key)
+            values (p_company_id, supplier_id, 'Ordered', 'PO-' || to_char(now(), 'YYYYMMDD') || '-' || substr(uuid_generate_v4()::text, 1, 4), 0, p_idempotency_key)
+            returning id into new_po_id;
 
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY definer;
+            for suggestion in select * from jsonb_array_elements(p_suggestions) where (value->>'supplier_id')::uuid = supplier_id
+            loop
+                insert into purchase_order_line_items (purchase_order_id, company_id, variant_id, quantity, cost)
+                values (new_po_id, p_company_id, (suggestion->>'variant_id')::uuid, (suggestion->>'suggested_reorder_quantity')::integer, (suggestion->>'unit_cost')::integer);
 
--- Trigger to call handle_new_user on new user signup
-CREATE OR REPLACE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+                total_cost := total_cost + ((suggestion->>'suggested_reorder_quantity')::integer * (suggestion->>'unit_cost')::integer);
+            end loop;
+
+            update purchase_orders set total_cost = total_cost where id = new_po_id;
+            
+            po_count := po_count + 1;
+        exception 
+            when others then
+                -- Log the error and rollback this PO's transaction
+                insert into audit_log (company_id, user_id, action, details)
+                values (p_company_id, p_user_id, 'po_creation_failed', jsonb_build_object('supplier_id', supplier_id, 'error', SQLERRM));
+                -- Let the overall function continue to the next supplier
+        end;
+    end loop;
+    
+    return po_count;
+end;
+$$ language plpgsql;
 
 
--- Function to update the fts_document column on product changes
-CREATE OR REPLACE FUNCTION update_product_fts_document()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.fts_document := to_tsvector('english',
-        coalesce(NEW.title, '') || ' ' ||
-        coalesce(NEW.description, '') || ' ' ||
-        coalesce(NEW.product_type, '') || ' ' ||
-        coalesce(array_to_string(NEW.tags, ' '), '')
-    );
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger for product full-text search updates
-CREATE OR REPLACE TRIGGER product_fts_update_trigger
-BEFORE INSERT OR UPDATE ON public.products
-FOR EACH ROW
-EXECUTE FUNCTION update_product_fts_document();
-
--- =============================================
--- SECTION 6: ROW-LEVEL SECURITY (RLS)
--- =============================================
-
--- Function to enable RLS on all tables in the public schema
-CREATE OR REPLACE FUNCTION enable_rls_for_all_tables()
-RETURNS void AS $$
-DECLARE
-    tbl_name TEXT;
-BEGIN
-    FOR tbl_name IN
-        SELECT table_name FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-    LOOP
-        EXECUTE 'ALTER TABLE public.' || quote_ident(tbl_name) || ' ENABLE ROW LEVEL SECURITY;';
-        EXECUTE 'ALTER TABLE public.' || quote_ident(tbl_name) || ' FORCE ROW LEVEL SECURITY;';
-
-        -- Drop existing policy to ensure idempotency
-        EXECUTE 'DROP POLICY IF EXISTS "Allow all access to own company data" ON public.' || quote_ident(tbl_name) || ';';
-
-        -- Apply the correct policy based on the table
-        IF tbl_name = 'companies' THEN
-            EXECUTE 'CREATE POLICY "Allow all access to own company data" ON public.companies FOR ALL USING (id = public.get_company_id());';
-        ELSE
-            EXECUTE 'CREATE POLICY "Allow all access to own company data" ON public.' || quote_ident(tbl_name) || ' FOR ALL USING (company_id = public.get_company_id());';
-        END IF;
-    END LOOP;
-END;
-$$ LANGUAGE plpgsql;
-
--- Execute the function to apply RLS
-SELECT enable_rls_for_all_tables();
-
--- Grant usage on the public schema to the authenticated role
-GRANT USAGE ON SCHEMA public TO authenticated;
-
--- Grant select, insert, update, delete permissions to the authenticated role
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-
--- Grant execute on all functions to the authenticated role
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+-- Final step: Enable RLS on all tables in the public schema
+select public.enable_rls_for_all_tables('public');
