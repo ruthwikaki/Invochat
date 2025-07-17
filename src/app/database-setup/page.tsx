@@ -23,9 +23,11 @@ export default function DatabaseSetupPage() {
                 You must run a setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for ARVO to work correctly.
             </p>
             <div className="text-left p-4 bg-muted rounded-md border text-sm">
-                <p>1. In your project, find the file located at: <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></p>
-                <p className="font-semibold mt-2">IMPORTANT: If you have run a script before and are seeing errors, please use the latest migration script instead:</p>
-                <p><code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/migration-2024-07-26.sql</code></p>
+                <p>1. In your project, find the correct script to run:</p>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                    <li><span className="font-semibold">For a brand new project:</span> Use <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></li>
+                    <li><span className="font-semibold">If you have an existing database:</span> Run any migration scripts you haven't applied yet, in order (e.g., <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/migration-2024-07-29.sql</code>).</li>
+                </ul>
                 <p className="mt-2">2. Copy the entire contents of the correct file.</p>
                 <p>3. Go to your Supabase project dashboard and navigate to the <span className="font-semibold">SQL Editor</span>.</p>
                 <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">"Run"</span>.</p>
@@ -43,4 +45,5 @@ export default function DatabaseSetupPage() {
     </div>
   );
 }
+
 
