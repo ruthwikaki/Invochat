@@ -26,7 +26,7 @@ export async function runSync(integrationId: string, companyId: string) {
         .from('integrations')
         .select('*')
         .eq('id', integrationId)
-        .eq('company_id', companyId)
+        .eq('company_id', companyId) // Ensure the integration belongs to the specified company.
         .single();
 
     if (fetchError || !initialIntegration) {
@@ -45,6 +45,11 @@ export async function runSync(integrationId: string, companyId: string) {
             const { data: integration, error: refetchError } = await supabase.from('integrations').select('*').eq('id', integrationId).single();
             if(refetchError || !integration) throw new Error('Could not refetch integration details during sync.');
             
+            // This is a final safeguard to ensure we don't operate on the wrong tenant's data.
+            if (integration.company_id !== companyId) {
+                throw new Error(`CRITICAL: Mismatched company ID during sync job. Integration Company: ${integration.company_id}, Job Company: ${companyId}`);
+            }
+
             switch (integration.platform) {
                 case 'shopify':
                     await runShopifyFullSync(integration);
