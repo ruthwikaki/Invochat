@@ -49,8 +49,11 @@ const mainNav = [
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
-  { href: '/reordering', label: 'Reordering', icon: RefreshCw },
-  { href: '/customers', label: 'Customers', icon: Users },
+];
+
+const analysisNav = [
+    { href: '/reordering', label: 'Reordering', icon: RefreshCw },
+    { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
 ];
 
 const settingsNav = [
@@ -133,6 +136,9 @@ export function AppSidebar() {
           <Separator className="my-2" />
           {mainNav.map((item) => <NavLink key={item.href} {...item} />)}
           <Separator className="my-2" />
+          {analysisNav.map((item) => <NavLink key={item.href} {...item} />)}
+           <Separator className="my-2" />
+           <NavLink href="/customers" label="Customers" icon={Users} />
            <NavLink href="/import" label="Import Data" icon={Import} />
         </SidebarMenu>
       </SidebarContent>
