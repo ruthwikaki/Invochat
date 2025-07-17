@@ -241,7 +241,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                             <TableCell>
                                 <div className="flex items-center gap-3">
                                     <Avatar className="h-9 w-9">
-                                        <AvatarFallback>{customer.customer_name?.charAt(0)}</AvatarFallback>
+                                        <AvatarFallback>{customer.customer_name?.charAt(0) || '?'}</AvatarFallback>
                                     </Avatar>
                                     <div>
                                         <div className="font-medium">{customer.customer_name}</div>
@@ -294,5 +294,3 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
-
-    
