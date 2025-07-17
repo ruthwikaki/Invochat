@@ -38,7 +38,9 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
         return false;
     }
     
+    // We need to re-read the body here because it might have been consumed already
     const body = await request.text();
+    // This is important: when creating the hash, it's against the raw body text.
 
     const hash = crypto
         .createHmac('sha256', shopifyWebhookSecret)
@@ -48,6 +50,7 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
     try {
         return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(shopifyHmac));
     } catch (error) {
+        // This catches potential errors if the hash or hmac are invalid lengths
         return false;
     }
 }
@@ -56,27 +59,35 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600);
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.sync, 3600);
         if (limited) {
             return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
         }
 
-        const webhookId = request.headers.get('x-shopify-webhook-id');
-        const shopDomain = request.headers.get('x-shopify-shop-domain');
-        
-        if (webhookId && shopDomain) {
-            const supabase = getServiceRoleClient();
-            const { data: integration } = await supabase
-                .from('integrations')
-                .select('id')
-                .eq('shop_domain', `https://${shopDomain}`)
-                .single();
+        const isWebhookTriggered = await validateShopifyWebhook(request.clone());
 
-            if (integration) {
-                const { success, error } = await logWebhookEvent(integration.id, 'shopify', webhookId);
-                if (!success) {
-                    logError(new Error(`Shopify webhook replay attempt detected: ${webhookId}`), { status: 409 });
-                    return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+        // Now that we've potentially cloned and read the request body for webhook validation,
+        // we can proceed to read it as JSON.
+        const body = await request.json();
+
+        // After reading body, we can handle webhook-specific logic
+        if (isWebhookTriggered) {
+             const webhookId = request.headers.get('x-shopify-webhook-id');
+             const shopDomain = request.headers.get('x-shopify-shop-domain');
+             if (webhookId && shopDomain) {
+                const supabase = getServiceRoleClient();
+                const { data: integration } = await supabase
+                    .from('integrations')
+                    .select('id')
+                    .eq('shop_domain', `https://${shopDomain}`)
+                    .single();
+
+                if (integration) {
+                    const { success } = await logWebhookEvent(integration.id, 'shopify', webhookId);
+                    if (!success) {
+                        logError(new Error(`Shopify webhook replay attempt detected: ${webhookId}`), { status: 409 });
+                        return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                    }
                 }
             }
         }
@@ -93,13 +104,11 @@ export async function POST(request: Request) {
         let companyId = user?.app_metadata?.company_id;
 
         const isUserTriggered = !!(user && companyId);
-        const isWebhookTriggered = await validateShopifyWebhook(request.clone());
         
         if (!isUserTriggered && !isWebhookTriggered) {
              return NextResponse.json({ error: 'Authentication required: User or valid webhook signature not found.' }, { status: 401 });
         }
         
-        const body = await request.json();
         const parsed = syncSchema.safeParse(body);
 
         if (!parsed.success) {
@@ -122,7 +131,7 @@ export async function POST(request: Request) {
         }
 
         runSync(integrationId, companyId).catch(err => {
-             logError(err, { context: 'Background sync failed', integrationId });
+             logError(err, { context: 'Background sync failed to start', integrationId });
         });
 
         return NextResponse.json({ success: true, message: "Sync started successfully. It will run in the background." });

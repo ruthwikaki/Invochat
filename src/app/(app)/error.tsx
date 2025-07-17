@@ -28,7 +28,7 @@ export default function Error({
           <div className="mx-auto bg-destructive/10 p-3 rounded-full w-fit">
             <AlertTriangle className="h-8 w-8 text-destructive" />
           </div>
-          <CardTitle className="mt-4">Oops! Something Went Wrong Here</CardTitle>
+          <CardTitle className="mt-4">Oops! Something Went Wrong</CardTitle>
           <CardDescription>
             A part of the application has encountered an unexpected error.
           </CardDescription>
@@ -36,6 +36,7 @@ export default function Error({
         <CardContent>
           {isDev && (
             <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md mb-4 font-mono text-left max-h-40 overflow-auto">
+              <strong>Development only:</strong> This will not be shown in production. <br/>
               Error: {error.message}
             </p>
           )}

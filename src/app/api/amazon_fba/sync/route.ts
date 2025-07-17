@@ -17,7 +17,7 @@ const syncSchema = z.object({
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600); // Limit to 10 syncs per hour
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.sync, 3600);
         if (limited) {
             return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
         }
@@ -46,8 +46,11 @@ export async function POST(request: Request) {
 
         const { integrationId } = parsed.data;
         
+        // Asynchronously trigger the sync but don't await it here.
+        // This allows the API to respond immediately.
+        // The catch block handles any synchronous errors during initiation.
         runSync(integrationId, companyId).catch(err => {
-             logError(err, { context: 'Background sync failed', integrationId });
+             logError(err, { context: 'Background sync failed to start', integrationId });
         });
 
         return NextResponse.json({ success: true, message: "Sync started successfully. It will run in the background." });

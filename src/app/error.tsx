@@ -36,6 +36,7 @@ export default function Error({
             <CardContent>
                 {isDev && (
                   <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md mb-4 font-mono text-left max-h-40 overflow-auto">
+                      <strong>Development only:</strong> This will not be shown in production. <br/>
                       Error: {error.message}
                   </p>
                 )}
