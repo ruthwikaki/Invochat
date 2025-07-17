@@ -5,7 +5,8 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
-import { logger } from '@/lib/logger';
+import * as Sentry from '@sentry/nextjs';
+import { useAuth } from '@/context/auth-context';
 
 export default function Error({
   error,
@@ -14,10 +15,18 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { user } = useAuth();
+
   useEffect(() => {
-    // Log the error to the console
-    logger.error('App-level Error Boundary Caught:', error);
-  }, [error]);
+    // Set user context for Sentry
+    if (user) {
+      Sentry.setUser({ id: user.id, email: user.email });
+    } else {
+      Sentry.setUser(null);
+    }
+    // Log the error to Sentry
+    Sentry.captureException(error);
+  }, [error, user]);
 
   const isDev = process.env.NODE_ENV === 'development';
 

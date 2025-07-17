@@ -9,6 +9,26 @@ import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 
+// --- Authorization Helper ---
+/**
+ * Checks if a user has the required role to perform an action.
+ * Throws an error if the user does not have permission.
+ * @param userId The ID of the user to check.
+ * @param requiredRole The minimum role required ('Admin' or 'Owner').
+ */
+export async function checkUserPermission(userId: string, requiredRole: 'Admin' | 'Owner'): Promise<void> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('check_user_permission', { p_user_id: userId, p_required_role: requiredRole });
+    if (error) {
+        logError(error, { context: 'checkUserPermission RPC failed' });
+        throw new Error('Could not verify user permissions.');
+    }
+    if (!data) {
+        throw new Error('Access Denied: You do not have permission to perform this action.');
+    }
+}
+
+
 // --- CORE FUNCTIONS (ADAPTED FOR NEW SCHEMA) ---
 
 export async function getSettings(companyId: string): Promise<CompanySettings> {

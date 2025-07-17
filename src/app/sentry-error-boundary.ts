@@ -1,6 +1,6 @@
 
-"use client";
 
-// This is the root error boundary for the Sentry SDK.
-// All errors caught by this boundary will be sent to Sentry.
-export * from "@sentry/nextjs";
+// This file is obsolete. The functionality has been moved to /src/app/(app)/error.tsx
+// to leverage the useAuth() hook for better user context.
+// This file can be safely deleted.
+export {};

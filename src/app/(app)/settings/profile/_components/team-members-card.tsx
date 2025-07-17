@@ -28,6 +28,7 @@ import { getTeamMembers, inviteTeamMember, removeTeamMember, updateTeamMemberRol
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { useAuth } from '@/context/auth-context';
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
@@ -36,6 +37,8 @@ const inviteSchema = z.object({
 export function TeamMembersCard() {
     const queryClient = useQueryClient();
     const { toast } = useToast();
+    const { user } = useAuth();
+    
     const { data: teamMembers, isLoading } = useQuery({
         queryKey: ['teamMembers'],
         queryFn: getTeamMembers,
@@ -103,13 +106,15 @@ export function TeamMembersCard() {
         formData.append('email', data.email);
         invite(formData);
     });
-
+    
+    const amIOwner = teamMembers?.find(m => m.id === user?.id)?.role === 'Owner';
+    
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Team Members</CardTitle>
                 <CardDescription>
-                    Invite and manage your team members.
+                    Invite and manage your team members. Only Owners and Admins can manage the team.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -152,6 +157,7 @@ export function TeamMembersCard() {
                                             formData.append('newRole', newRole);
                                             updateRole(formData);
                                         }}
+                                        disabled={!amIOwner || member.id === user?.id}
                                     >
                                         <SelectTrigger className="w-[120px] h-8">
                                             <SelectValue />
@@ -159,6 +165,7 @@ export function TeamMembersCard() {
                                         <SelectContent>
                                             <SelectItem value="Admin">Admin</SelectItem>
                                             <SelectItem value="Member">Member</SelectItem>
+                                             <SelectItem value="Owner" disabled>Owner</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
@@ -167,7 +174,7 @@ export function TeamMembersCard() {
                                         const formData = new FormData();
                                         formData.append('memberId', member.id);
                                         remove(formData);
-                                    }}>Remove</Button>
+                                    }} disabled={member.id === user?.id}>Remove</Button>
                                 </TableCell>
                             </TableRow>
                         ))}
