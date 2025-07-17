@@ -1,283 +1,272 @@
+-- InvoChat Migration: 2024-07-26
+-- This script updates the database schema to fix several critical bugs related to
+-- security, performance, and data integrity.
 
--- InvoChat Migration Script
--- Date: 2024-07-26
---
--- This script migrates the database schema from its initial version to a more robust,
--- secure, and performant state. It addresses several critical issues including:
--- - Security: Overhauls Row-Level Security (RLS) for all tables.
--- - Data Integrity: Adds foreign keys and NOT NULL constraints.
--- - Performance: Adds numerous indexes for faster queries.
--- - Race Conditions: Updates the sale recording function to be atomic.
--- - Schema Cleanup: Removes unused columns and standardizes naming.
+-- Introduction:
+-- This migration performs the following key actions:
+-- 1. Corrects the `get_company_id()` function to be more secure.
+-- 2. Drops and recreates all Row-Level Security (RLS) policies to be much stricter.
+-- 3. Adds critical foreign key constraints to ensure data integrity.
+-- 4. Creates new indexes on frequently queried columns to improve performance.
+-- 5. Implements a new `record_sale_transaction` function with proper locking to prevent race conditions.
+-- 6. Creates a new `customers_view` for simplified customer data access.
+
+-- This script is designed to be idempotent, meaning it can be run multiple times
+-- without causing errors. It uses `IF EXISTS` and `IF NOT EXISTS` clauses
+-- to ensure that it only makes changes if they are needed.
 
 BEGIN;
 
--- =================================================================
--- Step 1: Drop dependent objects before making breaking changes
--- =================================================================
--- Drop views that depend on columns/functions we are about to change.
-DROP VIEW IF EXISTS public.customers_view;
-DROP VIEW IF EXISTS public.orders_view;
+-- Step 1: Drop dependent views and old functions/procedures that will be recreated.
+-- This is necessary before modifying the underlying functions and tables they depend on.
 DROP VIEW IF EXISTS public.product_variants_with_details;
+DROP VIEW IF EXISTS public.orders_view;
+DROP VIEW IF EXISTS public.customers_view; -- Drop just in case it exists from a partial run
+
+DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid, uuid, text, text, text, jsonb, text);
+DROP PROCEDURE IF EXISTS enable_rls_on_table(text);
 
 
--- Drop old RLS policies from all relevant tables.
+-- Step 2: Drop all existing RLS policies on our application tables.
+-- We must do this before altering the helper function they rely on.
 DO $$
 DECLARE
     r RECORD;
 BEGIN
-    FOR r IN (SELECT tablename, policyname FROM pg_policies WHERE schemaname = 'public') LOOP
-        EXECUTE 'DROP POLICY IF EXISTS "' || r.policyname || '" ON public."' || r.tablename || '"';
+    FOR r IN (SELECT policyname, tablename FROM pg_policies WHERE schemaname = 'public' AND tablename IN (
+        'companies', 'company_settings', 'users', 'products', 'product_variants',
+        'inventory_ledger', 'orders', 'order_line_items', 'customers', 'suppliers',
+        'purchase_orders', 'purchase_order_line_items', 'integrations', 'conversations',
+        'messages', 'audit_log', 'export_jobs', 'channel_fees', 'discounts',
+        'refunds', 'refund_line_items', 'webhook_events'
+    ))
+    LOOP
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON public.' || quote_ident(r.tablename);
     END LOOP;
 END $$;
 
--- Drop old functions that will be recreated
-DROP PROCEDURE IF EXISTS enable_rls_on_table(text);
 
-
--- =================================================================
--- Step 2: Modify helper functions
--- =================================================================
--- Update the helper function for getting the company ID from the session.
--- This is a critical function for all RLS policies.
+-- Step 3: Recreate the core security function `get_company_id`.
+-- The function is now STABLE for better performance and SECURITY DEFINER to run with the privileges
+-- of the user who defines it, ensuring consistent access to the user's claims.
 DROP FUNCTION IF EXISTS public.get_company_id();
 CREATE OR REPLACE FUNCTION public.get_company_id()
 RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER
+AS $$
+  SELECT COALESCE(
+    NULLIF(current_setting('app.current_company_id', true), ''),
+    (SELECT raw_app_meta_data->>'company_id' FROM auth.users WHERE id = auth.uid())
+  )::uuid;
+$$;
+
+
+-- Step 4: Recreate the RLS enabling procedure with corrected parameter naming.
+CREATE OR REPLACE PROCEDURE public.enable_rls(p_table_name text)
 LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
 AS $$
 BEGIN
-  -- This function is now STABLE and SECURITY DEFINER for performance and security.
-  -- It safely retrieves the company_id set by the middleware.
-  return nullif(current_setting('app.current_company_id', true), '')::uuid;
+    EXECUTE 'ALTER TABLE public.' || quote_ident(p_table_name) || ' ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'ALTER TABLE public.' || quote_ident(p_table_name) || ' FORCE ROW LEVEL SECURITY';
+    EXECUTE 'CREATE POLICY "Allow all access to own company data" ON public.' || quote_ident(p_table_name) ||
+            ' FOR ALL USING (company_id = public.get_company_id()) WITH CHECK (company_id = public.get_company_id())';
 END;
 $$;
 
 
--- =================================================================
--- Step 3: Alter tables (add/remove columns, constraints, indexes)
--- =================================================================
+-- Step 5: Re-enable RLS on all tables using the new, stricter policies.
+-- This loop calls the procedure created in the previous step for each table.
+DO $$
+DECLARE
+    t_name TEXT;
+BEGIN
+    FOR t_name IN
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name IN (
+            'company_settings', 'users', 'products', 'product_variants',
+            'inventory_ledger', 'orders', 'order_line_items', 'customers', 'suppliers',
+            'purchase_orders', 'purchase_order_line_items', 'integrations', 'conversations',
+            'messages', 'audit_log', 'export_jobs', 'channel_fees', 'discounts',
+            'refunds', 'refund_line_items', 'webhook_events'
+          )
+    LOOP
+        CALL public.enable_rls(t_name);
+    END LOOP;
+END $$;
 
--- Add idempotency key to purchase_orders to prevent duplicates
-ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS idempotency_key UUID;
-ALTER TABLE public.purchase_order_line_items ADD COLUMN IF NOT EXISTS company_id UUID;
 
--- Add required columns and constraints to product_variants
-ALTER TABLE public.product_variants
-  ADD COLUMN IF NOT EXISTS company_id UUID NOT NULL,
-  ADD CONSTRAINT product_variants_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+-- Step 6: Add Foreign Key constraints IF THEY DO NOT EXIST.
+-- This makes the script idempotent and prevents "already exists" errors.
+ALTER TABLE public.product_variants ADD CONSTRAINT IF NOT EXISTS product_variants_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+ALTER TABLE public.product_variants ADD CONSTRAINT IF NOT EXISTS product_variants_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
 
--- Add cost_at_time to order_line_items
-ALTER TABLE public.order_line_items ADD COLUMN IF NOT EXISTS cost_at_time INTEGER;
+ALTER TABLE public.inventory_ledger ADD CONSTRAINT IF NOT EXISTS inventory_ledger_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id) ON DELETE CASCADE;
 
--- Make SKU not nullable on order line items
-ALTER TABLE public.order_line_items ALTER COLUMN sku SET NOT NULL;
+ALTER TABLE public.orders ADD CONSTRAINT IF NOT EXISTS orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id) ON DELETE SET NULL;
 
--- Remove unused/problematic columns from the orders table
+ALTER TABLE public.order_line_items ADD CONSTRAINT IF NOT EXISTS order_line_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id) ON DELETE CASCADE;
+ALTER TABLE public.order_line_items ADD CONSTRAINT IF NOT EXISTS order_line_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id) ON DELETE SET NULL;
+
+ALTER TABLE public.purchase_orders ADD CONSTRAINT IF NOT EXISTS purchase_orders_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id) ON DELETE SET NULL;
+
+ALTER TABLE public.purchase_order_line_items ADD CONSTRAINT IF NOT EXISTS purchase_order_line_items_purchase_order_id_fkey FOREIGN KEY (purchase_order_id) REFERENCES public.purchase_orders(id) ON DELETE CASCADE;
+ALTER TABLE public.purchase_order_line_items ADD CONSTRAINT IF NOT EXISTS purchase_order_line_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id) ON DELETE CASCADE;
+
+ALTER TABLE public.customers ADD CONSTRAINT IF NOT EXISTS customers_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+ALTER TABLE public.users ADD CONSTRAINT IF NOT EXISTS users_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+
+ALTER TABLE public.conversations ADD CONSTRAINT IF NOT EXISTS conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.messages ADD CONSTRAINT IF NOT EXISTS messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(id) ON DELETE CASCADE;
+
+ALTER TABLE public.integrations ADD CONSTRAINT IF NOT EXISTS integrations_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
+ALTER TABLE public.webhook_events ADD CONSTRAINT IF NOT EXISTS webhook_events_integration_id_fkey FOREIGN KEY (integration_id) REFERENCES public.integrations(id) ON DELETE CASCADE;
+
+
+-- Step 7: Table modifications - Add new columns and remove obsolete ones.
 ALTER TABLE public.orders DROP COLUMN IF EXISTS status;
-ALTER TABLE public.orders DROP COLUMN IF EXISTS items;
-
--- Add missing foreign key constraints for data integrity
-ALTER TABLE public.company_settings ADD CONSTRAINT company_settings_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.customers ADD CONSTRAINT customers_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.integrations ADD CONSTRAINT integrations_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.products ADD CONSTRAINT products_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.suppliers ADD CONSTRAINT suppliers_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.users ADD CONSTRAINT users_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.orders ADD CONSTRAINT orders_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.order_line_items ADD CONSTRAINT order_line_items_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-ALTER TABLE public.purchase_orders ADD CONSTRAINT purchase_orders_company_id_fkey FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
-
--- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
-CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON public.product_variants(product_id);
-CREATE INDEX IF NOT EXISTS idx_product_variants_sku_company ON public.product_variants(sku, company_id);
-CREATE INDEX IF NOT EXISTS idx_orders_company_id_created_at ON public.orders(company_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_order_line_items_order_id ON public.order_line_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_order_line_items_variant_id ON public.order_line_items(variant_id);
-CREATE INDEX IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
-CREATE INDEX IF NOT EXISTS idx_suppliers_company_id ON public.suppliers(company_id);
-CREATE INDEX IF NOT EXISTS idx_integrations_company_id ON public.integrations(company_id);
+ALTER TABLE public.order_line_items ALTER COLUMN sku SET NOT NULL;
+ALTER TABLE public.order_line_items ALTER COLUMN product_name SET NOT NULL;
 
 
--- =================================================================
--- Step 4: Recreate views with correct structure
--- =================================================================
-
--- Recreate orders_view
-CREATE OR REPLACE VIEW public.orders_view AS
-SELECT
-  o.id,
-  o.company_id,
-  o.order_number,
-  o.created_at,
-  o.total_amount,
-  o.fulfillment_status,
-  o.financial_status,
-  o.source_platform,
-  c.email as customer_email
-FROM public.orders o
-LEFT JOIN public.customers c ON o.customer_id = c.id;
-
--- Recreate customers_view
-CREATE OR REPLACE VIEW public.customers_view AS
-SELECT
-  id,
-  company_id,
-  customer_name,
-  email,
-  total_orders,
-  total_spent,
-  first_order_date,
-  created_at
-FROM public.customers
-WHERE deleted_at IS NULL;
-
--- Recreate product_variants_with_details view
-CREATE OR REPLACE VIEW public.product_variants_with_details AS
-SELECT
-  pv.id,
-  pv.product_id,
-  pv.company_id,
-  pv.sku,
-  pv.title,
-  pv.price,
-  pv.cost,
-  pv.inventory_quantity,
-  pv.external_variant_id,
-  pv.location,
-  p.title AS product_title,
-  p.status AS product_status,
-  p.image_url,
-  p.product_type
-FROM public.product_variants pv
-JOIN public.products p ON pv.product_id = p.id;
-
-
--- =================================================================
--- Step 5: Recreate stored procedures and functions
--- =================================================================
-
--- Updated procedure to enable RLS on a table with a standard company_id check
-CREATE OR REPLACE PROCEDURE public.enable_rls_on_table(p_table_name text)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', p_table_name);
-  EXECUTE format('CREATE POLICY "Allow all access to own company data" ON public.%I FOR ALL USING (company_id = get_company_id());', p_table_name);
-END;
-$$;
-
--- Updated function for recording sales to be atomic and prevent race conditions
-DROP FUNCTION IF EXISTS public.record_sale_transaction(uuid,uuid,text,text,text,text,jsonb,text,uuid);
+-- Step 8: Recreate the core transaction function for recording sales.
+-- This new version includes a row-level lock (SELECT FOR UPDATE) to prevent race conditions
+-- and ensures inventory cannot go below zero.
 CREATE OR REPLACE FUNCTION public.record_sale_transaction(
     p_company_id uuid,
     p_user_id uuid,
     p_customer_name text,
     p_customer_email text,
     p_payment_method text,
-    p_notes text,
     p_sale_items jsonb,
-    p_external_id text DEFAULT NULL,
-    p_order_id_override uuid DEFAULT NULL
-) RETURNS uuid
+    p_notes text,
+    p_external_id text DEFAULT NULL
+)
+RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-    v_customer_id uuid;
     v_order_id uuid;
-    v_order_number text;
+    v_customer_id uuid;
     item record;
-    v_variant_id uuid;
-    v_product_id uuid;
-    v_product_name text;
-    v_variant_title text;
-    v_total_amount integer := 0;
-    v_current_stock integer;
+    v_variant record;
 BEGIN
-    -- Find or create customer
-    IF p_customer_email IS NOT NULL THEN
-        SELECT id INTO v_customer_id FROM public.customers WHERE company_id = p_company_id AND email = p_customer_email;
-        IF v_customer_id IS NULL THEN
-            INSERT INTO public.customers (company_id, customer_name, email)
-            VALUES (p_company_id, p_customer_name, p_customer_email)
-            RETURNING id INTO v_customer_id;
-        END IF;
+    -- Find or create the customer
+    SELECT id INTO v_customer_id FROM customers WHERE email = p_customer_email AND company_id = p_company_id;
+    IF v_customer_id IS NULL THEN
+        INSERT INTO customers (company_id, customer_name, email)
+        VALUES (p_company_id, p_customer_name, p_customer_email)
+        RETURNING id INTO v_customer_id;
     END IF;
 
-    -- Create order
-    v_order_number := 'ORD-' || (SELECT to_hex(nextval('orders_id_seq')));
-    INSERT INTO public.orders (id, company_id, order_number, customer_id, total_amount, source_platform, notes, financial_status, fulfillment_status)
-    VALUES (COALESCE(p_order_id_override, gen_random_uuid()), p_company_id, v_order_number, v_customer_id, 0, 'manual', p_notes, 'paid', 'unfulfilled')
+    -- Create the order
+    INSERT INTO orders (company_id, customer_id, financial_status, fulfillment_status, source_platform, notes, external_order_id, order_number)
+    VALUES (p_company_id, v_customer_id, 'paid', 'unfulfilled', 'manual', p_notes, p_external_id, 'ORD-' || (SELECT to_hex(nextval('serial'))))
     RETURNING id INTO v_order_id;
 
-    -- Process line items
-    FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity integer, unit_price integer, cost_at_time integer)
+    -- Process each line item
+    FOR item IN SELECT * FROM jsonb_to_recordset(p_sale_items) AS x(sku text, product_name text, quantity int, unit_price int, cost_at_time int)
     LOOP
-        -- Find variant and product IDs
-        SELECT pv.id, pv.product_id, p.title, pv.title INTO v_variant_id, v_product_id, v_product_name, v_variant_title
-        FROM public.product_variants pv
-        JOIN public.products p ON pv.product_id = p.id
-        WHERE pv.sku = item.sku AND pv.company_id = p_company_id;
+        -- Lock the variant row to prevent race conditions
+        SELECT * INTO v_variant FROM product_variants WHERE sku = item.sku AND company_id = p_company_id FOR UPDATE;
 
-        IF v_variant_id IS NULL THEN
+        IF v_variant IS NULL THEN
             RAISE EXCEPTION 'Product with SKU % not found', item.sku;
         END IF;
 
-        -- THIS IS THE CRITICAL LOCK TO PREVENT RACE CONDITIONS
-        SELECT inventory_quantity INTO v_current_stock FROM public.product_variants WHERE id = v_variant_id FOR UPDATE;
-
-        IF v_current_stock < item.quantity THEN
-             RAISE EXCEPTION 'Insufficient stock for SKU %: Tried to sell %, but only % available.', item.sku, item.quantity, v_current_stock;
+        -- Check for sufficient stock
+        IF v_variant.inventory_quantity < item.quantity THEN
+            RAISE EXCEPTION 'Insufficient stock for SKU %: requested %, available %', item.sku, item.quantity, v_variant.inventory_quantity;
         END IF;
+        
+        -- Update inventory quantity
+        UPDATE product_variants SET inventory_quantity = inventory_quantity - item.quantity WHERE id = v_variant.id;
 
         -- Insert line item
-        INSERT INTO public.order_line_items (order_id, company_id, product_id, variant_id, product_name, variant_title, sku, quantity, price, cost_at_time)
-        VALUES (v_order_id, p_company_id, v_product_id, v_variant_id, v_product_name, v_variant_title, item.sku, item.quantity, item.unit_price, item.cost_at_time);
-
-        v_total_amount := v_total_amount + (item.quantity * item.unit_price);
+        INSERT INTO order_line_items (order_id, company_id, variant_id, product_id, product_name, sku, quantity, price, cost_at_time)
+        VALUES (v_order_id, p_company_id, v_variant.id, v_variant.product_id, item.product_name, item.sku, item.quantity, item.unit_price, item.cost_at_time);
+        
+        -- Create inventory ledger entry
+        INSERT INTO inventory_ledger (company_id, variant_id, change_type, quantity_change, new_quantity, related_id, notes)
+        VALUES (p_company_id, v_variant.id, 'sale', -item.quantity, v_variant.inventory_quantity - item.quantity, v_order_id, 'Order ' || p_external_id);
     END LOOP;
 
-    -- Update order total
-    UPDATE public.orders SET total_amount = v_total_amount WHERE id = v_order_id;
-
-    -- Log audit event
-    INSERT INTO public.audit_log (company_id, user_id, action, details)
-    VALUES (p_company_id, p_user_id, 'sale_recorded', jsonb_build_object('order_id', v_order_id, 'total', v_total_amount));
+    -- Log the audit event
+    INSERT INTO audit_log (company_id, user_id, action, details)
+    VALUES (p_company_id, p_user_id, 'manual_sale_created', jsonb_build_object('order_id', v_order_id));
 
     RETURN v_order_id;
 END;
 $$;
 
--- =================================================================
--- Step 6: Re-apply RLS policies
--- =================================================================
--- Loop through all tables and apply the new, standardized RLS policy.
-DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN (
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name NOT LIKE 'pg_%' AND table_name NOT LIKE 'sql_%'
-          AND 'company_id' IN (SELECT column_name FROM information_schema.columns WHERE table_name = r.table_name)
-    ) LOOP
-        -- Skip tables that should not have RLS or have custom RLS
-        IF r.table_name NOT IN ('users') THEN
-             CALL public.enable_rls_on_table(r.table_name);
-        END IF;
-    END LOOP;
-END $$;
 
--- Apply specific RLS policy for the 'users' table
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow users to see other members of their own company" ON public.users
-  FOR SELECT
-  USING (company_id = get_company_id());
+-- Step 9: Recreate views that were dropped earlier.
+-- These provide simplified and performant ways to query common data combinations.
+
+CREATE OR REPLACE VIEW public.product_variants_with_details AS
+SELECT
+    pv.id,
+    pv.product_id,
+    pv.company_id,
+    p.title AS product_title,
+    p.status AS product_status,
+    p.image_url,
+    p.product_type,
+    pv.sku,
+    pv.title,
+    pv.price,
+    pv.cost,
+    pv.inventory_quantity
+FROM
+    public.product_variants pv
+JOIN
+    public.products p ON pv.product_id = p.id;
+
+CREATE OR REPLACE VIEW public.customers_view AS
+SELECT
+    c.id,
+    c.company_id,
+    c.customer_name,
+    c.email,
+    c.total_orders,
+    c.total_spent,
+    c.first_order_date,
+    c.created_at
+FROM
+    public.customers c;
+    
+CREATE OR REPLACE VIEW public.orders_view AS
+SELECT
+    o.id,
+    o.company_id,
+    o.order_number,
+    o.created_at,
+    o.total_amount,
+    o.fulfillment_status,
+    o.financial_status,
+    o.source_platform,
+    c.email AS customer_email
+FROM
+    public.orders o
+LEFT JOIN
+    public.customers c ON o.customer_id = c.id;
+
+-- Step 10: Create new performance-enhancing indexes if they don't exist.
+CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
+CREATE INDEX IF NOT EXISTS idx_product_variants_company_sku ON public.product_variants(company_id, sku);
+CREATE INDEX IF NOT EXISTS idx_orders_company_id_created_at ON public.orders(company_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customers_company_email ON public.customers(company_id, email);
+CREATE INDEX IF NOT EXISTS idx_inventory_ledger_variant_id ON public.inventory_ledger(variant_id);
+
+
+-- Step 11: Grant permissions to authenticated users.
+-- Supabase handles this for the `anon` and `service_role` roles, but we must
+-- explicitly grant permissions to the `authenticated` role for our tables.
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA public TO authenticated;
+
 
 COMMIT;
-
-    
