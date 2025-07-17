@@ -153,7 +153,7 @@ export const PurchaseOrderSchema = z.object({
     po_number: z.string(),
     total_cost: z.number().int(),
     expected_arrival_date: z.string().datetime().nullable(),
-    idempotency_key: z.string().nullable(),
+    idempotency_key: z.string().uuid().nullable(),
     created_at: z.string().datetime({ offset: true }),
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;

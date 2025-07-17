@@ -39,27 +39,31 @@ async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.import, 3600);
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.sync, 3600);
         if (limited) {
             return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
         }
         
-        const webhookId = request.headers.get('x-wc-webhook-id');
-        const shopDomain = request.headers.get('x-wc-webhook-source');
-        
-        if (webhookId && shopDomain) {
-            const supabase = getServiceRoleClient();
-            const { data: integration } = await supabase
-                .from('integrations')
-                .select('id')
-                .eq('shop_domain', shopDomain)
-                .single();
+        const isWebhookTriggered = await validateWooCommerceWebhook(request.clone());
+        const body = await request.json();
 
-            if (integration) {
-                const { success } = await logWebhookEvent(integration.id, 'woocommerce', webhookId);
-                if (!success) {
-                    logError(new Error(`WooCommerce webhook replay attempt detected: ${webhookId}`), { status: 409 });
-                    return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+        if (isWebhookTriggered) {
+            const webhookId = request.headers.get('x-wc-webhook-id');
+            const shopDomain = request.headers.get('x-wc-webhook-source');
+            if (webhookId && shopDomain) {
+                const supabase = getServiceRoleClient();
+                const { data: integration } = await supabase
+                    .from('integrations')
+                    .select('id')
+                    .eq('shop_domain', shopDomain)
+                    .single();
+
+                if (integration) {
+                    const { success } = await logWebhookEvent(integration.id, 'woocommerce', webhookId);
+                    if (!success) {
+                        logError(new Error(`WooCommerce webhook replay attempt detected: ${webhookId}`), { status: 409 });
+                        return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                    }
                 }
             }
         }
@@ -76,13 +80,11 @@ export async function POST(request: Request) {
         let companyId = user?.app_metadata?.company_id;
 
         const isUserTriggered = !!(user && companyId);
-        const isWebhookTriggered = await validateWooCommerceWebhook(request.clone());
-
+        
         if (!isUserTriggered && !isWebhookTriggered) {
              return NextResponse.json({ error: 'Authentication required: User or valid webhook signature not found.' }, { status: 401 });
         }
         
-        const body = await request.json();
         const parsed = syncSchema.safeParse(body);
 
         if (!parsed.success) {
@@ -105,7 +107,7 @@ export async function POST(request: Request) {
         }
 
         runSync(integrationId, companyId).catch(err => {
-             logError(err, { context: 'Background sync failed', integrationId });
+             logError(err, { context: 'Background sync failed to start', integrationId });
         });
 
         return NextResponse.json({ success: true, message: "Sync started successfully. It will run in the background." });

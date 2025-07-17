@@ -424,7 +424,25 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
 export async function logPOCreationInDb(poNumber: string, supplierName: string, items: any[], companyId: string, userId: string) {}
-export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) { return { success: true }; }
+
+export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('webhook_events').insert({
+        integration_id: integrationId,
+        webhook_id: webhookId
+    });
+
+    if (error) {
+        // If it's a unique constraint violation, it's a replay attack.
+        if (error.code === '23505') {
+            return { success: false, error: 'Duplicate webhook event' };
+        }
+        // For other errors, log them but maybe don't fail the whole request.
+        logError(error, { context: 'Failed to log webhook event' });
+    }
+    return { success: true };
+}
+
 export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) { return {}; }
 export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { return { fast_sellers: [], slow_sellers: [] }; }
 export async function getDemandForecastFromDB(companyId: string) { return []; }
@@ -435,5 +453,3 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
-
-    

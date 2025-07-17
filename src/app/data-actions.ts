@@ -42,9 +42,15 @@ import {
   getChannelFeesFromDB,
   upsertChannelFeeInDB,
   getCashFlowInsightsFromDB,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB,
   getCompanyById,
   testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
+  logPOCreationInDb,
+  transferStockInDb,
+  logWebhookEvent,
+  getDashboardMetrics,
   reconcileInventoryInDb,
   getReorderSuggestionsFromDB,
   createPurchaseOrdersInDb,
@@ -52,7 +58,7 @@ import {
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
@@ -218,7 +224,7 @@ export async function deleteCustomer(formData: FormData): Promise<{ success: boo
     }
 }
 
-export async function getSales(params: { query?: string, page: number, limit: number }) {
+export async function getSales(params: { query?: string, page: number, limit: number }): Promise<{ items: Order[]; totalCount: number; }> {
     const { companyId } = await getAuthContext();
     const offset = (params.page - 1) * params.limit;
     return getSalesFromDB(companyId, { ...params, offset });
