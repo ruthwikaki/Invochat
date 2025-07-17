@@ -96,7 +96,7 @@ const universalChatOrchestrator = ai.defineFlow(
     }
     
     // --- Redis Caching Logic ---
-    const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase()).digest('hex');
+    const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
     const cacheKey = `aichat:${companyId}:${queryHash}`;
     if (isRedisEnabled) {
       try {
@@ -228,3 +228,5 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
+
+    

@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -152,7 +153,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 }
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(params.query) {
         query = query.or(`customer_name.ilike.%${params.query}%,email.ilike.%${params.query}%`);
     }
@@ -167,11 +168,11 @@ export async function deleteCustomerFromDb(customerId: string, companyId: string
     if(error) throw error;
 }
 
-export async function getSalesFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) {
+export async function getSalesFromDB(companyId: string, params: { query?: string, offset: number, limit: number }): Promise<{ items: Order[], totalCount: number }> {
     const supabase = getServiceRoleClient();
-    let query = supabase.from('orders').select('*', { count: 'exact' }).eq('company_id', companyId);
+    let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
     if(params.query) {
-        query = query.or(`order_number.ilike.%${params.query}%`);
+        query = query.or(`order_number.ilike.%${params.query}%,customer_email.ilike.%${params.query}%`);
     }
     const limit = Math.min(params.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', {ascending: false}).range(params.offset, params.offset + limit - 1);
@@ -191,7 +192,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
-export async function getDeadStockPageData(companyId: string) { 
+export async function getDeadStockReportFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
     if (error) throw error;
@@ -434,3 +435,5 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
+
+    

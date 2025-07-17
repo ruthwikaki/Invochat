@@ -1,6 +1,6 @@
 
 import { getCustomersData, exportCustomers, getCustomerAnalytics } from '@/app/data-actions';
-import { CustomersClientPage } from '@/components/customers/customers-client-page';
+import { CustomersClientPage } from '@/app/(app)/customers/customers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 const ITEMS_PER_PAGE = 25;
@@ -42,3 +42,5 @@ export default async function CustomersPage({
     </AppPage>
   );
 }
+
+    

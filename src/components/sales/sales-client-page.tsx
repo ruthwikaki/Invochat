@@ -6,13 +6,14 @@ import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 import type { Order, SalesAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Search, DollarSign, ShoppingCart, Percent, Average } from 'lucide-react';
+import { Search, DollarSign, ShoppingCart, Percent, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { ExportButton } from '../ui/export-button';
+import { Button } from '../ui/button';
 
 interface SalesClientPageProps {
   initialSales: Order[];
@@ -33,6 +34,48 @@ const AnalyticsCard = ({ title, value, icon: Icon, prefix = '', suffix = '' }: {
         </CardContent>
     </Card>
 );
+
+const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const currentPage = Number(searchParams.get('page')) || 1;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    const createPageURL = (pageNumber: number | string) => {
+        const params = new URLSearchParams(searchParams);
+        params.set('page', pageNumber.toString());
+        return `${pathname}?${params.toString()}`;
+    };
+
+    if (totalPages <= 1) {
+        return null;
+    }
+
+    return (
+        <div className="flex items-center justify-between p-4 border-t">
+            <p className="text-sm text-muted-foreground">
+                Showing page <strong>{currentPage}</strong> of <strong>{totalPages}</strong> ({totalCount} orders)
+            </p>
+            <div className="flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage - 1))}
+                    disabled={currentPage <= 1}
+                >
+                    Previous
+                </Button>
+                <Button
+                    variant="outline"
+                    onClick={() => router.push(createPageURL(currentPage + 1))}
+                    disabled={currentPage >= totalPages}
+                >
+                    Next
+                </Button>
+            </div>
+        </div>
+    );
+};
 
 
 export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyticsData, exportAction }: SalesClientPageProps) {
@@ -74,7 +117,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <AnalyticsCard title="Total Revenue" value={formatCentsAsCurrency(analyticsData.total_revenue)} icon={DollarSign} />
                 <AnalyticsCard title="Total Orders" value={analyticsData.total_orders.toLocaleString()} icon={ShoppingCart} />
-                <AnalyticsCard title="Average Order Value" value={formatCentsAsCurrency(analyticsData.average_order_value)} icon={Average} />
+                <AnalyticsCard title="Average Order Value" value={formatCentsAsCurrency(analyticsData.average_order_value)} icon={DollarSign} />
                 <AnalyticsCard title="Average Margin" value={analyticsData.average_margin.toFixed(1)} suffix="%" icon={Percent} />
             </div>
 
@@ -90,7 +133,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                      <div className="relative pt-2">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Search by order number..."
+                            placeholder="Search by order number or customer email..."
                             onChange={(e) => handleSearch(e.target.value)}
                             defaultValue={query}
                             className="pl-10"
@@ -119,15 +162,18 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                                 <TableRow key={order.id}>
                                     <TableCell className="font-medium">{order.order_number}</TableCell>
                                     <TableCell>{format(new Date(order.created_at), 'MMM d, yyyy')}</TableCell>
-                                    <TableCell>{order.customer_id || 'N/A'}</TableCell>
+                                    <TableCell>{order.customer_email || 'N/A'}</TableCell>
                                     <TableCell>{getFulfillmentBadge(order.fulfillment_status)}</TableCell>
                                     <TableCell className="text-right font-tabular">{formatCentsAsCurrency(order.total_amount)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
+                    <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
                 </CardContent>
             </Card>
         </div>
     )
 }
+
+    

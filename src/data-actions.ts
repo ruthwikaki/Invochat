@@ -1,3 +1,4 @@
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -57,7 +58,7 @@ import {
 } from '@/services/database';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
@@ -154,6 +155,7 @@ export async function createSupplier(data: SupplierFormData) {
     try {
         const { companyId } = await getAuthContext();
         await createSupplierInDb(companyId, data);
+        revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -164,6 +166,7 @@ export async function updateSupplier(id: string, data: SupplierFormData) {
     try {
         const { companyId } = await getAuthContext();
         await updateSupplierInDb(id, companyId, data);
+        revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -202,11 +205,10 @@ export async function disconnectIntegration(formData: FormData) {
     }
 }
 
-export async function getCustomersData(params: { query?: string, page: number }) {
+export async function getCustomersData(params: { query?: string, page: number, limit: number }) {
     const { companyId } = await getAuthContext();
-    const limit = 25;
-    const offset = (params.page - 1) * limit;
-    return getCustomersFromDB(companyId, { ...params, limit, offset });
+    const offset = (params.page - 1) * params.limit;
+    return getCustomersFromDB(companyId, { ...params, offset });
 }
 
 export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
@@ -222,7 +224,7 @@ export async function deleteCustomer(formData: FormData): Promise<{ success: boo
     }
 }
 
-export async function getSales(params: { query?: string, page: number, limit: number }) {
+export async function getSales(params: { query?: string, page: number, limit: number }): Promise<{ items: Order[]; totalCount: number; }> {
     const { companyId } = await getAuthContext();
     const offset = (params.page - 1) * params.limit;
     return getSalesFromDB(companyId, { ...params, offset });
@@ -313,8 +315,9 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         const { companyId } = await getAuthContext();
         validateCSRF(formData);
         const email = formData.get('email') as string;
-        // Company name is hardcoded as it's not available here, needs a better solution in a real app
-        await inviteUserToCompanyInDb(companyId, 'Your Company', email);
+        const company = await getCompanyById(companyId);
+        await inviteUserToCompanyInDb(companyId, company?.name || 'your company', email);
+        revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -327,7 +330,9 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
-        return await removeTeamMemberFromDb(memberId, companyId, userId);
+        const result = await removeTeamMemberFromDb(memberId, companyId, userId);
+        revalidatePath('/settings/profile');
+        return { success: result.success, error: result.error };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -340,7 +345,9 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
         
-        return await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        const result = await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        revalidatePath('/settings/profile');
+        return { success: result.success, error: result.error };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -437,8 +444,7 @@ export async function getCashFlowInsights() {
     const { companyId } = await getAuthContext();
     return getCashFlowInsightsFromDB(companyId);
 }
-export async function getSupplierPerformance() { return []; }
-export async function getInventoryTurnover() { return {turnover_rate:0,total_cogs:0,average_inventory_value:0,period_days:0}; }
+
 export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { 
     try {
         const { userEmail } = await getAuthContext();
@@ -486,8 +492,6 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
     }
 }
 export async function testMaterializedView() { return {success: true}; }
-export async function logPOCreation(poNumber: string, supplierName: string, items: any[]) { return; }
-export async function transferStock(formData: FormData) { return {success: false, error: "Not implemented"}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
      const { companyId } = await getAuthContext();
@@ -526,3 +530,5 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
         return { success: false, error: getErrorMessage(e) };
     }
 }
+
+    

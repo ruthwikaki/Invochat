@@ -194,7 +194,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <TopCustomerList title="Top Customers by Spend" data={analyticsData.top_customers_by_spend} icon={Trophy} valueLabel="spend" />
-            <TopCustomerList title="Top Customers by Orders" data={analyticsData.top_customers_by_sales} icon={ShoppingBag} valueLabel="orders" />
+            <TopCustomerList title="Top Customers by Sales" data={analyticsData.top_customers_by_sales} icon={ShoppingBag} valueLabel="orders" />
         </div>
 
         <Card>
@@ -294,3 +294,5 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
+
+    
