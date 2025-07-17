@@ -26,7 +26,7 @@ export default function DatabaseSetupPage() {
                 <p>1. In your project, find the correct script to run:</p>
                 <ul className="list-disc pl-5 mt-2 space-y-1">
                     <li><span className="font-semibold">For a brand new project:</span> Use <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></li>
-                    <li><span className="font-semibold">If you have an existing database:</span> Run any migration scripts you haven't applied yet, in order (e.g., <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/migration-2024-07-30.sql</code>).</li>
+                    <li><span className="font-semibold">If you have an existing database:</span> Run any migration scripts you haven't applied yet, in order (e.g., <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/migration-2024-07-31.sql</code>).</li>
                 </ul>
                 <p className="mt-2">2. Copy the entire contents of the correct file.</p>
                 <p>3. Go to your Supabase project dashboard and navigate to the <span className="font-semibold">SQL Editor</span>.</p>
@@ -45,6 +45,4 @@ export default function DatabaseSetupPage() {
     </div>
   );
 }
-
-
 
