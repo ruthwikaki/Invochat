@@ -36,7 +36,8 @@ import {
   FileQuestion,
   LifeBuoy,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  ShoppingCart
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 import { Button } from '../ui/button';
@@ -46,9 +47,9 @@ import { cn } from '@/lib/utils';
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
+  { href: '/sales', label: 'Sales', icon: ShoppingCart },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/reordering', label: 'Reordering', icon: RefreshCw },
-  { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
 ];
 
 const settingsNav = [
@@ -74,7 +75,8 @@ function NavLink({ href, label, icon: Icon }: { href: string; label: string; ico
 
 function ConversationLink({ conversation }: { conversation: Conversation }) {
     const pathname = usePathname();
-    const isActive = pathname === `/chat` && new URLSearchParams(window.location.search).get('id') === conversation.id;
+    const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    const isActive = pathname === `/chat` && searchParams.get('id') === conversation.id;
     return (
         <SidebarMenuSubItem>
             <Link href={`/chat?id=${conversation.id}`} legacyBehavior passHref>
@@ -145,7 +147,7 @@ export function AppSidebar() {
                     {settingsNav.map((item) => (
                         <SidebarMenuSubItem key={item.href}>
                              <Link href={item.href} legacyBehavior passHref>
-                                <SidebarMenuSubButton isActive={pathname === item.href}>
+                                <SidebarMenuSubButton isActive={pathname.startsWith(item.href)}>
                                     <item.icon/>
                                     <span>{item.label}</span>
                                 </SidebarMenuSubButton>

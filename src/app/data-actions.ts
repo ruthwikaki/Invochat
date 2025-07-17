@@ -112,7 +112,9 @@ export async function updateCompanySettings(formData: FormData) {
     overstock_multiplier: Number(formData.get('overstock_multiplier')),
     high_value_threshold: Number(formData.get('high_value_threshold')),
   };
-  return updateSettingsInDb(companyId, settings);
+  const result = await updateSettingsInDb(companyId, settings);
+  revalidatePath('/settings/profile');
+  return result;
 }
 
 export async function getUnifiedInventory(params: { query?: string; page?: number, limit?: number, status?: string, sortBy?: string, sortDirection?: string }) {
@@ -370,7 +372,15 @@ export async function exportSales(params: { query?: string }) {
     try {
         const { companyId } = await getAuthContext();
         const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
-        const csv = Papa.unparse(items);
+        const csv = Papa.unparse(items.map(item => ({
+            order_number: item.order_number,
+            created_at: item.created_at,
+            customer_email: item.customer_email,
+            financial_status: item.financial_status,
+            fulfillment_status: item.fulfillment_status,
+            total_amount: (item.total_amount / 100).toFixed(2),
+            source_platform: item.source_platform,
+        })));
         return { success: true, data: csv };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };

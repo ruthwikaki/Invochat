@@ -141,39 +141,39 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Order #</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Customer</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {initialSales.length === 0 ? (
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={5} className="h-24 text-center">
-                                        No sales orders found.
-                                    </TableCell>
+                                    <TableHead>Order #</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
                                 </TableRow>
-                            ) : initialSales.map(order => (
-                                <TableRow key={order.id}>
-                                    <TableCell className="font-medium">{order.order_number}</TableCell>
-                                    <TableCell>{format(new Date(order.created_at), 'MMM d, yyyy')}</TableCell>
-                                    <TableCell>{order.customer_email || 'N/A'}</TableCell>
-                                    <TableCell>{getFulfillmentBadge(order.fulfillment_status)}</TableCell>
-                                    <TableCell className="text-right font-tabular">{formatCentsAsCurrency(order.total_amount)}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {initialSales.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">
+                                            No sales orders found.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : initialSales.map(order => (
+                                    <TableRow key={order.id}>
+                                        <TableCell className="font-medium whitespace-nowrap">{order.order_number}</TableCell>
+                                        <TableCell className="whitespace-nowrap">{format(new Date(order.created_at), 'MMM d, yyyy')}</TableCell>
+                                        <TableCell>{order.customer_email || 'N/A'}</TableCell>
+                                        <TableCell>{getFulfillmentBadge(order.fulfillment_status)}</TableCell>
+                                        <TableCell className="text-right font-tabular">{formatCentsAsCurrency(order.total_amount)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                     <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
                 </CardContent>
             </Card>
         </div>
     )
 }
-
-    

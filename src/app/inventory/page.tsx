@@ -34,7 +34,7 @@ export default async function InventoryPage({
   }
 
   return (
-    <div className="space-y-6">
+    <AppPage>
       <AppPageHeader
         title="Inventory Management"
         description="Search, filter, and view your entire product catalog."
@@ -46,6 +46,6 @@ export default async function InventoryPage({
         analyticsData={analytics}
         exportAction={handleExport}
       />
-    </div>
+    </AppPage>
   );
 }
