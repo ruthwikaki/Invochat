@@ -49,6 +49,13 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check')) {
     return response;
   }
+  
+  // Root page should redirect based on auth status
+  if (pathname === '/') {
+      return user 
+        ? NextResponse.redirect(new URL('/dashboard', req.url))
+        : NextResponse.redirect(new URL('/login', req.url));
+  }
 
   // If the user is not logged in and is trying to access a protected route, redirect to login
   if (!user && !isPublicRoute) {

@@ -46,7 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === 'SIGNED_IN') {
           router.refresh();
         } else if (event === 'SIGNED_OUT') {
-          router.push('/login');
+          // This ensures a clean redirect to login after sign out
+          // and prevents users from hitting a cached protected page.
+          window.location.href = '/login';
         }
       }
     );
@@ -67,6 +69,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signOut,
   };
+
+  // Render a loading state or null while the session is being determined.
+  // This prevents a flash of unauthenticated content on protected pages.
+  if (loading) {
+    return null; 
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
