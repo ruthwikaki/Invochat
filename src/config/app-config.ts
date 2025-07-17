@@ -27,22 +27,12 @@ const EnvSchema = z.object({
   GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
   REDIS_URL: z.string().optional(),
   ENCRYPTION_KEY: z.string().length(64, { message: "Must be a 64-character hex string (32 bytes)."}),
-  ENCRYPTION_IV: z.string().length(32, { message: "Must be a 32-character hex string (16 bytes)."}),
   HEALTH_CHECK_API_KEY: z.string().min(1, { message: "Is not set. Required for health check endpoint security."}),
   SHOPIFY_WEBHOOK_SECRET: z.string().optional(),
   WOOCOMMERCE_WEBHOOK_SECRET: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().optional(),
   EMAIL_TEST_RECIPIENT: z.string().email().optional(),
-}).refine(data => {
-    // If one encryption var is set, the other must be too.
-    if (data.ENCRYPTION_KEY || data.ENCRYPTION_IV) {
-        return !!data.ENCRYPTION_KEY && !!data.ENCRYPTION_IV;
-    }
-    return true;
-}, {
-    message: "Both ENCRYPTION_KEY and ENCRYPTION_IV must be provided if one is present.",
-    path: ["ENCRYPTION_KEY", "ENCRYPTION_IV"],
 });
 
 // Export the result of the validation to be checked in the root layout.
