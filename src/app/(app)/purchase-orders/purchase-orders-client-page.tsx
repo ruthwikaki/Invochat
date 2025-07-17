@@ -26,6 +26,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
   return (
     <Card>
       <CardContent className="p-0">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -50,18 +51,19 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
                   <TableCell className="font-medium">{po.po_number}</TableCell>
                   <TableCell>{po.supplier_name || 'N/A'}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={cn(statusColors[po.status] || '')}>
+                    <Badge variant="outline" className={cn("whitespace-nowrap", statusColors[po.status] || '')}>
                         {po.status}
                     </Badge>
                   </TableCell>
                   <TableCell>{format(new Date(po.created_at), 'MMM d, yyyy')}</TableCell>
                   <TableCell>{po.expected_arrival_date ? format(new Date(po.expected_arrival_date), 'MMM d, yyyy') : 'N/A'}</TableCell>
-                  <TableCell className="text-right">{formatCentsAsCurrency(po.total_cost)}</TableCell>
+                  <TableCell className="text-right font-tabular">{formatCentsAsCurrency(po.total_cost)}</TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );
