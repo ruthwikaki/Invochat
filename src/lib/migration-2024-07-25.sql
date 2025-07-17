@@ -1,134 +1,80 @@
 -- ARVO DATABASE MIGRATION SCRIPT
--- This script is designed to be idempotent and safely updates an existing database
--- from its initial state to the required state for the latest application version.
+-- This script applies all necessary changes from the initial schema to the current version.
+-- It is designed to be run once on an existing database.
+-- It is idempotent and can be re-run, but it's best to run it only once.
 
-DO $$
-BEGIN
-    RAISE NOTICE 'Starting ARVO database migration...';
-END $$;
+BEGIN;
 
--- STEP 1: Define helper procedures for RLS management.
--- Using procedures to handle dynamic SQL execution.
-
--- Procedure to enable RLS on a table if it's not already enabled.
-CREATE OR REPLACE PROCEDURE enable_rls_on_table(table_name TEXT)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    EXECUTE 'ALTER TABLE public.' || quote_ident(table_name) || ' ENABLE ROW LEVEL SECURITY';
-    RAISE NOTICE 'Enabled RLS on table: %', table_name;
-EXCEPTION
-    WHEN duplicate_object THEN
-        RAISE NOTICE 'RLS is already enabled on table: %', table_name;
-END;
-$$;
-
--- Procedure to drop all existing policies on a table to ensure a clean slate.
-CREATE OR REPLACE PROCEDURE drop_all_policies_on_table(table_name TEXT)
+-- =================================================================
+-- Step 1: Procedure to drop all RLS policies on a table
+-- This allows us to redefine them without conflicts.
+-- =================================================================
+CREATE OR REPLACE PROCEDURE drop_all_rls_policies(table_name_param regclass)
 LANGUAGE plpgsql
 AS $$
 DECLARE
     r record;
 BEGIN
-    FOR r IN (SELECT policyname FROM pg_policies WHERE tablename = table_name AND schemaname = 'public')
+    FOR r IN (SELECT policyname FROM pg_policies WHERE tablename = table_name_param::text AND schemaname = 'public')
     LOOP
-        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON public.' || quote_ident(table_name);
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(r.policyname) || ' ON ' || table_name_param;
     END LOOP;
-    RAISE NOTICE 'Dropped all existing policies on table: %', table_name;
 END;
 $$;
 
-
--- STEP 2: Drop dependent objects (Views and Policies) before altering the function they use.
-
-DO $$
-DECLARE
-    table_name TEXT;
-BEGIN
-    RAISE NOTICE 'Dropping all existing RLS policies...';
-    FOR table_name IN
-        SELECT t.tablename FROM pg_tables t
-        WHERE t.schemaname = 'public' AND t.tableowner = 'postgres'
-    LOOP
-        CALL drop_all_policies_on_table(table_name);
-    END LOOP;
-END $$;
-
-RAISE NOTICE 'Dropping dependent views...';
-DROP VIEW IF EXISTS public.product_variants_with_details;
-
--- STEP 3: Recreate the core helper function `get_company_id`.
--- This ensures the function definition is always up-to-date.
-
-RAISE NOTICE 'Recreating helper function: get_company_id()';
-CREATE OR REPLACE FUNCTION public.get_company_id()
-RETURNS uuid
-LANGUAGE sql
-STABLE
+-- =================================================================
+-- Step 2: Procedure to enable RLS on all tables
+-- =================================================================
+CREATE OR REPLACE PROCEDURE enable_rls_on_table(table_name_param regclass)
+LANGUAGE plpgsql
 AS $$
-  SELECT (NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'company_id', '')::uuid);
+BEGIN
+    EXECUTE 'ALTER TABLE ' || table_name_param || ' ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'ALTER TABLE ' || table_name_param || ' FORCE ROW LEVEL SECURITY';
+END;
 $$;
 
--- STEP 4: Add new columns if they don't exist.
-DO $$
-BEGIN
-    RAISE NOTICE 'Adding new columns to tables if they do not exist...';
-
-    -- Add 'role' to public.users table
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role') THEN
-        ALTER TABLE public.users ADD COLUMN role TEXT DEFAULT 'member';
-        RAISE NOTICE 'Added column "role" to public.users';
-    END IF;
-
-    -- Add 'company_id' to purchase_order_line_items
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'purchase_order_line_items' AND column_name = 'company_id') THEN
-        ALTER TABLE public.purchase_order_line_items ADD COLUMN company_id UUID;
-        RAISE NOTICE 'Added column "company_id" to public.purchase_order_line_items';
-    END IF;
-END $$;
-
-
--- STEP 5: Create a master procedure to apply all RLS policies.
+-- =================================================================
+-- Step 3: Centralized procedure to apply all policies
+-- =================================================================
 CREATE OR REPLACE PROCEDURE apply_rls_policies()
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    table_name TEXT;
+    table_name text;
 BEGIN
-    RAISE NOTICE 'Applying RLS policies to all tables...';
-    -- Iterate over all tables in the public schema and enable RLS
+    -- Enable RLS on all tables first
     FOR table_name IN
-        SELECT t.tablename FROM pg_tables t
-        WHERE t.schemaname = 'public' AND t.tableowner = 'postgres'
+        SELECT t.table_name FROM (VALUES
+            ('companies'), ('company_settings'), ('users'), ('products'), ('product_variants'),
+            ('inventory_ledger'), ('orders'), ('order_line_items'), ('customers'),
+            ('suppliers'), ('purchase_orders'), ('purchase_order_line_items'), ('integrations'), ('conversations'), ('messages'),
+            ('audit_log'), ('channel_fees')
+        ) AS t(table_name)
     LOOP
-        -- This is the corrected line: using CALL instead of PERFORM
-        CALL enable_rls_on_table(table_name);
+        CALL enable_rls_on_table(table_name::regclass);
     END LOOP;
 
-    -- Policy for 'companies'
-    CALL drop_all_policies_on_table('companies');
-    CREATE POLICY "Allow all access to own company data" ON public.companies FOR ALL
-        USING (id = public.get_company_id())
-        WITH CHECK (id = public.get_company_id());
-
-    -- Policy for 'users'
-    CALL drop_all_policies_on_table('users');
-    CREATE POLICY "Allow all access to own company data" ON public.users FOR ALL
-        USING (company_id = public.get_company_id())
-        WITH CHECK (company_id = public.get_company_id());
-        
-    -- Policy for all other tables with a 'company_id' column
+    -- Standard policy for tables with a direct company_id
     FOR table_name IN
-        SELECT t.table_name FROM information_schema.columns t
-        WHERE t.table_schema = 'public' AND t.column_name = 'company_id' AND t.table_name NOT IN ('companies', 'users')
+        SELECT t.table_name FROM (VALUES
+             ('company_settings'), ('users'), ('products'), ('product_variants'),
+            ('inventory_ledger'), ('orders'), ('order_line_items'), ('customers'),
+            ('suppliers'), ('purchase_orders'), ('integrations'), ('conversations'), ('messages'),
+            ('audit_log'), ('channel_fees')
+        ) AS t(table_name)
     LOOP
-        CALL drop_all_policies_on_table(table_name);
-        EXECUTE format('CREATE POLICY "Allow all access to own company data" ON public.%I FOR ALL USING (company_id = public.get_company_id()) WITH CHECK (company_id = public.get_company_id())', table_name);
+        EXECUTE 'CREATE POLICY "Allow all access to own company data" ON public.' || quote_ident(table_name)
+             || ' FOR ALL USING (company_id = public.get_company_id()) WITH CHECK (company_id = public.get_company_id())';
     END LOOP;
 
-    -- Special policy for 'purchase_order_line_items' which does not have a company_id
-    CALL drop_all_policies_on_table('purchase_order_line_items');
-    CREATE POLICY "Allow all access based on parent PO" ON public.purchase_order_line_items FOR ALL
+    -- Special policy for the 'companies' table itself (checks its own id)
+    CREATE POLICY "Allow all access to own company data" ON public.companies
+        FOR ALL USING (id = public.get_company_id()) WITH CHECK (id = public.get_company_id());
+
+    -- Special policy for purchase_order_line_items (checks parent PO)
+    CREATE POLICY "Allow all access based on parent PO" ON public.purchase_order_line_items
+        FOR ALL
         USING (
             (
                 SELECT po.company_id
@@ -137,49 +83,87 @@ BEGIN
             ) = public.get_company_id()
         )
         WITH CHECK (
-            (
+             (
                 SELECT po.company_id
                 FROM public.purchase_orders po
                 WHERE po.id = purchase_order_id
             ) = public.get_company_id()
         );
-
-    RAISE NOTICE 'Finished applying RLS policies.';
 END;
 $$;
 
--- Execute the master policy procedure
-CALL apply_rls_policies();
 
+-- =================================================================
+-- Step 4: Drop dependent objects before redefining the function
+-- =================================================================
+DROP VIEW IF EXISTS public.product_variants_with_details;
+CALL drop_all_rls_policies('companies');
+CALL drop_all_rls_policies('company_settings');
+CALL drop_all_rls_policies('users');
+CALL drop_all_rls_policies('products');
+CALL drop_all_rls_policies('product_variants');
+CALL drop_all_rls_policies('inventory_ledger');
+CALL drop_all_rls_policies('orders');
+CALL drop_all_rls_policies('order_line_items');
+CALL drop_all_rls_policies('customers');
+CALL drop_all_rls_policies('suppliers');
+CALL drop_all_rls_policies('purchase_orders');
+CALL drop_all_rls_policies('purchase_order_line_items');
+CALL drop_all_rls_policies('integrations');
+CALL drop_all_rls_policies('conversations');
+CALL drop_all_rls_policies('messages');
+CALL drop_all_rls_policies('audit_log');
+CALL drop_all_rls_policies('channel_fees');
 
--- STEP 6: Recreate Views
-RAISE NOTICE 'Recreating views...';
+-- =================================================================
+-- Step 5: Redefine the company ID helper function correctly
+-- =================================================================
+CREATE OR REPLACE FUNCTION public.get_company_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT (NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'company_id', '')::uuid);
+$$;
 
--- View for product variants with essential product details
+-- =================================================================
+-- Step 6: Apply Schema Changes
+-- =================================================================
+ALTER TABLE public.orders DROP COLUMN IF EXISTS status;
+ALTER TABLE public.order_line_items ALTER COLUMN product_id SET NOT NULL;
+ALTER TABLE public.order_line_items ALTER COLUMN variant_id SET NOT NULL;
+
+-- Add company_id to purchase_order_line_items if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+        AND table_name = 'purchase_order_line_items'
+        AND column_name = 'company_id'
+    ) THEN
+        ALTER TABLE public.purchase_order_line_items ADD COLUMN company_id uuid;
+    END IF;
+END;
+$$;
+
+-- Populate the new company_id column by joining with purchase_orders
+UPDATE public.purchase_order_line_items poli
+SET company_id = po.company_id
+FROM public.purchase_orders po
+WHERE poli.purchase_order_id = po.id AND poli.company_id IS NULL;
+
+-- Now that it's populated, make it non-nullable
+ALTER TABLE public.purchase_order_line_items ALTER COLUMN company_id SET NOT NULL;
+
+-- =================================================================
+-- Step 7: Recreate Views
+-- =================================================================
 CREATE OR REPLACE VIEW public.product_variants_with_details AS
 SELECT
-    pv.id,
-    pv.product_id,
-    pv.company_id,
-    pv.sku,
-    pv.title,
-    pv.option1_name,
-    pv.option1_value,
-    pv.option2_name,
-    pv.option2_value,
-    pv.option3_name,
-    pv.option3_value,
-    pv.barcode,
-    pv.price,
-    pv.compare_at_price,
-    pv.cost,
-    pv.inventory_quantity,
-    pv.location,
-    pv.external_variant_id,
-    pv.created_at,
-    pv.updated_at,
-    p.title as product_title,
-    p.status as product_status,
+    pv.*,
+    p.title AS product_title,
+    p.status AS product_status,
     p.image_url
 FROM
     public.product_variants pv
@@ -188,8 +172,17 @@ JOIN
 WHERE
     pv.company_id = public.get_company_id();
 
+-- =================================================================
+-- Step 8: Re-apply all RLS policies
+-- =================================================================
+CALL apply_rls_policies();
 
-DO $$
-BEGIN
-    RAISE NOTICE 'Migration script finished successfully.';
-END $$;
+-- =================================================================
+-- Step 9: Clean up temporary procedures
+-- =================================================================
+DROP PROCEDURE IF EXISTS drop_all_rls_policies(regclass);
+DROP PROCEDURE IF EXISTS enable_rls_on_table(regclass);
+DROP PROCEDURE IF EXISTS apply_rls_policies();
+
+
+COMMIT;
