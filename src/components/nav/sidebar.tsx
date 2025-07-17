@@ -50,6 +50,7 @@ const mainNav = [
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/reordering', label: 'Reordering', icon: RefreshCw },
+  { href: '/customers', label: 'Customers', icon: Users },
 ];
 
 const settingsNav = [
