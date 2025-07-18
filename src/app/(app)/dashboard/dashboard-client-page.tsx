@@ -1,18 +1,13 @@
+
 'use client';
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
-  DollarSign,
-  ShoppingCart,
   Users,
   TrendingDown,
-  Upload,
-  MessageSquare,
-  RefreshCw,
-  AlertTriangle,
   Wallet,
+  ShoppingCart
 } from 'lucide-react';
 import {
   Select,
@@ -28,11 +23,10 @@ import { MorningBriefingCard } from '@/components/dashboard/morning-briefing-car
 import { getDashboardData } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import type { DashboardMetrics } from '@/types';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
+import { QuickActions } from '@/components/dashboard/quick-actions';
 
 interface DashboardClientPageProps {
     initialMetrics: DashboardMetrics;
@@ -64,31 +58,6 @@ const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { 
         </Card>
     );
 };
-
-const QuickActions = () => {
-    const router = useRouter();
-    return (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => router.push('/import')}>
-            <Upload className="h-5 w-5" />
-            <span>Import Data</span>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => router.push('/chat')}>
-            <MessageSquare className="h-5 w-5" />
-            <span>Ask AI</span>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => router.push('/analytics/reordering')}>
-            <RefreshCw className="h-5 w-5" />
-            <span>Check Reorders</span>
-            </Button>
-            <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => router.push('/analytics/dead-stock')}>
-            <AlertTriangle className="h-5 w-5" />
-            <span>View Alerts</span>
-            </Button>
-        </div>
-    );
-};
-
 
 export function DashboardClientPage({ initialMetrics, initialBriefing }: DashboardClientPageProps) {
     const [metrics, setMetrics] = useState(initialMetrics);

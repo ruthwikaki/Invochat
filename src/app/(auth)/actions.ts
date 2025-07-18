@@ -66,11 +66,18 @@ export async function login(formData: FormData) {
         'Authentication service is not responding. Please try again later.'
     );
 
-    if (error || !data.session) {
-      if (error?.message.includes('Email not confirmed')) {
-        throw new Error('Please confirm your email before signing in.');
+    if (error) {
+      if (error.message.includes('Email not confirmed')) {
+        throw new Error('Please check your inbox to confirm your email address before signing in.');
       }
-      throw new Error(error?.message || 'Login failed. Check credentials or confirm your email.');
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Invalid email or password. Please try again.');
+      }
+      throw error;
+    }
+    
+    if (!data.session) {
+      throw new Error('Login failed. Please check your credentials.');
     }
 
   } catch (e) {
