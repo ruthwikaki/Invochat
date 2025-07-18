@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -16,19 +15,22 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PlatformLogo } from './platform-logos';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 
 interface IntegrationCardProps {
     integration: Integration;
     onSync: (id: string, platform: Platform) => void;
-    onDisconnect: (id: string) => void;
+    onDisconnect: (formData: FormData) => void;
 }
 
 export function IntegrationCard({ integration, onSync, onDisconnect }: IntegrationCardProps) {
     const isSyncing = integration.sync_status?.startsWith('syncing');
+    const [isDisconnecting, startDisconnectTransition] = useTransition();
     const [formattedDate, setFormattedDate] = useState('');
 
     useEffect(() => {
@@ -38,6 +40,16 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
     }, [integration.last_sync_at]);
     
     const isDemo = integration.platform === 'amazon_fba';
+
+    const handleDisconnect = () => {
+      startDisconnectTransition(() => {
+        const formData = new FormData();
+        const csrfToken = getCookie(CSRF_FORM_NAME);
+        if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
+        formData.append('integrationId', integration.id);
+        onDisconnect(formData);
+      });
+    }
 
     const renderStatus = () => {
         switch (integration.sync_status) {
@@ -84,7 +96,9 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
                     </Button>
                      <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive">Disconnect</Button>
+                            <Button variant="destructive" disabled={isDisconnecting}>
+                                {isDisconnecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Disconnect'}
+                            </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
@@ -95,7 +109,7 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => onDisconnect(integration.id)} className="bg-destructive hover:bg-destructive/90">
+                                <AlertDialogAction onClick={handleDisconnect} className="bg-destructive hover:bg-destructive/90">
                                     Yes, Disconnect
                                 </AlertDialogAction>
                             </AlertDialogFooter>

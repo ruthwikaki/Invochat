@@ -13,7 +13,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { PlatformLogo } from './platform-logos';
 import type { Platform, Integration } from '@/types';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { disconnectIntegration, reconcileInventory } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertCircle } from 'lucide-react';
@@ -147,17 +146,20 @@ export function IntegrationsClientPage() {
         },
     });
 
-    const handleDisconnect = async (integrationId: string) => {
-        const formData = new FormData();
-        formData.append('integrationId', integrationId);
-        const csrfToken = getCookie(CSRF_FORM_NAME);
-        if (csrfToken) {
-            formData.append(CSRF_FORM_NAME, csrfToken);
+    const disconnectMutation = useMutation({
+      mutationFn: disconnectIntegration,
+      onSuccess: (result) => {
+        if(result.success) {
+          toast({ title: 'Integration Disconnected' });
+          queryClient.invalidateQueries({ queryKey: ['integrations'] });
+        } else {
+          toast({ variant: 'destructive', title: 'Error', description: result.error });
         }
-        await disconnectIntegration(formData);
-        queryClient.invalidateQueries({ queryKey: ['integrations'] });
-        toast({ title: 'Integration Disconnected' });
-    };
+      },
+      onError: (err) => {
+        toast({ variant: 'destructive', title: 'Error', description: getErrorMessage(err) });
+      }
+    });
 
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
     
@@ -198,7 +200,7 @@ export function IntegrationsClientPage() {
                                 key={integration.id}
                                 integration={integration}
                                 onSync={() => syncMutation.mutate({ integrationId: integration.id, platform: integration.platform })}
-                                onDisconnect={handleDisconnect}
+                                onDisconnect={(formData) => disconnectMutation.mutate(formData)}
                             />
                         ))
                     ) : (
