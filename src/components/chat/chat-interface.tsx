@@ -10,13 +10,54 @@ import { ArrowRight, Bot, Mic } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
-import { config } from '@/config/app-config';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { getErrorMessage } from '@/lib/error-handler';
 import { motion } from 'framer-motion';
 import { InvoChatLogo } from '../invochat-logo';
 
-const quickActions = config.chat.quickActions;
+const contextualQuickActions: Record<string, string[]> = {
+    default: [
+      "What should I order today?",
+      "Show me my dead stock report",
+      "Which products are most profitable?",
+    ],
+    '/dashboard': [
+        "Give me a summary of my business performance.",
+        "Any unusual sales activity recently?",
+        "What should be my top priority today?",
+    ],
+    '/inventory': [
+        "Show me my most valuable inventory.",
+        "Which products are low on stock?",
+        "Forecast demand for SKU [enter SKU]",
+    ],
+    '/sales': [
+        "What were my sales yesterday?",
+        "Who are my top 5 customers by revenue?",
+        "Show me sales trends for the last 30 days.",
+    ],
+     '/analytics/reordering': [
+        "Which supplier has the longest lead time?",
+        "Create a purchase order for all suggested items.",
+        "Export these suggestions to CSV.",
+    ],
+    '/analytics/dead-stock': [
+        "Suggest a markdown plan for my dead stock.",
+        "Which items have been unsold the longest?",
+        "What's the total value tied up in dead stock?",
+    ],
+    '/customers': [
+        "Show me my newest customers.",
+        "Which customers haven't ordered in a while?",
+        "Generate a profile for a specific customer.",
+    ],
+     '/chat': [
+        "Summarize our conversation.",
+        "What was the first thing I asked?",
+        "Show me my reorder suggestions again.",
+    ]
+};
+
 
 function ChatWelcomePanel() {
     return (
@@ -61,9 +102,12 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
   const [isPending, startTransition] = useTransition();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
 
   const isNewChat = !conversationId;
+
+  const quickActions = contextualQuickActions[pathname] || contextualQuickActions.default;
   
   useEffect(() => {
     if (prefillQuery) {

@@ -1,6 +1,7 @@
+
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   SidebarContent,
@@ -31,7 +32,8 @@ import {
   Truck,
   Import,
   User,
-  ShoppingCart
+  ShoppingCart,
+  History
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 
@@ -78,13 +80,13 @@ function NavLink({ href, label, icon: Icon }: { href: string; label: string; ico
 
 function ConversationLink({ conversation }: { conversation: Conversation }) {
     const pathname = usePathname();
-    const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    const searchParams = useSearchParams();
     const isActive = pathname === `/chat` && searchParams.get('id') === conversation.id;
     return (
         <SidebarMenuSubItem>
             <Link href={`/chat?id=${conversation.id}`} legacyBehavior passHref>
                  <SidebarMenuSubButton isActive={isActive}>
-                    <span>{conversation.title}</span>
+                    <span className="truncate">{conversation.title}</span>
                 </SidebarMenuSubButton>
             </Link>
         </SidebarMenuSubItem>
@@ -96,7 +98,6 @@ export function AppSidebar() {
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => getConversations(),
-    refetchOnWindowFocus: false,
   });
 
   return (
@@ -134,6 +135,21 @@ export function AppSidebar() {
 
            <Separator className="my-2" />
            {toolsNav.map((item) => <NavLink key={item.href} {...item} />)}
+
+            {(conversations && conversations.length > 0) && (
+              <>
+                <Separator className="my-2" />
+                <SidebarMenuItem>
+                    <SidebarMenuButton>
+                        <History />
+                        <span>History</span>
+                    </SidebarMenuButton>
+                    <SidebarMenuSub>
+                        {conversations.map((convo) => <ConversationLink key={convo.id} conversation={convo} />)}
+                    </SidebarMenuSub>
+                </SidebarMenuItem>
+              </>
+            )}
         </SidebarMenu>
       </SidebarContent>
 
