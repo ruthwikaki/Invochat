@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (event === 'SIGNED_OUT') {
           // This ensures a clean redirect to login after sign out
           // and prevents users from hitting a cached protected page.
-          window.location.href = '/login';
+          router.push('/login');
         }
       }
     );

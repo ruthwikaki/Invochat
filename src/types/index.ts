@@ -1,4 +1,3 @@
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -352,7 +351,20 @@ export type InventoryAnalytics = any;
 export type SalesAnalytics = any;
 export type CustomerAnalytics = any;
 export type Alert = any;
-export type Anomaly = any;
+
+export const AnomalySchema = z.object({
+    date: z.string(),
+    anomaly_type: z.string(),
+    daily_revenue: z.number(),
+    avg_revenue: z.number(),
+    deviation_percentage: z.number(),
+    explanation: z.string().optional(),
+    confidence: z.enum(['high', 'medium', 'low']).optional(),
+    suggestedAction: z.string().optional(),
+    id: z.string().optional(),
+});
+export type Anomaly = z.infer<typeof AnomalySchema>;
+
 export type HealthCheckResult = any;
 export type ChannelFee = any;
 export type CompanyInfo = any;
@@ -376,7 +388,7 @@ export const CsvMappingInputSchema = z.object({
     sampleRows: z.array(z.record(z.string(), z.unknown())),
     expectedDbFields: z.array(z.string()),
 });
-export type CsvMappingInput = z.infer<typeof CsvMappingInputSchema>;
+export type CsvMappingInput = z.infer<typeof CsvMappingInput>;
 
 export const CsvMappingOutputSchema = z.object({
     mappings: z.array(z.object({
@@ -399,7 +411,7 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 
 export const AnomalyExplanationInputSchema = z.object({
-    anomaly: z.any(),
+    anomaly: AnomalySchema,
     dateContext: z.any(),
 });
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;

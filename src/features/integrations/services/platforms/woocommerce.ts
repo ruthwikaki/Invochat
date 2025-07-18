@@ -34,6 +34,17 @@ async function wooCommerceFetch(
     };
 }
 
+// Type guard to check if an object is a valid WooCommerce product for our needs.
+function isVariableProduct(p: unknown): p is { id: number; type: 'variable', variations: any[] } {
+    return (
+        typeof p === 'object' &&
+        p !== null &&
+        'type' in p &&
+        p.type === 'variable' &&
+        'variations' in p &&
+        Array.isArray(p.variations)
+    );
+}
 
 async function syncProducts(integration: Integration, credentials: { consumerKey: string, consumerSecret: string }) {
     const supabase = getServiceRoleClient();
@@ -81,7 +92,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             const productIdMap = new Map(upsertedProducts?.map(p => [p.external_product_id, p.id]));
             const variantsToUpsert: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[] = [];
 
-            const variableProductIds = wooProducts.filter((p: any) => p.type === 'variable' && p.variations.length > 0).map((p: any) => p.id);
+            const variableProductIds = wooProducts.filter(isVariableProduct).map((p: any) => p.id);
             const allVariations: any[] = [];
             
             if (variableProductIds.length > 0) {
