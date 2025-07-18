@@ -95,10 +95,11 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
     let totalRecordsSynced = 0;
 
     for (const order of simulatedOrders) {
-        const itemsWithCost = order.line_items.map((item: any) => {
-            const product = products.find(p => p.sku === item.sku);
+        const itemsWithCost = order.line_items.map((item: unknown) => {
+            const typedItem = item as { sku: string; price: string };
+            const product = products.find(p => p.sku === typedItem.sku);
             return {
-                ...item,
+                ...typedItem,
                 cost_at_time: product ? Math.round(parseFloat(product.cost_of_goods) * 100) : 0,
             };
         });

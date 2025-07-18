@@ -297,6 +297,7 @@ export const ProductLifecycleStageSchema = z.object({
   stage: z.enum(['Launch', 'Growth', 'Maturity', 'Decline']),
   total_revenue: z.number().int(),
   total_quantity: z.number(),
+  customer_count: z.number(),
 });
 export type ProductLifecycleStage = z.infer<typeof ProductLifecycleStageSchema>;
 
@@ -359,6 +360,7 @@ export type Anomaly = z.infer<typeof AnomalySchema>;
 export type HealthCheckResult = any;
 export type ChannelFee = any;
 export type CompanyInfo = any;
+export type CustomerAnalytics = unknown;
 
 export const InventoryLedgerEntrySchema = z.object({
     id: z.string().uuid(),
@@ -431,5 +433,6 @@ export const AlertSchema = z.object({
   message: z.string(),
   severity: z.string(),
   timestamp: z.string(),
-  metadata: z.record(z.any()),
+  metadata: z.record(z.unknown()),
 });
+export type Alert = z.infer<typeof AlertSchema>;
