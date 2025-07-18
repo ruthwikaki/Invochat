@@ -334,12 +334,12 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
 export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
+        await checkUserPermission(userId, 'Owner');
         validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
-        const result = await removeTeamMemberFromDb(memberId, companyId, userId);
+        const result = await removeTeamMemberFromDb(memberId, companyId);
         revalidatePath('/settings/profile');
         return { success: result.success, error: result.error };
     } catch (e) {
@@ -349,7 +349,7 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
 export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
+        await checkUserPermission(userId, 'Owner');
         validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
