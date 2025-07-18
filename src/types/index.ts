@@ -357,9 +357,30 @@ export const AnomalySchema = z.object({
 });
 export type Anomaly = z.infer<typeof AnomalySchema>;
 
-export type HealthCheckResult = any;
-export type ChannelFee = any;
-export type CompanyInfo = any;
+export const HealthCheckResultSchema = z.object({
+    healthy: z.boolean(),
+    metric: z.number(),
+    message: z.string(),
+});
+export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
+
+export const ChannelFeeSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    channel_name: z.string(),
+    fixed_fee: z.number().int().nullable(),
+    percentage_fee: z.number().nullable(),
+    created_at: z.string().datetime({ offset: true }),
+    updated_at: z.string().datetime({ offset: true }).nullable(),
+});
+export type ChannelFee = z.infer<typeof ChannelFeeSchema>;
+
+export const CompanyInfoSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+});
+export type CompanyInfo = z.infer<typeof CompanyInfoSchema>;
+
 export type CustomerAnalytics = unknown;
 
 export const InventoryLedgerEntrySchema = z.object({
@@ -405,7 +426,12 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 export const AnomalyExplanationInputSchema = z.object({
     anomaly: AnomalySchema,
-    dateContext: z.any(),
+    dateContext: z.object({
+      dayOfWeek: z.string(),
+      month: z.string(),
+      season: z.string(),
+      knownHoliday: z.string().optional(),
+    }),
 });
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 
