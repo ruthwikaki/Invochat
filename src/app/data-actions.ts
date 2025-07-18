@@ -54,7 +54,8 @@ import {
   reconcileInventoryInDb,
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
-  checkUserPermission
+  checkUserPermission,
+  getHistoricalSalesForSkus
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';

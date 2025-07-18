@@ -382,7 +382,15 @@ export async function createExportJobInDb(companyId: string, userId: string) {
 export async function refreshMaterializedViews(companyId: string) {}
 export async function logSuccessfulLogin(userId: string, ip: string) {}
 
-export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) { return []; }
+export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_historical_sales_for_skus', { p_company_id: companyId, p_skus: skus });
+    if (error) {
+        logError(error, { context: `Failed to get historical sales for SKUs`, skus });
+        return [];
+    }
+    return data || [];
+}
 
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     const supabase = getServiceRoleClient();
