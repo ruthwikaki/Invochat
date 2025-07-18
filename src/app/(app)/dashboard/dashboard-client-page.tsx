@@ -27,6 +27,7 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { QuickActions } from '@/components/dashboard/quick-actions';
+import { useRouter } from 'next/navigation';
 
 interface DashboardClientPageProps {
     initialMetrics: DashboardMetrics;
@@ -60,18 +61,10 @@ const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { 
 };
 
 export function DashboardClientPage({ initialMetrics, initialBriefing }: DashboardClientPageProps) {
-    const [metrics, setMetrics] = useState(initialMetrics);
-    const [briefing, setBriefing] = useState(initialBriefing);
-    const { toast } = useToast();
+    const router = useRouter();
 
-    const handleDateChange = async (value: string) => {
-        try {
-            const newMetrics = await getDashboardData(value);
-            setMetrics(newMetrics);
-            toast({ title: 'Dashboard updated', description: `Showing data for the last ${value.replace('d', '')} days.` });
-        } catch (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch new dashboard data.' });
-        }
+    const handleDateChange = (value: string) => {
+        router.push(`/dashboard?range=${value}`);
     };
     
     return (
@@ -83,12 +76,9 @@ export function DashboardClientPage({ initialMetrics, initialBriefing }: Dashboa
         >
             <div className="flex flex-col md:flex-row items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                    <p className="text-muted-foreground">
-                        Here's a high-level overview of your business performance.
-                    </p>
+                    {/* The title and description are now in the server component */}
                 </div>
-                <Select onValueChange={handleDateChange} defaultValue="90d">
+                 <Select onValueChange={handleDateChange} defaultValue="90d">
                     <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Select date range" />
                     </SelectTrigger>
@@ -102,21 +92,21 @@ export function DashboardClientPage({ initialMetrics, initialBriefing }: Dashboa
             
             <QuickActions />
 
-            <MorningBriefingCard briefing={briefing} />
+            <MorningBriefingCard briefing={initialBriefing} />
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Total Revenue" value={formatCentsAsCurrency(metrics.total_revenue)} change={`${metrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={metrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
-                <StatCard title="Total Sales" value={metrics.total_sales.toLocaleString()} change={`${metrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={metrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
-                <StatCard title="New Customers" value={metrics.new_customers.toLocaleString()} change={`${metrics.customers_change.toFixed(1)}%`} icon={Users} changeType={metrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
-                <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(metrics.dead_stock_value)} icon={TrendingDown} gradient="bg-rose-500" />
+                <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
+                <StatCard title="Total Sales" value={initialMetrics.total_sales.toLocaleString()} change={`${initialMetrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
+                <StatCard title="New Customers" value={initialMetrics.new_customers.toLocaleString()} change={`${initialMetrics.customers_change.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
+                <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value)} icon={TrendingDown} gradient="bg-rose-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SalesChart data={metrics.sales_over_time} />
-                <TopProductsCard data={metrics.top_selling_products} />
+                <SalesChart data={initialMetrics.sales_over_time} />
+                <TopProductsCard data={initialMetrics.top_selling_products} />
             </div>
             
-            <InventorySummaryCard data={metrics.inventory_summary} />
+            <InventorySummaryCard data={initialMetrics.inventory_summary} />
         </motion.div>
     );
 }

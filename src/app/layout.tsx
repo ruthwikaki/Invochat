@@ -9,7 +9,6 @@ import { AuthProvider } from '@/context/auth-context';
 import { envValidation } from '@/config/app-config';
 import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
 
-
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',

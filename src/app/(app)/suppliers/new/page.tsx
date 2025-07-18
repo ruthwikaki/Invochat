@@ -1,6 +1,6 @@
 
 import { SupplierForm } from '@/components/suppliers/supplier-form';
-import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { AppPageHeader } from '@/components/ui/page';
 
 export default function NewSupplierPage() {
   return (
