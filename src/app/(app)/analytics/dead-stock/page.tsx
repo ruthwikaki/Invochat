@@ -1,4 +1,3 @@
-
 import { getDeadStockPageData } from '@/app/data-actions';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { DeadStockClientPage } from './dead-stock-client-page';

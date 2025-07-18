@@ -1,17 +1,14 @@
-
 'use client';
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Sidebar,
   SidebarContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
-  SidebarTrigger,
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem
@@ -33,16 +30,10 @@ import {
   RefreshCw,
   Truck,
   Import,
-  FileQuestion,
-  LifeBuoy,
-  LogOut,
-  ChevronDown,
-  ShoppingCart,
-  User
+  User,
+  ShoppingCart
 } from 'lucide-react';
 import type { Conversation } from '@/types';
-import { Button } from '../ui/button';
-import { cn } from '@/lib/utils';
 
 
 const mainNav = [
@@ -53,16 +44,16 @@ const mainNav = [
   { href: '/customers', label: 'Customers', icon: Users },
 ];
 
-const analysisNav = [
-    { href: '/reordering', label: 'Reordering', icon: RefreshCw },
-    { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
+const analyticsNav = [
+    { href: '/analytics/reordering', label: 'Reorder Analysis', icon: RefreshCw },
+    { href: '/analytics/dead-stock', label: 'Dead Stock', icon: TrendingDown },
+    { href: '/analytics/reports', label: 'Reports', icon: FileText },
 ];
 
 const toolsNav = [
     { href: '/import', label: 'Import Data', icon: Import },
     { href: '/chat', label: 'AI Assistant', icon: MessageSquare },
 ];
-
 
 const settingsNav = [
     { href: '/settings/profile', label: 'Profile', icon: User },
@@ -71,7 +62,7 @@ const settingsNav = [
 
 function NavLink({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) {
   const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = pathname.startsWith(href);
 
   return (
     <SidebarMenuItem>
@@ -102,12 +93,11 @@ function ConversationLink({ conversation }: { conversation: Conversation }) {
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { data: conversations, isLoading } = useQuery({
+  const { data: conversations } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => getConversations(),
     refetchOnWindowFocus: false,
   });
-  const isChatActive = pathname === '/chat';
 
   return (
     <>
@@ -120,37 +110,16 @@ export function AppSidebar() {
       
       <SidebarContent>
         <SidebarMenu>
-          <SidebarMenuItem>
-             <Link href="/chat" legacyBehavior passHref>
-                <SidebarMenuButton isActive={isChatActive} className="bg-primary/10 text-primary hover:bg-primary/20" variant="secondary">
-                    <MessageSquare />
-                    <span>New Chat</span>
-                </SidebarMenuButton>
-             </Link>
-          </SidebarMenuItem>
-          {conversations && conversations.length > 0 && (
-             <SidebarMenuItem>
-                <SidebarMenuButton>
-                    <ChevronDown className="h-4 w-4" />
-                    <span>Recent Chats</span>
-                </SidebarMenuButton>
-                <SidebarMenuSub>
-                {conversations?.slice(0, 5).map(convo => (
-                    <ConversationLink key={convo.id} conversation={convo} />
-                ))}
-                </SidebarMenuSub>
-             </SidebarMenuItem>
-          )}
-          <Separator className="my-2" />
           {mainNav.map((item) => <NavLink key={item.href} {...item} />)}
           <Separator className="my-2" />
-            <SidebarMenuItem>
+          
+           <SidebarMenuItem>
                 <SidebarMenuButton>
                     <BarChart />
                     <span>Analytics</span>
                 </SidebarMenuButton>
                  <SidebarMenuSub>
-                    {analysisNav.map((item) => (
+                    {analyticsNav.map((item) => (
                         <SidebarMenuSubItem key={item.href}>
                              <Link href={item.href} legacyBehavior passHref>
                                 <SidebarMenuSubButton isActive={pathname.startsWith(item.href)}>
@@ -162,6 +131,7 @@ export function AppSidebar() {
                     ))}
                 </SidebarMenuSub>
             </SidebarMenuItem>
+
            <Separator className="my-2" />
            {toolsNav.map((item) => <NavLink key={item.href} {...item} />)}
         </SidebarMenu>
@@ -194,4 +164,3 @@ export function AppSidebar() {
     </>
   );
 }
-
