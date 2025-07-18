@@ -205,7 +205,7 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
             created_at: new Date().toISOString(),
             component,
             componentProps,
-            isError: (response as any).isError || false,
+            isError: (response as { isError?: boolean }).isError || false,
         };
 
         await saveMessage({ ...newMessage, id: undefined, created_at: undefined });

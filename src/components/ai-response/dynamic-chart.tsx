@@ -216,7 +216,7 @@ export function DynamicChart(props: DynamicChartProps) {
     const ref = useRef(null);
     const isInView = useInView(ref, { once: true, amount: 0.3 });
 
-    if (!props.data || props.data.length === 0) {
+    if (props.data.length === 0) {
         return <p>No data available to display the chart.</p>;
     }
     

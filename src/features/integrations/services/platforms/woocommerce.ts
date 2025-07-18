@@ -39,9 +39,9 @@ function isVariableProduct(p: unknown): p is { id: number; type: 'variable', var
         typeof p === 'object' &&
         p !== null &&
         'type' in p &&
-        p.type === 'variable' &&
+        (p as { type: unknown }).type === 'variable' &&
         'variations' in p &&
-        Array.isArray(p.variations)
+        Array.isArray((p as { variations: unknown }).variations)
     );
 }
 
@@ -94,7 +94,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             const variantsToUpsert: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[] = [];
 
             const variableProductIds = wooProducts.filter(isVariableProduct).map((p: any) => p.id);
-            const allVariations: any[] = [];
+            const allVariations: unknown[] = [];
             
             if (variableProductIds.length > 0) {
                  const variationPromises = variableProductIds.map(productId => 
@@ -131,24 +131,24 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             }
 
             for (const variantDetails of allVariations) {
-                const internalProductId = productIdMap.get(String(variantDetails.parent_id));
+                const internalProductId = productIdMap.get(String((variantDetails as any).parent_id));
                 if (!internalProductId) continue;
 
                 variantsToUpsert.push({
                     product_id: internalProductId,
                     company_id: integration.company_id,
-                    sku: variantDetails.sku || `WOO-${variantDetails.id}`,
-                    title: variantDetails.attributes.map((a: any) => a.option).join(' / '),
-                    option1_name: variantDetails.attributes[0]?.name,
-                    option1_value: variantDetails.attributes[0]?.option,
-                    option2_name: variantDetails.attributes[1]?.name,
-                    option2_value: variantDetails.attributes[1]?.option,
-                    option3_name: variantDetails.attributes[2]?.name,
-                    option3_value: variantDetails.attributes[2]?.option,
-                    price: Math.round(parseFloat(variantDetails.price || 0) * 100),
+                    sku: (variantDetails as any).sku || `WOO-${(variantDetails as any).id}`,
+                    title: (variantDetails as any).attributes.map((a: any) => a.option).join(' / '),
+                    option1_name: (variantDetails as any).attributes[0]?.name,
+                    option1_value: (variantDetails as any).attributes[0]?.option,
+                    option2_name: (variantDetails as any).attributes[1]?.name,
+                    option2_value: (variantDetails as any).attributes[1]?.option,
+                    option3_name: (variantDetails as any).attributes[2]?.name,
+                    option3_value: (variantDetails as any).attributes[2]?.option,
+                    price: Math.round(parseFloat((variantDetails as any).price || 0) * 100),
                     cost: null,
-                    inventory_quantity: variantDetails.stock_quantity === null ? 0 : variantDetails.stock_quantity,
-                    external_variant_id: String(variantDetails.id),
+                    inventory_quantity: (variantDetails as any).stock_quantity === null ? 0 : (variantDetails as any).stock_quantity,
+                    external_variant_id: String((variantDetails as any).id),
                     location: null,
                 });
             }
@@ -246,5 +246,3 @@ export async function runWooCommerceFullSync(integration: Integration) {
         throw e;
     }
 }
-
-    

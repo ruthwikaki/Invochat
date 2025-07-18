@@ -107,7 +107,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
 
   const isNewChat = !conversationId;
 
-  const quickActions = contextualQuickActions[pathname] || contextualQuickActions.default;
+  const quickActions = contextualQuickActions[pathname];
   
   useEffect(() => {
     if (prefillQuery) {
