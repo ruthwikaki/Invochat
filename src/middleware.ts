@@ -42,10 +42,10 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = req.nextUrl;
 
-  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
 
   // Special handling for initial setup pages
-  if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check')) {
+  if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check') || pathname.startsWith('/')) {
     return response;
   }
   
@@ -62,11 +62,6 @@ export async function middleware(req: NextRequest) {
     if (!pathname.startsWith('/env-check')) {
         return NextResponse.redirect(new URL('/env-check', req.url));
     }
-  }
-
-  // If the user is logged in and tries to access a public-only route (like login or the landing page), redirect to dashboard.
-  if (user && user.app_metadata.company_id && publicRoutes.some(route => pathname === route)) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
   return response;
