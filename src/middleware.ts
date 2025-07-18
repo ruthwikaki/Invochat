@@ -49,8 +49,10 @@ export async function middleware(req: NextRequest) {
     return response;
   }
   
+  const isPublicRoute = publicRoutes.includes(pathname);
+  
   // If the user is not logged in and is trying to access a protected route, redirect to login.
-  if (!user && !publicRoutes.some(route => pathname === route || (route !== '/' && pathname.startsWith(route)))) {
+  if (!user && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
