@@ -8,13 +8,14 @@ import { z } from 'zod';
 import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
-import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
+import { invalidateCompanyCache, rateLimit, refreshMaterializedViews } from '@/lib/redis';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import type { User, CsvMappingInput, CsvMappingOutput } from '@/types';
+import type { CsvMappingOutput } from '@/types';
 import { revalidatePath } from 'next/cache';
-import { refreshMaterializedViews } from '@/services/database';
 import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
+import { getAuthContext } from '../data-actions';
+import { checkUserPermission } from '@/services/database';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -31,26 +32,6 @@ export type ImportResult = {
   summaryMessage: string;
 };
 
-
-type UserRole = 'Owner' | 'Admin' | 'Member';
-
-async function getAuthContextForImport(): Promise<{ user: User, companyId: string, userRole: UserRole }> {
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { get: (name: string) => cookieStore.get(name)?.value },
-    }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  const companyId = user?.app_metadata?.company_id;
-  const userRole = user?.app_metadata?.role as UserRole;
-  if (!user || !companyId || !userRole) {
-    throw new Error('Authentication error: User or company not found.');
-  }
-  return { user, companyId, userRole };
-}
 
 async function createImportJob(companyId: string, userId: string, importType: string, fileName: string, totalRows: number) {
     const supabase = getServiceRoleClient();
@@ -243,11 +224,8 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
     let importJobId: string | undefined;
 
     try {
-        const { user, companyId, userRole } = await getAuthContextForImport();
-        
-        if (userRole !== 'Owner' && userRole !== 'Admin') {
-            return { success: false, isDryRun, summaryMessage: 'You do not have permission to import data.' };
-        }
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
         const { limited } = await rateLimit(ip, 'data_import', 10, 3600);
@@ -278,12 +256,10 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             throw new Error(`Unsupported data type: ${dataType}`);
         }
         
-        // This is a temporary solution for getting total rows. A full streaming solution would not know this upfront.
-        // MEMORY LEAK FIX: Removed reading the full file text to get row count. This is now an estimate.
         const approximateTotalRows = Math.floor(file.size / 150); // Estimate based on average row size
-        importJobId = !isDryRun ? await createImportJob(companyId, user.id, dataType, file.name, approximateTotalRows) : undefined;
+        importJobId = !isDryRun ? await createImportJob(companyId, userId, dataType, file.name, approximateTotalRows) : undefined;
         
-        result = await processCsv(file.stream() as any, config.schema, config.tableName, companyId, user.id, isDryRun, mappings, dataType, importJobId);
+        result = await processCsv(file.stream() as any, config.schema, config.tableName, companyId, userId, isDryRun, mappings, dataType, importJobId);
 
         if (!isDryRun && (result.processedCount || 0) > 0) {
             await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
