@@ -47,7 +47,7 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
             return;
         }
         setError(null);
-        await updatePassword(formData);
+        // The action is now directly on the form
     }
 
     const handleInteraction = () => {
@@ -55,7 +55,7 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
     };
     
   return (
-    <form action={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
+    <form action={updatePassword} className="grid gap-4" onChange={handleInteraction}>
         {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="grid gap-2">
           <Label htmlFor="password" className="text-slate-300">New Password</Label>

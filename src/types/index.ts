@@ -228,7 +228,7 @@ export type Message = {
     };
   } | null;
   component?: string | null;
-  componentProps?: Record<string, any> | null;
+  componentProps?: Record<string, unknown> | null;
   created_at: string;
   confidence?: number | null;
   assumptions?: string[] | null;
@@ -347,21 +347,12 @@ export const DashboardMetricsSchema = z.object({
 });
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
-export type InventoryAnalytics = any;
-export type SalesAnalytics = any;
-export type CustomerAnalytics = any;
-export type Alert = any;
-
 export const AnomalySchema = z.object({
     date: z.string(),
     anomaly_type: z.string(),
     daily_revenue: z.number(),
     avg_revenue: z.number(),
     deviation_percentage: z.number(),
-    explanation: z.string().optional(),
-    confidence: z.enum(['high', 'medium', 'low']).optional(),
-    suggestedAction: z.string().optional(),
-    id: z.string().optional(),
 });
 export type Anomaly = z.infer<typeof AnomalySchema>;
 
