@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import type { User, Session } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface AuthContextType {
   user: User | null;
@@ -14,6 +15,18 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function AuthLoadingScreen() {
+    return (
+        <div className="flex items-center justify-center h-dvh w-full">
+            <div className="space-y-4 w-full max-w-sm">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+        </div>
+    )
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -73,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Render a loading state or null while the session is being determined.
   // This prevents a flash of unauthenticated content on protected pages.
   if (loading) {
-    return null; 
+    return <AuthLoadingScreen />; 
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
