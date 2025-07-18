@@ -42,14 +42,14 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = req.nextUrl;
 
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/'];
 
   // Special handling for initial setup pages
-  if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check') || pathname.startsWith('/')) {
+  if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check')) {
     return response;
   }
   
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const isPublicRoute = publicRoutes.some(route => pathname === route);
   
   // If the user is not logged in and is trying to access a protected route, redirect to login.
   if (!user && !isPublicRoute) {
