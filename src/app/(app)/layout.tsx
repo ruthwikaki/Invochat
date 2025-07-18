@@ -6,6 +6,7 @@ import ErrorBoundary from '@/components/error-boundary';
 import { useState, useCallback } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppPage } from '@/components/ui/page';
 
 export default function AppLayout({
   children,
@@ -29,9 +30,9 @@ export default function AppLayout({
             </Sidebar>
             <SidebarInset className="flex flex-1 flex-col overflow-y-auto">
             <ErrorBoundary key={resetKey} onReset={handleReset}>
-                <div className="flex-1 p-4 md:p-6 lg:p-8">
-                {children}
-                </div>
+                <AppPage>
+                  {children}
+                </AppPage>
             </ErrorBoundary>
             </SidebarInset>
             <Toaster />

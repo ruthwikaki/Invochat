@@ -1,7 +1,6 @@
 
 import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
 import { DashboardClientPage } from './dashboard-client-page';
-import { AppPage } from '@/components/ui/page';
 
 export default async function DashboardPage() {
     const dateRange = '90d'; // Default date range
@@ -11,11 +10,9 @@ export default async function DashboardPage() {
     ]);
     
     return (
-        <AppPage>
-            <DashboardClientPage 
-                initialMetrics={metrics} 
-                initialBriefing={briefing}
-            />
-        </AppPage>
+        <DashboardClientPage 
+            initialMetrics={metrics} 
+            initialBriefing={briefing}
+        />
     );
 }
