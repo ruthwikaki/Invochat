@@ -131,10 +131,7 @@ export function ChatMessage({
     return email.charAt(0).toUpperCase();
   };
   
-  const sanitizedContent = !isLoading ? DOMPurify.sanitize(message.content, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'br', 'p'],
-    ALLOWED_ATTR: ['href']
-  }) : '';
+  const sanitizedContent = !isLoading ? DOMPurify.sanitize(message.content) : '';
 
   const messageVariants = {
       hidden: { opacity: 0, y: 20 },
