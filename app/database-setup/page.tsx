@@ -20,7 +20,7 @@ export default function DatabaseSetupPage() {
         </CardHeader>
         <CardContent className="text-center space-y-4">
             <p className="text-sm text-muted-foreground">
-                You must run a setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for InvoChat to work correctly.
+                You must run a setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for ARVO to work correctly.
             </p>
             <div className="text-left p-4 bg-muted rounded-md border text-sm">
                 <p>1. In your project, find the file located at: <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></p>
@@ -29,7 +29,7 @@ export default function DatabaseSetupPage() {
                 <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">"Run"</span>.</p>
             </div>
              <p className="text-sm text-muted-foreground">
-                After the script finishes successfully, you can sign up for a new account.
+                After the script finishes successfully, you can sign up for a new account. If you already signed up, you must create a new account.
             </p>
         </CardContent>
         <CardFooter className="flex-col gap-4">
