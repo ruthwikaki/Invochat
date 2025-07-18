@@ -147,8 +147,20 @@ const universalChatOrchestrator = ai.defineFlow(
                     throw new Error('The AI model did not return a valid final response object after tool use.');
                 }
                 
-                const dataForVisualization = toolResult.output.performanceData || toolResult.output;
-                
+                // Generic way to find the primary data array or object for visualization.
+                // It looks for common patterns like a `products` array, `suggestions` array, etc.
+                const findDataForVis = (output: any) => {
+                    if (!output || typeof output !== 'object') return output;
+                    const commonKeys = ['products', 'suggestions', 'opportunities', 'items', 'segments', 'slow_sellers', 'fast_sellers'];
+                    for (const key of commonKeys) {
+                        if (Array.isArray(output[key])) return output[key];
+                    }
+                    if (Array.isArray(output)) return output;
+                    return output;
+                };
+
+                const dataForVisualization = findDataForVis(toolResult.output);
+
                 const responseToCache = {
                     ...finalOutput,
                     data: dataForVisualization,
@@ -228,5 +240,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    
