@@ -315,16 +315,16 @@ export async function inviteUserToCompanyInDb(companyId: string, companyName: st
     if (error) throw error;
     return data;
 }
-export async function removeTeamMemberFromDb(userId: string, companyId: string, performingUserId: string) { 
+export async function removeTeamMemberFromDb(userId: string, companyId: string) {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('remove_user_from_company', {
+    const { error } = await supabase.rpc('remove_user_from_company', {
         p_user_id: userId,
         p_company_id: companyId,
-        p_performing_user_id: performingUserId
     });
-    if (error) throw error;
+    if (error) throw new Error(error.message);
     return { success: true };
 }
+
 
 export async function updateTeamMemberRoleInDb(memberId: string, companyId: string, newRole: 'Admin' | 'Member') {
     const supabase = getServiceRoleClient();
@@ -473,4 +473,3 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
-
