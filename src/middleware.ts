@@ -42,25 +42,15 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = req.nextUrl;
 
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password'];
 
   // Special handling for initial setup pages
   if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check')) {
     return response;
   }
   
-  // Handle root path separately
-  if (pathname === '/') {
-    if (user) {
-      // If user is logged in, redirect from root to dashboard
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-    // If user is not logged in, allow them to see the landing page
-    return response;
-  }
-
-  // If the user is not logged in and is trying to access a protected route, redirect to login
-  if (!user && !publicRoutes.some(route => pathname.startsWith(route))) {
+  // If the user is not logged in and is trying to access a protected route, redirect to login.
+  if (!user && !publicRoutes.some(route => pathname === route || (route !== '/' && pathname.startsWith(route)))) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
@@ -72,8 +62,8 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // If the user is logged in and is trying to access a public-only route (like login), redirect to dashboard
-  if (user && publicRoutes.some(route => pathname.startsWith(route))) {
+  // If the user is logged in and tries to access a public-only route (like login or the landing page), redirect to dashboard.
+  if (user && user.app_metadata.company_id && publicRoutes.some(route => pathname === route)) {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
