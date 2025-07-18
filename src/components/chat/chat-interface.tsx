@@ -173,7 +173,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
         const errorMessage: Message = {
             id: `error_${Date.now()}`,
             role: 'assistant',
-            content: getErrorMessage(error) || 'Could not get response from the InvoChat AI.',
+            content: getErrorMessage(error) || 'Could not get response from the ARVO AI.',
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
             company_id: companyId,
