@@ -105,7 +105,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2">
             <InvoChatLogo className="h-8 w-8 text-primary" />
-            <span className="text-lg font-semibold">InvoChat</span>
+            <span className="text-lg font-semibold">ARVO</span>
         </div>
       </SidebarHeader>
       

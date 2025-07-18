@@ -43,7 +43,7 @@ async function sendEmail(to: string, subject: string, text: string, context: str
 
     try {
         await resend!.emails.send({
-            from: fromEmail,
+            from: fromEmail!,
             to: recipient,
             subject: subject,
             text: text,
@@ -61,10 +61,10 @@ async function sendEmail(to: string, subject: string, text: string, context: str
  * @param alert The alert object containing details for the email.
  */
 export async function sendEmailAlert(alert: Alert): Promise<void> {
-  const subject = `InvoChat Alert: ${alert.title} - ${alert.metadata.productName || 'System Alert'}`;
+  const subject = `ARVO Alert: ${alert.title} - ${alert.metadata.productName || 'System Alert'}`;
   
   const body = `
-    A new alert has been triggered in your InvoChat account.
+    A new alert has been triggered in your ARVO account.
 
     Alert Type: ${alert.type.replace(/_/g, ' ')}
     Severity: ${alert.severity.toUpperCase()}
@@ -79,7 +79,7 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     - Last Sold Date: ${alert.metadata.lastSoldDate ? new Date(alert.metadata.lastSoldDate).toLocaleDateString() : 'N/A'}
     - Current Value: $${(alert.metadata.value ?? 0).toLocaleString()}
 
-    You can view this alert in your InvoChat dashboard.
+    You can view this alert in your ARVO dashboard.
   `.trim();
 
   // In a real app, this would fetch the user's actual email address.
@@ -93,17 +93,17 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
  * @param resetLink The password reset link.
  */
 export async function sendPasswordResetEmail(email: string, resetLink: string): Promise<void> {
-    const subject = "Reset Your InvoChat Password";
+    const subject = "Reset Your ARVO Password";
     const body = `
         Hello,
 
-        You requested a password reset for your InvoChat account. Please click the link below to set a new password:
+        You requested a password reset for your ARVO account. Please click the link below to set a new password:
         ${resetLink}
 
         If you did not request this, you can safely ignore this email.
 
         Thanks,
-        The InvoChat Team
+        The ARVO Team
     `.trim();
     await sendEmail(email, subject, body, "Password Reset");
 }
@@ -113,17 +113,17 @@ export async function sendPasswordResetEmail(email: string, resetLink: string): 
  * @param email The new user's email address.
  */
 export async function sendWelcomeEmail(email: string): Promise<void> {
-    const subject = "Welcome to InvoChat!";
+    const subject = "Welcome to ARVO!";
     const body = `
         Hi there,
 
-        Welcome to InvoChat! We're excited to have you on board.
+        Welcome to ARVO! We're excited to have you on board.
         Your account is all set up. You can log in and start exploring your AI-powered inventory dashboard now.
 
         If you have any questions, just reply to this email.
 
         Best,
-        The InvoChat Team
+        The ARVO Team
     `.trim();
     await sendEmail(email, subject, body, "Welcome Email");
 }
@@ -139,11 +139,11 @@ export async function sendInventoryDigestEmail(to: string, insights: {
     topDeadStock: { product_name: string; total_value: number; }[];
     topLowStock: Alert[];
 }): Promise<void> {
-    const subject = "Your Weekly Inventory Digest from InvoChat";
+    const subject = "Your Weekly Inventory Digest from ARVO";
     let body = `
 Hello,
 
-Here's your weekly summary of key inventory insights from InvoChat.
+Here's your weekly summary of key inventory insights from ARVO.
 
 ---
 AI Business Summary
@@ -190,7 +190,7 @@ Top Dead Stock Items
 View more details on your dashboard: ${config.app.url}/insights
 
 Best,
-The InvoChat Team
+The ARVO Team
     `.trim();
     
     await sendEmail(to, subject, body, 'Inventory Digest');
