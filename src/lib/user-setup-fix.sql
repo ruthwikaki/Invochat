@@ -1,85 +1,43 @@
--- This script creates the required function and trigger to automatically
--- set up a new company and user profile upon Supabase auth signup.
--- It is designed to be run on an existing database that is missing this logic.
+-- This script is a minimal fix for the user signup process.
+-- It adds the necessary function and trigger to handle new user setup.
 
--- Grant necessary permissions to the 'postgres' role to interact with the 'auth' schema.
+-- Grant usage on the auth schema to the postgres role
 grant usage on schema auth to postgres;
-grant all on all tables in schema auth to postgres;
-grant all on all sequences in schema auth to postgres;
-grant all on all functions in schema auth to postgres;
 
--- 1. Helper function to get the company_id from the user's JWT claims.
--- Casts the text result to a uuid.
-create or replace function public.get_company_id()
-returns uuid
-language sql
-security definer
-set search_path = public
-stable
-as $$
-  select (auth.jwt()->'app_metadata'->>'company_id')::uuid;
-$$;
+-- Grant select on all tables in the auth schema to the postgres role
+grant select on all tables in schema auth to postgres;
 
-
--- 2. The core function to handle new user setup.
+-- Create the function to handle new user setup
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
-security definer -- This is crucial for allowing the function to access the auth schema.
-set search_path = public
+security definer set search_path = public
 as $$
 declare
   new_company_id uuid;
-  user_company_name text;
 begin
-  -- Extract company name from the user's metadata provided during signup.
-  user_company_name := new.raw_app_meta_data->>'company_name';
-
-  -- Create a new company for the user.
+  -- Create a new company for the new user
   insert into public.companies (name)
-  values (user_company_name)
+  values (new.raw_app_meta_data->>'company_name')
   returning id into new_company_id;
 
-  -- Create a corresponding user profile in the public.users table.
+  -- Create a new user profile in the public schema
   insert into public.users (id, company_id, email, role)
   values (new.id, new_company_id, new.email, 'Owner');
 
-  -- Update the user's app_metadata in the auth schema with the new company_id.
+  -- Update the user's app_metadata with the new company_id
   update auth.users
-  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id)
+  set raw_app_meta_data = new.raw_app_meta_data || jsonb_build_object('company_id', new_company_id, 'role', 'Owner')
   where id = new.id;
-
+  
   return new;
 end;
 $$;
 
+-- Drop the existing trigger if it exists
+drop trigger if exists on_auth_user_created on auth.users;
 
--- 3. A SECURITY DEFINER function to create the trigger on the auth.users table.
--- This is necessary because the 'postgres' user (which runs migrations) does not
--- own the auth.users table and cannot directly create triggers on it.
-create or replace function public.security_definer_handle_new_user()
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  -- Drop the trigger if it already exists to make this script re-runnable.
-  if exists (
-      select 1
-      from pg_trigger
-      where not tgisinternal
-      and tgname = 'on_auth_user_created'
-  ) then
-      drop trigger on_auth_user_created on auth.users;
-  end if;
-
-  -- Create the trigger to call handle_new_user on each new user insertion.
-  create trigger on_auth_user_created
-    after insert on auth.users
-    for each row execute procedure public.handle_new_user();
-end;
-$$;
-
--- 4. Execute the function to create the trigger.
-select public.security_definer_handle_new_user();
+-- Create the trigger to run the function on new user creation
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
