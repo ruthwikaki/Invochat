@@ -20,7 +20,7 @@ export default function UpdatePasswordPage({
         </div>
       <div className="mb-8 flex items-center gap-3 text-3xl font-bold">
         <InvoChatLogo className="h-10 w-10 text-primary" />
-        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">ARVO</h1>
+        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">InvoChat</h1>
       </div>
       <Card className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
         <CardHeader className="p-0 text-center">

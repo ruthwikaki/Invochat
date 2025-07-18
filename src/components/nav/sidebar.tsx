@@ -37,7 +37,8 @@ import {
   LifeBuoy,
   LogOut,
   ChevronDown,
-  ShoppingCart
+  ShoppingCart,
+  User
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 import { Button } from '../ui/button';
@@ -49,6 +50,7 @@ const mainNav = [
   { href: '/inventory', label: 'Inventory', icon: Package },
   { href: '/sales', label: 'Sales', icon: ShoppingCart },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
+  { href: '/customers', label: 'Customers', icon: Users },
 ];
 
 const analysisNav = [
@@ -56,8 +58,14 @@ const analysisNav = [
     { href: '/dead-stock', label: 'Dead Stock', icon: TrendingDown },
 ];
 
+const toolsNav = [
+    { href: '/import', label: 'Import Data', icon: Import },
+    { href: '/chat', label: 'AI Assistant', icon: MessageSquare },
+];
+
+
 const settingsNav = [
-    { href: '/settings/profile', label: 'Profile', icon: Users },
+    { href: '/settings/profile', label: 'Profile', icon: User },
     { href: '/settings/integrations', label: 'Integrations', icon: PlusCircle },
 ];
 
@@ -106,7 +114,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2">
             <InvoChatLogo className="h-8 w-8 text-primary" />
-            <span className="text-lg font-semibold">ARVO</span>
+            <span className="text-lg font-semibold">InvoChat</span>
         </div>
       </SidebarHeader>
       
@@ -136,10 +144,26 @@ export function AppSidebar() {
           <Separator className="my-2" />
           {mainNav.map((item) => <NavLink key={item.href} {...item} />)}
           <Separator className="my-2" />
-          {analysisNav.map((item) => <NavLink key={item.href} {...item} />)}
+            <SidebarMenuItem>
+                <SidebarMenuButton>
+                    <BarChart />
+                    <span>Analytics</span>
+                </SidebarMenuButton>
+                 <SidebarMenuSub>
+                    {analysisNav.map((item) => (
+                        <SidebarMenuSubItem key={item.href}>
+                             <Link href={item.href} legacyBehavior passHref>
+                                <SidebarMenuSubButton isActive={pathname.startsWith(item.href)}>
+                                    <item.icon/>
+                                    <span>{item.label}</span>
+                                </SidebarMenuSubButton>
+                            </Link>
+                        </SidebarMenuSubItem>
+                    ))}
+                </SidebarMenuSub>
+            </SidebarMenuItem>
            <Separator className="my-2" />
-           <NavLink href="/customers" label="Customers" icon={Users} />
-           <NavLink href="/import" label="Import Data" icon={Import} />
+           {toolsNav.map((item) => <NavLink key={item.href} {...item} />)}
         </SidebarMenu>
       </SidebarContent>
 
@@ -170,3 +194,4 @@ export function AppSidebar() {
     </>
   );
 }
+
