@@ -52,10 +52,12 @@ import {
   logWebhookEvent,
   getDashboardMetrics,
   reconcileInventoryInDb,
-  getReorderSuggestionsFromDB,
   createPurchaseOrdersInDb,
-  getPurchaseOrdersFromDB
+  getPurchaseOrdersFromDB,
+  checkUserPermission,
+  getHistoricalSalesForSkus
 } from '@/services/database';
+import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order } from '@/types';
@@ -74,15 +76,18 @@ import { z } from 'zod';
 import crypto from 'crypto';
 
 
-async function getAuthContext() {
+export async function getAuthContext() {
     const cookieStore = cookies();
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: { get: (name: string) => cookieStore.get(name)?.value },
-        }
-    );
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase URL or anonymous key is not configured.');
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: { get: (name: string) => cookieStore.get(name)?.value },
+    });
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated.');
     const companyId = user.app_metadata?.company_id;
@@ -95,6 +100,15 @@ async function getAuthContext() {
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();
     const metrics = await getDashboardMetrics(companyId, dateRange);
+    // Ensure that even if the RPC returns null/undefined, we provide a default structure.
+    if (!metrics) {
+        return {
+            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0,
+            new_customers: 0, customers_change: 0, dead_stock_value: 0,
+            sales_over_time: [], top_selling_products: [],
+            inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }
+        };
+    }
     return DashboardMetricsSchema.parse(metrics);
 }
 
@@ -104,7 +118,8 @@ export async function getCompanySettings() {
 }
 
 export async function updateCompanySettings(formData: FormData) {
-  const { companyId } = await getAuthContext();
+  const { companyId, userId } = await getAuthContext();
+  await checkUserPermission(userId, 'Admin');
   validateCSRF(formData);
   const settings = {
     dead_stock_days: Number(formData.get('dead_stock_days')),
@@ -134,7 +149,8 @@ export async function getInventoryCategories() {
 
 export async function updateProduct(productId: string, data: ProductUpdateData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const updatedProduct = await updateProductInDb(companyId, productId, data);
         revalidatePath('/inventory');
         return { success: true, updatedItem: updatedProduct };
@@ -155,7 +171,8 @@ export async function getSupplierById(id: string) {
 
 export async function createSupplier(data: SupplierFormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await createSupplierInDb(companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -166,7 +183,8 @@ export async function createSupplier(data: SupplierFormData) {
 
 export async function updateSupplier(id: string, data: SupplierFormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await updateSupplierInDb(id, companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -177,7 +195,8 @@ export async function updateSupplier(id: string, data: SupplierFormData) {
 
 export async function deleteSupplier(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteSupplierFromDb(id, companyId);
@@ -195,9 +214,9 @@ export async function getIntegrations() {
 
 export async function disconnectIntegration(formData: FormData) {
     try {
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
-        
-        const { companyId } = await getAuthContext();
         const id = formData.get('integrationId') as string;
         await deleteIntegrationFromDb(id, companyId);
         revalidatePath('/settings/integrations');
@@ -215,7 +234,8 @@ export async function getCustomersData(params: { query?: string, page: number, l
 
 export async function deleteCustomer(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteCustomerFromDb(id, companyId);
@@ -288,6 +308,7 @@ export async function getGeneratedProductDescription(productName: string, catego
 export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
         const subjectId = formData.get('subjectId') as string;
         const subjectType = formData.get('subjectType') as string;
@@ -314,7 +335,8 @@ export async function getTeamMembers() {
 }
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
         const email = formData.get('email') as string;
         const company = await getCompanyById(companyId);
@@ -328,11 +350,12 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
 export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Owner');
         validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
-        const result = await removeTeamMemberFromDb(memberId, companyId, userId);
+        const result = await removeTeamMemberFromDb(memberId, companyId);
         revalidatePath('/settings/profile');
         return { success: result.success, error: result.error };
     } catch (e) {
@@ -341,11 +364,13 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
 }
 export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Owner');
         validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
+        if (userId === memberId) throw new Error("You cannot change your own role.");
         
         const result = await updateTeamMemberRoleInDb(memberId, companyId, newRole);
         revalidatePath('/settings/profile');
@@ -360,7 +385,8 @@ export async function getCustomerAnalytics() {
 }
 export async function exportCustomers(params: { query?: string }) { 
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const { items } = await getCustomersFromDB(companyId, { ...params, page: 1, limit: 10000 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
@@ -370,7 +396,8 @@ export async function exportCustomers(params: { query?: string }) {
 }
 export async function exportSales(params: { query?: string }) { 
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
         const csv = Papa.unparse(items.map(item => ({
             order_number: item.order_number,
@@ -389,6 +416,7 @@ export async function exportSales(params: { query?: string }) {
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const dataToExport = suggestions.map(s => ({
             SKU: s.sku,
             ProductName: s.product_name,
@@ -410,6 +438,7 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
 export async function requestCompanyDataExport(): Promise<{ success: boolean, jobId?: string, error?: string }> { 
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Owner');
         const job = await createExportJobInDb(companyId, userId);
         revalidatePath('/settings/export');
         return { success: true, jobId: job.id };
@@ -427,6 +456,7 @@ export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[
 export async function exportInventory(params: { query?: string, status?: string; sortBy?: string; sortDirection?: string }) { 
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
         const csv = Papa.unparse(items.map(item => ({
             sku: item.sku,
@@ -494,6 +524,7 @@ export async function getMorningBriefing(dateRange: string) {
 export async function reconcileInventory(integrationId: string): Promise<{ success: boolean; error?: string }> { 
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await reconcileInventoryInDb(companyId, integrationId, userId);
         revalidatePath('/inventory');
         return { success: true };
@@ -504,8 +535,9 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 export async function testMaterializedView() { return {success: true}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
-     const { companyId } = await getAuthContext();
-    return getReorderSuggestionsFromDB(companyId);
+    const { companyId } = await getAuthContext();
+    // This now correctly calls the AI flow which includes refinement.
+    return getReorderSuggestions.run({ companyId });
 }
 
 export async function getInventoryLedger(variantId: string) {
@@ -514,9 +546,10 @@ export async function getInventoryLedger(variantId: string) {
 }
 
 export async function createPurchaseOrdersFromSuggestions(formData: FormData): Promise<{ success: boolean, error?: string, createdPoCount?: number }> {
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Admin');
     try {
         validateCSRF(formData);
-        const { companyId, userId } = await getAuthContext();
 
         const suggestionsString = formData.get('suggestions') as string;
         if (!suggestionsString) {
@@ -550,3 +583,7 @@ export async function getDeadStockPageData() {
         deadStockDays: settings.dead_stock_days
     };
 }
+
+    
+
+    

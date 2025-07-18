@@ -5,6 +5,7 @@ import { redisClient } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { testGenkitConnection } from '@/services/genkit';
 import { headers } from 'next/headers';
+import { getErrorMessage, isError } from '@/lib/error-handler';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,8 +48,8 @@ export async function GET() {
       throw error;
     }
     dbStatus = 'healthy';
-  } catch (error: any) {
-    logger.error('[Health Check] Database connection failed:', { message: error.message });
+  } catch (error: unknown) {
+    logger.error('[Health Check] Database connection failed:', { message: getErrorMessage(error) });
   }
 
   // Check Redis Connection
@@ -61,8 +62,8 @@ export async function GET() {
         throw new Error('Redis did not respond with PONG');
       }
       redisStatus = 'healthy';
-    } catch (error: any) {
-      logger.error('[Health Check] Redis connection failed:', { message: error.message });
+    } catch (error: unknown) {
+      logger.error('[Health Check] Redis connection failed:', { message: getErrorMessage(error) });
     }
   }
 
@@ -74,8 +75,8 @@ export async function GET() {
     } else {
       throw new Error(aiResult.error || 'AI service check failed.');
     }
-  } catch(error: any) {
-    logger.error('[Health Check] AI service connection failed:', { message: error.message });
+  } catch(error: unknown) {
+    logger.error('[Health Check] AI service connection failed:', { message: getErrorMessage(error) });
   }
 
 
@@ -101,3 +102,5 @@ export async function GET() {
     }
   );
 }
+
+    

@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -52,15 +51,17 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
     let totalProductsSynced = 0;
     let totalVariantsSynced = 0;
     let currentPage = 1;
+    let totalPages = 1;
 
-    while (true) {
-        const { data: wooProducts, totalPages } = await wooCommerceFetch(
+    do {
+        const { data: wooProducts, totalPages: newTotalPages } = await wooCommerceFetch(
             integration.shop_domain!,
             credentials.consumerKey,
             credentials.consumerSecret,
             'products',
             { per_page: 50, page: currentPage }
         );
+        totalPages = newTotalPages;
 
         if (wooProducts.length === 0) break;
 
@@ -161,10 +162,8 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 totalVariantsSynced += variantsToUpsert.length;
             }
         }
-
-        if (currentPage >= totalPages) break;
         currentPage++;
-    }
+    } while (currentPage <= totalPages);
 
     logger.info(`[WooCommerce Sync] Synced ${totalProductsSynced} products and ${totalVariantsSynced} variants for ${integration.shop_name}`);
 }
@@ -176,15 +175,17 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
     let totalOrdersSynced = 0;
     const failedOrders: { id: string; reason: string }[] = [];
     let currentPage = 1;
+    let totalPages = 1;
 
-    while (true) {
-         const { data: orders, totalPages } = await wooCommerceFetch(
+    do {
+         const { data: orders, totalPages: newTotalPages } = await wooCommerceFetch(
             integration.shop_domain!,
             credentials.consumerKey,
             credentials.consumerSecret,
             'orders',
             { per_page: 50, page: currentPage }
         );
+        totalPages = newTotalPages;
         
         if (orders.length === 0) break;
 
@@ -203,10 +204,8 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
                 totalOrdersSynced++;
             }
         }
-
-        if (currentPage >= totalPages) break;
         currentPage++;
-    }
+    } while (currentPage <= totalPages);
 
     logger.info(`[WooCommerce Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}. Failed: ${failedOrders.length}`);
      if (failedOrders.length > 0) {
@@ -247,3 +246,5 @@ export async function runWooCommerceFullSync(integration: Integration) {
         throw e;
     }
 }
+
+    
