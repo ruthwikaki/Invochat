@@ -52,11 +52,11 @@ import {
   logWebhookEvent,
   getDashboardMetrics,
   reconcileInventoryInDb,
-  getReorderSuggestionsFromDB,
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
   checkUserPermission
 } from '@/services/database';
+import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order } from '@/types';
@@ -366,6 +366,7 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
+        if (userId === memberId) throw new Error("You cannot change your own role.");
         
         const result = await updateTeamMemberRoleInDb(memberId, companyId, newRole);
         revalidatePath('/settings/profile');
@@ -530,8 +531,9 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 export async function testMaterializedView() { return {success: true}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
-     const { companyId } = await getAuthContext();
-    return getReorderSuggestionsFromDB(companyId);
+    const { companyId } = await getAuthContext();
+    // This now correctly calls the AI flow which includes refinement.
+    return getReorderSuggestions.run({ companyId });
 }
 
 export async function getInventoryLedger(variantId: string) {
