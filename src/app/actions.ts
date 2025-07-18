@@ -9,23 +9,7 @@ import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
-
-async function getCompanyIdForChat(): Promise<string> {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: { get: (name: string) => cookieStore.get(name)?.value },
-        }
-    );
-    const { data: { user } } = await supabase.auth.getUser();
-    const companyId = user?.app_metadata?.company_id;
-    if (!companyId) {
-        throw new Error('Company ID not found for the current user.');
-    }
-    return companyId;
-}
+import { getAuthContext } from './data-actions';
 
 async function saveConversation(companyId: string, title: string) {
     const cookieStore = cookies();
@@ -147,7 +131,7 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
             return { error: 'You have reached the request limit. Please try again in a minute.' };
         }
 
-        const companyId = await getCompanyIdForChat();
+        const { companyId } = await getAuthContext();
         
         let currentConversationId = conversationId;
         if (!currentConversationId) {

@@ -75,7 +75,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 
 
-async function getAuthContext() {
+export async function getAuthContext() {
     const cookieStore = cookies();
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -158,7 +158,8 @@ export async function getSupplierById(id: string) {
 
 export async function createSupplier(data: SupplierFormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await createSupplierInDb(companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -169,7 +170,8 @@ export async function createSupplier(data: SupplierFormData) {
 
 export async function updateSupplier(id: string, data: SupplierFormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await updateSupplierInDb(id, companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
