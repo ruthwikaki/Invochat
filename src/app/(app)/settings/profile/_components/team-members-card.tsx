@@ -107,7 +107,9 @@ export function TeamMembersCard() {
         invite(formData);
     });
     
-    const amIOwner = teamMembers?.find(m => m.id === user?.id)?.role === 'Owner';
+    const currentUserRole = teamMembers?.find(m => m.id === user?.id)?.role;
+    const canManageTeam = currentUserRole === 'Owner' || currentUserRole === 'Admin';
+    const isOwner = currentUserRole === 'Owner';
     
     return (
         <Card>
@@ -118,16 +120,18 @@ export function TeamMembersCard() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                 <form onSubmit={onInvite} className="flex gap-2">
-                    <div className="flex-1">
-                        <Input placeholder="new.member@company.com" {...register('email')} />
-                        {errors.email && <p className="text-sm text-destructive pt-1">{errors.email.message}</p>}
-                    </div>
-                    <Button type="submit" disabled={isInviting}>
-                        {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Send Invite
-                    </Button>
-                </form>
+                {canManageTeam && (
+                     <form onSubmit={onInvite} className="flex gap-2">
+                        <div className="flex-1">
+                            <Input placeholder="new.member@company.com" {...register('email')} />
+                            {errors.email && <p className="text-sm text-destructive pt-1">{errors.email.message}</p>}
+                        </div>
+                        <Button type="submit" disabled={isInviting}>
+                            {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Send Invite
+                        </Button>
+                    </form>
+                )}
                 
                 <div className="rounded-md border">
                 <Table>
@@ -157,24 +161,26 @@ export function TeamMembersCard() {
                                             formData.append('newRole', newRole);
                                             updateRole(formData);
                                         }}
-                                        disabled={!amIOwner || member.id === user?.id}
+                                        disabled={!isOwner || member.id === user?.id || member.role === 'Owner'}
                                     >
                                         <SelectTrigger className="w-[120px] h-8">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
+                                            {member.role === 'Owner' && <SelectItem value="Owner">Owner</SelectItem>}
                                             <SelectItem value="Admin">Admin</SelectItem>
                                             <SelectItem value="Member">Member</SelectItem>
-                                             <SelectItem value="Owner" disabled>Owner</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
                                 <TableCell>
-                                    <Button variant="ghost" size="sm" onClick={() => {
-                                        const formData = new FormData();
-                                        formData.append('memberId', member.id);
-                                        remove(formData);
-                                    }} disabled={member.id === user?.id}>Remove</Button>
+                                    {canManageTeam && member.role !== 'Owner' && member.id !== user?.id && (
+                                        <Button variant="ghost" size="sm" onClick={() => {
+                                            const formData = new FormData();
+                                            formData.append('memberId', member.id);
+                                            remove(formData);
+                                        }}>Remove</Button>
+                                    )}
                                 </TableCell>
                             </TableRow>
                         ))}
