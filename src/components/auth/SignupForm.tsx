@@ -43,24 +43,12 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
         }
     }, [initialError]);
 
-    const handleFormAction = async (formData: FormData) => {
-        const password = formData.get('password');
-        const confirmPassword = formData.get('confirmPassword');
-
-        if (password !== confirmPassword) {
-            setError('Passwords do not match.');
-            return;
-        }
-        setError(null);
-        await signup(formData);
-    };
-
     const handleInteraction = () => {
         if (error) setError(null);
     };
 
     return (
-        <form ref={formRef} action={handleFormAction} className="grid gap-4" onChange={handleInteraction}>
+        <form ref={formRef} action={signup} className="grid gap-4" onChange={handleInteraction}>
             {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>

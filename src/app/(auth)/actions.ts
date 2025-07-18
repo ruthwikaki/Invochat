@@ -13,6 +13,7 @@ import { withTimeout } from '@/lib/async-utils';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
+import crypto from 'crypto';
 
 const AUTH_TIMEOUT = 15000; // 15 seconds
 
@@ -97,6 +98,7 @@ export async function login(formData: FormData) {
 const signupSchema = z.object({
   email: z.string().email("Invalid email format."),
   password: z.string().min(8, "Password must be at least 8 characters."),
+  confirmPassword: z.string(),
   companyName: z.string().min(1, "Company name is required."),
 });
 
@@ -110,7 +112,14 @@ export async function signup(formData: FormData) {
         const errorMessages = parsed.error.issues.map(i => i.message).join(', ');
         throw new Error(errorMessages);
     }
-    const { email, password, companyName } = parsed.data;
+    const { email, password, confirmPassword, companyName } = parsed.data;
+    
+    // Constant-time comparison for password confirmation
+    const passBuf = Buffer.from(password);
+    const confirmBuf = Buffer.from(confirmPassword);
+    if (passBuf.length !== confirmBuf.length || !crypto.timingSafeEqual(passBuf, confirmBuf)) {
+        throw new Error("Passwords do not match.");
+    }
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
     const { limited } = await rateLimit(ip, 'auth', config.ratelimit.auth, 60, true);
