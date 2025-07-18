@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { envValidation } from '@/config/app-config';
+import { LandingPage } from '@/components/landing/landing-page';
 
 export default async function RootPage() {
     // If env vars are missing, the layout will render an error page.
@@ -28,7 +29,7 @@ export default async function RootPage() {
 
     if (session) {
         redirect('/dashboard');
-    } else {
-        redirect('/login');
     }
+
+    return <LandingPage />;
 }
