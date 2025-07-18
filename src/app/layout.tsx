@@ -5,11 +5,9 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from '@/components/theme-provider';
-import { AppInitializer } from '@/components/app-initializer';
+import { AuthProvider } from '@/context/auth-context';
 import { envValidation } from '@/config/app-config';
 import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
-import { AuthProvider } from '@/context/auth-context';
-import { QueryClientProvider } from '@/context/query-client-provider';
 
 
 const inter = Inter({
@@ -47,14 +45,10 @@ export default async function RootLayout({
             enableSystem
             disableTransitionOnChange
         >
-          <QueryClientProvider>
-            <AuthProvider>
-                <AppInitializer>
-                  {children}
-                </AppInitializer>
-                <Toaster />
-            </AuthProvider>
-          </QueryClientProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
