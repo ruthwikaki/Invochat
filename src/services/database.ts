@@ -183,9 +183,12 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     return {items: data || [], totalCount: count || 0};
 }
 export async function deleteCustomerFromDb(customerId: string, companyId: string) { 
-     const supabase = getServiceRoleClient();
+    const supabase = getServiceRoleClient();
     const { error } = await supabase.from('customers').update({ deleted_at: new Date().toISOString() }).eq('id', customerId).eq('company_id', companyId);
-    if(error) throw error;
+    if(error) {
+        logError(error, { context: 'Failed to soft-delete customer', customerId });
+        throw new Error('Could not delete the customer record.');
+    }
 }
 
 export async function getSalesFromDB(companyId: string, params: { query?: string, offset: number, limit: number }): Promise<{ items: Order[], totalCount: number }> {

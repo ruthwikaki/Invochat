@@ -14,8 +14,6 @@ import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
-const AUTH_TIMEOUT = config.ai.timeoutMs;
-
 function getSupabaseClient() {
     const cookieStore = cookies();
     return createServerClient(
@@ -122,15 +120,15 @@ export async function signup(formData: FormData) {
     const supabase = getSupabaseClient();
     const adminSupabase = getServiceRoleClient();
     
+    // We must use the admin client to create the user, so the `handle_new_user` trigger can work correctly.
+    // The trigger relies on the `raw_app_meta_data` which can only be set by an admin.
     const { data: { user }, error } = await withTimeout(
-      supabase.auth.signUp({
+      adminSupabase.auth.admin.createUser({
           email,
           password,
-          options: {
-              emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard`,
-              data: {
-                  company_name: companyName, // Temporarily store in metadata for the DB function
-              }
+          email_confirm: true, // Send a confirmation email
+          app_metadata: {
+              company_name: companyName, // Pass company name to the trigger
           }
       }),
       AUTH_TIMEOUT,
@@ -138,22 +136,15 @@ export async function signup(formData: FormData) {
     );
     
     if (error) {
+        // Handle specific, common errors gracefully
+        if (error.message.includes('unique constraint') || error.message.includes('User already registered')) {
+            throw new Error('A user with this email address already exists.');
+        }
         throw new Error(error.message);
     }
 
     if (!user) {
         throw new Error("An unexpected error occurred during signup.");
-    }
-    
-    // As the new user, call the database function to create the company and user profile.
-    // The handle_new_user function uses the JWT of the calling user to get their ID and metadata.
-    const { error: handleNewUserError } = await supabase.rpc('handle_new_user');
-
-    if (handleNewUserError) {
-        logger.error('handle_new_user function failed:', handleNewUserError);
-        // This is a critical failure. Clean up the partially created user.
-        await adminSupabase.auth.admin.deleteUser(user.id);
-        throw new Error('Failed to set up your company account. Please contact support.');
     }
     
   } catch(e) {
