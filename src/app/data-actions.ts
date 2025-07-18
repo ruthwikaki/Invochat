@@ -96,6 +96,15 @@ export async function getAuthContext() {
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();
     const metrics = await getDashboardMetrics(companyId, dateRange);
+    // Ensure that even if the RPC returns null/undefined, we provide a default structure.
+    if (!metrics) {
+        return {
+            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0,
+            new_customers: 0, customers_change: 0, dead_stock_value: 0,
+            sales_over_time: [], top_selling_products: [],
+            inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }
+        };
+    }
     return DashboardMetricsSchema.parse(metrics);
 }
 
@@ -295,6 +304,7 @@ export async function getGeneratedProductDescription(productName: string, catego
 export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
         const subjectId = formData.get('subjectId') as string;
         const subjectType = formData.get('subjectType') as string;
@@ -370,7 +380,8 @@ export async function getCustomerAnalytics() {
 }
 export async function exportCustomers(params: { query?: string }) { 
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const { items } = await getCustomersFromDB(companyId, { ...params, page: 1, limit: 10000 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
@@ -380,7 +391,8 @@ export async function exportCustomers(params: { query?: string }) {
 }
 export async function exportSales(params: { query?: string }) { 
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
         const csv = Papa.unparse(items.map(item => ({
             order_number: item.order_number,
@@ -439,6 +451,7 @@ export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[
 export async function exportInventory(params: { query?: string, status?: string; sortBy?: string; sortDirection?: string }) { 
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, limit: 10000, offset: 0 });
         const csv = Papa.unparse(items.map(item => ({
             sku: item.sku,
