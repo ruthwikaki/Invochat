@@ -30,7 +30,7 @@ export default async function RootLayout({
   if (!envValidation.success) {
     const errorDetails = envValidation.error.flatten().fieldErrors;
     return (
-      <html lang="en">
+      <html lang="en" suppressHydrationWarning>
         <body className={cn('font-sans antialiased', inter.variable)}>
           <MissingEnvVarsPage errors={errorDetails} />
         </body>
