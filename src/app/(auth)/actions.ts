@@ -14,6 +14,8 @@ import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
+const AUTH_TIMEOUT = 15000; // 15 seconds
+
 function getSupabaseClient() {
     const cookieStore = cookies();
     return createServerClient(
@@ -116,19 +118,16 @@ export async function signup(formData: FormData) {
       logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
       throw new Error('Too many requests. Please try again in a minute.');
     }
-
-    const supabase = getSupabaseClient();
+    
     const adminSupabase = getServiceRoleClient();
     
-    // We must use the admin client to create the user, so the `handle_new_user` trigger can work correctly.
-    // The trigger relies on the `raw_app_meta_data` which can only be set by an admin.
     const { data: { user }, error } = await withTimeout(
       adminSupabase.auth.admin.createUser({
           email,
           password,
-          email_confirm: true, // Send a confirmation email
+          email_confirm: false, // Auto-confirm user for smoother onboarding
           app_metadata: {
-              company_name: companyName, // Pass company name to the trigger
+              company_name: companyName,
           }
       }),
       AUTH_TIMEOUT,
@@ -136,7 +135,6 @@ export async function signup(formData: FormData) {
     );
     
     if (error) {
-        // Handle specific, common errors gracefully
         if (error.message.includes('unique constraint') || error.message.includes('User already registered')) {
             throw new Error('A user with this email address already exists.');
         }
@@ -145,6 +143,13 @@ export async function signup(formData: FormData) {
 
     if (!user) {
         throw new Error("An unexpected error occurred during signup.");
+    }
+    
+    // Manually sign in the user after successful creation
+    const supabase = getSupabaseClient();
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+        throw new Error(`Account created, but automatic sign-in failed: ${signInError.message}`);
     }
     
   } catch(e) {
@@ -156,7 +161,8 @@ export async function signup(formData: FormData) {
       return redirect(`/signup?error=${encodeURIComponent(errorMessage)}`);
   }
 
-  return redirect('/signup?success=true');
+  revalidatePath('/', 'layout');
+  redirect('/dashboard');
 }
 
 
