@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle, CardFooter, CardContent } from '@/components/ui/card';
 import { ShopifyConnectModal } from './ShopifyConnectModal';
@@ -12,12 +12,14 @@ import { IntegrationCard } from './IntegrationCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { motion } from 'framer-motion';
 import { PlatformLogo } from './platform-logos';
-import type { Platform } from '../types';
+import type { Platform, Integration } from '@/types';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
 import { disconnectIntegration, reconcileInventory } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { getErrorMessage } from '@/lib/error-handler';
 
 function PlatformConnectCard({
     platform,
@@ -50,27 +52,26 @@ function PlatformConnectCard({
 
 function ReconciliationCard({ integrationId }: { integrationId: string | undefined }) {
     const { toast } = useToast();
-    const [isReconciling, startReconciliation] = useTransition();
+    const [isReconciling, startReconciliation] = useState(false);
 
     if (!integrationId) return null;
 
-    const handleReconcile = () => {
-        startReconciliation(async () => {
-            const result = await reconcileInventory(integrationId);
-            if (result.success) {
-                toast({
-                    title: 'Reconciliation Started',
-                    description: 'Inventory levels are being updated from the platform. This may take a moment.',
-                    variant: 'default',
-                });
-            } else {
-                toast({
-                    title: 'Reconciliation Failed',
-                    description: result.error,
-                    variant: 'destructive',
-                });
-            }
-        });
+    const handleReconcile = async () => {
+        startReconciliation(true);
+        const result = await reconcileInventory(integrationId);
+        if (result.success) {
+            toast({
+                title: 'Reconciliation Started',
+                description: 'Inventory levels are being updated from the platform. This may take a moment.',
+            });
+        } else {
+            toast({
+                title: 'Reconciliation Failed',
+                description: result.error,
+                variant: 'destructive',
+            });
+        }
+        startReconciliation(false);
     };
 
     return (
@@ -105,7 +106,47 @@ export function IntegrationsClientPage() {
     const [isShopifyModalOpen, setIsShopifyModalOpen] = useState(false);
     const [isWooCommerceModalOpen, setIsWooCommerceModalOpen] = useState(false);
     const [isAmazonModalOpen, setIsAmazonModalOpen] = useState(false);
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+
+    const { integrations, isLoading, error } = useIntegrations();
     
+    const syncMutation = useMutation({
+        mutationFn: async ({ integrationId, platform }: { integrationId: string, platform: Platform }) => {
+            const response = await fetch(`/api/${platform}/sync`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ integrationId }),
+            });
+            if (!response.ok) {
+                const errorResult = await response.json();
+                throw new Error(errorResult.error || `Sync failed with status ${response.status}`);
+            }
+            return response.json();
+        },
+        onMutate: async ({ integrationId }) => {
+            // Optimistically update the UI to show a syncing state
+            await queryClient.cancelQueries({ queryKey: ['integrations'] });
+            const previousIntegrations = queryClient.getQueryData<Integration[]>(['integrations']);
+            queryClient.setQueryData<Integration[]>(['integrations'], old =>
+                old?.map(i => i.id === integrationId ? { ...i, sync_status: 'syncing' } : i)
+            );
+            toast({ title: 'Sync Started', description: 'Your data will be updated shortly.'});
+            return { previousIntegrations };
+        },
+        onError: (err, variables, context) => {
+            // Rollback on error
+            if (context?.previousIntegrations) {
+                queryClient.setQueryData(['integrations'], context.previousIntegrations);
+            }
+            toast({ variant: 'destructive', title: 'Sync Failed', description: getErrorMessage(err) });
+        },
+        onSettled: () => {
+            // Refetch integrations to get the final status from the server
+             queryClient.invalidateQueries({ queryKey: ['integrations'] });
+        },
+    });
+
     const handleDisconnect = async (integrationId: string) => {
         const formData = new FormData();
         formData.append('integrationId', integrationId);
@@ -114,13 +155,13 @@ export function IntegrationsClientPage() {
             formData.append(CSRF_FORM_NAME, csrfToken);
         }
         await disconnectIntegration(formData);
+        queryClient.invalidateQueries({ queryKey: ['integrations'] });
+        toast({ title: 'Integration Disconnected' });
     };
-
-    const { integrations, loading, error, triggerSync } = useIntegrations();
 
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
     
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="space-y-6">
                 <Skeleton className="h-32 w-full" />
@@ -156,7 +197,7 @@ export function IntegrationsClientPage() {
                              <IntegrationCard
                                 key={integration.id}
                                 integration={integration}
-                                onSync={triggerSync}
+                                onSync={() => syncMutation.mutate({ integrationId: integration.id, platform: integration.platform })}
                                 onDisconnect={handleDisconnect}
                             />
                         ))
