@@ -580,3 +580,5 @@ export async function getDeadStockPageData() {
         deadStockDays: settings.dead_stock_days
     };
 }
+
+    
