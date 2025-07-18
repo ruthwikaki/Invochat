@@ -29,7 +29,7 @@ export default function DatabaseSetupPage() {
                 <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">"Run"</span>.</p>
             </div>
              <p className="text-sm text-muted-foreground">
-                After the script finishes successfully, you can sign up for a new account.
+                After the script finishes successfully, you can sign up for a new account. If you already signed up, you must create a new account.
             </p>
         </CardContent>
         <CardFooter className="flex-col gap-4">
