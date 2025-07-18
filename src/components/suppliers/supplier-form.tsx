@@ -39,8 +39,17 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
 
   const onSubmit = (data: SupplierFormData) => {
     startTransition(async () => {
-      // Server actions with forms are still experimental. We'll use a fetch-based approach for now.
-      // This will be updated once the API is stable.
+      const formData = new FormData();
+      const csrfToken = getCookie(CSRF_FORM_NAME);
+      if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
+
+      // Append form data to FormData object
+      Object.entries(data).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          formData.append(key, String(value));
+        }
+      });
+      
       const action = initialData
         ? updateSupplier(initialData.id, data)
         : createSupplier(data);
