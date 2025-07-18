@@ -1,5 +1,6 @@
+
 {
-  "name": "invochat",
+  "name": "arvo",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -78,6 +79,8 @@
     "typescript": "^5.5.3"
   },
   "overrides": {
-    "caniuse-lite": "^1.0.30001732"
+    "caniuse-lite": {
+      "browserslist": ">= 4.21.5"
+    }
   }
 }

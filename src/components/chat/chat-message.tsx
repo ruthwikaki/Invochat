@@ -184,7 +184,7 @@ export function ChatMessage({
           </div>
       )}
 
-      {message.visualization && !CustomComponent && (
+      {message.visualization && message.visualization.type !== 'none' && !CustomComponent && (
         <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
           <DataVisualization
             visualization={message.visualization}

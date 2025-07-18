@@ -116,9 +116,6 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
   }, [prefillQuery]);
 
   const processAndSetMessages = async (userMessageText: string) => {
-    // Placeholder until auth is restored
-    const companyId = 'default-company-id';
-
     setInput('');
 
     const tempId = `temp_${Date.now()}`;
@@ -128,7 +125,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
       content: userMessageText,
       created_at: new Date().toISOString(),
       conversation_id: conversationId || tempId,
-      company_id: companyId,
+      company_id: '', // Will be set by server
     };
     
     const tempLoadingMessage: Message = {
@@ -137,7 +134,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
       content: '...',
       created_at: new Date().toISOString(),
       conversation_id: conversationId || tempId,
-      company_id: companyId,
+      company_id: '', // Will be set by server
     };
 
     setMessages(prev => [...prev, optimisticUserMessage, tempLoadingMessage]);
@@ -155,14 +152,15 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
                 role: 'assistant',
                 content: response.error,
                 created_at: new Date().toISOString(),
-                conversation_id: conversationId || tempId,
-                company_id: companyId,
+                conversation_id: response.conversationId || conversationId || tempId,
+                company_id: '',
                 isError: true,
             };
             setMessages(prev => prev.filter(m => m.id !== 'loading').map(m => m.id === tempId ? optimisticUserMessage : m).concat(errorMessage));
 
         } else if (response.conversationId && isNewChat) {
             router.push(`/chat?id=${response.conversationId}`);
+            // The router push will trigger a re-render with the new server-side messages
         } else if (response.newMessage) {
             // Replace the loading message with the real one
             setMessages(prev => prev.filter(m => m.id !== 'loading').map(m => m.id === tempId ? optimisticUserMessage : m).concat(response.newMessage!));
@@ -173,10 +171,10 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
         const errorMessage: Message = {
             id: `error_${Date.now()}`,
             role: 'assistant',
-            content: getErrorMessage(error) || 'Could not get response from the ARVO AI.',
+            content: getErrorMessage(error) || 'Could not get response from ARVO.',
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
-            company_id: companyId,
+            company_id: '',
             isError: true,
         };
         setMessages(prev => prev.filter(m => m.id !== 'loading').map(m => m.id === tempId ? optimisticUserMessage : m).concat(errorMessage));
