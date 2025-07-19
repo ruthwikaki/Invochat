@@ -162,7 +162,7 @@ export async function handleUserMessage({ content, conversationId }: { content: 
             const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
             currentConversationId = await saveConversation(companyId, newTitle);
         }
-
+        
         if (!currentConversationId) {
             throw new Error('Failed to create or retrieve a valid conversation ID.');
         }
@@ -228,7 +228,8 @@ export async function handleUserMessage({ content, conversationId }: { content: 
             created_at: new Date().toISOString(),
         };
 
-        await saveMessage({ ...newMessage, id: undefined, created_at: undefined });
+        const { id, created_at, ...messageToSave } = newMessage;
+        await saveMessage(messageToSave);
         
         return { newMessage, conversationId: finalConversationId };
 
