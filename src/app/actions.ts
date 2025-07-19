@@ -230,6 +230,6 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
 
     } catch(e) {
         logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
-        return { error: 'Sorry, I encountered an unexpected problem and could not respond. Please try again.' };
+        return { error: `Sorry, I encountered an unexpected problem: ${getErrorMessage(e)}` };
     }
 }
