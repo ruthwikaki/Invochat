@@ -9,7 +9,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import * as db from '@/services/database';
-import { getErrorMessage, logError } from '@/lib/error-handler';
+import { logError } from '@/lib/error-handler';
 
 // A generic schema for tools that only require a companyId
 const CompanyIdInputSchema = z.object({
