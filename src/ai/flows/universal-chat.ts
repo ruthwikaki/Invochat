@@ -87,11 +87,11 @@ const universalChatOrchestrator = ai.defineFlow(
   async (input) => {
     const { companyId, conversationHistory } = input;
     const userQuery = conversationHistory[conversationHistory.length - 1]?.content[0]?.text || '';
-    
+
     if (!userQuery) {
         throw new Error("User query was empty.");
     }
-    
+
     // --- Redis Caching Logic ---
     const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
     const cacheKey = `aichat:${companyId}:${queryHash}`;
@@ -110,7 +110,7 @@ const universalChatOrchestrator = ai.defineFlow(
     // --- End Caching Logic ---
 
     const aiModel = config.ai.model;
-    
+
     try {
         const generatePromise = ai.generate({
           model: aiModel,
@@ -128,15 +128,15 @@ const universalChatOrchestrator = ai.defineFlow(
           config.ai.timeoutMs,
           'The AI model took too long to respond.'
         );
-        
+
         if (toolCalls && toolCalls.length > 0) {
             const toolCall = toolCalls[0];
             logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCall.name}`);
-            
+
             try {
                 const toolArgsWithCompanyId = { companyId, ...toolCall.args };
                 const toolResult = await ai.runTool({ ...toolCall, args: toolArgsWithCompanyId });
-                
+
                 const { output: finalOutput } = await finalResponsePrompt(
                     { userQuery, toolResult: toolResult.output },
                     { model: aiModel, maxOutputTokens: config.ai.maxOutputTokens }
@@ -145,14 +145,14 @@ const universalChatOrchestrator = ai.defineFlow(
                 if (!finalOutput) {
                     throw new Error('The AI model did not return a valid final response object after tool use.');
                 }
-                
+
                 // Generic way to find the primary data array or object for visualization.
                 // It looks for common patterns like a `products` array, `suggestions` array, etc.
                 const findDataForVis = (output: unknown) => {
                     if (!output || typeof output !== 'object') return output;
                     const typedOutput = output as Record<string, unknown>;
                     const commonKeys = ['products', 'suggestions', 'opportunities', 'items', 'segments', 'slow_sellers', 'fast_sellers', 'forecastedDemand', 'analysis'];
-                    
+
                     for (const key of commonKeys) {
                         if (key !== '__proto__' && Object.prototype.hasOwnProperty.call(typedOutput, key)) {
                             return typedOutput[key];
@@ -170,7 +170,7 @@ const universalChatOrchestrator = ai.defineFlow(
                     data: dataForVisualization,
                     toolName: toolCall.name,
                 };
-                
+
                 if (isRedisEnabled) {
                     await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
                 }
@@ -190,7 +190,7 @@ const universalChatOrchestrator = ai.defineFlow(
         }
 
         logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
-        
+
         const responseToCache: UniversalChatOutput = {
             response: text,
             data: [],
@@ -198,7 +198,7 @@ const universalChatOrchestrator = ai.defineFlow(
             confidence: 0.5,
             assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
         };
-        
+
         if (isRedisEnabled) {
             await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
         }
@@ -232,3 +232,5 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
+
+    
