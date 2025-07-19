@@ -34,8 +34,8 @@ const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
 
 const reorderRefinementPrompt = ai.definePrompt({
     name: 'reorderRefinementPrompt',
-    inputSchema: ReorderRefinementInputSchema,
-    outputSchema: z.array(EnhancedReorderSuggestionSchema),
+    input: { schema: ReorderRefinementInputSchema },
+    output: { schema: z.array(EnhancedReorderSuggestionSchema) },
     prompt: `
         You are an expert supply chain analyst for an e-commerce business. Your task is to refine a list of automatically-generated reorder suggestions by considering their historical sales data and seasonality.
 

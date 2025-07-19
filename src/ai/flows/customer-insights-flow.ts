@@ -19,8 +19,8 @@ const CustomerInsightsOutputSchema = z.object({
 
 export const customerInsightsPrompt = ai.definePrompt({
   name: 'customerInsightsPrompt',
-  inputSchema: CustomerInsightsInputSchema,
-  outputSchema: CustomerInsightsOutputSchema,
+  input: { schema: CustomerInsightsInputSchema },
+  output: { schema: CustomerInsightsOutputSchema },
   prompt: `
     You are a marketing strategist for an e-commerce business. Analyze the following customer segment data, which shows which products are popular with different customer groups.
 

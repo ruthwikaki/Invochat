@@ -13,14 +13,14 @@ export const getEconomicIndicators = ai.defineTool(
     name: 'getEconomicIndicators',
     description:
       "Use to get current values for major economic indicators like inflation rate (CPI), federal funds rate, unemployment rate, or GDP growth rate. Use this tool ONLY when the user's question is primarily about a specific, well-known economic metric and CANNOT be answered from the database.",
-    input: z.object({
+    inputSchema: z.object({
       indicator: z
         .string()
         .describe(
           'The specific economic indicator to look up (e.g., "US inflation rate", "federal funds rate").'
         ),
     }),
-    output: z.object({
+    outputSchema: z.object({
         indicator: z.string(),
         value: z.string(),
     }),
