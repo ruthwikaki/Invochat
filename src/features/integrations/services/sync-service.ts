@@ -67,7 +67,7 @@ export async function runSync(integrationId: string, companyId: string) {
             // If sync succeeds, break the loop
             return;
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             logError(e, { context: `Sync failed for integration ${integrationId}, attempt ${attempt}` });
             
             if (attempt < MAX_ATTEMPTS) {

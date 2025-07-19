@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -38,7 +39,7 @@ function generateSimulatedOrders(products: unknown[], count: number): unknown[] 
         const line_items = [];
         let total_price = 0;
         for (let j = 0; j < numItems; j++) {
-            const product = products[Math.floor(Math.random() * products.length)] as Record<string, any>;
+            const product = products[Math.floor(Math.random() * products.length)] as Record<string, unknown>;
             const quantity = Math.floor(Math.random() * 2) + 1;
             line_items.push({
                 sku: product.sku,
@@ -46,7 +47,7 @@ function generateSimulatedOrders(products: unknown[], count: number): unknown[] 
                 quantity: quantity,
                 price: product.price,
             });
-            total_price += product.price * quantity;
+            total_price += (product.price as number) * quantity;
         }
         orders.push({
             id: orderId,
@@ -93,20 +94,20 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
     const simulatedOrders = generateSimulatedOrders(products, 5); // Generate 5 sample orders
     let totalRecordsSynced = 0;
 
-    for (const order of (simulatedOrders as Record<string, any>[])) {
-        const itemsWithCost = order.line_items.map((item: { sku: string; price: string }) => {
-            const product = (products as Record<string, any>[]).find(p => p.sku === item.sku);
+    for (const order of (simulatedOrders as Record<string, unknown>[])) {
+        const itemsWithCost = (order.line_items as { sku: string; price: string }[]).map((item) => {
+            const product = (products as Record<string, unknown>[]).find(p => p.sku === item.sku);
             return {
                 ...item,
-                cost_at_time: product ? Math.round(parseFloat(product.cost_of_goods) * 100) : 0,
+                cost_at_time: product ? Math.round(parseFloat(product.cost_of_goods as string) * 100) : 0,
             };
         });
 
         const { error } = await supabase.rpc('record_sale_transaction', {
             p_company_id: integration.company_id,
             p_user_id: null,
-            p_customer_name: `${order.customer.first_name} ${order.customer.last_name}`,
-            p_customer_email: order.customer.email,
+            p_customer_name: `${(order.customer as Record<string, string>).first_name} ${(order.customer as Record<string, string>).last_name}`,
+            p_customer_email: (order.customer as Record<string, string>).email,
             p_payment_method: 'amazon_fba',
             p_notes: `Amazon Order #${order.id}`,
             p_sale_items: itemsWithCost.map((item: {sku: string, name: string, quantity: number, price: string, cost_at_time: number}) => ({
@@ -116,7 +117,7 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
                 unit_price: Math.round(parseFloat(item.price) * 100),
                 cost_at_time: item.cost_at_time,
             })),
-            p_external_id: order.id
+            p_external_id: order.id as string
         });
 
         if (error) {

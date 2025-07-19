@@ -237,8 +237,8 @@ export async function getDeadStockReportFromDB(companyId: string) {
     if (error) throw error;
     return {
         deadStockItems: data || [],
-        totalValue: data.reduce((sum: number, item: any) => sum + item.total_value, 0),
-        totalUnits: data.reduce((sum: number, item: any) => sum + item.quantity, 0),
+        totalValue: data.reduce((sum: number, item: { total_value: number }) => sum + item.total_value, 0),
+        totalUnits: data.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
     };
 }
 export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> { 
