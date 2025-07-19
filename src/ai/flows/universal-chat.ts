@@ -122,7 +122,7 @@ const universalChatOrchestrator = ai.defineFlow(
 
         const messages: MessageData[] = [systemPrompt, ...genkitHistory];
 
-        const { toolCalls, text } = await ai.generate({
+        const response = await ai.generate({
           model: config.ai.model,
           tools: safeToolsForOrchestrator,
           messages,
@@ -130,6 +130,9 @@ const universalChatOrchestrator = ai.defineFlow(
             maxOutputTokens: config.ai.maxOutputTokens,
           }
         });
+
+        const toolCalls = response.toolCalls;
+        const text = response.text;
 
         if (toolCalls && toolCalls.length > 0) {
             const toolCall = toolCalls[0];
@@ -234,5 +237,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    
