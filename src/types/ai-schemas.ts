@@ -29,7 +29,7 @@ export const UniversalChatOutputSchema = z.object({
   response: z.string().describe("The natural language response to the user."),
   data: z.any().optional().nullable().describe("The raw data retrieved from the database, if any. This could be an array of objects or a single object."),
   visualization: z.object({
-    type: z.enum(['table', 'bar', 'pie', 'line', 'treemap', 'scatter', 'none']),
+    type: z.enum(['table', 'chart', 'alert', 'none']),
     data: z.array(z.record(z.string(), z.unknown())).describe("The data used for the visualization."),
     title: z.string().optional(),
     config: z.record(z.string(), z.unknown()).optional()

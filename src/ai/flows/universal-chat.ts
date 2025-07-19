@@ -68,8 +68,8 @@ const finalResponsePrompt = ai.definePrompt({
         - **Assumptions List:** If confidence is below 1.0, state the assumptions you made. E.g., ["Assumed 'best sellers' means by revenue, not units sold."]. If confidence is 1.0, this should be an empty array.
 
     4.  **Suggest Visualization**:
-        - Based on the data's structure, suggest an appropriate visualization. For now, since the direct data isn't passed, default to 'none'.
-        - **Available types:** 'table', 'bar', 'pie', 'line', 'treemap', 'scatter', 'none'.
+        - Based on the data's structure, suggest an appropriate visualization. Use 'chart' for time-series, categorical comparisons, or distributions. Use 'table' for lists or detailed reports.
+        - **Available types:** 'chart', 'table', 'alert', 'none'.
         - Provide a clear and descriptive \`title\` for the visualization.
 
     5.  **Final Output**:
