@@ -2,7 +2,7 @@
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import {
   getSettings,
@@ -90,9 +90,12 @@ export async function getAuthContext() {
     });
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated.');
+    if (!user.email) throw new Error('User email not found.');
+
     const companyId = user.app_metadata?.company_id;
     if (!companyId) throw new Error('Company ID not found for user.');
-    return { companyId, userId: user.id, userEmail: user.email! };
+    
+    return { companyId, userId: user.id, userEmail: user.email };
 }
 
 // --- Simplified Core Actions ---
@@ -583,7 +586,3 @@ export async function getDeadStockPageData() {
         deadStockDays: settings.dead_stock_days
     };
 }
-
-    
-
-    
