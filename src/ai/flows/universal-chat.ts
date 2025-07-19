@@ -22,6 +22,7 @@ import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
 import { withTimeout } from '@/lib/async-utils';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
+import type { MessageData } from 'genkit';
 
 const safeToolsForOrchestrator = [
     getEconomicIndicators,
@@ -77,16 +78,6 @@ const finalResponsePrompt = ai.definePrompt({
   `,
 });
 
-const chatOrchestratorPrompt = ai.definePrompt({
-    name: 'chatOrchestratorPrompt',
-    tools: safeToolsForOrchestrator,
-    system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
-    model: config.ai.model,
-    config: {
-        maxOutputTokens: config.ai.maxOutputTokens,
-    }
-});
-
 
 const universalChatOrchestrator = ai.defineFlow(
   {
@@ -120,10 +111,21 @@ const universalChatOrchestrator = ai.defineFlow(
     // --- End Caching Logic ---
 
     try {
-        const generatePromise = chatOrchestratorPrompt(
-            userQuery, 
-            { history: conversationHistory.slice(0, -1) }
-        );
+        const systemPrompt = {
+            role: 'system' as const,
+            content: [{ text: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`}]
+        };
+
+        const messages: MessageData[] = [systemPrompt, ...conversationHistory];
+
+        const generatePromise = ai.generate({
+          model: config.ai.model,
+          tools: safeToolsForOrchestrator,
+          messages,
+          config: {
+            maxOutputTokens: config.ai.maxOutputTokens,
+          }
+        });
 
         const { toolCalls, text } = await withTimeout(
           generatePromise,
