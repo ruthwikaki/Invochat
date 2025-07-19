@@ -1,7 +1,7 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Truck, RefreshCwIcon, TrendingDown, Package, Users } from "lucide-react";
+import { Truck, RefreshCwIcon, TrendingDown, Package } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
