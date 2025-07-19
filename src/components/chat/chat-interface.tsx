@@ -234,7 +234,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
         <div className="mb-3 overflow-x-auto pb-2">
             <div className="flex gap-2 w-max">
                 {quickActions.map((action, i) => (
-                    <Button key={i} variant="outline" size="sm" className="rounded-full" onClick={() => handleQuickAction(action)} disabled={isPending}>
+                    <Button key={i} variant="outline" size="sm" className="rounded-full" onClick={() => { handleQuickAction(action); }} disabled={isPending}>
                         {action}
                     </Button>
                 ))}

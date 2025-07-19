@@ -184,7 +184,7 @@ export function IntegrationsClientPage() {
             />
              <WooCommerceConnectModal
                 isOpen={isWooCommerceModalOpen}
-                onClose={() => setIsWooCommerceModalOpen(false)}
+                onClose={() => { setIsWooCommerceModalOpen(false); }}
             />
             <AmazonConnectModal
                 isOpen={isAmazonModalOpen}
@@ -199,8 +199,8 @@ export function IntegrationsClientPage() {
                              <IntegrationCard
                                 key={integration.id}
                                 integration={integration}
-                                onSync={() => syncMutation.mutate({ integrationId: integration.id, platform: integration.platform })}
-                                onDisconnect={(formData) => disconnectMutation.mutate(formData)}
+                                onSync={() => { syncMutation.mutate({ integrationId: integration.id, platform: integration.platform }); }}
+                                onDisconnect={(formData) => { disconnectMutation.mutate(formData); }}
                             />
                         ))
                     ) : (

@@ -153,7 +153,7 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
 const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }: { column: SortableColumn, label: string, currentSort: SortableColumn, currentDirection: 'asc' | 'desc', onSort: (column: SortableColumn) => void }) => {
     const isActive = column === currentSort;
     return (
-        <TableHead className="cursor-pointer" onClick={() => onSort(column)}>
+        <TableHead className="cursor-pointer" onClick={() => { onSort(column); }}>
             <div className="flex items-center gap-2">
                 {label}
                 {isActive ? (

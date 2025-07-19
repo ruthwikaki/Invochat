@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -22,7 +23,7 @@ async function wooCommerceFetch(
     const url = new URL(`${storeUrl.replace(/\/$/, "")}/wp-json/wc/v3/${endpoint}`);
     url.searchParams.set('consumer_key', consumerKey);
     url.searchParams.set('consumer_secret', consumerSecret);
-    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+    Object.entries(params).forEach(([key, value]) => { url.searchParams.set(key, String(value)); });
 
     const response = await fetch(url.toString());
 
