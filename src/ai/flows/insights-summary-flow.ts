@@ -7,7 +7,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { AnomalySchema } from '@/types';
-import type { Anomaly } from '@/types';
 import { config } from '@/config/app-config';
 
 const InsightsInputSchema = z.object({
