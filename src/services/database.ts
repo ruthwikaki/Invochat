@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -33,7 +34,9 @@ export async function checkUserPermission(userId: string, requiredRole: 'Admin' 
 export async function getSettings(companyId: string): Promise<CompanySettings> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('company_settings').select('*').eq('company_id', companyId).single();
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error && error.code !== 'PGRST116') {
+        throw error;
+    }
     if (data) return CompanySettingsSchema.parse(data);
     
     // If no settings exist, create them with default values
@@ -177,10 +180,17 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
         throw new Error(`Could not create supplier: ${getErrorMessage(error)}`);
     }
 }
-export async function updateSupplierInDb(id: string, companyId: string, formData: SupplierFormData) { 
+export async function updateSupplierInDb(id: string, companyId: string, formData: SupplierFormData) {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('suppliers').update(formData).eq('id', id).eq('company_id', companyId);
-    if (error) throw error;
+    try {
+        const { error } = await supabase.from('suppliers').update(formData).eq('id', id).eq('company_id', companyId);
+        if (error) {
+            throw error;
+        }
+    } catch (error) {
+        logError(error, { context: `updateSupplierInDb failed for id: ${id}` });
+        throw new Error(`Could not update supplier: ${getErrorMessage(error)}`);
+    }
 }
 export async function deleteSupplierFromDb(id: string, companyId: string) { 
     const supabase = getServiceRoleClient();
@@ -237,8 +247,8 @@ export async function getDeadStockReportFromDB(companyId: string) {
     if (error) throw error;
     return {
         deadStockItems: data || [],
-        totalValue: data.reduce((sum: number, item: { total_value: number }) => sum + item.total_value, 0),
-        totalUnits: data.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
+        totalValue: (data || []).reduce((sum: number, item: { total_value: number }) => sum + item.total_value, 0),
+        totalUnits: (data || []).reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
     };
 }
 export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> { 
@@ -448,15 +458,15 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     }
     
     // The query returns { supplier_name: { name: 'Supplier A' } }, so we need to flatten it.
-    const flattenedData = data.map(po => {
+    const flattenedData = (data || []).map(po => {
         // Safely access the nested property
         const supplierName = (po.supplier_name && typeof po.supplier_name === 'object' && 'name' in po.supplier_name)
-            ? (po.supplier_name as { name: string }).name
+            ? (po.supplier_name as { name: string | null }).name
             : 'N/A';
 
         return {
             ...po,
-            supplier_name: supplierName
+            supplier_name: supplierName,
         };
     });
 
