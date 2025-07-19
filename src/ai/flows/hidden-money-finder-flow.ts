@@ -7,7 +7,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getSalesVelocity, getGrossMarginAnalysis } from './analytics-tools';
+import { getSalesVelocityFromDB, getGrossMarginAnalysisFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
 
 const HiddenMoneyInputSchema = z.object({
@@ -66,10 +66,10 @@ export const findHiddenMoneyFlow = ai.defineFlow(
   },
   async ({ companyId }) => {
     try {
-      // Step 1: Get the required data using existing tools
+      // Step 1: Get the required data using the underlying database functions directly
       const [salesVelocityResult, marginResult] = await Promise.all([
-        getSalesVelocity.run({ companyId, days: 90, limit: 20 }),
-        getGrossMarginAnalysis.run({ companyId }),
+        getSalesVelocityFromDB(companyId, 90, 20),
+        getGrossMarginAnalysisFromDB(companyId),
       ]);
       
       const slowSellers = salesVelocityResult?.slow_sellers || [];
@@ -107,6 +107,7 @@ export const findHiddenMoney = ai.defineTool(
     },
     async (input) => findHiddenMoneyFlow(input)
 );
+
 
 
 
