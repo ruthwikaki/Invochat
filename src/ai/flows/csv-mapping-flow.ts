@@ -42,7 +42,7 @@ export async function suggestCsvMappings(input: CsvMappingInput): Promise<CsvMap
   // Sanitize headers before passing to AI to prevent prompt injection with malicious characters.
   const sanitizedInput: CsvMappingInput = {
     ...input,
-    csvHeaders: input.csvHeaders.map(h => 
+    csvHeaders: input.csvHeaders.map((h: string) => 
       h.replace(/[^\w\s-]/g, '').substring(0, 100)
     ),
   };
