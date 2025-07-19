@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
 import { linearRegression } from '@/lib/utils';
-import { addDays, differenceInDays } from 'date-fns';
+import { differenceInDays } from 'date-fns';
 
 const ForecastInputSchema = z.object({
   companyId: z.string().uuid(),
@@ -28,14 +28,14 @@ const ForecastOutputSchema = z.object({
 
 const generateForecastAnalysisPrompt = ai.definePrompt({
   name: 'generateForecastAnalysisPrompt',
-  input: z.object({
+  input: { schema: z.object({
     sku: z.string(),
     daysToForecast: z.number(),
     slope: z.number(),
     intercept: z.number(),
     dataPointCount: z.number(),
     forecastedDemand: z.number(),
-  }),
+  }) },
   output: { schema: ForecastOutputSchema.omit({ sku: true, forecastedDemand: true }) },
   prompt: `
     You are an expert inventory analyst. You have performed a linear regression on historical sales data for a product. Your task is to interpret the results and create a user-friendly forecast.
