@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -346,7 +346,7 @@ export async function getChannelFeesFromDB(companyId: string) {
     if (error) throw error;
     return data || [];
 }
-export async function upsertChannelFeeInDB(companyId: string, feeData: any) { 
+export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<ChannelFee>) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
     if (error) throw error;
@@ -358,7 +358,7 @@ export async function getCompanyById(companyId: string) {
     return data;
 }
 
-export async function createAuditLogInDb(companyId: string, userId: string | null, action: string, details?: Record<string, any>): Promise<void> {
+export async function createAuditLogInDb(companyId: string, userId: string | null, action: string, details?: Record<string, unknown>): Promise<void> {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('audit_log').insert({
         company_id: companyId,
@@ -398,7 +398,7 @@ export async function reconcileInventoryInDb(companyId: string, integrationId: s
     if(error) throw error;
 }
 
-export async function createPurchaseOrdersInDb(companyId: string, userId: string, suggestions: any[], idempotencyKey?: string) {
+export async function createPurchaseOrdersInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[], idempotencyKey?: string) {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
         p_company_id: companyId,
@@ -434,7 +434,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     // The query returns { supplier_name: { name: 'Supplier A' } }, so we need to flatten it.
     const flattenedData = data.map(po => ({
         ...po,
-        supplier_name: po.supplier_name ? (po.supplier_name as any).name : 'N/A'
+        supplier_name: po.supplier_name ? (po.supplier_name as { name: string }).name : 'N/A'
     }));
 
     return flattenedData as PurchaseOrderWithSupplier[];
@@ -457,7 +457,7 @@ export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
 export async function logPOCreationInDb(poNumber: string, supplierName: string, items: any[], companyId: string, userId: string) {}
 
 export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRole-client();
     const { error } = await supabase.from('webhook_events').insert({
         integration_id: integrationId,
         webhook_id: webhookId
