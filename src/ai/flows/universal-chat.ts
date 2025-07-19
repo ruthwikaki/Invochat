@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
+ * @fileoverview Implements the advanced, multi-agent AI chat system for ARVO.
  * This system uses a Chain-of-Thought approach with distinct steps for planning,
  * generation, validation, and response formulation to provide more accurate and
  * context-aware answers.
@@ -44,7 +44,7 @@ const finalResponsePrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.unknown() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
+    You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
     You have executed a tool and received this JSON data as a result:
     {{{json toolResult}}}
@@ -131,8 +131,8 @@ const universalChatOrchestrator = ai.defineFlow(
           }
         });
         
-        const toolCalls = response.toolCalls;
-        const text = response.text;
+        const toolCalls = response.toolCalls();
+        const text = response.text();
 
         if (toolCalls && toolCalls.length > 0) {
             const toolCall = toolCalls[0];
@@ -237,5 +237,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    
