@@ -6,7 +6,6 @@ import type { Message } from '@/types';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
-import { logger } from '@/lib/logger';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
