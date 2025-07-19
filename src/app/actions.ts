@@ -147,7 +147,7 @@ export async function getMessages(conversationId: string) {
 }
 
 
-export async function handleUserMessage({ content, conversationId, source = 'chat_page' }: { content: string, conversationId: string | null, source?: string }) {
+export async function handleUserMessage({ content, conversationId }: { content: string, conversationId: string | null }) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
         const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60, true);
@@ -204,7 +204,7 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
 
         const response = await universalChatFlow({ companyId, conversationHistory });
         
-        const finalConversationId = response.conversationId || currentConversationId;
+        const finalConversationId = (response as any).conversationId || currentConversationId;
         if (!finalConversationId) {
             throw new Error('Could not determine conversation ID after processing message.');
         }
@@ -218,8 +218,8 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
             visualization: response.visualization,
             confidence: response.confidence,
             assumptions: response.assumptions,
-            component: response.component,
-            componentProps: response.componentProps,
+            component: (response as any).component,
+            componentProps: (response as any).componentProps,
             isError: (response as { isError?: boolean }).isError || false,
             created_at: new Date().toISOString(),
         };
