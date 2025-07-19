@@ -75,7 +75,7 @@ export const productDemandForecastFlow = ai.defineFlow(
     inputSchema: ForecastInputSchema,
     outputSchema: ForecastOutputSchema,
   },
-  async ({ companyId, sku, daysToForecast }) => {
+  async ({ companyId, sku, daysToForecast }): Promise<z.infer<typeof ForecastOutputSchema>> => {
     try {
       const salesData = await getHistoricalSalesForSingleSkuFromDB(companyId, sku);
 
