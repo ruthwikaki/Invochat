@@ -6,7 +6,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
-import { getDeadStockPageData } from '@/services/database';
+import { getDeadStockReportFromDB } from '@/services/database';
 import { DeadStockItemSchema, type DeadStockItem } from '@/types';
 import { logError } from '@/lib/error-handler';
 
@@ -23,7 +23,7 @@ export const getDeadStockReport = ai.defineTool(
   async (input): Promise<DeadStockItem[]> => {
     logger.info(`[Dead Stock Tool] Getting report for company: ${input.companyId}`);
     try {
-        const deadStockData = await getDeadStockPageData(input.companyId);
+        const deadStockData = await getDeadStockReportFromDB(input.companyId);
         // The tool should return just the items, not the totals.
         return deadStockData.deadStockItems;
     } catch (e) {
