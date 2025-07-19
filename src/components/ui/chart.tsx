@@ -350,7 +350,7 @@ function getPayloadConfigFromPayload(
 
   return Object.prototype.hasOwnProperty.call(config, configLabelKey)
     ? config[configLabelKey]
-    : config[key as keyof typeof config]
+    : Object.prototype.hasOwnProperty.call(config, key) ? config[key as keyof typeof config] : undefined;
 }
 
 export {

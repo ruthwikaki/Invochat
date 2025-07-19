@@ -14,7 +14,7 @@ type DataTableProps = {
 };
 
 function formatValue(row: Record<string, unknown>, header: string): string {
-  if (header === '__proto__' || !Object.prototype.hasOwnProperty.call(row, header)) {
+  if (header === '__proto__') {
       return 'N/A';
   }
   const value = Object.prototype.hasOwnProperty.call(row, header) ? row[header] : 'N/A';

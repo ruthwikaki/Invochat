@@ -1,38 +1,31 @@
+
+
 -- Create the imports table
-CREATE TABLE IF NOT EXISTS public.imports (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    created_by UUID NOT NULL REFERENCES auth.users(id),
-    import_type TEXT NOT NULL,
-    file_name TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    total_rows INT,
-    processed_rows INT,
-    failed_rows INT,
-    summary JSONB,
-    errors JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMPTZ
+-- This table tracks the history and status of all data import jobs.
+CREATE TABLE public.imports (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    created_by uuid NOT NULL REFERENCES auth.users(id) ON DELETE SET NULL,
+    import_type text NOT NULL,
+    file_name text NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    total_rows integer,
+    processed_rows integer,
+    failed_rows integer,
+    errors jsonb,
+    summary jsonb,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    completed_at timestamp with time zone,
+    PRIMARY KEY (id)
 );
-
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_imports_company_id ON public.imports(company_id);
-CREATE INDEX IF NOT EXISTS idx_imports_status ON public.imports(status);
-
--- RLS Policies
 ALTER TABLE public.imports ENABLE ROW LEVEL SECURITY;
 
--- Allow users to see their own company's imports.
-CREATE POLICY "Allow users to view their own company's imports"
-ON public.imports
-FOR SELECT
-USING (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
+-- Allow users to view their own company's import jobs.
+CREATE POLICY "Users can view their own company's import jobs" ON public.imports
+    FOR SELECT USING (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
 
--- Allow users to create imports for their own company.
-CREATE POLICY "Allow users to create imports for their company"
-ON public.imports
-FOR INSERT
-WITH CHECK (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
+-- Allow users to create import jobs for their own company.
+CREATE POLICY "Users can create import jobs for their own company" ON public.imports
+    FOR INSERT WITH CHECK (company_id = (SELECT company_id FROM public.users WHERE id = auth.uid()));
 
--- It's generally safer to disallow direct updates/deletes from the client.
--- These should be handled by trusted server-side code.
+-- Note: The service_role key will be used to update the status of jobs from the server.
