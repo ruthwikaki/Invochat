@@ -24,8 +24,8 @@ const MorningBriefingOutputSchema = z.object({
 
 export const morningBriefingPrompt = ai.definePrompt({
   name: 'morningBriefingPrompt',
-  inputSchema: MorningBriefingInputSchema,
-  outputSchema: MorningBriefingOutputSchema,
+  input: { schema: MorningBriefingInputSchema },
+  output: { schema: MorningBriefingOutputSchema },
   prompt: `
     You are an AI business analyst providing a "morning briefing" for an e-commerce store owner.
     Your tone should be professional, concise, and proactive.
