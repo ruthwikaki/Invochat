@@ -17,17 +17,17 @@ export default function SignupPage({
   generateCSRFToken();
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-900 text-white p-4">
+    <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
        <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/10 to-slate-900" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(79,70,229,0.3),rgba(255,255,255,0))]" />
         </div>
-      <div className="mb-8 flex items-center gap-3 text-3xl font-bold">
-        <InvoChatLogo className="h-10 w-10 text-primary" />
-        <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">ARVO</h1>
-      </div>
-      <Card className="w-full max-w-md p-8 space-y-6 rounded-2xl shadow-2xl bg-slate-800/80 backdrop-blur-xl border border-slate-700/50">
+      <Card className="w-full bg-transparent border-none p-8 space-y-6">
         <CardHeader className="p-0 text-center">
+           <div className="flex justify-center items-center gap-3 mb-4">
+              <InvoChatLogo className="h-10 w-10 text-primary" />
+              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">ARVO</h1>
+          </div>
           <CardTitle className="text-2xl text-slate-200">Create Your Account</CardTitle>
           <CardDescription className="text-slate-400">
             Get started with AI-powered inventory intelligence.
