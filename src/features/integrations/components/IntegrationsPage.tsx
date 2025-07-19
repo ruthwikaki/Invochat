@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -142,7 +143,7 @@ export function IntegrationsClientPage() {
         },
         onSettled: () => {
             // Refetch integrations to get the final status from the server
-             queryClient.invalidateQueries({ queryKey: ['integrations'] });
+             void queryClient.invalidateQueries({ queryKey: ['integrations'] });
         },
     });
 
@@ -151,7 +152,7 @@ export function IntegrationsClientPage() {
       onSuccess: (result) => {
         if(result.success) {
           toast({ title: 'Integration Disconnected' });
-          queryClient.invalidateQueries({ queryKey: ['integrations'] });
+          void queryClient.invalidateQueries({ queryKey: ['integrations'] });
         } else {
           toast({ variant: 'destructive', title: 'Error', description: result.error });
         }

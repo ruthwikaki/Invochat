@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -110,7 +111,9 @@ async function processCsv<T extends z.ZodType>(
                     const newRow: Record<string, unknown> = {};
                     for (const originalHeader in row) {
                         if (Object.prototype.hasOwnProperty.call(mappings, originalHeader)) {
-                            newRow[mappings[originalHeader]] = row[originalHeader];
+                             if (Object.prototype.hasOwnProperty.call(row, originalHeader)) {
+                                newRow[mappings[originalHeader]] = row[originalHeader];
+                            }
                         }
                     }
                     row = newRow;
@@ -251,15 +254,12 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             'historical-sales': { schema: HistoricalSalesImportSchema, tableName: 'sales' },
         };
 
-        const config = importSchemas[dataType as keyof typeof importSchemas];
-        if (!config) {
-            throw new Error(`Unsupported data type: ${dataType}`);
-        }
+        const currentConfig = importSchemas[dataType as keyof typeof importSchemas];
         
         const approximateTotalRows = Math.floor(file.size / 150); // Estimate based on average row size
         importJobId = !isDryRun ? await createImportJob(companyId, userId, dataType, file.name, approximateTotalRows) : undefined;
         
-        result = await processCsv(file.stream() as unknown as NodeJS.ReadableStream, config.schema, config.tableName, companyId, userId, isDryRun, mappings, dataType, importJobId);
+        result = await processCsv(file.stream() as unknown as NodeJS.ReadableStream, currentConfig.schema, currentConfig.tableName, companyId, userId, isDryRun, mappings, dataType, importJobId);
 
         if (!isDryRun && (result.processedCount || 0) > 0) {
             await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);

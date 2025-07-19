@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -244,11 +245,18 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
 export async function getDeadStockReportFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
-    if (error) throw error;
+    if (error) {
+        logError(error);
+        throw error;
+    }
+    const deadStockItems = data || [];
+    const totalValue = deadStockItems.reduce((sum: number, item: { total_value: number }) => sum + item.total_value, 0);
+    const totalUnits = deadStockItems.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0);
+    
     return {
-        deadStockItems: data || [],
-        totalValue: (data || []).reduce((sum: number, item: { total_value: number }) => sum + item.total_value, 0),
-        totalUnits: (data || []).reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0),
+        deadStockItems: deadStockItems,
+        totalValue: totalValue,
+        totalUnits: totalUnits,
     };
 }
 export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> { 

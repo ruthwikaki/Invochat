@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { handleUserMessage } from '@/app/actions';
@@ -107,7 +108,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
 
   const isNewChat = !conversationId;
 
-  const quickActions = contextualQuickActions[pathname];
+  const quickActions = Object.prototype.hasOwnProperty.call(contextualQuickActions, pathname) ? contextualQuickActions[pathname] : contextualQuickActions.default;
   
   useEffect(() => {
     if (prefillQuery) {
@@ -185,13 +186,13 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (input.trim() && !isPending) {
-      processAndSetMessages(input);
+      void processAndSetMessages(input);
     }
   };
 
   const handleQuickAction = (action: string) => {
     if (!isPending) {
-        processAndSetMessages(action);
+        void processAndSetMessages(action);
     }
   };
   

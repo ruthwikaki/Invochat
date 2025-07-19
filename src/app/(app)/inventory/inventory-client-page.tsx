@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
@@ -143,8 +144,10 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
         total_quantity: 0
       };
     }
-    productMap[productId].variants.push(variant);
-    productMap[productId].total_quantity += variant.inventory_quantity;
+    if (Object.prototype.hasOwnProperty.call(productMap, productId)) {
+        productMap[productId].variants.push(variant);
+        productMap[productId].total_quantity += variant.inventory_quantity;
+    }
   });
   
   return Object.values(productMap);
@@ -153,7 +156,7 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
 const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }: { column: SortableColumn, label: string, currentSort: SortableColumn, currentDirection: 'asc' | 'desc', onSort: (column: SortableColumn) => void }) => {
     const isActive = column === currentSort;
     return (
-        <TableHead className="cursor-pointer" onClick={(): void => { onSort(column); }}>
+        <TableHead className="cursor-pointer" onClick={() => { onSort(column); }}>
             <div className="flex items-center gap-2">
                 {label}
                 {isActive ? (
@@ -178,7 +181,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const query = searchParams.get('query') || '';
   const status = searchParams.get('status') || 'all';
-  const sortBy = searchParams.get('sortBy') as SortableColumn ?? 'product_title';
+  const sortBy = (searchParams.get('sortBy') as SortableColumn) ?? 'product_title';
   const sortDirection = searchParams.get('sortDirection') === 'desc' ? 'desc' : 'asc';
   
   const createUrlWithParams = (newParams: Record<string, string>) => {

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    checkSession();
+    void checkSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {

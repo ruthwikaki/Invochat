@@ -111,7 +111,9 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                     ).then(res => res.data.map((v: unknown) => ({ ...(v as object), parent_id: productId })))
                 );
                 const results = await Promise.all(variationPromises);
-                results.forEach(vars => allVariations.push(...vars));
+                results.forEach(vars => {
+                    allVariations.push(...vars);
+                });
             }
             
             for (const wooProduct of wooProducts as { id: number; type: string; sku: string; stock_quantity: number | null, name: string, description: string, slug: string, categories: {name: string}[], tags: {name: string}[], status: string, images: {src: string}[] }[]) {
@@ -124,7 +126,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         company_id: integration.company_id,
                         sku: wooProduct.sku || `WOO-${wooProduct.id}`,
                         title: null,
-                        price: Math.round(parseFloat((wooProduct as any).price || 0) * 100),
+                        price: Math.round(parseFloat((wooProduct as unknown as { price: string }).price || '0') * 100),
                         cost: null,
                         inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),

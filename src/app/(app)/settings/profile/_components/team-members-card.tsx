@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState } from 'react';
@@ -69,7 +70,7 @@ export function TeamMembersCard() {
         onSuccess: (result) => {
             if (result.success) {
                 toast({ title: "Invitation Sent", description: "The user has been invited to join your company." });
-                queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+                void queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
                 reset();
             } else {
                 toast({ variant: 'destructive', title: "Invitation Failed", description: result.error });
@@ -82,7 +83,7 @@ export function TeamMembersCard() {
         onSuccess: (result) => {
             if (result.success) {
                 toast({ title: "Member Removed" });
-                queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+                void queryClient.invalidateQueries({ queryKey: ['teamMembers']});
             } else {
                  toast({ variant: 'destructive', title: "Error", description: result.error });
             }
@@ -94,7 +95,7 @@ export function TeamMembersCard() {
          onSuccess: (result) => {
             if (result.success) {
                 toast({ title: "Role Updated" });
-                queryClient.invalidateQueries({ queryKey: ['teamMembers']});
+                void queryClient.invalidateQueries({ queryKey: ['teamMembers']});
             } else {
                  toast({ variant: 'destructive', title: "Error", description: result.error });
             }

@@ -109,7 +109,7 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
             p_customer_name: `${(order.customer as Record<string, string>).first_name} ${(order.customer as Record<string, string>).last_name}`,
             p_customer_email: (order.customer as Record<string, string>).email,
             p_payment_method: 'amazon_fba',
-            p_notes: `Amazon Order #${order.id}`,
+            p_notes: `Amazon Order #${String(order.id)}`,
             p_sale_items: itemsWithCost.map((item: {sku: string, name: string, quantity: number, price: string, cost_at_time: number}) => ({
                 sku: item.sku,
                 product_name: item.name,
@@ -121,7 +121,7 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
         });
 
         if (error) {
-            logError(error, { context: `Failed to record synced FBA sale ${order.id}` });
+            logError(error, { context: `Failed to record synced FBA sale ${String(order.id)}` });
         } else {
             totalRecordsSynced++;
         }
