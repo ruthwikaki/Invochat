@@ -6,7 +6,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
-import { getErrorMessage, logError } from '@/lib/error-handler';
+import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getHistoricalSalesForSkus, getSettings } from '@/services/database';
 import type { ReorderSuggestion } from '@/types';
 import { ReorderSuggestionBaseSchema } from '@/types';
