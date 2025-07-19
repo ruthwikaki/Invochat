@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -169,7 +170,10 @@ export async function getSupplierByIdFromDB(id: string, companyId: string) {
 export async function createSupplierInDb(companyId: string, formData: SupplierFormData) { 
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('suppliers').insert({ ...formData, company_id: companyId });
-    if (error) throw error;
+    if (error) {
+        logError(error, { context: 'createSupplierInDb failed' });
+        throw error;
+    }
 }
 export async function updateSupplierInDb(id: string, companyId: string, formData: SupplierFormData) { 
     const supabase = getServiceRoleClient();
@@ -494,3 +498,4 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
+
