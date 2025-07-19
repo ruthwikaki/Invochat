@@ -69,9 +69,16 @@ export async function POST(request: Request) {
         }
 
         const cookieStore = cookies();
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+            throw new Error("Supabase environment variables are not set.");
+        }
+
         const authSupabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            supabaseUrl,
+            supabaseAnonKey,
             {
               cookies: { get: (name: string) => cookieStore.get(name)?.value },
             }
@@ -112,8 +119,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, message: "Sync started successfully. It will run in the background." });
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         logError(e, { context: 'WooCommerce Sync API' });
-        return NextResponse.json({ error: e.message }, { status: 500 });
+        return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
     }
 }

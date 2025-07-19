@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logError } from '@/lib/error-handler';
+import { logError, getErrorMessage } from '@/lib/error-handler';
 import type { Integration, Product, ProductVariant } from '@/types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
@@ -16,6 +16,9 @@ async function wooCommerceFetch(
     endpoint: string,
     params: Record<string, string | number> = {}
 ) {
+    if (!storeUrl) {
+        throw new Error("WooCommerce store URL is missing for the fetch request.");
+    }
     const url = new URL(`${storeUrl.replace(/\/$/, "")}/wp-json/wc/v3/${endpoint}`);
     url.searchParams.set('consumer_key', consumerKey);
     url.searchParams.set('consumer_secret', consumerSecret);
@@ -55,7 +58,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
 
     do {
         const { data: wooProducts, totalPages: newTotalPages } = await wooCommerceFetch(
-            integration.shop_domain!,
+            integration.shop_domain,
             credentials.consumerKey,
             credentials.consumerSecret,
             'products',
@@ -99,7 +102,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             if (variableProductIds.length > 0) {
                  const variationPromises = variableProductIds.map(productId => 
                     wooCommerceFetch(
-                         integration.shop_domain!,
+                         integration.shop_domain,
                          credentials.consumerKey,
                          credentials.consumerSecret,
                          `products/${productId}/variations`,
@@ -180,7 +183,7 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
 
     do {
          const { data: orders, totalPages: newTotalPages } = await wooCommerceFetch(
-            integration.shop_domain!,
+            integration.shop_domain,
             credentials.consumerKey,
             credentials.consumerSecret,
             'orders',
