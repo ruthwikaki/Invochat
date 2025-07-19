@@ -44,7 +44,7 @@ const finalResponsePrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.unknown() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
+    You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
     You have executed a tool and received this JSON data as a result:
     {{{json toolResult}}}
@@ -122,7 +122,7 @@ const universalChatOrchestrator = ai.defineFlow(
 
         const messages: MessageData[] = [systemPrompt, ...genkitHistory];
 
-        const response = await ai.generate({
+        const { toolCalls, text } = await ai.generate({
           model: config.ai.model,
           tools: safeToolsForOrchestrator,
           messages,
@@ -130,9 +130,6 @@ const universalChatOrchestrator = ai.defineFlow(
             maxOutputTokens: config.ai.maxOutputTokens,
           }
         });
-
-        const toolCalls = response.toolCalls;
-        const text = response.text;
 
         if (toolCalls && toolCalls.length > 0) {
             const toolCall = toolCalls[0];
