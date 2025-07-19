@@ -1,7 +1,6 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getInventoryLedger } from '@/app/data-actions';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -12,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import type { InventoryLedgerEntry, UnifiedInventoryItem } from '@/types';
 import { cn } from '@/lib/utils';
-import { ArrowDown, ArrowUp, Plus, Minus, Package, ShoppingCart, RefreshCcw } from 'lucide-react';
+import { Package, ShoppingCart, RefreshCcw, AlertCircle } from 'lucide-react';
 
 interface InventoryHistoryDialogProps {
   variant: UnifiedInventoryItem | null;
@@ -29,14 +28,17 @@ const getChangeTypeInfo = (type: string) => {
              return { icon: RefreshCcw, color: 'text-blue-500', label: 'Reconciliation' };
         case 'manual_adjustment':
         default:
-            return { icon: Package, color: 'text-gray-500', label: 'Adjustment' };
+            return { icon: AlertCircle, color: 'text-gray-500', label: 'Adjustment' };
     }
 }
 
 export function InventoryHistoryDialog({ variant, onClose }: InventoryHistoryDialogProps) {
   const { data: ledgerEntries, isLoading } = useQuery({
     queryKey: ['inventoryLedger', variant?.id],
-    queryFn: () => getInventoryLedger(variant!.id),
+    queryFn: () => {
+        if (!variant) return Promise.resolve([]);
+        return getInventoryLedger(variant.id);
+    },
     enabled: !!variant,
   });
 

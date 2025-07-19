@@ -12,6 +12,7 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logWebhookEvent } from '@/services/database';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
+import { getErrorMessage } from '@/lib/error-handler';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),

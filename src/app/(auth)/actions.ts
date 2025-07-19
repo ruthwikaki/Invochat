@@ -203,9 +203,14 @@ export async function requestPasswordReset(formData: FormData) {
     }
 
     const supabase = getSupabaseClient();
+    const redirectTo = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!redirectTo) {
+        throw new Error("Site URL is not configured for password reset email.");
+    }
+
     const { error } = await withTimeout(
       supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
+          redirectTo: `${redirectTo}/update-password`,
       }),
       AUTH_TIMEOUT,
       'Password reset service is not responding. Please try again later.'

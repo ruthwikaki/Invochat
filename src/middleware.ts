@@ -9,9 +9,20 @@ export async function middleware(req: NextRequest) {
     },
   });
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // If Supabase config is missing, we can't do anything with auth.
+    // Allow the request to proceed, but log a warning.
+    // Downstream pages might handle this error more gracefully.
+    console.warn("Supabase environment variables are not set. Middleware is bypassing auth checks.");
+    return response;
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         get(name: string) {

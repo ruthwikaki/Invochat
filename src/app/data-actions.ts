@@ -90,9 +90,12 @@ export async function getAuthContext() {
     });
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated.');
+    if (!user.email) throw new Error('User email not found.');
+
     const companyId = user.app_metadata?.company_id;
     if (!companyId) throw new Error('Company ID not found for user.');
-    return { companyId, userId: user.id, userEmail: user.email! };
+    
+    return { companyId, userId: user.id, userEmail: user.email };
 }
 
 // --- Simplified Core Actions ---
@@ -568,7 +571,7 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
         revalidatePath('/purchase-orders', 'page');
         
         return { success: true, createdPoCount };
-    } catch (e: unknown) {
+    } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
         throw e; // Re-throw the error so the client can handle it
     }
@@ -583,3 +586,7 @@ export async function getDeadStockPageData() {
         deadStockDays: settings.dead_stock_days
     };
 }
+
+    
+
+    

@@ -10,7 +10,7 @@ import { getSecret } from '../encryption';
 import { config } from '@/config/app-config';
 
 async function wooCommerceFetch(
-    storeUrl: string,
+    storeUrl: string | null,
     consumerKey: string,
     consumerSecret: string,
     endpoint: string,
@@ -221,8 +221,11 @@ export async function runWooCommerceFullSync(integration: Integration) {
     const supabase = getServiceRoleClient();
     try {
         const credentialsJson = await getSecret(integration.company_id, 'woocommerce');
-        if (!credentialsJson || !integration.shop_domain) {
-            throw new Error('WooCommerce credentials or store URL are missing.');
+        if (!credentialsJson) {
+            throw new Error('WooCommerce credentials are missing.');
+        }
+        if (!integration.shop_domain) {
+            throw new Error('WooCommerce store URL is missing.');
         }
 
         const credentials = JSON.parse(credentialsJson);

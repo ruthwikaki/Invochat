@@ -7,8 +7,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export function createBrowserSupabaseClient(): SupabaseClient {
   // The client needs the NEXT_PUBLIC_ variables to be available.
   // These are now securely managed and validated before the app starts.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error("Supabase URL or anonymous key is not configured in client environment.");
+  }
+  
   return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    supabaseUrl,
+    supabaseAnonKey
   );
 }

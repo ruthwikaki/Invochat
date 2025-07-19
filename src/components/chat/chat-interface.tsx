@@ -163,7 +163,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
             // The router push will trigger a re-render with the new server-side messages
         } else if (response.newMessage) {
             // Replace the loading message with the real one
-            setMessages(prev => prev.filter(m => m.id !== 'loading').map(m => m.id === tempId ? optimisticUserMessage : m).concat(response.newMessage!));
+            setMessages(prev => prev.filter(m => m.id !== 'loading').map(m => m.id === tempId ? optimisticUserMessage : m).concat(response.newMessage));
             router.refresh(); // Refresh server-side data like conversation list
         }
 

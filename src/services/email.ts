@@ -18,7 +18,7 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const fromEmail = process.env.EMAIL_FROM;
 const isProduction = config.app.environment === 'production';
 
-const canSendEmails = !!resendApiKey && !!fromEmail;
+const canSendEmails = !!resend && !!fromEmail;
 
 if (!canSendEmails) {
     logger.warn('[Email Service] RESEND_API_KEY or EMAIL_FROM not set. Email sending is disabled. Emails will be logged to the console.');
@@ -42,8 +42,8 @@ async function sendEmail(to: string, subject: string, text: string, context: str
     const recipient = isProduction ? to : process.env.EMAIL_TEST_RECIPIENT || to;
 
     try {
-        await resend!.emails.send({
-            from: fromEmail!,
+        await resend.emails.send({
+            from: fromEmail,
             to: recipient,
             subject: subject,
             text: text,

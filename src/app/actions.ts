@@ -22,7 +22,9 @@ async function saveConversation(companyId: string, title: string) {
     );
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated.');
+    if (!user) {
+        throw new Error('User not authenticated.');
+    }
     
     const { data, error } = await supabase
         .from('conversations')
