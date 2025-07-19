@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -114,6 +115,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
             const blob = new Blob([result.data], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
+            link.href = url;
             link.setAttribute('download', `reorder-report-${new Date().toISOString().split('T')[0]}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
