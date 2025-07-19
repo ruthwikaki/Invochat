@@ -46,7 +46,7 @@ const finalResponsePrompt = ai.definePrompt({
   prompt: `
     You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
-    You have executed one or more tools and received this result:
+    The result from your internal tools is:
     {{{toolResult}}}
 
     **YOUR TASK:**
@@ -131,11 +131,11 @@ const universalChatOrchestrator = ai.defineFlow(
           }
         });
         
-        const toolCalls = response.toolCalls;
+        const toolName = response.choices[0]?.finishReason === 'toolCode' ? response.choices[0].message.toolRequest?.name : undefined;
         const text = response.text;
 
-        if (toolCalls.length > 0) {
-            logger.info(`[UniversalChat:Flow] AI used tools. Synthesizing final response from text: "${text}"`);
+        if (text) {
+            logger.info(`[UniversalChat:Flow] AI generated response. Synthesizing final response from text: "${text}"`);
 
             const { output: finalOutput } = await finalResponsePrompt(
                 { userQuery, toolResult: text },
@@ -149,7 +149,7 @@ const universalChatOrchestrator = ai.defineFlow(
             const responseToCache: UniversalChatOutput = {
                 ...finalOutput,
                 data: null, // Data for visualization is not directly available in this simplified flow
-                toolName: toolCalls[0]?.name,
+                toolName: toolName,
             };
 
             if (isRedisEnabled) {
@@ -159,10 +159,10 @@ const universalChatOrchestrator = ai.defineFlow(
 
         }
 
-        logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
+        logger.warn("[UniversalChat:Flow] No text was generated. Answering from general knowledge.");
 
         const responseToCache: UniversalChatOutput = {
-            response: text,
+            response: "I'm sorry, I was unable to generate a specific response from your business data. Please try rephrasing your question.",
             data: [],
             visualization: { type: 'none', title: '' },
             confidence: 0.5,
