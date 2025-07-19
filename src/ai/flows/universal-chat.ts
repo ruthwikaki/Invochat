@@ -138,7 +138,10 @@ const universalChatOrchestrator = ai.defineFlow(
 
             const { output: finalOutput } = await finalResponsePrompt(
                 { userQuery, toolResult: text },
-                { model: config.ai.model, maxOutputTokens: config.ai.maxOutputTokens }
+                {
+                    model: config.ai.model,
+                    config: { maxOutputTokens: config.ai.maxOutputTokens }
+                }
             );
 
             if (!finalOutput) {
