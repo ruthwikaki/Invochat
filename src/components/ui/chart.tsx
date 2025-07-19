@@ -140,7 +140,7 @@ const ChartTooltipContent = React.forwardRef<
       const itemConfig = getPayloadConfigFromPayload(config, item, key)
       const value =
         !labelKey && typeof label === "string"
-          ? (config[label as keyof typeof config]?.label || label)
+          ? (config[label as keyof typeof config].label || label)
           : itemConfig?.label
 
       if (labelFormatter) {

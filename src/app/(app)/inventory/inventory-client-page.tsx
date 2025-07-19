@@ -178,7 +178,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const query = searchParams.get('query') || '';
   const status = searchParams.get('status') || 'all';
-  const sortBy = (searchParams.get('sortBy') as SortableColumn) || 'product_title';
+  const sortBy = searchParams.get('sortBy') as SortableColumn ?? 'product_title';
   const sortDirection = searchParams.get('sortDirection') === 'desc' ? 'desc' : 'asc';
   
   const createUrlWithParams = (newParams: Record<string, string>) => {

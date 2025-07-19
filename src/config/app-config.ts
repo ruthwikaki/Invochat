@@ -58,7 +58,7 @@ export const config = {
   app: {
     name: process.env.APP_NAME || 'ARVO',
     url: envValidation.success ? envValidation.data.SITE_URL : 'http://localhost:3000',
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV,
   },
   ai: {
     model: process.env.AI_MODEL || 'googleai/gemini-1.5-flash',

@@ -34,7 +34,7 @@ const StatCard = ({ title, value, icon: Icon, description }: { title: string; va
 export function DeadStockClientPage({ initialData }: DeadStockClientPageProps) {
   const { deadStockItems, totalValue, totalUnits, deadStockDays } = initialData;
 
-  if (!deadStockItems || deadStockItems.length === 0) {
+  if (deadStockItems.length === 0) {
     return (
       <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
         <motion.div

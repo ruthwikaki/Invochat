@@ -23,7 +23,7 @@ function formatValue(row: Record<string, unknown>, header: string): string {
 }
 
 export function DataTable({ data }: DataTableProps) {
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     return <p>No data available to display.</p>;
   }
 

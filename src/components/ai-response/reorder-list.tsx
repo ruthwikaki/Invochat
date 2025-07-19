@@ -16,7 +16,7 @@ export function ReorderList({ items }: ReorderListProps) {
   const { toast } = useToast();
 
   const handleExport = () => {
-    if (!items || items.length === 0) {
+    if (items.length === 0) {
       toast({ variant: 'destructive', title: 'No items to export' });
       return;
     }
@@ -42,7 +42,7 @@ export function ReorderList({ items }: ReorderListProps) {
     toast({ title: 'Export Complete' });
   };
   
-  if (!items || items.length === 0) {
+  if (items.length === 0) {
     return (
       <Card>
         <CardContent className="p-4 text-center text-muted-foreground">

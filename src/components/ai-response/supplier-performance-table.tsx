@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -18,7 +19,7 @@ type SupplierPerformanceTableProps = {
 };
 
 export function SupplierPerformanceTable({ data }: SupplierPerformanceTableProps) {
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     return (
       <Card>
         <CardContent className="p-4 text-center text-muted-foreground">
