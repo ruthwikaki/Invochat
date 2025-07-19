@@ -22,7 +22,7 @@ import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
 import { withTimeout } from '@/lib/async-utils';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
-import type { MessageData } from 'genkit';
+import type { MessageData, GenerateResponse } from 'genkit';
 
 const safeToolsForOrchestrator = [
     getEconomicIndicators,
@@ -45,7 +45,7 @@ const finalResponsePrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.unknown() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
+    You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
     You have executed a tool and received this JSON data as a result:
     {{{json toolResult}}}
@@ -123,7 +123,7 @@ const universalChatOrchestrator = ai.defineFlow(
 
         const messages: MessageData[] = [systemPrompt, ...genkitHistory];
 
-        const generatePromise = ai.generate({
+        const response = await ai.generate({
           model: config.ai.model,
           tools: safeToolsForOrchestrator,
           messages,
@@ -131,12 +131,6 @@ const universalChatOrchestrator = ai.defineFlow(
             maxOutputTokens: config.ai.maxOutputTokens,
           }
         });
-
-        const response = await withTimeout(
-          generatePromise,
-          config.ai.timeoutMs,
-          'The AI model took too long to respond.'
-        );
 
         const toolCalls = response.toolCalls;
         const text = response.text;
