@@ -113,7 +113,7 @@ async function processCsv<T extends z.ZodType>(
                     for (const originalHeader in row) {
                         if (Object.prototype.hasOwnProperty.call(mappings, originalHeader) && Object.prototype.hasOwnProperty.call(row, originalHeader)) {
                             const mappedHeader = mappings[originalHeader];
-                            if (mappedHeader) {
+                            if (mappedHeader && mappedHeader !== '__proto__') {
                                 newRow[mappedHeader] = row[originalHeader];
                             }
                         }
@@ -266,6 +266,9 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         };
 
         const currentConfig = importSchemas[dataType as keyof typeof importSchemas];
+        if (!currentConfig) {
+            throw new Error(`Invalid data type for import: ${dataType}`);
+        }
         
         const approximateTotalRows = Math.floor(file.size / 150); // Estimate based on average row size
         importJobId = !isDryRun ? await createImportJob(companyId, userId, dataType, file.name, approximateTotalRows) : undefined;
