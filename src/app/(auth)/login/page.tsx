@@ -27,7 +27,7 @@ export default function LoginPage({
           <div className="flex justify-center items-center gap-3 mb-4">
             <InvoChatLogo className="h-10 w-10 text-primary" />
             <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">
-              ARVO
+              InvoChat
             </h1>
           </div>
           <CardTitle className="text-xl font-semibold text-slate-200">Welcome to Intelligent Inventory</CardTitle>

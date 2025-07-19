@@ -42,7 +42,7 @@ export function LandingPage() {
                 </span>
               </h1>
               <p className="text-lg text-muted-foreground md:text-xl">
-                ARVO is the AI-native inventory management platform that helps you stop guessing and start making data-driven decisions.
+                InvoChat is the AI-native inventory management platform that helps you stop guessing and start making data-driven decisions.
               </p>
               <div>
                 <Button asChild size="lg">
@@ -91,7 +91,7 @@ export function LandingPage() {
       </main>
       <footer className="flex items-center justify-center py-6 border-t bg-background">
         <p className="text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} ARVO. All rights reserved.
+          &copy; {new Date().getFullYear()} InvoChat. All rights reserved.
         </p>
       </footer>
     </div>

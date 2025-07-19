@@ -1,5 +1,4 @@
 
-
 /**
  * @fileoverview Centralized, environment-aware configuration for InvoChat.
  *
@@ -57,7 +56,7 @@ const parseFloatWithDefault = (value: string | undefined, defaultValue: number):
 
 export const config = {
   app: {
-    name: process.env.APP_NAME || 'ARVO',
+    name: process.env.APP_NAME || 'InvoChat',
     url: envValidation.success ? envValidation.data.SITE_URL : 'http://localhost:3000',
     environment: process.env.NODE_ENV,
   },
