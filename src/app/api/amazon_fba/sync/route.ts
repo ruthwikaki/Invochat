@@ -22,10 +22,16 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Too many sync requests. Please try again in an hour.' }, { status: 429 });
         }
         
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseAnonKey) {
+            throw new Error("Supabase environment variables are not set for API route.");
+        }
+
         const cookieStore = cookies();
         const authSupabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            supabaseUrl,
+            supabaseAnonKey,
             {
               cookies: { get: (name: string) => cookieStore.get(name)?.value },
             }
