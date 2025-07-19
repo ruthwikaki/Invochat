@@ -195,8 +195,15 @@ export async function updateSupplierInDb(id: string, companyId: string, formData
 }
 export async function deleteSupplierFromDb(id: string, companyId: string) { 
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('suppliers').delete().eq('id', id).eq('company_id', companyId);
-    if (error) throw error;
+    try {
+        const { error } = await supabase.from('suppliers').delete().eq('id', id).eq('company_id', companyId);
+        if (error) {
+            throw error;
+        }
+    } catch (e) {
+        logError(e, { context: `deleteSupplierFromDb failed for id: ${id}` });
+        throw new Error(`Could not delete supplier: ${getErrorMessage(e)}`);
+    }
 }
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const supabase = getServiceRoleClient();
