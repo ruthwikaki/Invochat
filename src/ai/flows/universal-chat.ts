@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import type { UniversalChatInput, UniversalChatOutput } from '@/types/ai-schemas';
+import type { UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
 import { getSettings } from '@/services/database';
 import { config } from '@/config/app-config';
@@ -43,8 +43,8 @@ const safeToolsForOrchestrator = [
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
-  inputSchema: z.object({ userQuery: z.string(), toolResult: z.unknown() }),
-  outputSchema: FinalResponseObjectSchema,
+  input: { schema: z.object({ userQuery: z.string(), toolResult: z.unknown() }) },
+  output: { schema: FinalResponseObjectSchema },
   prompt: `
     You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
