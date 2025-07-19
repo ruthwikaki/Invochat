@@ -1,9 +1,7 @@
 
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle } from 'lucide-react';
 import { SignupForm } from '@/components/auth/SignupForm';
 import { generateCSRFToken } from '@/lib/csrf';
 
