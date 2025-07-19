@@ -54,13 +54,14 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/'];
+  const setupRoutes = ['/database-setup', '/env-check'];
 
-  // Special handling for initial setup pages
-  if (pathname.startsWith('/(setup)/database-setup') || pathname.startsWith('/(setup)/env-check')) {
+  // Allow access to setup routes regardless of auth state
+  if (setupRoutes.includes(pathname)) {
     return response;
   }
   
-  const isPublicRoute = publicRoutes.some(route => pathname === route);
+  const isPublicRoute = publicRoutes.includes(pathname);
   
   // If the user is not logged in and is trying to access a protected route, redirect to login.
   if (!user && !isPublicRoute) {
@@ -70,7 +71,7 @@ export async function middleware(req: NextRequest) {
   // If the user IS logged in but doesn't have a company_id, they need to run the setup script.
   if (user && !user.app_metadata.company_id) {
     // Allow access to the env-check page, but redirect from anywhere else.
-    if (!pathname.startsWith('/(setup)/env-check')) {
+    if (pathname !== '/env-check') {
         return NextResponse.redirect(new URL('/env-check', req.url));
     }
   }
