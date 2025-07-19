@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -40,10 +41,11 @@ import {
   removeTeamMemberFromDb,
   updateTeamMemberRoleInDb,
   getCashFlowInsightsFromDB,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB,
   getCompanyById,
   testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
-  getDashboardMetrics,
   reconcileInventoryInDb,
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
@@ -578,4 +580,14 @@ export async function getDeadStockPageData() {
         ...deadStockData,
         deadStockDays: settings.dead_stock_days
     };
+}
+
+export async function getSupplierPerformanceReportData() {
+    const { companyId } = await getAuthContext();
+    return getSupplierPerformanceFromDB(companyId);
+}
+
+export async function getInventoryTurnoverReportData(days: number = 90) {
+    const { companyId } = await getAuthContext();
+    return getInventoryTurnoverFromDB(companyId, days);
 }
