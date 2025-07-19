@@ -10,7 +10,7 @@ import { rateLimit } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { getErrorMessage, isError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
-import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { validateCSRF } from '@/lib/csrf';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import crypto from 'crypto';
