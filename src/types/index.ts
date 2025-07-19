@@ -359,6 +359,14 @@ export const SalesAnalyticsSchema = z.object({
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
+export const InventoryAnalyticsSchema = z.object({
+    total_inventory_value: z.number().int(),
+    total_products: z.number().int(),
+    total_variants: z.number().int(),
+    low_stock_items: z.number().int(),
+});
+export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
+
 export const CustomerAnalyticsSchema = z.object({
     total_customers: z.number().int(),
     new_customers_last_30_days: z.number().int(),
@@ -421,7 +429,7 @@ export const CsvMappingInputSchema = z.object({
     sampleRows: z.array(z.record(z.string(), z.unknown())),
     expectedDbFields: z.array(z.string()),
 });
-export type CsvMappingInput = z.infer<typeof CsvMappingInput>;
+export type CsvMappingInput = z.infer<typeof CsvMappingInputSchema>;
 
 export const CsvMappingOutputSchema = z.object({
     mappings: z.array(z.object({
