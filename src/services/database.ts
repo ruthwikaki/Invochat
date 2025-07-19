@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -167,12 +165,16 @@ export async function getSupplierByIdFromDB(id: string, companyId: string) {
     if(error) return null;
     return data;
 }
-export async function createSupplierInDb(companyId: string, formData: SupplierFormData) { 
+export async function createSupplierInDb(companyId: string, formData: SupplierFormData) {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('suppliers').insert({ ...formData, company_id: companyId });
-    if (error) {
+    try {
+        const { error } = await supabase.from('suppliers').insert({ ...formData, company_id: companyId });
+        if (error) {
+            throw error;
+        }
+    } catch (error) {
         logError(error, { context: 'createSupplierInDb failed' });
-        throw error;
+        throw new Error(`Could not create supplier: ${getErrorMessage(error)}`);
     }
 }
 export async function updateSupplierInDb(id: string, companyId: string, formData: SupplierFormData) { 
@@ -446,10 +448,18 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     }
     
     // The query returns { supplier_name: { name: 'Supplier A' } }, so we need to flatten it.
-    const flattenedData = data.map(po => ({
-        ...po,
-        supplier_name: po.supplier_name ? (po.supplier_name as { name: string }).name : 'N/A'
-    }));
+    const flattenedData = data.map(po => {
+        // Safely access the nested property
+        const supplierName = (po.supplier_name && typeof po.supplier_name === 'object' && 'name' in po.supplier_name)
+            ? (po.supplier_name as { name: string }).name
+            : 'N/A';
+
+        return {
+            ...po,
+            supplier_name: supplierName
+        };
+    });
+
 
     return flattenedData as PurchaseOrderWithSupplier[];
 }
@@ -498,4 +508,3 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
-
