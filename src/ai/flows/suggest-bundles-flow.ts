@@ -28,14 +28,16 @@ const SuggestBundlesOutputSchema = z.object({
 
 const suggestBundlesPrompt = ai.definePrompt({
   name: 'suggestBundlesPrompt',
-  input: z.object({
-    products: z.array(z.object({
-        sku: z.string(),
-        name: z.string(),
-        category: z.string().nullable(),
-    })),
-    count: z.number(),
-  }),
+  input: {
+    schema: z.object({
+      products: z.array(z.object({
+          sku: z.string(),
+          name: z.string(),
+          category: z.string().nullable(),
+      })),
+      count: z.number(),
+    }),
+  },
   output: { schema: SuggestBundlesOutputSchema },
   prompt: `
     You are a merchandising expert for an e-commerce business. Your task is to analyze a list of products and suggest {{count}} compelling product bundles.
@@ -76,8 +78,8 @@ export const suggestBundlesFlow = ai.defineFlow(
       // We only need a subset of fields for the AI analysis
       const productSubset = products.map(p => ({
         sku: p.sku,
-        name: p.product_name,
-        category: p.category,
+        name: p.product_title,
+        category: p.product_type,
       }));
 
       const { output } = await suggestBundlesPrompt({ products: productSubset, count });
