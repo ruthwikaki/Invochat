@@ -67,13 +67,13 @@ export const findHiddenMoneyFlow = ai.defineFlow(
   async ({ companyId }) => {
     try {
       // Step 1: Get the required data using existing tools
-      const [salesVelocityData, marginData] = await Promise.all([
+      const [salesVelocityResult, marginResult] = await Promise.all([
         getSalesVelocity.run({ companyId, days: 90, limit: 20 }),
         getGrossMarginAnalysis.run({ companyId }),
       ]);
       
-      const slowSellers = salesVelocityData?.slow_sellers || [];
-      const highMarginProducts = marginData?.products || [];
+      const slowSellers = salesVelocityResult.output?.slow_sellers || [];
+      const highMarginProducts = marginResult.output?.products || [];
 
       if (slowSellers.length === 0 || highMarginProducts.length === 0) {
         return {
@@ -107,5 +107,6 @@ export const findHiddenMoney = ai.defineTool(
     },
     async (input) => findHiddenMoneyFlow(input)
 );
+
 
 
