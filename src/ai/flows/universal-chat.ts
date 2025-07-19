@@ -113,16 +113,20 @@ const universalChatOrchestrator = ai.defineFlow(
     const aiModel = config.ai.model;
     
     try {
+        const fullPrompt = [
+            { text: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.` },
+            ...conversationHistory.slice(0, -1).flatMap(m => m.content.map(c => ({...c, role: m.role}))),
+            { text: userQuery },
+        ];
+
         const generatePromise = ai.generate({
           model: aiModel,
           tools: safeToolsForOrchestrator,
-          history: conversationHistory.slice(0, -1),
-          system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
-          prompt: userQuery,
+          prompt: fullPrompt,
           maxOutputTokens: config.ai.maxOutputTokens,
         });
 
-        const { toolCalls } = await withTimeout(
+        const { toolCalls, text } = await withTimeout(
           generatePromise,
           config.ai.timeoutMs,
           'The AI model took too long to respond.'
@@ -189,19 +193,7 @@ const universalChatOrchestrator = ai.defineFlow(
         }
 
         logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
-        const directResponsePromise = ai.generate({
-            model: aiModel,
-            history: conversationHistory.slice(0, -1),
-            prompt: userQuery,
-            maxOutputTokens: config.ai.maxOutputTokens,
-        });
-
-        const { text } = await withTimeout(
-            directResponsePromise,
-            config.ai.timeoutMs,
-            'The AI model took too long to respond.'
-        );
-
+        
         const responseToCache: UniversalChatOutput = {
             response: text,
             data: [],
@@ -243,3 +235,5 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
+
+    
