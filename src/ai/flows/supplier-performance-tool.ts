@@ -17,10 +17,10 @@ export const getSupplierPerformanceReport = ai.defineTool(
     name: 'getSupplierPerformanceReport',
     description:
       "Use this tool to get a supplier performance report. This report analyzes product sales data to determine which suppliers' products are most profitable and sell best. Use it when the user asks about 'supplier performance', 'which vendor is best', 'profitable suppliers', or 'best-selling suppliers'.",
-    input: z.object({
+    inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get the report for."),
     }),
-    output: z.array(SupplierPerformanceReportSchema),
+    outputSchema: z.array(SupplierPerformanceReportSchema),
   },
   async (input): Promise<SupplierPerformanceReport[]> => {
     logger.info(`[Supplier Performance Tool] Getting report for company: ${input.companyId}`);
