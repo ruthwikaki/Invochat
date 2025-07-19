@@ -36,8 +36,18 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
     const { data, error } = await supabase.from('company_settings').select('*').eq('company_id', companyId).single();
     if (error && error.code !== 'PGRST116') throw error;
     if (data) return CompanySettingsSchema.parse(data);
-    const { data: newData, error: insertError } = await supabase.from('company_settings').upsert({ company_id: companyId }).select().single();
-    if (insertError) throw insertError;
+    
+    // If no settings exist, create them with default values
+    const { data: newData, error: insertError } = await supabase
+        .from('company_settings')
+        .insert({ company_id: companyId })
+        .select()
+        .single();
+        
+    if (insertError) {
+        throw new Error(`Failed to create initial company settings: ${insertError.message}`);
+    }
+    
     return CompanySettingsSchema.parse(newData);
 }
 
@@ -454,10 +464,10 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 }
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-export async function logPOCreationInDb(poNumber: string, supplierName: string, items: any[], companyId: string, userId: string) {}
+export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {}
 
 export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
-    const supabase = getServiceRole-client();
+    const supabase = getServiceRoleClient();
     const { error } = await supabase.from('webhook_events').insert({
         integration_id: integrationId,
         webhook_id: webhookId

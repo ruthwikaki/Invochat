@@ -168,10 +168,10 @@ const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }
 
 
 export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
   const router = useRouter();
-  const { replace } = router;
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const replace = router.replace.bind(router);
 
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);

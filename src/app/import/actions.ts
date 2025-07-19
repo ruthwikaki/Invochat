@@ -170,7 +170,7 @@ async function processCsv<T extends z.ZodType>(
 
                 resolve({ importId, processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
             },
-            error: (error) => reject(error)
+            error: (error: unknown) => reject(new Error(getErrorMessage(error))),
         });
         
         fileContentStream.pipe(parser);
@@ -275,7 +275,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
 
         return { success: true, isDryRun, ...result };
 
-    } catch (error) {
+    } catch (error: unknown) {
         const errorMessage = getErrorMessage(error);
         logError(error, { context: 'handleDataImport action' });
         if (importJobId) {
