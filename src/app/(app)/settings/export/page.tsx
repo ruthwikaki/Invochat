@@ -1,5 +1,5 @@
 
-import { AppPage, AppPageHeader } from "@/components/ui/page";
+import { AppPageHeader } from "@/components/ui/page";
 import { ExportDataClientPage } from "./_components/export-data-client-page";
 
 export default function ExportDataPage() {
