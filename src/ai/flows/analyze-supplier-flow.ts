@@ -22,8 +22,12 @@ const SupplierAnalysisOutputSchema = z.object({
 
 const supplierAnalysisPrompt = ai.definePrompt({
   name: 'supplierAnalysisPrompt',
-  inputSchema: z.object({ performanceData: z.array(z.custom<SupplierPerformanceReport>()) }),
-  outputSchema: SupplierAnalysisOutputSchema.omit({ performanceData: true }),
+  input: {
+    schema: z.object({ performanceData: z.array(z.custom<SupplierPerformanceReport>()) }),
+  },
+  output: {
+    schema: SupplierAnalysisOutputSchema.omit({ performanceData: true }),
+  },
   prompt: `
     You are an expert supply chain analyst. You have been given a list of supplier performance reports based on the sales performance of their products. Your task is to analyze this data and provide a recommendation for the most valuable supplier.
 
