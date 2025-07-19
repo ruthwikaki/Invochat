@@ -13,10 +13,7 @@ test.describe('AI Chat Interface', () => {
     const userMessage = 'Show me my dead stock';
     
     // Mock the network call to the server action
-    await page.route('**/chat?id=', async (route) => {
-      const request = route.request();
-      if (request.method() === 'POST' && request.url().includes('/chat?id=')) {
-        // This is our server action call, let's mock its response
+    await page.route('**/chat?*', async (route) => {
         const mockResponse = {
           newMessage: {
             id: 'ai_12345',
@@ -29,15 +26,11 @@ test.describe('AI Chat Interface', () => {
           },
           conversationId: 'mock_convo_123',
         };
-
-        return await route.fulfill({
+        await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify(mockResponse),
         });
-      }
-      // For all other requests, continue as normal
-      return await route.continue();
     });
 
     // Find the chat input and send a message
@@ -49,7 +42,7 @@ test.describe('AI Chat Interface', () => {
     await expect(page.locator('body')).toContainText(userMessage);
 
     // A loading indicator should appear
-    const loadingIndicator = page.locator('//div[contains(., "...")]');
+    const loadingIndicator = page.getByText('...');
     await expect(loadingIndicator).toBeVisible();
     
     // The mocked AI response should appear
@@ -74,7 +67,41 @@ test.describe('AI Chat Interface', () => {
     await expect(page.locator('body')).toContainText('Show me my dead stock report');
     
     // A loading indicator should be visible
-    const loadingIndicator = page.locator('//div[contains(., "...")]');
+    const loadingIndicator = page.getByText('...');
     await expect(loadingIndicator).toBeVisible();
+  });
+
+  test('should display an error message if the AI call fails', async ({ page }) => {
+    const userMessage = 'This message will trigger a failure';
+    const errorMessageText = 'Sorry, the AI service is currently unavailable.';
+
+    // Mock the network call to simulate a server error
+    await page.route('**/chat?*', async (route) => {
+      const mockErrorResponse = {
+        error: errorMessageText,
+      };
+      await route.fulfill({
+        status: 200, // The server action itself succeeds, but returns an error payload
+        contentType: 'application/json',
+        body: JSON.stringify(mockErrorResponse),
+      });
+    });
+
+    // Send the message
+    const chatInput = page.getByPlaceholder('Ask anything about your inventory...');
+    await chatInput.fill(userMessage);
+    await page.getByRole('button', { name: 'Send' }).click();
+
+    // Wait for the loading indicator to disappear and the error to appear
+    const loadingIndicator = page.getByText('...');
+    await expect(loadingIndicator).not.toBeVisible({ timeout: 10000 });
+    
+    // The specific error message should now be visible in the chat
+    const errorMessage = page.getByText(errorMessageText);
+    await expect(errorMessage).toBeVisible();
+
+    // Verify the error message has the correct visual styling (by checking its parent's classes)
+    const errorBubble = page.locator('.bg-destructive\\/10');
+    await expect(errorBubble).toBeVisible();
   });
 });
