@@ -1,6 +1,5 @@
 'use client';
 
-import type { SupplierPerformanceReport } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Award, TrendingUp, Package, DollarSign } from 'lucide-react';
 import { formatCentsAsCurrency } from '@/lib/utils';
