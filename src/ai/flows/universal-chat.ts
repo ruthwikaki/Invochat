@@ -24,8 +24,8 @@ import { withTimeout } from '@/lib/async-utils';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
 
 const safeToolsForOrchestrator = [
-    getEconomicIndicators, 
-    getDeadStockReport, 
+    getEconomicIndicators,
+    getDeadStockReport,
     getInventoryTurnoverReport,
     getDemandForecast,
     getAbcAnalysis,
