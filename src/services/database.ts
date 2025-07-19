@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -226,16 +225,22 @@ export async function deleteCustomerFromDb(customerId: string, companyId: string
 }
 
 export async function getSalesFromDB(companyId: string, params: { query?: string, offset: number, limit: number }): Promise<{ items: Order[], totalCount: number }> {
-    const supabase = getServiceRoleClient();
-    let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
-    if(params.query) {
-        query = query.or(`order_number.ilike.%${params.query}%,customer_email.ilike.%${params.query}%`);
+    try {
+        const supabase = getServiceRoleClient();
+        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        if (params.query) {
+            query = query.or(`order_number.ilike.%${params.query}%,customer_email.ilike.%${params.query}%`);
+        }
+        const limit = Math.min(params.limit || 25, 100);
+        const { data, error, count } = await query.order('created_at', { ascending: false }).range(params.offset, params.offset + limit - 1);
+        if (error) throw error;
+        return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
+    } catch(e) {
+        logError(e, { context: 'getSalesFromDB failed' });
+        throw new Error('Failed to retrieve sales data.');
     }
-    const limit = Math.min(params.limit || 25, 100);
-    const { data, error, count } = await query.order('created_at', {ascending: false}).range(params.offset, params.offset + limit - 1);
-    if (error) throw error;
-    return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
 }
+
 export async function getSalesAnalyticsFromDB(companyId: string) {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
