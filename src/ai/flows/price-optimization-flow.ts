@@ -29,15 +29,17 @@ const PriceOptimizationOutputSchema = z.object({
 
 const suggestPricesPrompt = ai.definePrompt({
   name: 'suggestPricesPrompt',
-  input: z.object({
-    products: z.array(z.object({
-        sku: z.string(),
-        name: z.string(),
-        cost: z.number(), // in cents
-        price: z.number().nullable(), // in cents
-        quantity: z.number(),
-    })),
-  }),
+  input: {
+    schema: z.object({
+      products: z.array(z.object({
+          sku: z.string(),
+          name: z.string(),
+          cost: z.number(), // in cents
+          price: z.number().nullable(), // in cents
+          quantity: z.number(),
+      })),
+    }),
+  },
   output: { schema: PriceOptimizationOutputSchema },
   prompt: `
     You are an expert e-commerce pricing analyst. Your task is to analyze a list of products and suggest price optimizations to maximize overall profit, not just revenue.
@@ -83,7 +85,7 @@ export const suggestPriceOptimizationsFlow = ai.defineFlow(
         name: p.product_name,
         cost: p.cost,
         price: p.price,
-        quantity: p.quantity
+        quantity: p.inventory_quantity
       }));
 
       const { output } = await suggestPricesPrompt({ products: productSubset });
@@ -109,4 +111,3 @@ export const getPriceOptimizationSuggestions = ai.defineTool(
     },
     async (input) => suggestPriceOptimizationsFlow(input)
 );
-
