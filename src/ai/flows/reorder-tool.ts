@@ -8,7 +8,6 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getHistoricalSalesForSkus, getSettings } from '@/services/database';
-import type { ReorderSuggestion } from '@/types';
 import { ReorderSuggestionBaseSchema } from '@/types';
 
 // The input for the AI refinement prompt
@@ -121,7 +120,7 @@ export const getReorderSuggestions = ai.defineTool(
         logger.info(`[Reorder Tool] AI refinement complete. Returning ${output.length} suggestions.`);
         return output;
 
-    } catch (e) {
+    } catch (e: unknown) {
         logError(e, { context: `[Reorder Tool] Failed to get suggestions for ${input.companyId}` });
         // Throw an error to notify the calling agent of failure
         throw new Error('An error occurred while trying to generate reorder suggestions.');
