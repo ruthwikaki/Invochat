@@ -109,7 +109,7 @@ async function processCsv<T extends z.ZodType>(
                 if (mappings && Object.keys(mappings).length > 0) {
                     const newRow: Record<string, unknown> = {};
                     for (const originalHeader in row) {
-                        if (mappings[originalHeader]) {
+                        if (Object.prototype.hasOwnProperty.call(mappings, originalHeader)) {
                             newRow[mappings[originalHeader]] = row[originalHeader];
                         }
                     }

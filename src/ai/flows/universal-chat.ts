@@ -151,11 +151,15 @@ const universalChatOrchestrator = ai.defineFlow(
                 // It looks for common patterns like a `products` array, `suggestions` array, etc.
                 const findDataForVis = (output: unknown) => {
                     if (!output || typeof output !== 'object') return output;
+                    const typedOutput = output as Record<string, unknown>;
                     const commonKeys = ['products', 'suggestions', 'opportunities', 'items', 'segments', 'slow_sellers', 'fast_sellers', 'forecastedDemand', 'analysis'];
+                    
                     for (const key of commonKeys) {
-                        if (Array.isArray((output as Record<string, unknown>)[key])) return (output as Record<string, unknown>)[key];
-                        if (typeof (output as Record<string, unknown>)[key] !== 'undefined') return (output as Record<string, unknown>)[key];
+                        if (Object.prototype.hasOwnProperty.call(typedOutput, key)) {
+                            return typedOutput[key];
+                        }
                     }
+
                     if (Array.isArray(output)) return output;
                     return output;
                 };

@@ -1,3 +1,4 @@
+
 import {
   Table,
   TableBody,
@@ -11,7 +12,11 @@ type DataTableProps = {
   data: Record<string, unknown>[];
 };
 
-function formatValue(value: unknown): string {
+function formatValue(row: Record<string, unknown>, header: string): string {
+  if (header === '__proto__' || !Object.prototype.hasOwnProperty.call(row, header)) {
+      return 'N/A';
+  }
+  const value = row[header];
   if (value === null || value === undefined) return 'N/A';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
@@ -39,7 +44,7 @@ export function DataTable({ data }: DataTableProps) {
             <TableRow key={rowIndex}>
               {headers.map((header) => (
                 <TableCell key={`${rowIndex}-${header}`}>
-                  {formatValue(row[header])}
+                  {formatValue(row, header)}
                 </TableCell>
               ))}
             </TableRow>
