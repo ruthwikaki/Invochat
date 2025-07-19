@@ -166,7 +166,7 @@ const universalChatOrchestrator = ai.defineFlow(
         const responseToCache: UniversalChatOutput = {
             response: "I'm sorry, I was unable to generate a specific response from your business data. Please try rephrasing your question.",
             data: [],
-            visualization: { type: 'none', title: '' },
+            visualization: { type: 'none', title: '', data: [] },
             confidence: 0.5,
             assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
         };
@@ -184,7 +184,7 @@ const universalChatOrchestrator = ai.defineFlow(
              return {
                 response: `I'm sorry, but the AI service is currently unavailable or took too long to respond. This may be a temporary issue. Please try again in a few moments.`,
                 data: [],
-                visualization: { type: 'none', title: '' },
+                visualization: { type: 'none', title: '', data: [] },
                 confidence: 0.0,
                 assumptions: ['The AI service is unavailable.'],
                 isError: true,
@@ -194,7 +194,7 @@ const universalChatOrchestrator = ai.defineFlow(
         return {
             response: `I'm sorry, but I encountered an unexpected error while trying to generate a response. The AI service may be temporarily unavailable. Please try again in a few moments.`,
             data: [],
-            visualization: { type: 'none', title: '' },
+            visualization: { type: 'none', title: '', data: [] },
             confidence: 0.0,
             assumptions: ['An unexpected error occurred in the AI processing flow.'],
             isError: true,
