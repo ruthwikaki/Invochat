@@ -6,7 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getSupplierPerformanceReport } from './supplier-performance-tool';
+import { getSupplierPerformanceFromDB } from '@/services/database';
 import type { SupplierPerformanceReport } from '@/types';
 import { logError } from '@/lib/error-handler';
 
@@ -53,8 +53,8 @@ export const analyzeSuppliersFlow = ai.defineFlow(
   },
   async ({ companyId }) => {
     try {
-      // Step 1: Get the raw performance data.
-      const performanceData = await getSupplierPerformanceReport.run({ companyId });
+      // Step 1: Get the raw performance data directly from the service for type safety.
+      const performanceData: SupplierPerformanceReport[] = await getSupplierPerformanceFromDB(companyId);
 
       if (!performanceData || performanceData.length === 0) {
         return {
