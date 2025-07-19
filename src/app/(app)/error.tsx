@@ -49,7 +49,7 @@ export default function Error({
               Error: {error.message}
             </p>
           )}
-          <Button onClick={() => reset()}>Try Again</Button>
+          <Button onClick={() => { reset(); }}>Try Again</Button>
         </CardContent>
       </Card>
     </div>

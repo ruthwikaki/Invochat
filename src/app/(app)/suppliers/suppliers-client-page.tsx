@@ -86,10 +86,10 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(`/suppliers/${supplier.id}/edit`)}>
+                          <DropdownMenuItem onClick={() => { router.push(`/suppliers/${supplier.id}/edit`); }}>
                             <Edit className="mr-2 h-4 w-4" /> Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setSupplierToDelete(supplier)} className="text-destructive">
+                          <DropdownMenuItem onClick={() => { setSupplierToDelete(supplier); }} className="text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" /> Delete
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -102,7 +102,7 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
           </Table>
         </CardContent>
       </Card>
-      <AlertDialog open={!!supplierToDelete} onOpenChange={(open) => !open && setSupplierToDelete(null)}>
+      <AlertDialog open={!!supplierToDelete} onOpenChange={(open) => { if (!open) setSupplierToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>

@@ -181,7 +181,7 @@ export function IntegrationsClientPage() {
         <div className="space-y-8">
             <ShopifyConnectModal
                 isOpen={isShopifyModalOpen}
-                onClose={() => setIsShopifyModalOpen(false)}
+                onClose={() => { setIsShopifyModalOpen(false); }}
             />
              <WooCommerceConnectModal
                 isOpen={isWooCommerceModalOpen}
@@ -189,7 +189,7 @@ export function IntegrationsClientPage() {
             />
             <AmazonConnectModal
                 isOpen={isAmazonModalOpen}
-                onClose={() => setIsAmazonModalOpen(false)}
+                onClose={() => { setIsAmazonModalOpen(false); }}
             />
             
             <div>
@@ -227,21 +227,21 @@ export function IntegrationsClientPage() {
                          <PlatformConnectCard 
                             platform="shopify"
                             description="Sync your products, inventory levels, and orders directly from your Shopify store."
-                            onConnectClick={() => setIsShopifyModalOpen(true)}
+                            onConnectClick={() => { setIsShopifyModalOpen(true); }}
                          />
                     )}
                     {!connectedPlatforms.has('woocommerce') && (
                          <PlatformConnectCard 
                             platform="woocommerce"
                             description="Sync your products, inventory, and orders from your WooCommerce-powered site."
-                            onConnectClick={() => setIsWooCommerceModalOpen(true)}
+                            onConnectClick={() => { setIsWooCommerceModalOpen(true); }}
                          />
                     )}
                      {!connectedPlatforms.has('amazon_fba') && (
                          <PlatformConnectCard 
                             platform="amazon_fba"
                             description="Connect your Amazon Seller Central account to manage FBA inventory."
-                            onConnectClick={() => setIsAmazonModalOpen(true)}
+                            onConnectClick={() => { setIsAmazonModalOpen(true); }}
                          />
                     )}
                 </div>

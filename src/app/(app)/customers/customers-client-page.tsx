@@ -105,14 +105,14 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
             <div className="flex items-center gap-2">
                 <Button
                     variant="outline"
-                    onClick={() => router.push(createPageURL(currentPage - 1))}
+                    onClick={() => { router.push(createPageURL(currentPage - 1)); }}
                     disabled={currentPage <= 1}
                 >
                     Previous
                 </Button>
                 <Button
                     variant="outline"
-                    onClick={() => router.push(createPageURL(currentPage + 1))}
+                    onClick={() => { router.push(createPageURL(currentPage + 1)); }}
                     disabled={currentPage >= totalPages}
                 >
                     Next
@@ -275,7 +275,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             </CardContent>
         </Card>
 
-      <AlertDialog open={!!customerToDelete} onOpenChange={(open) => !open && setCustomerToDelete(null)}>
+      <AlertDialog open={!!customerToDelete} onOpenChange={(open) => { if (!open) setCustomerToDelete(null); }}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

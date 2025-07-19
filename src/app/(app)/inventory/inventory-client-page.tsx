@@ -70,14 +70,14 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
             <div className="flex items-center gap-2">
                 <Button
                     variant="outline"
-                    onClick={() => router.push(createPageURL(currentPage - 1))}
+                    onClick={() => { router.push(createPageURL(currentPage - 1)); }}
                     disabled={currentPage <= 1}
                 >
                     Previous
                 </Button>
                 <Button
                     variant="outline"
-                    onClick={() => router.push(createPageURL(currentPage + 1))}
+                    onClick={() => { router.push(createPageURL(currentPage + 1)); }}
                     disabled={currentPage >= totalPages}
                 >
                     Next
@@ -181,7 +181,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   const query = searchParams.get('query') || '';
   const status = searchParams.get('status') || 'all';
-  const sortBy = (searchParams.get('sortBy') as SortableColumn) ?? 'product_title';
+  const sortBy = (searchParams.get('sortBy') ?? 'product_title') as SortableColumn;
   const sortDirection = searchParams.get('sortDirection') === 'desc' ? 'desc' : 'asc';
   
   const createUrlWithParams = (newParams: Record<string, string>) => {
@@ -235,7 +235,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
   return (
     <>
-    <InventoryHistoryDialog variant={historyVariant} onClose={() => setHistoryVariant(null)} />
+    <InventoryHistoryDialog variant={historyVariant} onClose={() => { setHistoryVariant(null); }} />
 
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -313,7 +313,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                 <TableCell className="text-right font-tabular">{product.variants.length}</TableCell>
                                 <TableCell className="text-right font-semibold font-tabular">{totalQty}</TableCell>
                                 <TableCell className="text-center">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleExpandProduct(product.product_id)}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { toggleExpandProduct(product.product_id); }}>
                                         <ChevronDown className={cn("h-4 w-4 transition-transform", expandedProducts.has(product.product_id) && "rotate-180")} />
                                     </Button>
                                 </TableCell>
@@ -347,7 +347,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                                                 <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
                                                                 <TableCell>{variant.location || 'N/A'}</TableCell>
                                                                 <TableCell className="text-center space-x-1">
-                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setHistoryVariant(variant)}>
+                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setHistoryVariant(variant); }}>
                                                                         <History className="h-4 w-4" />
                                                                     </Button>
                                                                 </TableCell>

@@ -180,7 +180,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                     <TableCell>
                       <Checkbox
                         checked={selectedSuggestions.some(s => s.sku === suggestion.sku)}
-                        onCheckedChange={(checked) => handleSelect(suggestion, !!checked)}
+                        onCheckedChange={(checked) => { handleSelect(suggestion, !!checked); }}
                       />
                     </TableCell>
                     <TableCell>

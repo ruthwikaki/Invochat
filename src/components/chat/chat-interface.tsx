@@ -245,7 +245,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
           <Input
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); }}
             placeholder="Ask anything about your inventory..."
             className="h-12 flex-1 rounded-full pr-24 text-base"
             disabled={isPending}

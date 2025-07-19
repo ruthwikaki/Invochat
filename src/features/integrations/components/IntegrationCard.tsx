@@ -90,7 +90,7 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
                     {renderStatus()}
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => onSync(integration.id, integration.platform)} disabled={isSyncing}>
+                    <Button variant="outline" onClick={() => { onSync(integration.id, integration.platform); }} disabled={isSyncing}>
                         <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                         Sync Now
                     </Button>

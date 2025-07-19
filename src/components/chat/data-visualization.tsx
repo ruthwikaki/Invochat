@@ -49,7 +49,7 @@ export function DataVisualization({ visualization, title }: DataVisualizationPro
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={() => setIsExpanded(true)}
+              onClick={() => { setIsExpanded(true); }}
               aria-label="Expand chart"
             >
               <Expand className="h-4 w-4" />
