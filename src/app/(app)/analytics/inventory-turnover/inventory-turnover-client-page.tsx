@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Award, TrendingUp, Package, DollarSign } from 'lucide-react';
+import { TrendingUp, Package, DollarSign } from 'lucide-react';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import {
   BarChart,
