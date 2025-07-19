@@ -348,6 +348,24 @@ export const DashboardMetricsSchema = z.object({
 });
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
+export const SalesAnalyticsSchema = z.object({
+    total_revenue: z.number().int(),
+    total_orders: z.number().int(),
+    average_order_value: z.number().int(),
+    average_margin: z.number(),
+});
+export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
+
+export const CustomerAnalyticsSchema = z.object({
+    total_customers: z.number().int(),
+    new_customers_last_30_days: z.number().int(),
+    repeat_customer_rate: z.number(),
+    average_lifetime_value: z.number().int(),
+    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number().int() })),
+    top_customers_by_sales: z.array(z.object({ name: z.string(), value: z.number().int() })),
+});
+export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
+
 export const AnomalySchema = z.object({
     date: z.string(),
     anomaly_type: z.string(),
@@ -380,8 +398,6 @@ export const CompanyInfoSchema = z.object({
     name: z.string(),
 });
 export type CompanyInfo = z.infer<typeof CompanyInfoSchema>;
-
-export type CustomerAnalytics = unknown;
 
 export const InventoryLedgerEntrySchema = z.object({
     id: z.string().uuid(),

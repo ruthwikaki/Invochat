@@ -34,7 +34,7 @@ async function wooCommerceFetch(
 }
 
 // Type guard to check if an object is a valid WooCommerce product for our needs.
-function isVariableProduct(p: unknown): p is { id: number; type: 'variable', variations: any[] } {
+function isVariableProduct(p: unknown): p is { id: number; type: 'variable', variations: unknown[] } {
     return (
         typeof p === 'object' &&
         p !== null &&
@@ -74,7 +74,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 description: wooProduct.description,
                 handle: wooProduct.slug,
                 product_type: wooProduct.categories?.[0]?.name,
-                tags: wooProduct.tags?.map((t: any) => t.name),
+                tags: wooProduct.tags?.map((t: { name: string }) => t.name),
                 status: wooProduct.status,
                 image_url: wooProduct.images?.[0]?.src,
                 external_product_id: String(wooProduct.id),
@@ -93,7 +93,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             const productIdMap = new Map(upsertedProducts?.map(p => [p.external_product_id, p.id]));
             const variantsToUpsert: Omit<ProductVariant, 'id' | 'created_at' | 'updated_at'>[] = [];
 
-            const variableProductIds = wooProducts.filter(isVariableProduct).map((p: any) => p.id);
+            const variableProductIds = (wooProducts as unknown[]).filter(isVariableProduct).map((p) => p.id);
             const allVariations: unknown[] = [];
             
             if (variableProductIds.length > 0) {
@@ -104,13 +104,13 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                          credentials.consumerSecret,
                          `products/${productId}/variations`,
                          { per_page: 100 }
-                    ).then(res => res.data.map((v: any) => ({ ...v, parent_id: productId })))
+                    ).then(res => res.data.map((v: unknown) => ({ ...(v as object), parent_id: productId })))
                 );
                 const results = await Promise.all(variationPromises);
                 results.forEach(vars => allVariations.push(...vars));
             }
             
-            for (const wooProduct of wooProducts) {
+            for (const wooProduct of wooProducts as { id: number; type: string; sku: string; stock_quantity: number | null, name: string, description: string, slug: string, categories: {name: string}[], tags: {name: string}[], status: string, images: {src: string}[] }[]) {
                 const internalProductId = productIdMap.get(String(wooProduct.id));
                 if (!internalProductId) continue;
 
@@ -120,7 +120,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         company_id: integration.company_id,
                         sku: wooProduct.sku || `WOO-${wooProduct.id}`,
                         title: null,
-                        price: Math.round(parseFloat(wooProduct.price || 0) * 100),
+                        price: Math.round(parseFloat((wooProduct as any).price || 0) * 100),
                         cost: null,
                         inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),
@@ -131,24 +131,25 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             }
 
             for (const variantDetails of allVariations) {
-                const internalProductId = productIdMap.get(String((variantDetails as any).parent_id));
+                const variant = variantDetails as { id: number; parent_id: number; sku: string; attributes: { name: string; option: string }[]; price: string; stock_quantity: number | null; };
+                const internalProductId = productIdMap.get(String(variant.parent_id));
                 if (!internalProductId) continue;
 
                 variantsToUpsert.push({
                     product_id: internalProductId,
                     company_id: integration.company_id,
-                    sku: (variantDetails as any).sku || `WOO-${(variantDetails as any).id}`,
-                    title: (variantDetails as any).attributes.map((a: any) => a.option).join(' / '),
-                    option1_name: (variantDetails as any).attributes[0]?.name,
-                    option1_value: (variantDetails as any).attributes[0]?.option,
-                    option2_name: (variantDetails as any).attributes[1]?.name,
-                    option2_value: (variantDetails as any).attributes[1]?.option,
-                    option3_name: (variantDetails as any).attributes[2]?.name,
-                    option3_value: (variantDetails as any).attributes[2]?.option,
-                    price: Math.round(parseFloat((variantDetails as any).price || 0) * 100),
+                    sku: variant.sku || `WOO-${variant.id}`,
+                    title: variant.attributes.map((a) => a.option).join(' / '),
+                    option1_name: variant.attributes[0]?.name,
+                    option1_value: variant.attributes[0]?.option,
+                    option2_name: variant.attributes[1]?.name,
+                    option2_value: variant.attributes[1]?.option,
+                    option3_name: variant.attributes[2]?.name,
+                    option3_value: variant.attributes[2]?.option,
+                    price: Math.round(parseFloat(variant.price || '0') * 100),
                     cost: null,
-                    inventory_quantity: (variantDetails as any).stock_quantity === null ? 0 : (variantDetails as any).stock_quantity,
-                    external_variant_id: String((variantDetails as any).id),
+                    inventory_quantity: variant.stock_quantity === null ? 0 : variant.stock_quantity,
+                    external_variant_id: String(variant.id),
                     location: null,
                 });
             }
@@ -240,7 +241,7 @@ export async function runWooCommerceFullSync(integration: Integration) {
         await invalidateCompanyCache(integration.company_id, ['dashboard']);
         await refreshMaterializedViews(integration.company_id);
 
-    } catch(e: any) {
+    } catch(e: unknown) {
         logError(e, { context: `WooCommerce full sync failed for integration ${integration.id}`});
         await supabase.from('integrations').update({ sync_status: 'failed' }).eq('id', integration.id);
         throw e;

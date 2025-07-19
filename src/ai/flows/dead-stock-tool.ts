@@ -7,7 +7,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { getDeadStockPageData } from '@/services/database';
-import { DeadStockItemSchema } from '@/types';
+import { DeadStockItemSchema, type DeadStockItem } from '@/types';
 import { logError } from '@/lib/error-handler';
 
 export const getDeadStockReport = ai.defineTool(
@@ -20,7 +20,7 @@ export const getDeadStockReport = ai.defineTool(
     }),
     outputSchema: z.array(DeadStockItemSchema),
   },
-  async (input): Promise<any[]> => {
+  async (input): Promise<DeadStockItem[]> => {
     logger.info(`[Dead Stock Tool] Getting report for company: ${input.companyId}`);
     try {
         const deadStockData = await getDeadStockPageData(input.companyId);
