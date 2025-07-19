@@ -47,4 +47,20 @@ test.describe('Inventory Page', () => {
     await expect(variantTable.getByRole('columnheader', { name: 'SKU' })).toBeVisible();
     await expect(variantTable.getByRole('columnheader', { name: 'Quantity' })).toBeVisible();
   });
+
+  test('should show a "no results" message for an unfindable search term', async ({ page }) => {
+    const searchInput = page.getByPlaceholder(/Search by product title or SKU/);
+    await searchInput.fill('nonexistent-product-xyz123');
+
+    // Wait for the search to process
+    await page.waitForTimeout(500);
+
+    // The "no results" message should be visible in the table
+    const noResultsMessage = page.getByText('No inventory found matching your criteria.');
+    await expect(noResultsMessage).toBeVisible();
+
+    // Make sure there are no actual product rows visible
+    const productRows = page.locator('table > tbody > tr > td:has-text("Simulated")');
+    await expect(productRows).toHaveCount(0);
+  });
 });
