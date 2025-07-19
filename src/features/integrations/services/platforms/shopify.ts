@@ -9,6 +9,7 @@ import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/dat
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 import { config } from '@/config/app-config';
+import DOMPurify from 'isomorphic-dompurify';
 
 const SHOPIFY_API_VERSION = '2024-07';
 
@@ -45,7 +46,7 @@ export async function syncProducts(integration: Integration, accessToken: string
             productsToUpsert.push({
                 company_id: integration.company_id,
                 title: shopifyProduct.title,
-                description: shopifyProduct.body_html,
+                description: DOMPurify.sanitize(shopifyProduct.body_html),
                 handle: shopifyProduct.handle,
                 product_type: shopifyProduct.product_type,
                 tags: shopifyProduct.tags.split(',').map((t: string) => t.trim()),
