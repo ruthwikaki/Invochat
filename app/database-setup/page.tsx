@@ -15,21 +15,15 @@ export default function DatabaseSetupPage() {
             </div>
             <CardTitle className="text-center text-2xl">Final Database Setup Step</CardTitle>
             <CardDescription className="text-center">
-            To get your app running, you need to set up the database schema.
+            To get your app running, the database needs to be configured correctly.
             </CardDescription>
         </CardHeader>
         <CardContent className="text-center space-y-4">
             <p className="text-sm text-muted-foreground">
-                You must run a setup script in your Supabase project's SQL Editor. This script creates all the necessary tables, functions, and security policies for ARVO to work correctly.
+                Please ensure your Supabase project has been set up according to the project's documentation. This includes creating the necessary tables, functions, and security policies for ARVO to work correctly.
             </p>
-            <div className="text-left p-4 bg-muted rounded-md border text-sm">
-                <p>1. In your project, find the file located at: <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></p>
-                <p>2. Copy the entire contents of this file.</p>
-                <p>3. Go to your Supabase project dashboard and navigate to the <span className="font-semibold">SQL Editor</span>.</p>
-                <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">"Run"</span>.</p>
-            </div>
              <p className="text-sm text-muted-foreground">
-                After the script finishes successfully, you can sign up for a new account. If you already signed up, you must create a new account.
+                After the setup is complete, you can sign up for a new account. If you already signed up, you must create a new account to ensure it's configured correctly.
             </p>
         </CardContent>
         <CardFooter className="flex-col gap-4">

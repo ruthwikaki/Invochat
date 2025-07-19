@@ -26,18 +26,12 @@ export default function EnvCheckPage() {
             </CardHeader>
             <CardContent>
               <p className="mb-4 text-sm text-muted-foreground">
-                This happens because your user account doesn't have a `company_id` associated with it in the database. To fix this, you need to run a one-time setup script in your Supabase project's SQL Editor. This script creates the necessary functions and triggers to link new users to their companies automatically.
+                This happens because your user account doesn't have a `company_id` associated with it in the database. This usually means the initial database setup script has not been run in your Supabase project. This script creates the necessary functions and triggers to link new users to their companies automatically.
               </p>
-              <div className="text-left p-4 bg-muted rounded-md border text-sm">
-                  <p>1. In your project, find the file located at: <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></p>
-                  <p>2. Copy the entire contents of this file.</p>
-                  <p>3. Go to your Supabase project dashboard and navigate to the <span className="font-semibold">SQL Editor</span>.</p>
-                  <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">"Run"</span>.</p>
-              </div>
             </CardContent>
             <CardFooter className="flex-col gap-4">
                 <p className="text-sm text-muted-foreground text-center">
-                    After running the SQL script in your Supabase project, you must sign out and sign up with a <strong>new user account</strong>. This new account will be correctly configured by the trigger you just created.
+                    After ensuring the database is correctly set up in your Supabase project, you must sign out and sign up with a <strong>new user account</strong>. This new account will be correctly configured by the database trigger.
                 </p>
                 <form action={signOut} className="w-full">
                   <Button variant="outline" type="submit" className="w-full">
