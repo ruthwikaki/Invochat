@@ -35,15 +35,17 @@ const MarkdownOutputSchema = z.object({
 
 const markdownOptimizerPrompt = ai.definePrompt({
   name: 'markdownOptimizerPrompt',
-  input: z.object({
-    deadStockItems: z.array(z.object({
-        sku: z.string(),
-        product_name: z.string(),
-        quantity: z.number().int(),
-        total_value: z.number(),
-        last_sale_date: z.string().nullable(),
-    })),
-  }),
+  input: {
+    schema: z.object({
+        deadStockItems: z.array(z.object({
+            sku: z.string(),
+            product_name: z.string(),
+            quantity: z.number().int(),
+            total_value: z.number(),
+            last_sale_date: z.string().nullable(),
+        })),
+    }),
+  },
   output: { schema: MarkdownOutputSchema },
   prompt: `
     You are an expert inventory liquidator and markdown strategist for an e-commerce business. Your task is to analyze a list of dead stock items and create a practical, phased markdown plan to sell them off while maximizing capital recovery.
