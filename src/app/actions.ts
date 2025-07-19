@@ -163,6 +163,10 @@ export async function handleUserMessage({ content, conversationId }: { content: 
             currentConversationId = await saveConversation(companyId, newTitle);
         }
 
+        if (!currentConversationId) {
+            throw new Error('Failed to create or retrieve a valid conversation ID.');
+        }
+
         const userMessageToSave = {
             conversation_id: currentConversationId,
             company_id: companyId,
