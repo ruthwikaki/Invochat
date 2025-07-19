@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow to generate product descriptions.
@@ -20,8 +19,8 @@ const GenerateDescriptionOutputSchema = z.object({
 
 export const generateDescriptionPrompt = ai.definePrompt({
   name: 'generateDescriptionPrompt',
-  inputSchema: GenerateDescriptionInputSchema,
-  outputSchema: GenerateDescriptionOutputSchema,
+  input: { schema: GenerateDescriptionInputSchema },
+  output: { schema: GenerateDescriptionOutputSchema },
   prompt: `
     You are an expert e-commerce copywriter. Your task is to generate a compelling name and description for a product.
 
