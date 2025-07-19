@@ -31,10 +31,12 @@ const HiddenMoneyOutputSchema = z.object({
 
 const findHiddenMoneyPrompt = ai.definePrompt({
   name: 'findHiddenMoneyPrompt',
-  input: z.object({
-    slowSellers: z.array(z.any()),
-    highMarginProducts: z.array(z.any()),
-  }),
+  input: {
+    schema: z.object({
+      slowSellers: z.array(z.any()),
+      highMarginProducts: z.array(z.any()),
+    }),
+  },
   output: { schema: HiddenMoneyOutputSchema },
   prompt: `
     You are an expert business consultant specializing in finding hidden financial opportunities in e-commerce inventory data. Your task is to analyze lists of slow-selling products and high-margin products to identify actionable insights.
@@ -105,4 +107,5 @@ export const findHiddenMoney = ai.defineTool(
     },
     async (input) => findHiddenMoneyFlow(input)
 );
+
 
