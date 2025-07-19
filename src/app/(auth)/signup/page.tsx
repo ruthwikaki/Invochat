@@ -11,7 +11,6 @@ export default function SignupPage({
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
-  const success = searchParams?.success === 'true';
   generateCSRFToken();
 
   return (
