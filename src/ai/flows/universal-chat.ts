@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for ARVO.
@@ -40,21 +41,21 @@ const safeToolsForOrchestrator = [
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
-  input: { schema: z.object({ userQuery: z.string(), toolResult: z.unknown() }) },
+  input: { schema: z.object({ userQuery: z.string(), toolResult: z.string() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
+    You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
-    You have executed a tool and received this JSON data as a result:
-    {{{json toolResult}}}
+    You have executed one or more tools and received this result:
+    {{{toolResult}}}
 
     **YOUR TASK:**
-    Your goal is to synthesize this raw data into a clear, concise, and actionable response for the user. Do NOT just repeat the data. Provide insight.
+    Your goal is to synthesize this information into a clear, concise, and actionable response for the user. Do NOT just repeat the data. Provide insight.
 
     **RESPONSE GUIDELINES:**
 
     1.  **Analyze & Synthesize**:
-        - **If the data has an 'analysis' field:** Use that text as your primary response. This means another AI has already summarized the data for you.
+        - **If the result contains an 'analysis' field:** Use that text as your primary response. This means another AI has already summarized the data for you.
         - **If data exists (but no 'analysis' field):** Briefly summarize the key finding. Don't just list the data. For example, instead of saying "The data shows Vendor A has a 98% on-time rate", say "Vendor A is your most reliable supplier with a 98% on-time delivery rate."
         - **If data is empty or null:** Do not just say "No data found." Instead, provide a helpful and context-aware response. For example, if asked for dead stock and none is found, say "Good news! I didn't find any dead stock based on your current settings. Everything seems to be selling well."
 
@@ -67,7 +68,7 @@ const finalResponsePrompt = ai.definePrompt({
         - **Assumptions List:** If confidence is below 1.0, state the assumptions you made. E.g., ["Assumed 'best sellers' means by revenue, not units sold."]. If confidence is 1.0, this should be an empty array.
 
     4.  **Suggest Visualization**:
-        - Based on the data's structure, suggest an appropriate visualization.
+        - Based on the data's structure, suggest an appropriate visualization. For now, since the direct data isn't passed, default to 'none'.
         - **Available types:** 'table', 'bar', 'pie', 'line', 'treemap', 'scatter', 'none'.
         - Provide a clear and descriptive \`title\` for the visualization.
 
@@ -130,67 +131,32 @@ const universalChatOrchestrator = ai.defineFlow(
           }
         });
         
-        const toolCalls = response.toolCalls();
-        const text = response.text();
+        const toolCalls = response.toolCalls;
+        const text = response.text;
 
-        if (toolCalls && toolCalls.length > 0) {
-            const toolCall = toolCalls[0];
-            logger.info(`[UniversalChat:Flow] AI chose to use a tool: ${toolCall.name}`);
+        if (toolCalls.length > 0) {
+            logger.info(`[UniversalChat:Flow] AI used tools. Synthesizing final response from text: "${text}"`);
 
-            try {
-                const toolArgsWithCompanyId = { companyId, ...toolCall.args };
-                const toolResult = await ai.runTool({ ...toolCall, args: toolArgsWithCompanyId });
+            const { output: finalOutput } = await finalResponsePrompt(
+                { userQuery, toolResult: text },
+                { model: config.ai.model, maxOutputTokens: config.ai.maxOutputTokens }
+            );
 
-                const { output: finalOutput } = await finalResponsePrompt(
-                    { userQuery, toolResult: toolResult.output },
-                    { model: config.ai.model, maxOutputTokens: config.ai.maxOutputTokens }
-                );
-
-                if (!finalOutput) {
-                    throw new Error('The AI model did not return a valid final response object after tool use.');
-                }
-
-                // Generic way to find the primary data array or object for visualization.
-                // It looks for common patterns like a `products` array, `suggestions` array, etc.
-                const findDataForVis = (output: unknown) => {
-                    if (!output || typeof output !== 'object') return output;
-                    const typedOutput = output as Record<string, unknown>;
-                    const commonKeys = ['products', 'suggestions', 'opportunities', 'items', 'segments', 'slow_sellers', 'fast_sellers', 'forecastedDemand', 'analysis'];
-
-                    for (const key of commonKeys) {
-                        if (key !== '__proto__' && Object.prototype.hasOwnProperty.call(typedOutput, key)) {
-                            return typedOutput[key];
-                        }
-                    }
-
-                    if (Array.isArray(output)) return output;
-                    return output;
-                };
-
-                const dataForVisualization = findDataForVis(toolResult.output);
-
-                const responseToCache: UniversalChatOutput = {
-                    ...finalOutput,
-                    data: dataForVisualization,
-                    toolName: toolCall.name,
-                };
-
-                if (isRedisEnabled) {
-                    await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
-                }
-                return responseToCache;
-
-            } catch (e: unknown) {
-                logError(e, { context: `Tool execution failed for '${toolCall.name}'` });
-                return {
-                    response: `I tried to use a tool to answer your question, but it failed. Please try rephrasing your question or check the system status.`,
-                    data: [],
-                    visualization: { type: 'none', title: '' },
-                    confidence: 0.1,
-                    assumptions: ['The tool needed to answer your question failed to execute.'],
-                    toolName: toolCall.name,
-                };
+            if (!finalOutput) {
+                throw new Error('The AI model did not return a valid final response object after tool use.');
             }
+
+            const responseToCache: UniversalChatOutput = {
+                ...finalOutput,
+                data: null, // Data for visualization is not directly available in this simplified flow
+                toolName: toolCalls[0]?.name,
+            };
+
+            if (isRedisEnabled) {
+                await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
+            }
+            return responseToCache;
+
         }
 
         logger.warn("[UniversalChat:Flow] No tool was called. Answering from general knowledge.");
