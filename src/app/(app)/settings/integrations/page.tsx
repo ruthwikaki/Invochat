@@ -1,5 +1,5 @@
 
-import { AppPage, AppPageHeader } from "@/components/ui/page";
+import { AppPageHeader } from "@/components/ui/page";
 import { IntegrationsClientPage } from "@/features/integrations/components/IntegrationsPage";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
