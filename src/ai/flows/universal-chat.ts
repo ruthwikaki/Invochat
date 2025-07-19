@@ -132,11 +132,14 @@ const universalChatOrchestrator = ai.defineFlow(
           }
         });
 
-        const { toolCalls, text } = await withTimeout(
+        const response = await withTimeout(
           generatePromise,
           config.ai.timeoutMs,
           'The AI model took too long to respond.'
         );
+
+        const toolCalls = response.toolCalls;
+        const text = response.text;
 
         if (toolCalls && toolCalls.length > 0) {
             const toolCall = toolCalls[0];
