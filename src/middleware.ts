@@ -56,7 +56,7 @@ export async function middleware(req: NextRequest) {
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/'];
 
   // Special handling for initial setup pages
-  if (pathname.startsWith('/database-setup') || pathname.startsWith('/env-check')) {
+  if (pathname.startsWith('/(setup)/database-setup') || pathname.startsWith('/(setup)/env-check')) {
     return response;
   }
   
@@ -70,7 +70,7 @@ export async function middleware(req: NextRequest) {
   // If the user IS logged in but doesn't have a company_id, they need to run the setup script.
   if (user && !user.app_metadata.company_id) {
     // Allow access to the env-check page, but redirect from anywhere else.
-    if (!pathname.startsWith('/env-check')) {
+    if (!pathname.startsWith('/(setup)/env-check')) {
         return NextResponse.redirect(new URL('/env-check', req.url));
     }
   }
