@@ -21,11 +21,11 @@ export const getInventoryTurnoverReport = ai.defineTool(
     name: 'getInventoryTurnoverReport',
     description:
       "Calculates the inventory turnover rate. Use this when the user asks about 'inventory turnover', 'how fast inventory is selling', or 'stock turn'. This report shows how many times a company has sold and replaced its inventory over a given period.",
-    input: z.object({
+    inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get the report for."),
       days: z.number().int().positive().default(90).describe("The number of days to look back for the calculation period."),
     }),
-    output: InventoryTurnoverReportSchema,
+    outputSchema: InventoryTurnoverReportSchema,
   },
   async (input) => {
     logger.info(`[Inventory Turnover Tool] Getting report for company: ${input.companyId}`);
