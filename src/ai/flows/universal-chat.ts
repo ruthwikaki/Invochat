@@ -77,6 +77,16 @@ const finalResponsePrompt = ai.definePrompt({
   `,
 });
 
+const chatOrchestratorPrompt = ai.definePrompt({
+    name: 'chatOrchestratorPrompt',
+    tools: safeToolsForOrchestrator,
+    system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
+    model: config.ai.model,
+    config: {
+        maxOutputTokens: config.ai.maxOutputTokens,
+    }
+});
+
 
 const universalChatOrchestrator = ai.defineFlow(
   {
@@ -109,19 +119,11 @@ const universalChatOrchestrator = ai.defineFlow(
     }
     // --- End Caching Logic ---
 
-    const aiModel = config.ai.model;
-
     try {
-        const generatePromise = ai.generate({
-          model: aiModel,
-          tools: safeToolsForOrchestrator,
-          system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
-          history: conversationHistory.slice(0, -1),
-          prompt: userQuery,
-          config: {
-            maxOutputTokens: config.ai.maxOutputTokens,
-          }
-        });
+        const generatePromise = chatOrchestratorPrompt(
+            userQuery, 
+            { history: conversationHistory.slice(0, -1) }
+        );
 
         const { toolCalls, text } = await withTimeout(
           generatePromise,
@@ -139,7 +141,7 @@ const universalChatOrchestrator = ai.defineFlow(
 
                 const { output: finalOutput } = await finalResponsePrompt(
                     { userQuery, toolResult: toolResult.output },
-                    { model: aiModel, maxOutputTokens: config.ai.maxOutputTokens }
+                    { model: config.ai.model, maxOutputTokens: config.ai.maxOutputTokens }
                 );
 
                 if (!finalOutput) {
@@ -232,5 +234,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    
