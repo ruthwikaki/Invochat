@@ -45,7 +45,7 @@ const finalResponsePrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.unknown() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
+    You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
     You have executed a tool and received this JSON data as a result:
     {{{json toolResult}}}
@@ -116,7 +116,12 @@ const universalChatOrchestrator = ai.defineFlow(
             content: [{ text: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`}]
         };
 
-        const messages: MessageData[] = [systemPrompt, ...conversationHistory];
+        const genkitHistory = conversationHistory.map(msg => ({
+            ...msg,
+            role: msg.role === 'assistant' ? 'model' : msg.role,
+        })) as MessageData[];
+
+        const messages: MessageData[] = [systemPrompt, ...genkitHistory];
 
         const generatePromise = ai.generate({
           model: config.ai.model,
