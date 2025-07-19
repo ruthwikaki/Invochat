@@ -115,10 +115,10 @@ const universalChatOrchestrator = ai.defineFlow(
         const generatePromise = ai.generate({
           model: aiModel,
           tools: safeToolsForOrchestrator,
+          system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
           history: conversationHistory.slice(0, -1),
           prompt: userQuery,
           config: {
-            system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
             maxOutputTokens: config.ai.maxOutputTokens,
           }
         });
