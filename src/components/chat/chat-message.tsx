@@ -151,13 +151,13 @@ export function ChatMessage({
         {!isUserMessage && <BotAvatar isError={message.isError} />}
         
         <div className={cn(
-            'relative max-w-xl rounded-2xl px-4 py-3 shadow-md space-y-2',
+            'relative max-w-xl rounded-2xl px-4 py-3 shadow-md space-y-2 text-base whitespace-pre-wrap selection:bg-primary/50',
             isUserMessage
                 ? 'rounded-br-none bg-primary text-primary-foreground'
                 : 'rounded-bl-none bg-card text-card-foreground',
             message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
         )}>
-            <div className="text-base whitespace-pre-wrap selection:bg-primary/50" dangerouslySetInnerHTML={{ __html: sanitizedContent }} />
+            {sanitizedContent}
 
             {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
