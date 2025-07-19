@@ -173,7 +173,7 @@ const universalChatOrchestrator = ai.defineFlow(
                 }
                 return responseToCache;
 
-            } catch (e) {
+            } catch (e: unknown) {
                 logError(e, { context: `Tool execution failed for '${toolCall.name}'` });
                 return {
                     response: `I tried to use a tool to answer your question, but it failed. Please try rephrasing your question or check the system status.`,
@@ -213,7 +213,7 @@ const universalChatOrchestrator = ai.defineFlow(
         }
         return responseToCache;
 
-    } catch (e) {
+    } catch (e: unknown) {
         const errorMessage = getErrorMessage(e);
         logError(e, { context: `Universal Chat Flow failed for query: "${userQuery}"` });
 
