@@ -113,16 +113,12 @@ const universalChatOrchestrator = ai.defineFlow(
     const aiModel = config.ai.model;
     
     try {
-        const fullPrompt = [
-            { text: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.` },
-            ...conversationHistory.slice(0, -1).flatMap(m => m.content.map(c => ({...c, role: m.role}))),
-            { text: userQuery },
-        ];
-
         const generatePromise = ai.generate({
           model: aiModel,
           tools: safeToolsForOrchestrator,
-          prompt: fullPrompt,
+          history: conversationHistory.slice(0, -1),
+          prompt: userQuery,
+          system: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`,
           maxOutputTokens: config.ai.maxOutputTokens,
         });
 
@@ -235,5 +231,3 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
-
-    
