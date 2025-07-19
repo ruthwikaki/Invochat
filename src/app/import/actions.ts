@@ -103,7 +103,8 @@ async function processCsv<T extends z.ZodType>(
                 rowCount++;
                 if (rowCount > 10000) {
                     parser.abort();
-                    reject(new Error('File exceeds the maximum of 10,000 rows per import.')); return;
+                    reject(new Error('File exceeds the maximum of 10,000 rows per import.'));
+                    return;
                 }
 
                 let row = results.data as Record<string, unknown>;
@@ -111,7 +112,10 @@ async function processCsv<T extends z.ZodType>(
                     const newRow: Record<string, unknown> = {};
                     for (const originalHeader in row) {
                         if (Object.prototype.hasOwnProperty.call(mappings, originalHeader) && Object.prototype.hasOwnProperty.call(row, originalHeader)) {
-                            newRow[mappings[originalHeader]] = row[originalHeader];
+                            const mappedHeader = mappings[originalHeader];
+                            if (mappedHeader) {
+                                newRow[mappedHeader] = row[originalHeader];
+                            }
                         }
                     }
                     row = newRow;
@@ -143,11 +147,17 @@ async function processCsv<T extends z.ZodType>(
                 let processedCount = 0;
                 if (validRows.length > 0) {
                     const supabase = getServiceRoleClient();
-                    if (!supabase) { reject(new Error('Supabase admin client not initialized.')); return; }
+                    if (!supabase) {
+                        reject(new Error('Supabase admin client not initialized.'));
+                        return;
+                    }
 
                     const rpcMap = { 'product-costs': 'batch_upsert_costs', 'suppliers': 'batch_upsert_suppliers', 'historical-sales': 'batch_import_sales' };
                     const rpcToCall = rpcMap[importType as keyof typeof rpcMap];
-                    if (!rpcToCall) { reject(new Error(`Unsupported import type for batch processing: ${importType}`)); return; }
+                    if (!rpcToCall) {
+                        reject(new Error(`Unsupported import type for batch processing: ${importType}`));
+                        return;
+                    }
 
                     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
                         const batch = validRows.slice(i, i + BATCH_SIZE);
@@ -172,7 +182,9 @@ async function processCsv<T extends z.ZodType>(
 
                 resolve({ importId, processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
             },
-            error: (error: unknown) => { reject(new Error(getErrorMessage(error))); },
+            error: (error: unknown) => {
+                reject(new Error(getErrorMessage(error)));
+            },
         });
         
         fileContentStream.pipe(parser);
