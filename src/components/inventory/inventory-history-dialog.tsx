@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
@@ -34,7 +35,12 @@ const getChangeTypeInfo = (type: string) => {
 export function InventoryHistoryDialog({ variant, onClose }: InventoryHistoryDialogProps) {
   const { data: ledgerEntries, isLoading } = useQuery({
     queryKey: ['inventoryLedger', variant?.id],
-    queryFn: () => getInventoryLedger(variant!.id),
+    queryFn: () => {
+        if (!variant) {
+          return Promise.resolve([]);
+        }
+        return getInventoryLedger(variant.id);
+    },
     enabled: !!variant,
   });
 

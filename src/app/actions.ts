@@ -175,44 +175,29 @@ export async function handleUserMessage({ content, conversationId, source = 'cha
 
         const response = await universalChatFlow({ companyId, conversationHistory });
         
-        let component = null;
-        let componentProps = {};
-
-        if (response.toolName === 'getDeadStockReport') {
-            component = 'deadStockTable';
-            componentProps = { data: response.data };
-        }
-        if (response.toolName === 'getReorderSuggestions') {
-            component = 'reorderList';
-            componentProps = { items: response.data };
-        }
-        if (response.toolName === 'getSupplierPerformanceReport') {
-            component = 'supplierPerformanceTable';
-            componentProps = { data: response.data };
-        }
-         if (response.toolName === 'createPurchaseOrdersFromSuggestions') {
-            component = 'confirmation';
-            componentProps = { ...response.data };
+        const finalConversationId = response.conversationId || currentConversationId;
+        if (!finalConversationId) {
+            throw new Error('Could not determine conversation ID after processing message.');
         }
 
         const newMessage: Message = {
             id: `ai_${Date.now()}`,
-            conversation_id: currentConversationId,
+            conversation_id: finalConversationId,
             company_id: companyId,
             role: 'assistant',
             content: response.response,
             visualization: response.visualization,
             confidence: response.confidence,
             assumptions: response.assumptions,
-            created_at: new Date().toISOString(),
-            component,
-            componentProps,
+            component: response.component,
+            componentProps: response.componentProps,
             isError: (response as { isError?: boolean }).isError || false,
+            created_at: new Date().toISOString(),
         };
 
         await saveMessage({ ...newMessage, id: undefined, created_at: undefined });
         
-        return { newMessage, conversationId: currentConversationId };
+        return { newMessage, conversationId: finalConversationId };
 
     } catch(e) {
         logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });

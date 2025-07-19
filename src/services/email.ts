@@ -38,6 +38,11 @@ async function sendEmail(to: string, subject: string, text: string, context: str
         return;
     }
 
+    if (!resend || !fromEmail) {
+        logger.error('[Email Service] Attempted to send email, but Resend or From Email is not configured.');
+        return;
+    }
+
     // In a non-production environment, always send to a test address if available
     const recipient = isProduction ? to : process.env.EMAIL_TEST_RECIPIENT || to;
 
