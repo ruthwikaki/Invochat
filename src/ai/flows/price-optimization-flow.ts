@@ -34,7 +34,7 @@ const suggestPricesPrompt = ai.definePrompt({
       products: z.array(z.object({
           sku: z.string(),
           name: z.string(),
-          cost: z.number(), // in cents
+          cost: z.number().nullable(), // cost can be null
           price: z.number().nullable(), // in cents
           quantity: z.number(),
       })),
@@ -82,7 +82,7 @@ export const suggestPriceOptimizationsFlow = ai.defineFlow(
       // We only need a subset of fields for the AI analysis
       const productSubset = products.map(p => ({
         sku: p.sku,
-        name: p.product_name,
+        name: p.product_title,
         cost: p.cost,
         price: p.price,
         quantity: p.inventory_quantity
