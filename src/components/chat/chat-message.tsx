@@ -157,11 +157,8 @@ export function ChatMessage({
                 : 'rounded-bl-none bg-card text-card-foreground',
             message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
         )}>
-            <div
-            className="text-base whitespace-pre-wrap selection:bg-primary/50"
-            dangerouslySetInnerHTML={!isLoading ? { __html: sanitizedContent } : undefined}
-            >
-            {isLoading ? <LoadingIndicator /> : null}
+            <div className="text-base whitespace-pre-wrap selection:bg-primary/50">
+                {isLoading ? <LoadingIndicator /> : <div dangerouslySetInnerHTML={{ __html: sanitizedContent }} />}
             </div>
             {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
