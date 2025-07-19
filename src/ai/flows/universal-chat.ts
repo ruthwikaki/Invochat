@@ -156,7 +156,7 @@ const universalChatOrchestrator = ai.defineFlow(
                     const commonKeys = ['products', 'suggestions', 'opportunities', 'items', 'segments', 'slow_sellers', 'fast_sellers', 'forecastedDemand', 'analysis'];
                     
                     for (const key of commonKeys) {
-                        if (Object.prototype.hasOwnProperty.call(typedOutput, key)) {
+                        if (key !== '__proto__' && Object.prototype.hasOwnProperty.call(typedOutput, key)) {
                             return typedOutput[key];
                         }
                     }

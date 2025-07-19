@@ -348,6 +348,10 @@ function getPayloadConfigFromPayload(
     ] as string
   }
 
+  if (configLabelKey === '__proto__') {
+    return undefined;
+  }
+
   return Object.prototype.hasOwnProperty.call(config, configLabelKey)
     ? config[configLabelKey]
     : Object.prototype.hasOwnProperty.call(config, key) ? config[key as keyof typeof config] : undefined;

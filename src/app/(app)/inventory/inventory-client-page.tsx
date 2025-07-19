@@ -134,6 +134,8 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
   
   inventory.forEach(variant => {
     const productId = variant.product_id;
+    if (productId === '__proto__') return;
+
     if (!Object.prototype.hasOwnProperty.call(productMap, productId)) {
       productMap[productId] = {
         product_id: productId,
