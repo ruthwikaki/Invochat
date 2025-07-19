@@ -43,7 +43,7 @@ const safeToolsForOrchestrator = [
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
-  inputSchema: z.object({ userQuery: z.string(), toolResult: z.any() }),
+  inputSchema: z.object({ userQuery: z.string(), toolResult: z.unknown() }),
   outputSchema: FinalResponseObjectSchema,
   prompt: `
     You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
@@ -149,12 +149,12 @@ const universalChatOrchestrator = ai.defineFlow(
                 
                 // Generic way to find the primary data array or object for visualization.
                 // It looks for common patterns like a `products` array, `suggestions` array, etc.
-                const findDataForVis = (output: any) => {
+                const findDataForVis = (output: unknown) => {
                     if (!output || typeof output !== 'object') return output;
                     const commonKeys = ['products', 'suggestions', 'opportunities', 'items', 'segments', 'slow_sellers', 'fast_sellers', 'forecastedDemand', 'analysis'];
                     for (const key of commonKeys) {
-                        if (Array.isArray(output[key])) return output[key];
-                        if (typeof output[key] !== 'undefined') return output[key];
+                        if (Array.isArray((output as Record<string, unknown>)[key])) return (output as Record<string, unknown>)[key];
+                        if (typeof (output as Record<string, unknown>)[key] !== 'undefined') return (output as Record<string, unknown>)[key];
                     }
                     if (Array.isArray(output)) return output;
                     return output;
@@ -162,7 +162,7 @@ const universalChatOrchestrator = ai.defineFlow(
 
                 const dataForVisualization = findDataForVis(toolResult.output);
 
-                const responseToCache = {
+                const responseToCache: UniversalChatOutput = {
                     ...finalOutput,
                     data: dataForVisualization,
                     toolName: toolCall.name,
@@ -182,7 +182,7 @@ const universalChatOrchestrator = ai.defineFlow(
                     confidence: 0.1,
                     assumptions: ['The tool needed to answer your question failed to execute.'],
                     toolName: toolCall.name,
-                } as any;
+                };
             }
         }
 
@@ -200,7 +200,7 @@ const universalChatOrchestrator = ai.defineFlow(
             'The AI model took too long to respond.'
         );
 
-        const responseToCache = {
+        const responseToCache: UniversalChatOutput = {
             response: text,
             data: [],
             visualization: { type: 'none', title: '' },
@@ -225,7 +225,7 @@ const universalChatOrchestrator = ai.defineFlow(
                 confidence: 0.0,
                 assumptions: ['The AI service is unavailable.'],
                 isError: true,
-            } as any;
+            };
         }
 
         return {
@@ -235,7 +235,7 @@ const universalChatOrchestrator = ai.defineFlow(
             confidence: 0.0,
             assumptions: ['An unexpected error occurred in the AI processing flow.'],
             isError: true,
-        } as any;
+        };
     }
   }
 );

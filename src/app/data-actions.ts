@@ -78,13 +78,16 @@ import crypto from 'crypto';
 
 export async function getAuthContext() {
     const cookieStore = cookies();
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: { get: (name: string) => cookieStore.get(name)?.value },
-        }
-    );
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase URL or anonymous key is not configured.');
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+        cookies: { get: (name: string) => cookieStore.get(name)?.value },
+    });
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated.');
     const companyId = user.app_metadata?.company_id;
@@ -565,7 +568,7 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
         revalidatePath('/purchase-orders', 'page');
         
         return { success: true, createdPoCount };
-    } catch (e) {
+    } catch (e: unknown) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions action' });
         throw e; // Re-throw the error so the client can handle it
     }
@@ -580,5 +583,3 @@ export async function getDeadStockPageData() {
         deadStockDays: settings.dead_stock_days
     };
 }
-
-    

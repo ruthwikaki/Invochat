@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logError } from '@/lib/error-handler';
+import { logError, getErrorMessage } from '@/lib/error-handler';
 import { logger } from '@/lib/logger';
 
 /**
@@ -44,7 +44,7 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
         
         logger.info(`[Vault] Successfully created encrypted secret for ${secretName}.`);
         return secret.id;
-    } catch (e: any) {
+    } catch (e: unknown) {
         logError(e, { context: 'createOrUpdateSecret', companyId, platform });
         throw e;
     }
@@ -79,7 +79,7 @@ export async function getSecret(companyId: string, platform: string): Promise<st
         
         // Supabase Vault automatically handles decryption when retrieving the secret.
         return data.secret;
-    } catch (e: any) {
+    } catch (e: unknown) {
         logError(e, { context: 'getSecret', companyId, platform });
         throw e;
     }

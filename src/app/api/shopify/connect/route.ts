@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logError } from '@/lib/error-handler';
+import { logError, getErrorMessage } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import type { Platform } from '@/features/integrations/types';
@@ -98,11 +98,11 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, integration: data });
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         logError(e, { context: 'Shopify Connect API' });
-        const errorMessage = e.message.includes('401')
+        const errorMessage = getErrorMessage(e).includes('401')
           ? "Authentication failed. Please check your Admin API access token and store URL."
-          : e.message;
+          : getErrorMessage(e);
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }

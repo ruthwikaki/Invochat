@@ -10,7 +10,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 // Note: We avoid exporting a complex object directly to stay compatible with
 // Next.js server-side module constraints. Each function is exported individually.
-const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
+const log = (level: LogLevel, message: string, ...optionalParams: unknown[]) => {
   // In production, only log INFO and above unless a specific flag is set.
   if (isProduction && (level === 'DEBUG')) {
       return;
@@ -45,22 +45,22 @@ const log = (level: LogLevel, message: string, ...optionalParams: any[]) => {
   }
 };
 
-function debug(message: string, ...optionalParams: any[]) {
+function debug(message: string, ...optionalParams: unknown[]) {
     // To reduce noise, only log DEBUG level messages in non-production environments.
     if (!isProduction) {
         log('DEBUG', message, ...optionalParams);
     }
 }
 
-function info(message: string, ...optionalParams: any[]) {
+function info(message: string, ...optionalParams: unknown[]) {
     log('INFO', message, ...optionalParams);
 }
 
-function warn(message: string, ...optionalParams: any[]) {
+function warn(message: string, ...optionalParams: unknown[]) {
     log('WARN', message, ...optionalParams);
 }
 
-function error(message: string, ...optionalParams: any[]) {
+function error(message: string, ...optionalParams: unknown[]) {
     log('ERROR', message, ...optionalParams);
 }
 

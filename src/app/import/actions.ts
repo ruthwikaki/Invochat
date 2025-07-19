@@ -27,8 +27,8 @@ export type ImportResult = {
   importId?: string;
   processedCount?: number;
   errorCount?: number;
-  errors?: { row: number; message: string; data: Record<string, any> }[];
-  summary?: Record<string, any>;
+  errors?: { row: number; message: string; data: Record<string, unknown> }[];
+  summary?: Record<string, unknown>;
   summaryMessage: string;
 };
 
@@ -91,7 +91,7 @@ async function processCsv<T extends z.ZodType>(
     
     return new Promise((resolve, reject) => {
         const validRows: z.infer<T>[] = [];
-        const validationErrors: { row: number; message: string; data: Record<string, any> }[] = [];
+        const validationErrors: { row: number; message: string; data: Record<string, unknown> }[] = [];
         let rowCount = 0;
         
         const parser = Papa.parse(Papa.NODE_STREAM_INPUT, {
@@ -105,9 +105,9 @@ async function processCsv<T extends z.ZodType>(
                     return reject(new Error('File exceeds the maximum of 10,000 rows per import.'));
                 }
 
-                let row = results.data as Record<string, any>;
+                let row = results.data as Record<string, unknown>;
                 if (mappings && Object.keys(mappings).length > 0) {
-                    const newRow: Record<string, any> = {};
+                    const newRow: Record<string, unknown> = {};
                     for (const originalHeader in row) {
                         if (mappings[originalHeader]) {
                             newRow[mappings[originalHeader]] = row[originalHeader];
@@ -259,7 +259,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         const approximateTotalRows = Math.floor(file.size / 150); // Estimate based on average row size
         importJobId = !isDryRun ? await createImportJob(companyId, userId, dataType, file.name, approximateTotalRows) : undefined;
         
-        result = await processCsv(file.stream() as any, config.schema, config.tableName, companyId, userId, isDryRun, mappings, dataType, importJobId);
+        result = await processCsv(file.stream() as unknown as NodeJS.ReadableStream, config.schema, config.tableName, companyId, userId, isDryRun, mappings, dataType, importJobId);
 
         if (!isDryRun && (result.processedCount || 0) > 0) {
             await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);

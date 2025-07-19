@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logError } from '@/lib/error-handler';
+import { logError, getErrorMessage } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import type { Platform } from '@/features/integrations/types';
@@ -84,8 +84,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, integration: data });
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         logError(e, { context: 'WooCommerce Connect API' });
-        return NextResponse.json({ error: e.message }, { status: 500 });
+        return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
     }
 }

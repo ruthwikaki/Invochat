@@ -1,9 +1,8 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logError } from '@/lib/error-handler';
+import { logError, getErrorMessage } from '@/lib/error-handler';
 import type { Integration } from '@/types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
@@ -14,7 +13,7 @@ import { getSecret } from '../encryption';
 // To make this integration demonstrable, we dynamically generate mock data
 // instead of using a static mock array. This simulates a real sync.
 
-function generateSimulatedProducts(count: number): any[] {
+function generateSimulatedProducts(count: number): unknown[] {
     const products = [];
     for (let i = 1; i <= count; i++) {
         const id = `FBA-SIM-${String(i).padStart(3, '0')}`;
@@ -31,7 +30,7 @@ function generateSimulatedProducts(count: number): any[] {
     return products;
 }
 
-function generateSimulatedOrders(products: any[], count: number): any[] {
+function generateSimulatedOrders(products: unknown[], count: number): unknown[] {
     const orders = [];
     for (let i = 1; i <= count; i++) {
         const orderId = `FBA-SIM-ORD-${Date.now() + i}`;
@@ -39,7 +38,7 @@ function generateSimulatedOrders(products: any[], count: number): any[] {
         const line_items = [];
         let total_price = 0;
         for (let j = 0; j < numItems; j++) {
-            const product = products[Math.floor(Math.random() * products.length)];
+            const product = products[Math.floor(Math.random() * products.length)] as Record<string, any>;
             const quantity = Math.floor(Math.random() * 2) + 1;
             line_items.push({
                 sku: product.sku,
@@ -65,7 +64,7 @@ async function syncProducts(integration: Integration, credentials: { sellerId: s
 
     const simulatedProducts = generateSimulatedProducts(15); // Generate 15 sample products
 
-    const recordsToUpsert = simulatedProducts.map(product => ({
+    const recordsToUpsert = (simulatedProducts as Record<string, any>[]).map(product => ({
         company_id: integration.company_id,
         sku: product.sku,
         name: product.name,
@@ -87,19 +86,18 @@ async function syncProducts(integration: Integration, credentials: { sellerId: s
     return simulatedProducts;
 }
 
-async function syncSales(integration: Integration, credentials: { sellerId: string; authToken: string }, products: any[]) {
+async function syncSales(integration: Integration, credentials: { sellerId: string; authToken: string }, products: unknown[]) {
     const supabase = getServiceRoleClient();
     logger.info(`[Sync Simulation] Starting Amazon FBA sales sync for Seller ID: ${credentials.sellerId}`);
     
     const simulatedOrders = generateSimulatedOrders(products, 5); // Generate 5 sample orders
     let totalRecordsSynced = 0;
 
-    for (const order of simulatedOrders) {
-        const itemsWithCost = order.line_items.map((item: unknown) => {
-            const typedItem = item as { sku: string; price: string };
-            const product = products.find(p => p.sku === typedItem.sku);
+    for (const order of (simulatedOrders as Record<string, any>[])) {
+        const itemsWithCost = order.line_items.map((item: { sku: string; price: string }) => {
+            const product = (products as Record<string, any>[]).find(p => p.sku === item.sku);
             return {
-                ...typedItem,
+                ...item,
                 cost_at_time: product ? Math.round(parseFloat(product.cost_of_goods) * 100) : 0,
             };
         });
@@ -111,7 +109,7 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
             p_customer_email: order.customer.email,
             p_payment_method: 'amazon_fba',
             p_notes: `Amazon Order #${order.id}`,
-            p_sale_items: itemsWithCost.map((item: any) => ({
+            p_sale_items: itemsWithCost.map((item: {sku: string, name: string, quantity: number, price: string, cost_at_time: number}) => ({
                 sku: item.sku,
                 product_name: item.name,
                 quantity: item.quantity,
@@ -155,7 +153,7 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         await invalidateCompanyCache(integration.company_id, ['dashboard', 'alerts', 'deadstock']);
         await refreshMaterializedViews(integration.company_id);
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         logError(e, { context: `Amazon FBA sync failed for integration ${integration.id}` });
         await supabase.from('integrations').update({ sync_status: 'failed' }).eq('id', integration.id);
         throw e;

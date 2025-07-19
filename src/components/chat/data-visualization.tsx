@@ -13,7 +13,7 @@ type DataVisualizationProps = {
   visualization: {
     type: 'table' | 'chart' | 'alert';
     data: Record<string, unknown>[];
-    config?: any;
+    config?: Record<string, unknown>;
   };
   title?: string;
 };
@@ -28,9 +28,9 @@ export function DataVisualization({ visualization, title }: DataVisualizationPro
       case 'chart':
         return (
           <DynamicChart
-            chartType={visualization.config.chartType}
+            chartType={visualization.config?.chartType as 'bar' | 'pie' | 'line' | 'treemap' | 'scatter'}
             data={visualization.data}
-            config={visualization.config}
+            config={visualization.config || {}}
             isExpanded={isExpandedView}
           />
         );
