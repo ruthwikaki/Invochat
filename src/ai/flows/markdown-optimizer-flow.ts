@@ -6,7 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getDeadStockReport } from './dead-stock-tool';
+import { getDeadStockReportFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
 
 const MarkdownInputSchema = z.object({
@@ -73,8 +73,9 @@ export const markdownOptimizerFlow = ai.defineFlow(
   },
   async ({ companyId }) => {
     try {
-      // Step 1: Get the list of dead stock items using the existing tool.
-      const deadStockItems = await getDeadStockReport.run({ companyId });
+      // Step 1: Get the list of dead stock items by calling the DB function directly.
+      const deadStockData = await getDeadStockReportFromDB(companyId);
+      const deadStockItems = deadStockData.deadStockItems;
 
       if (deadStockItems.length < 1) {
         return {
