@@ -7,7 +7,7 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
-import type { Platform } from '@/features/integrations/types';
+import type { Platform } from '@/types';
 import { createOrUpdateSecret } from '@/features/integrations/services/encryption';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
