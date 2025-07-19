@@ -131,7 +131,6 @@ const universalChatOrchestrator = ai.defineFlow(
           }
         });
         
-        const toolName = response.choices[0]?.finishReason === 'toolCode' ? response.choices[0].message.toolRequest?.name : undefined;
         const text = response.text;
 
         if (text) {
@@ -149,7 +148,7 @@ const universalChatOrchestrator = ai.defineFlow(
             const responseToCache: UniversalChatOutput = {
                 ...finalOutput,
                 data: null, // Data for visualization is not directly available in this simplified flow
-                toolName: toolName,
+                toolName: undefined,
             };
 
             if (isRedisEnabled) {
