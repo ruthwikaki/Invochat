@@ -72,8 +72,8 @@ export const findHiddenMoneyFlow = ai.defineFlow(
         getGrossMarginAnalysis.run({ companyId }),
       ]);
       
-      const slowSellers = salesVelocityResult.output?.slow_sellers || [];
-      const highMarginProducts = marginResult.output?.products || [];
+      const slowSellers = salesVelocityResult?.slow_sellers || [];
+      const highMarginProducts = marginResult?.products || [];
 
       if (slowSellers.length === 0 || highMarginProducts.length === 0) {
         return {
@@ -107,6 +107,7 @@ export const findHiddenMoney = ai.defineTool(
     },
     async (input) => findHiddenMoneyFlow(input)
 );
+
 
 
 
