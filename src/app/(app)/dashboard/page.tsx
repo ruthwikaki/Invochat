@@ -2,13 +2,6 @@
 import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
 import { DashboardClientPage } from './dashboard-client-page';
 import { AppPageHeader } from '@/components/ui/page';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 export default async function DashboardPage({
   searchParams,
