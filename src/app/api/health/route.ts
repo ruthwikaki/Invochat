@@ -5,7 +5,7 @@ import { redisClient } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { testGenkitConnection } from '@/services/genkit';
 import { headers } from 'next/headers';
-import { getErrorMessage, isError } from '@/lib/error-handler';
+import { getErrorMessage } from '@/lib/error-handler';
 
 export const dynamic = 'force-dynamic';
 
