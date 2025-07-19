@@ -1,6 +1,5 @@
 
-import { AppPage, AppPageHeader } from "@/components/ui/page";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { AppPageHeader } from "@/components/ui/page";
 import { TeamMembersCard } from "./_components/team-members-card";
 import { CompanySettingsCard } from "./_components/company-settings-card";
 
