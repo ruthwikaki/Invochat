@@ -10,7 +10,7 @@ test.describe('Authentication and Authorization', () => {
 
   test('should allow a user to view the login page', async ({ page }) => {
     // The page should have a specific title
-    await expect(page).toHaveTitle(/ARVO/);
+    await expect(page).toHaveTitle(/InvoChat/);
 
     // The login form should be visible
     const heading = page.getByRole('heading', { name: 'Welcome to Intelligent Inventory' });
