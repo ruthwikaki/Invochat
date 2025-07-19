@@ -21,7 +21,7 @@ import { logError, getErrorMessage } from '@/lib/error-handler';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
-import type { MessageData, GenerateResponse } from 'genkit';
+import type { MessageData } from 'genkit';
 
 const safeToolsForOrchestrator = [
     getEconomicIndicators,
