@@ -64,6 +64,7 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
 export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number, limit?: number; offset?: number; status?: string; sortBy?: string; sortDirection?: string; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     const supabase = getServiceRoleClient();
     
+    // The view name is 'product_variants_with_details'
     let query = supabase
         .from('product_variants_with_details')
         .select('*', { count: 'exact' })

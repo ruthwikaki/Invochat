@@ -79,7 +79,7 @@ export const suggestBundlesFlow = ai.defineFlow(
       const productSubset = products.map(p => ({
         sku: p.sku,
         name: p.product_title,
-        category: p.product_category,
+        category: p.product_type,
       }));
 
       const { output } = await suggestBundlesPrompt({ products: productSubset, count });
