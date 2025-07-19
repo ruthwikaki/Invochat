@@ -11,7 +11,7 @@ let isInitializing = false;
 // It mimics the Redis methods we use so the app doesn't crash.
 const mockRedisClient = {
     get: async (key: string) => null,
-    set: async (key: string, value: string, ...args: any[]) => 'OK' as const,
+    set: async (key: string, value: string, ...args: unknown[]) => 'OK' as const,
     del: async (...keys: string[]) => 1 as const,
     pipeline: function () { // The pipeline function needs to return an object with the chained methods
         const pipeline = {

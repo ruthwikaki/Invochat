@@ -65,14 +65,14 @@ async function syncProducts(integration: Integration, credentials: { sellerId: s
 
     const simulatedProducts = generateSimulatedProducts(15); // Generate 15 sample products
 
-    const recordsToUpsert = (simulatedProducts as Record<string, any>[]).map(product => ({
+    const recordsToUpsert = (simulatedProducts as Record<string, unknown>[]).map(product => ({
         company_id: integration.company_id,
         sku: product.sku,
         name: product.name,
         quantity: product.inventory_quantity,
-        cost: Math.round(parseFloat(product.cost_of_goods) * 100),
-        price: Math.round(parseFloat(product.price) * 100),
-        category: product.categories[0]?.name || 'Uncategorized',
+        cost: Math.round(parseFloat(product.cost_of_goods as string) * 100),
+        price: Math.round(parseFloat(product.price as string) * 100),
+        category: (product.categories as { name: string }[])[0]?.name || 'Uncategorized',
         source_platform: 'amazon_fba',
         external_product_id: product.id,
         last_sync_at: new Date().toISOString(),
@@ -95,7 +95,7 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
     let totalRecordsSynced = 0;
 
     for (const order of (simulatedOrders as Record<string, unknown>[])) {
-        const itemsWithCost = (order.line_items as { sku: string; price: string }[]).map((item) => {
+        const itemsWithCost = ((order.line_items as { sku: string; price: string }[])).map((item) => {
             const product = (products as Record<string, unknown>[]).find(p => p.sku === item.sku);
             return {
                 ...item,
