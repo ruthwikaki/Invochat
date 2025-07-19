@@ -1,6 +1,6 @@
 import { getReorderReport } from '@/app/data-actions';
 import { ReorderClientPage } from './reorder-client-page';
-import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { AppPageHeader } from '@/components/ui/page';
 
 export default async function ReorderingPage() {
     const suggestions = await getReorderReport();
