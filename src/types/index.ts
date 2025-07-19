@@ -181,6 +181,7 @@ export const CompanySettingsSchema = z.object({
   predictive_stock_days: z.number().default(7),
   currency: z.string().default('USD'),
   tax_rate: z.number().default(0),
+  timezone: z.string().default('UTC'),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
 });
