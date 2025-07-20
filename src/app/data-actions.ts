@@ -47,16 +47,14 @@ import {
   getPurchaseOrdersFromDB,
   checkUserPermission,
   getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
-  getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, Supplier, PurchaseOrderWithSupplier } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, Supplier, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
@@ -133,7 +131,7 @@ export async function getUnifiedInventory(params: { query?: string; page?: numbe
     return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
 }
 
-export async function getInventoryAnalytics() {
+export async function getInventoryAnalytics(): Promise<InventoryAnalytics> {
     const { companyId } = await getAuthContext();
     return getInventoryAnalyticsFromDB(companyId);
 }
@@ -247,7 +245,7 @@ export async function getSales(params: { query?: string, page: number, limit: nu
     const offset = (params.page - 1) * params.limit;
     return getSalesFromDB(companyId, { ...params, offset });
 }
-export async function getSalesAnalytics() {
+export async function getSalesAnalytics(): Promise<SalesAnalytics> {
      const { companyId } = await getAuthContext();
     return getSalesAnalyticsFromDB(companyId);
 }
@@ -325,7 +323,7 @@ export async function getDatabaseSchemaAndData() {
     const { companyId } = await getAuthContext();
     return getDbSchemaAndData(companyId);
 }
-export async function getTeamMembers() {
+export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();
     return getTeamMembersFromDB(companyId);
 }
@@ -375,7 +373,7 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getCustomerAnalytics() {
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     const { companyId } = await getAuthContext();
     return getCustomerAnalyticsFromDB(companyId);
 }
