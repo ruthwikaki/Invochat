@@ -40,17 +40,15 @@ import {
   inviteUserToCompanyInDb,
   removeTeamMemberFromDb,
   updateTeamMemberRoleInDb,
-  getCashFlowInsightsFromDB,
-  getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB,
   getCompanyById,
-  testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
   reconcileInventoryInDb,
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
   checkUserPermission,
-  getHistoricalSalesForSkus
+  getHistoricalSalesForSkus,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
@@ -530,7 +528,6 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function testMaterializedView() { return {success: true}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
     const { companyId } = await getAuthContext();
@@ -591,3 +588,4 @@ export async function getInventoryTurnoverReportData(days: number = 90) {
     const { companyId } = await getAuthContext();
     return getInventoryTurnoverFromDB(companyId, days);
 }
+
