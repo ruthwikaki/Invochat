@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -46,7 +45,7 @@ import {
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
   checkUserPermission,
-  getHistoricalSalesForSkus,
+  getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB
 } from '@/services/database';
@@ -589,3 +588,6 @@ export async function getInventoryTurnoverReportData(days: number = 90) {
     return getInventoryTurnoverFromDB(companyId, days);
 }
 
+export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
+    return getHistoricalSalesForSkusFromDB(companyId, skus);
+}
