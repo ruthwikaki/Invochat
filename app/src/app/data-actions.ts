@@ -266,7 +266,7 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        (rawAnomalies as Anomaly[]).map(async (anomaly) => {
+        (rawAnomalies as any[]).map(async (anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -530,12 +530,12 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    const result = await getReorderSuggestions.run({ companyId });
-    if (!result) {
+    const suggestions = await getReorderSuggestions.run({ companyId });
+    if (!suggestions) {
         logError(new Error('getReorderSuggestions tool did not return an output.'), { companyId });
         return [];
     }
-    return result;
+    return suggestions;
 }
 
 export async function getInventoryLedger(variantId: string) {
