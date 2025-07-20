@@ -50,7 +50,8 @@ import {
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
   getDashboardMetrics,
-  getReorderSuggestionsFromDB
+  getReorderSuggestionsFromDB,
+  getCashFlowInsightsFromDB
 } from '@/services/database';
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
@@ -633,10 +634,4 @@ export async function getHistoricalSalesForSkus(companyId: string, skus: string[
     return getHistoricalSalesForSkusFromDB(companyId, skus);
 }
 
-async function getCashFlowInsightsFromDB(companyId: string) {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
-    if(error) throw error;
-    return data;
-}
-
+    
