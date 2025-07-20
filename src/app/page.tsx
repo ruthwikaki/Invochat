@@ -1,36 +1,51 @@
 
-'use client';
+'use server';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/auth-context';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
-export default function RootPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
+export default async function RootPage() {
+    try {
+        console.log('🚀 Root page executing...');
+        
+        const cookieStore = cookies();
+        console.log('🍪 Cookies available');
+        
+        const supabase = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            cookies: {
+              get(name: string) {
+                return cookieStore.get(name)?.value
+              },
+            },
+          }
+        );
+        
+        console.log('📡 Supabase client created');
 
-  useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        router.push('/login');
-      }
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+            console.error('❌ Session error:', error);
+            throw error;
+        }
+        
+        console.log('✅ Session check complete, user exists:', !!session?.user);
+
+        if (session) {
+            console.log('➡️ Redirecting to dashboard');
+            redirect('/dashboard');
+        } else {
+            console.log('➡️ Redirecting to login');
+            redirect('/login');
+        }
+    } catch (error) {
+        console.error('💥 Root page error:', error);
+        // In a real app, you might want a fallback UI here instead of throwing,
+        // but for debugging, re-throwing is perfect.
+        throw error;
     }
-  }, [user, loading, router]);
-
-  // Show a loading spinner while checking the auth state to prevent flashes of content.
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex flex-col items-center space-y-4">
-        <InvoChatLogo className="h-12 w-12" />
-        <div className="flex items-center gap-2 text-muted-foreground">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-primary [animation-delay:-0.3s]"></div>
-            <div className="h-2 w-2 animate-pulse rounded-full bg-primary [animation-delay:-0.15s]"></div>
-            <div className="h-2 w-2 animate-pulse rounded-full bg-primary"></div>
-        </div>
-      </div>
-    </div>
-  );
 }
