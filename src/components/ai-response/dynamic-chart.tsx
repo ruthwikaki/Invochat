@@ -102,7 +102,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                         }}
                     />
                     <Bar dataKey={config.dataKey} radius={[4, 4, 0, 0]} isAnimationActive={isInView}>
-                        {data.map((entry, index) => (
+                        {data.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
                         ))}
                     </Bar>
