@@ -54,7 +54,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
+import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, Anomaly } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -260,13 +260,13 @@ export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> 
 export async function getInsightsPageData() { 
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
-        getAnomalyInsightsFromDB(companyId),
+        getAnomalyInsightsFromDB(companyId) as Promise<Anomaly[]>,
         getDeadStockReportFromDB(companyId),
         getAlertsFromDB(companyId),
     ]);
 
      const explainedAnomalies = await Promise.all(
-        (rawAnomalies as any[]).map(async (anomaly) => {
+        rawAnomalies.map(async (anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -530,6 +530,7 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
+    // This now correctly calls the AI flow which includes refinement.
     const suggestions = await getReorderSuggestions.run({ companyId });
     if (!suggestions) {
         logError(new Error('getReorderSuggestions tool did not return an output.'), { companyId });
@@ -607,5 +608,7 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
+
+    
 
     
