@@ -5,7 +5,7 @@ import type { SupplierPerformanceReport } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Award, TrendingUp, DollarSign, Clock, CheckCircle } from 'lucide-react';
+import { Award, DollarSign, CheckCircle } from 'lucide-react';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
