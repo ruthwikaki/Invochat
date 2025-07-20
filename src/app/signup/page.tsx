@@ -1,147 +1,63 @@
-'use client';
+import { AppPage, AppPageHeader } from "@/components/ui/page";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Truck, RefreshCwIcon, TrendingDown, Package } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useAuth } from '@/context/auth-context';
-import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
-import { InvoChatLogo } from '@/components/invochat-logo';
+const reports = [
+    {
+        title: "Reorder Analysis",
+        description: "View AI-powered suggestions for products that need restocking.",
+        href: "/analytics/reordering",
+        icon: RefreshCwIcon,
+    },
+    {
+        title: "Dead Stock",
+        description: "Identify money trapped in slow-moving inventory.",
+        href: "/analytics/dead-stock",
+        icon: TrendingDown,
+    },
+    {
+        title: "Supplier Performance",
+        description: "Analyze which of your suppliers are the most reliable and profitable.",
+        href: "/analytics/supplier-performance",
+        icon: Truck,
+    },
+    {
+        title: "Inventory Turnover",
+        description: "See how efficiently your inventory is being sold and replenished.",
+        href: "/analytics/inventory-turnover",
+        icon: Package,
+    },
+];
 
-export default function SignupPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { signup, user } = useAuth();
-  const router = useRouter();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    if (user) {
-      router.push('/dashboard');
-    }
-  }, [user, router]);
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !password || !confirmPassword) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: 'Please fill in all fields.',
-      });
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: 'Passwords do not match.',
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: 'Password must be at least 6 characters long.',
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await signup(email, password);
-      toast({
-        title: 'Success',
-        description: 'Account created successfully! Please check your email for verification.',
-      });
-      router.push('/login');
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Signup Failed',
-        description: error.message || 'An unknown error occurred.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-md w-full space-y-8 p-4">
-            <div className="text-center">
-                <Link href="/" className="flex items-center justify-center gap-2 mb-4">
-                    <InvoChatLogo className="h-10 w-10 text-primary" />
-                    <span className="text-2xl font-semibold">ARVO</span>
-                </Link>
+export default function ReportsPage() {
+    return (
+        <AppPage>
+            <AppPageHeader
+                title="Analytics & Reports"
+                description="Gain deeper insights into your inventory and sales performance."
+            />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {reports.map((report) => (
+                    <Card key={report.href}>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <report.icon className="h-5 w-5 text-primary" />
+                                {report.title}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <CardDescription>{report.description}</CardDescription>
+                        </CardContent>
+                        <CardFooter>
+                            <Button asChild>
+                                <Link href={report.href}>View Report</Link>
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                ))}
             </div>
-            <Card className="w-full max-w-md">
-            <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Create Account</CardTitle>
-                <CardDescription>Sign up to get started with ARVO</CardDescription>
-            </CardHeader>
-            <form onSubmit={handleSignup}>
-                <CardContent className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="you@company.com" 
-                    value={email} 
-                    onChange={(e) => setEmail(e.target.value)} 
-                    required 
-                    disabled={loading}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input 
-                    id="password" 
-                    type="password" 
-                    placeholder="Enter your password"
-                    value={password} 
-                    onChange={(e) => setPassword(e.target.value)} 
-                    required 
-                    disabled={loading}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input 
-                    id="confirmPassword" 
-                    type="password" 
-                    placeholder="Confirm your password"
-                    value={confirmPassword} 
-                    onChange={(e) => setConfirmPassword(e.target.value)} 
-                    required 
-                    disabled={loading}
-                    />
-                </div>
-                </CardContent>
-                <CardFooter className="flex flex-col gap-4">
-                <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? 'Creating account...' : 'Create Account'}
-                </Button>
-                <p className="text-center text-sm text-muted-foreground">
-                    Already have an account?{' '}
-                    <Link href="/login" className="font-medium text-primary hover:underline">
-                    Sign in
-                    </Link>
-                </p>
-                </CardFooter>
-            </form>
-            </Card>
-        </div>
-    </div>
-  );
+        </AppPage>
+    )
 }
