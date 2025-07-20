@@ -1,47 +1,149 @@
+'use client';
 
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/context/auth-context';
+import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { InvoChatLogo } from '@/components/invochat-logo';
-import { SignupForm } from '@/components/auth/SignupForm';
-import { generateCSRFToken } from '@/lib/csrf';
 
-export default function SignupPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
-  generateCSRFToken();
+export default function SignupPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { signup, user } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.push('/dashboard');
+    }
+  }, [user, router]);
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password || !confirmPassword) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Please fill in all fields.',
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Passwords do not match.',
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast({
+        variant: 'destructive',
+        title: 'Validation Error',
+        description: 'Password must be at least 6 characters long.',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signup(email, password);
+      toast({
+        title: 'Success',
+        description: 'Account created successfully! Please check your email for verification.',
+      });
+      router.push('/login');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Signup Failed',
+        description: error.message || 'An unknown error occurred.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
-      <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
-         <div className="absolute inset-0 -z-10">
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/10 to-slate-900" />
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(79,70,229,0.3),rgba(255,255,255,0))]" />
-          </div>
-        <Card className="w-full bg-transparent border-none p-8 space-y-6">
-          <CardHeader className="p-0 text-center">
-             <Link href="/" className="flex justify-center items-center gap-3 mb-4">
-                <InvoChatLogo className="h-10 w-10 text-primary" />
-                <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">ARVO</h1>
-            </Link>
-            <CardTitle className="text-2xl text-slate-200">Create Your Account</CardTitle>
-            <CardDescription className="text-slate-400">
-              Get started with AI-powered inventory intelligence.
-            </CardDescription>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-md w-full space-y-8 p-4">
+        <div className="text-center">
+          <InvoChatLogo className="mx-auto h-12 w-auto" />
+          <h1 className="mt-4 text-3xl font-bold text-gray-900 dark:text-white">
+            ARVO
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Conversational Inventory Intelligence
+          </p>
+        </div>
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Create Account</CardTitle>
+            <CardDescription>Sign up to get started with ARVO</CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            <SignupForm 
-              error={error}
-            />
-            <div className="mt-4 text-center text-sm text-slate-400">
-              Already have an account?{' '}
-              <Link href="/login" className="underline text-primary/90 hover:text-primary">
-                Sign in
-              </Link>
-            </div>
-          </CardContent>
+          <form onSubmit={handleSignup}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="you@company.com" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  required 
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="Enter your password"
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  required 
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input 
+                  id="confirmPassword" 
+                  type="password" 
+                  placeholder="Confirm your password"
+                  value={confirmPassword} 
+                  onChange={(e) => setConfirmPassword(e.target.value)} 
+                  required 
+                  disabled={loading}
+                />
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-4">
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Creating account...' : 'Create Account'}
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{' '}
+                <Link href="/login" className="font-medium text-primary hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
         </Card>
       </div>
     </div>

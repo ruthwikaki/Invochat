@@ -1,87 +1,54 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { cn } from '@/lib/utils';
+import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from '@/components/theme-provider';
+import { AuthProvider } from '@/context/auth-context';
+import { envValidation } from '@/config/app-config';
+import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
 
-export async function middleware(req: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: req.headers,
-    },
-  });
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+});
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const metadata: Metadata = {
+  title: 'ARVO - Conversational Inventory Intelligence',
+  description: 'AI-powered inventory management for ARVO',
+};
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("Supabase environment variables are not set. Middleware is bypassing auth checks.");
-    return response;
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  if (!envValidation.success) {
+    const errorDetails = envValidation.error.flatten().fieldErrors;
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className={cn('font-sans antialiased', inter.variable)}>
+          <MissingEnvVarsPage errors={errorDetails} />
+        </body>
+      </html>
+    );
   }
 
-  const supabase = createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        get(name: string) {
-          return req.cookies.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          req.cookies.set({ name, value, ...options });
-          response = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          response.cookies.set({ name, value, ...options });
-        },
-        remove(name: string, options: CookieOptions) {
-          req.cookies.set({ name, value: '', ...options });
-          response = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          response.cookies.set({ name, value: '', ...options });
-        },
-      },
-    }
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className={cn('font-sans antialiased', inter.variable)}>
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+        >
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   );
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user;
-  const { pathname } = req.nextUrl;
-
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
-  const setupRoutes = ['/database-setup', '/env-check'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) || pathname === '/';
-  
-  if (user) {
-    // If user is logged in but setup is incomplete, force them to the env-check page.
-    if (!user.app_metadata.company_id && !setupRoutes.includes(pathname)) {
-      return NextResponse.redirect(new URL('/env-check', req.url));
-    }
-    // If user is logged in and tries to access the public landing page or an auth page, redirect to dashboard.
-    if (isPublicRoute) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-  } else {
-    // If user is not logged in and not on a public route, redirect to the landing page.
-    if (!isPublicRoute && !setupRoutes.includes(pathname)) {
-      return NextResponse.redirect(new URL('/', req.url));
-    }
-  }
-
-  return response;
-}
-
-export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - api/ (API routes have their own auth)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
-  ],
 }

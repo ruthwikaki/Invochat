@@ -1,47 +1,54 @@
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { cn } from '@/lib/utils';
+import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from '@/components/theme-provider';
+import { AuthProvider } from '@/context/auth-context';
+import { envValidation } from '@/config/app-config';
+import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
 
-import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { InvoChatLogo } from '@/components/invochat-logo';
-import { SignupForm } from '@/components/auth/SignupForm';
-import { generateCSRFToken } from '@/lib/csrf';
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-sans',
+});
 
-export default function SignupPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
-  generateCSRFToken();
+export const metadata: Metadata = {
+  title: 'ARVO - Conversational Inventory Intelligence',
+  description: 'AI-powered inventory management for ARVO',
+};
+
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  if (!envValidation.success) {
+    const errorDetails = envValidation.error.flatten().fieldErrors;
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className={cn('font-sans antialiased', inter.variable)}>
+          <MissingEnvVarsPage errors={errorDetails} />
+        </body>
+      </html>
+    );
+  }
 
   return (
-    <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
-       <div className="absolute inset-0 -z-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/10 to-slate-900" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(79,70,229,0.3),rgba(255,255,255,0))]" />
-        </div>
-      <Card className="w-full bg-transparent border-none p-8 space-y-6">
-        <CardHeader className="p-0 text-center">
-           <div className="flex justify-center items-center gap-3 mb-4">
-              <InvoChatLogo className="h-10 w-10 text-primary" />
-              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">InvoChat</h1>
-          </div>
-          <CardTitle className="text-2xl text-slate-200">Create Your Account</CardTitle>
-          <CardDescription className="text-slate-400">
-            Get started with AI-powered inventory intelligence.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <SignupForm 
-            error={error}
-          />
-          <div className="mt-4 text-center text-sm text-slate-400">
-            Already have an account?{' '}
-            <Link href="/login" className="underline text-primary/90 hover:text-primary">
-              Sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <html lang="en" suppressHydrationWarning>
+      <body className={cn('font-sans antialiased', inter.variable)}>
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+        >
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   );
 }

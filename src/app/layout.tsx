@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -15,8 +14,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'InvoChat - Conversational Inventory Intelligence',
-  description: 'AI-powered inventory management for InvoChat',
+  title: 'ARVO - Conversational Inventory Intelligence',
+  description: 'AI-powered inventory management for ARVO',
 };
 
 export default async function RootLayout({
