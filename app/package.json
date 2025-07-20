@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test",
-    "supabase:types": "supabase gen types typescript --project-id YOUR_PROJECT_ID > src/types/supabase.ts"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@genkit-ai/googleai": "1.7.0",
