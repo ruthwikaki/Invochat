@@ -39,31 +39,28 @@ import {
   inviteUserToCompanyInDb,
   removeTeamMemberFromDb,
   updateTeamMemberRoleInDb,
-  getChannelFeesFromDB,
-  upsertChannelFeeInDB,
-  getCashFlowInsightsFromDB,
-  getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB,
   getCompanyById,
-  testMaterializedView as dbTestMaterializedView,
   createAuditLogInDb,
-  logPOCreationInDb,
-  transferStockInDb,
-  logWebhookEvent,
-  getDashboardMetrics,
   reconcileInventoryInDb,
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
   checkUserPermission,
-  getHistoricalSalesForSkus
+  getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB,
+  getDashboardMetrics,
+  getReorderSuggestionsFromDB,
+  getCashFlowInsightsFromDB,
+  getChannelFeesFromDB,
+  upsertChannelFeeInDB
 } from '@/services/database';
-import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order } from '@/types';
+import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, ChannelFee } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
@@ -72,7 +69,6 @@ import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
-import { z } from 'zod';
 import crypto from 'crypto';
 
 
@@ -115,7 +111,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
     return DashboardMetricsSchema.parse(metrics);
 }
 
-export async function getCompanySettings() {
+export async function getCompanySettings(): Promise<CompanySettings> {
     const { companyId } = await getAuthContext();
     return getSettings(companyId);
 }
@@ -140,7 +136,7 @@ export async function getUnifiedInventory(params: { query?: string; page?: numbe
     return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
 }
 
-export async function getInventoryAnalytics() {
+export async function getInventoryAnalytics(): Promise<InventoryAnalytics> {
     const { companyId } = await getAuthContext();
     return getInventoryAnalyticsFromDB(companyId);
 }
@@ -162,12 +158,12 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     }
 }
 
-export async function getSuppliersData() {
+export async function getSuppliersData(): Promise<Supplier[]> {
     const { companyId } = await getAuthContext();
     return getSuppliersDataFromDB(companyId);
 }
 
-export async function getSupplierById(id: string) {
+export async function getSupplierById(id: string): Promise<Supplier | null> {
     const { companyId } = await getAuthContext();
     return getSupplierByIdFromDB(id, companyId);
 }
@@ -254,17 +250,17 @@ export async function getSales(params: { query?: string, page: number, limit: nu
     const offset = (params.page - 1) * params.limit;
     return getSalesFromDB(companyId, { ...params, offset });
 }
-export async function getSalesAnalytics() {
+export async function getSalesAnalytics(): Promise<SalesAnalytics> {
      const { companyId } = await getAuthContext();
     return getSalesAnalyticsFromDB(companyId);
 }
 
-export async function getPurchaseOrders() {
+export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> {
     const { companyId } = await getAuthContext();
     return getPurchaseOrdersFromDB(companyId);
 }
 
-export async function getInsightsPageData() { 
+export async function getInsightsPageData() {
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
         getAnomalyInsightsFromDB(companyId),
@@ -273,7 +269,7 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        rawAnomalies.map(async (anomaly) => {
+        rawAnomalies.map(async (anomaly: Anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -289,7 +285,7 @@ export async function getInsightsPageData() {
     
     const summary = await generateInsightsSummary({
         anomalies: explainedAnomalies,
-        lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
+        lowStockCount: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
 
@@ -297,7 +293,7 @@ export async function getInsightsPageData() {
         summary,
         anomalies: explainedAnomalies,
         topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
-        topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
+        topLowStock: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
 export async function testSupabaseConnection() { return dbTestSupabase(); }
@@ -329,10 +325,9 @@ export async function getAlertsData(): Promise<Alert[]> {
     return getAlertsFromDB(companyId);
 }
 export async function getDatabaseSchemaAndData() { 
-    const { companyId } = await getAuthContext();
-    return getDbSchemaAndData(companyId);
+    return getDbSchemaAndData();
 }
-export async function getTeamMembers() {
+export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();
     return getTeamMembersFromDB(companyId);
 }
@@ -358,9 +353,9 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
-        const result = await removeTeamMemberFromDb(memberId, companyId);
+        await removeTeamMemberFromDb(memberId, companyId);
         revalidatePath('/settings/profile');
-        return { success: result.success, error: result.error };
+        return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -375,14 +370,14 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
         if (userId === memberId) throw new Error("You cannot change your own role.");
         
-        const result = await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        await updateTeamMemberRoleInDb(memberId, companyId, newRole);
         revalidatePath('/settings/profile');
-        return { success: result.success, error: result.error };
+        return { success: true };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getCustomerAnalytics() {
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     const { companyId } = await getAuthContext();
     return getCustomerAnalyticsFromDB(companyId);
 }
@@ -390,7 +385,7 @@ export async function exportCustomers(params: { query?: string }) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        const { items } = await getCustomersFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -401,7 +396,7 @@ export async function exportSales(params: { query?: string }) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items.map(item => ({
             order_number: item.order_number,
             created_at: item.created_at,
@@ -535,12 +530,46 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function testMaterializedView() { return {success: true}; }
 
-export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
+export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    // This now correctly calls the AI flow which includes refinement.
-    return getReorderSuggestions.run({ companyId });
+    
+    // This function replicates the logic inside the getReorderSuggestions tool
+    // to correctly fetch and process data without calling the tool directly.
+    try {
+        const baseSuggestions = await getReorderSuggestionsFromDB(companyId);
+        if (baseSuggestions.length === 0) {
+            return [];
+        }
+
+        const skus = baseSuggestions.map(s => s.sku);
+        const [historicalSales, settings] = await Promise.all([
+            getHistoricalSalesForSkusFromDB(companyId, skus),
+            getSettings(companyId),
+        ]);
+
+        const { output } = await reorderRefinementPrompt({
+            suggestions: baseSuggestions,
+            historicalSales: historicalSales,
+            currentDate: new Date().toISOString().split('T')[0],
+            timezone: settings.timezone || 'UTC',
+        });
+
+        if (!output) {
+            logError(new Error('AI reorder refinement did not return an output.'), { companyId });
+            return baseSuggestions.map(s => ({
+                ...s,
+                base_quantity: s.suggested_reorder_quantity,
+                adjustment_reason: 'AI refinement failed, using base calculation.',
+                seasonality_factor: 1.0,
+                confidence: 0.1,
+            }));
+        }
+        return output;
+    } catch (e) {
+        logError(e, { context: `getReorderReport failed for company ${companyId}` });
+        throw new Error('An error occurred while generating reorder suggestions.');
+    }
 }
 
 export async function getInventoryLedger(variantId: string) {
@@ -559,10 +588,15 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
              throw new Error('No reorder suggestions provided.');
         }
 
-        const suggestions = ReorderSuggestionSchema.array().parse(JSON.parse(suggestionsString));
+        const parsedSuggestions = ReorderSuggestionSchema.array().safeParse(JSON.parse(suggestionsString));
+        if (!parsedSuggestions.success) {
+            throw new Error(`Invalid suggestions format: ${parsedSuggestions.error.message}`);
+        }
+
+        const suggestions = parsedSuggestions.data;
         
         if (!suggestions || suggestions.length === 0) {
-            throw new Error('No reorder suggestions provided.');
+            throw new Error('No valid reorder suggestions provided.');
         }
         
         const idempotencyKey = crypto.randomUUID();
@@ -586,3 +620,41 @@ export async function getDeadStockPageData() {
         deadStockDays: settings.dead_stock_days
     };
 }
+
+export async function getSupplierPerformanceReportData() {
+    const { companyId } = await getAuthContext();
+    return getSupplierPerformanceFromDB(companyId);
+}
+
+export async function getInventoryTurnoverReportData(days: number = 90) {
+    const { companyId } = await getAuthContext();
+    return getInventoryTurnoverFromDB(companyId, days);
+}
+
+export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
+    return getHistoricalSalesForSkusFromDB(companyId, skus);
+}
+
+export async function getChannelFees(): Promise<ChannelFee[]> {
+    const { companyId } = await getAuthContext();
+    return getChannelFeesFromDB(companyId);
+}
+
+export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
+        validateCSRF(formData);
+        const feeData = {
+            channel_name: formData.get('channel_name') as string,
+            fixed_fee: formData.get('fixed_fee') ? parseInt(String(formData.get('fixed_fee')), 10) : null,
+            percentage_fee: formData.get('percentage_fee') ? parseFloat(String(formData.get('percentage_fee'))) : null,
+        };
+        await upsertChannelFeeInDB(companyId, feeData);
+        revalidatePath('/settings/profile');
+        return { success: true };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
