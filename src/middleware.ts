@@ -1,4 +1,3 @@
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -51,23 +50,22 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
   const { pathname } = req.nextUrl;
 
-  const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
-  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
-  const isProtectedRoute = !isAuthRoute && pathname !== '/';
+  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
+  
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
-  if (!user && isProtectedRoute) {
+  // If the user is not authenticated and the route is not public, redirect to login
+  if (!user && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
   
   if (user) {
-    if (!user.app_metadata.company_id && pathname !== '/env-check') {
+    // If the user is logged in, but their company setup is not complete, force them to the setup page
+    if (!user.app_metadata.company_id && !pathname.startsWith('/env-check')) {
        return NextResponse.redirect(new URL('/env-check', req.url));
     }
-    if (isAuthRoute) {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
   }
-
+  
   return response;
 }
 

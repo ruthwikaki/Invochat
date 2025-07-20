@@ -1,4 +1,3 @@
-
 import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
 import { DashboardClientPage } from '@/components/dashboard/dashboard-client-page';
 import { AppPageHeader } from '@/components/ui/page';
