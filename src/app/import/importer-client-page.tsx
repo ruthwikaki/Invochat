@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition, DragEvent, useRef, useEffect, ChangeEvent } from 'react';
+import { useState, useTransition, DragEvent, useEffect, ChangeEvent } from 'react';
 import { handleDataImport, getMappingSuggestions, type ImportResult } from '@/app/import/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +12,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle, CheckCircle, Info, Loader2, Table as TableIcon, UploadCloud, XCircle, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '../ui/scroll-area';
-import { Checkbox } from '../ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import type { CsvMappingOutput } from '@/types';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf';
 
 const importOptions = {
@@ -343,3 +343,5 @@ export function ImporterClientPage() {
     );
 
     
+
+}
