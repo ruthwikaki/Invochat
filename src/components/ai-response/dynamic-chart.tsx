@@ -159,7 +159,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                     nameKey={config.nameKey}
                     aspectRatio={16 / 9}
                     isAnimationActive={isInView}
-                    content={(props) => <TreemapContent {...props} />}
+                    content={<TreemapContent /> as any}
                 >
                     <Tooltip
                         contentStyle={{
