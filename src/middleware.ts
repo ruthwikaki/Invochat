@@ -51,17 +51,20 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
   const { pathname } = req.nextUrl;
 
+  // Define public routes that do not require authentication
   const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
   const isPublicRoute = publicRoutes.some(route => pathname === route);
-
+  
+  // If the user is logged in
   if (user) {
-    // If user is logged in, redirect them from auth pages to the dashboard.
-    // The root '/' is the public landing page, so allow them to see it.
-    if (pathname !== '/' && isPublicRoute) {
+    // If the user is on a public-only route (like login/signup), redirect them to the dashboard.
+    if (isPublicRoute && pathname !== '/') {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
-  } else {
-    // If user is not logged in and not on a public route, redirect to login.
+  } 
+  // If the user is not logged in
+  else {
+    // If the user is trying to access a protected route, redirect them to the login page.
     if (!isPublicRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }

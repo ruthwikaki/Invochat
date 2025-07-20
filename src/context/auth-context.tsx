@@ -75,7 +75,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) {
       throw new Error(error.message);
     }
-    setUser(null);
   };
 
   const value = {
