@@ -4,7 +4,7 @@
 import { headers } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
-import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
+import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from '@/app/import/schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { validateCSRF } from '@/lib/csrf';
@@ -78,7 +78,6 @@ async function failImportJob(importId: string, errorMessage: string) {
 async function processCsv<T extends z.ZodType>(
     fileContentStream: NodeJS.ReadableStream,
     schema: T,
-    tableName: string,
     companyId: string,
     userId: string,
     isDryRun: boolean,
@@ -267,7 +266,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         const approximateTotalRows = Math.floor(file.size / 150); // Estimate based on average row size
         importJobId = !isDryRun ? await createImportJob(companyId, userId, dataType, file.name, approximateTotalRows) : undefined;
         
-        result = await processCsv(file.stream() as unknown as NodeJS.ReadableStream, currentConfig.schema, currentConfig.tableName, companyId, userId, isDryRun, mappings, dataType, importJobId);
+        result = await processCsv(file.stream() as unknown as NodeJS.ReadableStream, currentConfig.schema, companyId, userId, isDryRun, mappings, dataType, importJobId);
 
         if (!isDryRun && (result.processedCount || 0) > 0) {
             await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
@@ -292,3 +291,5 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${errorMessage}` };
     }
 }
+
+    
