@@ -178,9 +178,10 @@ async function processCsv<T extends z.ZodType>(
 
                 resolve({ importId, processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
             },
-            error: (error: unknown) => { 
-                reject(new Error(getErrorMessage(error))); 
-            },
+        });
+
+        parser.on('error', (error: unknown) => {
+            reject(new Error(getErrorMessage(error)));
         });
         
         fileContentStream.pipe(parser);
@@ -256,9 +257,9 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         let requiresViewRefresh = false;
 
         const importSchemas = {
-            'product-costs': { schema: ProductCostImportSchema, tableName: 'inventory' },
-            'suppliers': { schema: SupplierImportSchema, tableName: 'suppliers' },
-            'historical-sales': { schema: HistoricalSalesImportSchema, tableName: 'sales' },
+            'product-costs': { schema: ProductCostImportSchema },
+            'suppliers': { schema: SupplierImportSchema },
+            'historical-sales': { schema: HistoricalSalesImportSchema },
         };
 
         const currentConfig = importSchemas[dataType as keyof typeof importSchemas];
@@ -291,5 +292,3 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${errorMessage}` };
     }
 }
-
-    
