@@ -54,7 +54,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
+import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -266,7 +266,7 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        (rawAnomalies as Anomaly[]).map(async (anomaly) => {
+        (rawAnomalies as any[]).map(async (anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -393,7 +393,7 @@ export async function exportSales(params: { query?: string }) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items.map(item => ({
             order_number: item.order_number,
             created_at: item.created_at,
@@ -603,3 +603,5 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
+
+    
