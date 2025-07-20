@@ -1,7 +1,7 @@
 
 'use server';
 
-import { cookies, headers } from 'next/headers';
+import { headers } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
 import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
