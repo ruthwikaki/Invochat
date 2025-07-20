@@ -48,15 +48,16 @@ import {
   checkUserPermission,
   getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
   getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB
+  getInventoryTurnoverFromDB,
+  getDashboardMetrics
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
-import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { revalidatePath } from 'next/cache';
 import { generateInsightsSummary } from '@/ai/flows/insights-summary-flow';
@@ -65,7 +66,6 @@ import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
-import { z } from 'zod';
 import crypto from 'crypto';
 
 
@@ -108,7 +108,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
     return DashboardMetricsSchema.parse(metrics);
 }
 
-export async function getCompanySettings() {
+export async function getCompanySettings(): Promise<CompanySettings> {
     const { companyId } = await getAuthContext();
     return getSettings(companyId);
 }
@@ -133,7 +133,7 @@ export async function getUnifiedInventory(params: { query?: string; page?: numbe
     return getUnifiedInventoryFromDB(companyId, { ...params, offset: ((params.page || 1) - 1) * (params.limit || 50) });
 }
 
-export async function getInventoryAnalytics() {
+export async function getInventoryAnalytics(): Promise<InventoryAnalytics> {
     const { companyId } = await getAuthContext();
     return getInventoryAnalyticsFromDB(companyId);
 }
@@ -155,12 +155,12 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     }
 }
 
-export async function getSuppliersData() {
+export async function getSuppliersData(): Promise<Supplier[]> {
     const { companyId } = await getAuthContext();
     return getSuppliersDataFromDB(companyId);
 }
 
-export async function getSupplierById(id: string) {
+export async function getSupplierById(id: string): Promise<Supplier | null> {
     const { companyId } = await getAuthContext();
     return getSupplierByIdFromDB(id, companyId);
 }
@@ -247,12 +247,12 @@ export async function getSales(params: { query?: string, page: number, limit: nu
     const offset = (params.page - 1) * params.limit;
     return getSalesFromDB(companyId, { ...params, offset });
 }
-export async function getSalesAnalytics() {
+export async function getSalesAnalytics(): Promise<SalesAnalytics> {
      const { companyId } = await getAuthContext();
     return getSalesAnalyticsFromDB(companyId);
 }
 
-export async function getPurchaseOrders() {
+export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> {
     const { companyId } = await getAuthContext();
     return getPurchaseOrdersFromDB(companyId);
 }
@@ -266,7 +266,7 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        rawAnomalies.map(async (anomaly) => {
+        (rawAnomalies as Anomaly[]).map(async (anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -282,7 +282,7 @@ export async function getInsightsPageData() {
     
     const summary = await generateInsightsSummary({
         anomalies: explainedAnomalies,
-        lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
+        lowStockCount: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
 
@@ -290,7 +290,7 @@ export async function getInsightsPageData() {
         summary,
         anomalies: explainedAnomalies,
         topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
-        topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
+        topLowStock: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
 export async function testSupabaseConnection() { return dbTestSupabase(); }
@@ -325,7 +325,7 @@ export async function getDatabaseSchemaAndData() {
     const { companyId } = await getAuthContext();
     return getDbSchemaAndData(companyId);
 }
-export async function getTeamMembers() {
+export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();
     return getTeamMembersFromDB(companyId);
 }
@@ -375,7 +375,7 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getCustomerAnalytics() {
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     const { companyId } = await getAuthContext();
     return getCustomerAnalyticsFromDB(companyId);
 }
@@ -551,10 +551,15 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
              throw new Error('No reorder suggestions provided.');
         }
 
-        const suggestions = ReorderSuggestionSchema.array().parse(JSON.parse(suggestionsString));
+        const parsedSuggestions = ReorderSuggestionSchema.array().safeParse(JSON.parse(suggestionsString));
+        if (!parsedSuggestions.success) {
+            throw new Error(`Invalid suggestions format: ${parsedSuggestions.error.message}`);
+        }
+
+        const suggestions = parsedSuggestions.data;
         
         if (!suggestions || suggestions.length === 0) {
-            throw new Error('No reorder suggestions provided.');
+            throw new Error('No valid reorder suggestions provided.');
         }
         
         const idempotencyKey = crypto.randomUUID();
@@ -592,3 +597,11 @@ export async function getInventoryTurnoverReportData(days: number = 90) {
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
     return getHistoricalSalesForSkusFromDB(companyId, skus);
 }
+
+async function getCashFlowInsightsFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
+    if(error) throw error;
+    return data;
+}
+
