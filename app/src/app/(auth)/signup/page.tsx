@@ -19,7 +19,6 @@ export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       router.push('/dashboard');
@@ -79,7 +78,7 @@ export default function SignupPage() {
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Create Account</CardTitle>
-        <CardDescription>Sign up to get started with InvoChat</CardDescription>
+        <CardDescription>Sign up to get started with ARVO</CardDescription>
       </CardHeader>
       <form onSubmit={handleSignup}>
         <CardContent className="space-y-4">
