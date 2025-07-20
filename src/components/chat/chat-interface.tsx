@@ -10,7 +10,6 @@ import type { Message } from '@/types';
 import { ArrowRight, Mic } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
-import { useToast } from '@/hooks/use-toast';
 import { useRouter, usePathname } from 'next/navigation';
 import { getErrorMessage } from '@/lib/error-handler';
 import { motion } from 'framer-motion';
@@ -104,7 +103,6 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const { toast } = useToast();
 
   const isNewChat = !conversationId;
 
