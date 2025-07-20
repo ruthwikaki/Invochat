@@ -382,7 +382,7 @@ export async function exportCustomers(params: { query?: string }) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        const { items } = await getCustomersFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -603,5 +603,3 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
-
-    
