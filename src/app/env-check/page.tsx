@@ -3,12 +3,10 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { AlertTriangle, LogOut } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { signOut } from '@/app/(auth)/actions';
 
 
 export default function EnvCheckPage() {
-    const router = useRouter();
     
     return (
         <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
