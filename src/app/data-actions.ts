@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -107,7 +108,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
     return DashboardMetricsSchema.parse(metrics);
 }
 
-export async function getCompanySettings() {
+export async function getCompanySettings(): Promise<CompanySettings> {
     const { companyId } = await getAuthContext();
     return getSettings(companyId);
 }
