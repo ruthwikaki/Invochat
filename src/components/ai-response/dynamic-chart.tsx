@@ -124,7 +124,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                         labelLine={false}
                         label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
                     >
-                        {data.map((entry, index) => (
+                        {data.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
                         ))}
                     </Pie>
