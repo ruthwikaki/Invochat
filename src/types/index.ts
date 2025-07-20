@@ -202,7 +202,7 @@ export type Integration = {
   shop_name: string | null;
   is_active: boolean;
   last_sync_at: string | null;
-  sync_status: 'syncing_products' | 'syncing_sales' | 'syncing' | 'success' | 'failed' | 'idle' | null;
+  sync_status: 'syncing_products' | 'syncing_orders' | 'syncing' | 'success' | 'failed' | 'idle' | null;
   created_at: string;
   updated_at: string | null;
 };
@@ -496,5 +496,3 @@ export const AlertSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 export type Alert = z.infer<typeof AlertSchema>;
-
-    
