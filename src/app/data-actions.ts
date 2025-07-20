@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -47,11 +46,13 @@ import {
   getPurchaseOrdersFromDB,
   checkUserPermission,
   getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, Supplier, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -258,13 +259,13 @@ export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> 
 export async function getInsightsPageData() { 
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
-        getAnomalyInsightsFromDB(companyId) as Promise<Anomaly[]>,
+        getAnomalyInsightsFromDB(companyId),
         getDeadStockReportFromDB(companyId),
-        getAlertsFromDB(companyId) as Promise<Alert[]>,
+        getAlertsFromDB(companyId),
     ]);
 
      const explainedAnomalies = await Promise.all(
-        rawAnomalies.map(async (anomaly) => {
+        (rawAnomalies as Anomaly[]).map(async (anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -280,7 +281,7 @@ export async function getInsightsPageData() {
     
     const summary = await generateInsightsSummary({
         anomalies: explainedAnomalies,
-        lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
+        lowStockCount: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
 
@@ -288,7 +289,7 @@ export async function getInsightsPageData() {
         summary,
         anomalies: explainedAnomalies,
         topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
-        topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
+        topLowStock: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
 export async function testSupabaseConnection() { return dbTestSupabase(); }
@@ -549,10 +550,15 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
              throw new Error('No reorder suggestions provided.');
         }
 
-        const suggestions = ReorderSuggestionSchema.array().parse(JSON.parse(suggestionsString));
+        const parsedSuggestions = ReorderSuggestionSchema.array().safeParse(JSON.parse(suggestionsString));
+        if (!parsedSuggestions.success) {
+            throw new Error(`Invalid suggestions format: ${parsedSuggestions.error.message}`);
+        }
+
+        const suggestions = parsedSuggestions.data;
         
         if (!suggestions || suggestions.length === 0) {
-            throw new Error('No reorder suggestions provided.');
+            throw new Error('No valid reorder suggestions provided.');
         }
         
         const idempotencyKey = crypto.randomUUID();
@@ -597,4 +603,3 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
-
