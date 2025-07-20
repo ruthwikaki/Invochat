@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -50,7 +48,7 @@ import {
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
   getDashboardMetrics,
-  getReorderSuggestionsFromDB
+  getCashFlowInsightsFromDB
 } from '@/services/database';
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
