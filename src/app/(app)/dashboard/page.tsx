@@ -1,6 +1,6 @@
 
 import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
-import { DashboardClientPage } from './dashboard/dashboard-client-page';
+import { DashboardClientPage } from './dashboard-client-page';
 import { AppPageHeader } from '@/components/ui/page';
 
 export default async function DashboardPage({

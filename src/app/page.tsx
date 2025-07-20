@@ -35,7 +35,5 @@ export default async function AppRootPage() {
     }
 
     // If there is no session, we should show the landing page.
-    // In a typical setup, middleware would redirect to /login from here if unauthenticated,
-    // but showing a landing page is also a valid pattern.
     return <LandingPage />;
 }

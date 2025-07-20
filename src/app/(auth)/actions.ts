@@ -129,7 +129,7 @@ export async function signup(formData: FormData) {
     }
 
     const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-    const { limited } = await rateLimit(ip, 'auth', config.ratelimit.auth, 60, true);
+    const { limited } } await rateLimit(ip, 'auth', config.ratelimit.auth, 60, true);
     if (limited) {
       logger.warn(`[Rate Limit] Blocked signup attempt from IP: ${ip}`);
       throw new Error('Too many requests. Please try again in a minute.');
