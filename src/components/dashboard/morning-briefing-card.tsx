@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lightbulb } from 'lucide-react';
 import { Button } from '../ui/button';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
 
 interface MorningBriefingCardProps {
     briefing: {
