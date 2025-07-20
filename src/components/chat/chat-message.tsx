@@ -157,7 +157,7 @@ export function ChatMessage({
                 : 'rounded-bl-none bg-card text-card-foreground',
             message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
         )}>
-            {sanitizedContent}
+            {isLoading ? <LoadingIndicator /> : sanitizedContent}
 
             {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
