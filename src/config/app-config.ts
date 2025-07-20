@@ -40,6 +40,13 @@ export const envValidation = EnvSchema.safeParse(process.env);
 
 // --- End Validation ---
 
+// Helper to parse numbers from env vars
+const parseIntWithDefault = (value: string | undefined, defaultValue: number): number => {
+    if (value === undefined) return defaultValue;
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? defaultValue : parsed;
+};
+
 export const config = {
   app: {
     name: process.env.APP_NAME || 'InvoChat',
@@ -48,24 +55,24 @@ export const config = {
   },
   ai: {
     model: process.env.AI_MODEL || 'googleai/gemini-1.5-flash',
-    historyLimit: 10,
-    maxOutputTokens: 2048,
-    timeoutMs: 30000, // 30 second timeout for AI calls
+    historyLimit: parseIntWithDefault(process.env.AI_HISTORY_LIMIT, 10),
+    maxOutputTokens: parseIntWithDefault(process.env.AI_MAX_OUTPUT_TOKENS, 2048),
+    timeoutMs: parseIntWithDefault(process.env.AI_TIMEOUT_MS, 30000), // 30 second timeout for AI calls
   },
   ratelimit: {
-    auth: 5, // 5 requests per minute
-    ai: 20, // 20 requests per minute
-    import: 10, // 10 imports per hour
-    sync: 10, // 10 syncs per hour
-    connect: 5, // 5 integration connection attempts per hour
+    auth: parseIntWithDefault(process.env.RATELIMIT_AUTH, 5),
+    ai: parseIntWithDefault(process.env.RATELIMIT_AI, 20),
+    import: parseIntWithDefault(process.env.RATELIMIT_IMPORT, 10),
+    sync: parseIntWithDefault(process.env.RATELIMIT_SYNC, 10),
+    connect: parseIntWithDefault(process.env.RATELIMIT_CONNECT, 5),
   },
   import: {
-    maxFileSizeMB: 10,
-    batchSize: 500,
+    maxFileSizeMB: parseIntWithDefault(process.env.IMPORT_MAX_FILE_SIZE_MB, 10),
+    batchSize: parseIntWithDefault(process.env.IMPORT_BATCH_SIZE, 500),
   },
   integrations: {
-    syncDelayMs: 500, // Delay between API calls during sync
-    webhookReplayWindowSeconds: 300, // 5 minutes
+    syncDelayMs: parseIntWithDefault(process.env.INTEGRATION_SYNC_DELAY_MS, 500), // Delay between API calls during sync
+    webhookReplayWindowSeconds: parseIntWithDefault(process.env.INTEGRATION_WEBHOOK_REPLAY_SECONDS, 300), // 5 minutes
   },
   chat: {
     quickActions: [
@@ -77,8 +84,8 @@ export const config = {
   },
   redis: {
     ttl: {
-        aiQuery: 3600, // 1 hour
-        performanceMetrics: 86400, // 24 hours
+        aiQuery: parseIntWithDefault(process.env.REDIS_TTL_AI_QUERY_SECONDS, 3600), // 1 hour
+        performanceMetrics: parseIntWithDefault(process.env.REDIS_TTL_PERF_METRICS_SECONDS, 86400), // 24 hours
     }
   }
 };
