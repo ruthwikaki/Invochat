@@ -254,7 +254,7 @@ export const ProductUpdateSchema = z.object({
   title: z.string().min(1, 'Product Title is required.'),
   product_type: z.string().optional().nullable(),
 });
-export type ProductUpdateData = z.infer<typeof ProductUpdateData>;
+export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
 
 
 export const ReorderSuggestionBaseSchema = z.object({
@@ -473,11 +473,16 @@ export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSc
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),
+    // Profitability Metrics
     total_profit: z.number().int(),
     total_sales_count: z.number(),
     distinct_products_sold: z.number(),
     average_margin: z.number(),
-    sell_through_rate: z.number()
+    sell_through_rate: z.number(),
+    // Fulfillment Metrics
+    on_time_delivery_rate: z.number(),
+    average_lead_time_days: z.number().nullable(),
+    total_completed_orders: z.number(),
 });
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
 
