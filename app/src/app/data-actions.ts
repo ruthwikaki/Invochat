@@ -49,9 +49,10 @@ import {
   getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
-  getDashboardMetrics
+  getDashboardMetrics,
+  getReorderSuggestionsFromDB
 } from '@/services/database';
-import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
 import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
@@ -257,7 +258,7 @@ export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> 
     return getPurchaseOrdersFromDB(companyId);
 }
 
-export async function getInsightsPageData() { 
+export async function getInsightsPageData() {
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
         getAnomalyInsightsFromDB(companyId) as Promise<Anomaly[]>,
@@ -530,12 +531,43 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    const { output } = await getReorderSuggestions.run({ companyId });
-    if (!output) {
-        logError(new Error('getReorderSuggestions tool did not return an output.'), { companyId });
-        return [];
+    
+    // This function replicates the logic inside the getReorderSuggestions tool
+    // to correctly fetch and process data without calling the tool directly.
+    try {
+        const baseSuggestions = await getReorderSuggestionsFromDB(companyId);
+        if (baseSuggestions.length === 0) {
+            return [];
+        }
+
+        const skus = baseSuggestions.map(s => s.sku);
+        const [historicalSales, settings] = await Promise.all([
+            getHistoricalSalesForSkusFromDB(companyId, skus),
+            getSettings(companyId),
+        ]);
+
+        const { output } = await reorderRefinementPrompt({
+            suggestions: baseSuggestions,
+            historicalSales: historicalSales,
+            currentDate: new Date().toISOString().split('T')[0],
+            timezone: settings.timezone || 'UTC',
+        });
+
+        if (!output) {
+            logError(new Error('AI reorder refinement did not return an output.'), { companyId });
+            return baseSuggestions.map(s => ({
+                ...s,
+                base_quantity: s.suggested_reorder_quantity,
+                adjustment_reason: 'AI refinement failed, using base calculation.',
+                seasonality_factor: 1.0,
+                confidence: 0.1,
+            }));
+        }
+        return output;
+    } catch (e) {
+        logError(e, { context: `getReorderReport failed for company ${companyId}` });
+        throw new Error('An error occurred while generating reorder suggestions.');
     }
-    return output;
 }
 
 export async function getInventoryLedger(variantId: string) {
@@ -607,3 +639,4 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
+
