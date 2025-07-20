@@ -208,7 +208,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                             borderColor: 'hsl(var(--border))'
                         }}
                     />
-                    <Scatter nameKey={config.nameKey || 'name'} dataKey={config.dataKey} fill="hsl(var(--primary))" isAnimationActive={isInView} />
+                    <Scatter name={config.nameKey || 'name'} dataKey={config.dataKey} fill="hsl(var(--primary))" isAnimationActive={isInView} />
                 </ScatterChart>
             );
         default:
