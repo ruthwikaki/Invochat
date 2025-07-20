@@ -14,10 +14,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { supabase, user } = useAuth();
+  const { login, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
+  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       router.push('/dashboard');
@@ -36,26 +37,22 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-    });
-
-    if (error) {
-        toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: error.message || 'An unknown error occurred.',
-        });
-    } else {
-        toast({
-            title: 'Success',
-            description: 'Logged in successfully!',
-        });
-        router.push('/dashboard');
-        router.refresh(); // Force a refresh to update server-side session data
+    try {
+      await login(email, password);
+      toast({
+        title: 'Success',
+        description: 'Logged in successfully!',
+      });
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description: error.message || 'An unknown error occurred.',
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

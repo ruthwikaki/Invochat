@@ -15,10 +15,11 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { supabase, user } = useAuth();
+  const { signup, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
+  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       router.push('/dashboard');
@@ -56,32 +57,29 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-        email,
-        password,
-    });
-    
-    if (error) {
-        toast({
-            variant: 'destructive',
-            title: 'Signup Failed',
-            description: error.message || 'An unknown error occurred.',
-        });
-    } else {
-        toast({
-            title: 'Success',
-            description: 'Account created successfully! Please check your email for verification.',
-        });
-        router.push('/login');
+    try {
+      await signup(email, password);
+      toast({
+        title: 'Success',
+        description: 'Account created successfully! Please check your email for verification.',
+      });
+      router.push('/login');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Signup Failed',
+        description: error.message || 'An unknown error occurred.',
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl">Create Account</CardTitle>
-        <CardDescription>Sign up to get started with ARVO</CardDescription>
+        <CardDescription>Sign up to get started with InvoChat</CardDescription>
       </CardHeader>
       <form onSubmit={handleSignup}>
         <CardContent className="space-y-4">

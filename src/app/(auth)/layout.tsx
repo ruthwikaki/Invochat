@@ -1,5 +1,4 @@
 import { InvoChatLogo } from '@/components/invochat-logo';
-import Link from 'next/link';
 
 export default function AuthLayout({
   children,
@@ -10,9 +9,7 @@ export default function AuthLayout({
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="max-w-md w-full space-y-8 p-4">
         <div className="text-center">
-          <Link href="/" className="inline-block">
-            <InvoChatLogo className="mx-auto h-12 w-auto" />
-          </Link>
+          <InvoChatLogo className="mx-auto h-12 w-auto" />
           <h1 className="mt-4 text-3xl font-bold text-gray-900 dark:text-white">
             ARVO
           </h1>
