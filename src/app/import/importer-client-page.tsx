@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, CheckCircle, Info, Loader2, Table as TableIcon, UploadCloud, XCircle, Wand2 } from 'lucide-react';
+import { CheckCircle, Info, Loader2, Table as TableIcon, UploadCloud, XCircle, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -83,7 +83,6 @@ function MappingSuggestions({ suggestions, onConfirm }: { suggestions: CsvMappin
 
 function ImportResultsCard({ results, onClear }: { results: Omit<ImportResult, 'success'>; onClear: () => void }) {
     const hasErrors = (results.errorCount || 0) > 0;
-    const alertVariant = results.isDryRun ? 'default' : (hasErrors ? 'destructive' : 'default');
     const Icon = results.isDryRun ? Info : (hasErrors ? XCircle : CheckCircle);
     const title = results.isDryRun ? (hasErrors ? 'Dry Run Failed' : 'Dry Run Successful') : (hasErrors ? 'Import Had Errors' : 'Import Successful');
     
