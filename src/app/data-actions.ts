@@ -46,12 +46,14 @@ import {
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
   checkUserPermission,
-  getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB
+  getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
+  getSupplierPerformanceFromDB,
+  getInventoryTurnoverFromDB
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, Supplier, PurchaseOrderWithSupplier } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
@@ -153,12 +155,12 @@ export async function updateProduct(productId: string, data: ProductUpdateData) 
     }
 }
 
-export async function getSuppliersData() {
+export async function getSuppliersData(): Promise<Supplier[]> {
     const { companyId } = await getAuthContext();
     return getSuppliersDataFromDB(companyId);
 }
 
-export async function getSupplierById(id: string) {
+export async function getSupplierById(id: string): Promise<Supplier | null> {
     const { companyId } = await getAuthContext();
     return getSupplierByIdFromDB(id, companyId);
 }
@@ -250,7 +252,7 @@ export async function getSalesAnalytics() {
     return getSalesAnalyticsFromDB(companyId);
 }
 
-export async function getPurchaseOrders() {
+export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> {
     const { companyId } = await getAuthContext();
     return getPurchaseOrdersFromDB(companyId);
 }
@@ -258,9 +260,9 @@ export async function getPurchaseOrders() {
 export async function getInsightsPageData() { 
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
-        getAnomalyInsightsFromDB(companyId),
+        getAnomalyInsightsFromDB(companyId) as Promise<Anomaly[]>,
         getDeadStockReportFromDB(companyId),
-        getAlertsFromDB(companyId),
+        getAlertsFromDB(companyId) as Promise<Alert[]>,
     ]);
 
      const explainedAnomalies = await Promise.all(
@@ -590,3 +592,11 @@ export async function getInventoryTurnoverReportData(days: number = 90) {
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
     return getHistoricalSalesForSkusFromDB(companyId, skus);
 }
+
+async function getCashFlowInsightsFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
+    if(error) throw error;
+    return data;
+}
+
