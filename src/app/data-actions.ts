@@ -46,9 +46,7 @@ import {
   createPurchaseOrdersInDb,
   getPurchaseOrdersFromDB,
   checkUserPermission,
-  getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
-  getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB
+  getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
