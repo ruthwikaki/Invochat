@@ -1,20 +1,12 @@
 
 'use client';
 
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
-  DollarSign,
-  ShoppingCart,
   Users,
   TrendingDown,
-  ArrowUpRight,
-  Lightbulb,
-  BarChart,
-  RefreshCw,
-  Package2,
   Wallet,
+  ShoppingCart
 } from 'lucide-react';
 import {
   Select,
@@ -27,10 +19,7 @@ import { SalesChart } from '@/components/dashboard/sales-chart';
 import { TopProductsCard } from '@/components/dashboard/top-products-card';
 import { InventorySummaryCard } from '@/components/dashboard/inventory-summary-card';
 import { MorningBriefingCard } from '@/components/dashboard/morning-briefing-card';
-import { getDashboardData } from '@/app/data-actions';
-import { useToast } from '@/hooks/use-toast';
 import type { DashboardMetrics } from '@/types';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
