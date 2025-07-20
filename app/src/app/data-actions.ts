@@ -50,8 +50,7 @@ import {
   getSupplierPerformanceFromDB,
   getInventoryTurnoverFromDB,
   getDashboardMetrics,
-  getReorderSuggestionsFromDB,
-  getCashFlowInsightsFromDB
+  getReorderSuggestionsFromDB
 } from '@/services/database';
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
