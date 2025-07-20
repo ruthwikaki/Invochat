@@ -235,6 +235,7 @@ export async function requestPasswordReset(formData: FormData) {
 
 const updatePasswordSchema = z.object({
     password: z.string().min(8, "Password must be at least 8 characters long."),
+    confirmPassword: z.string(),
 });
 
 export async function updatePassword(formData: FormData) {
@@ -245,8 +246,14 @@ export async function updatePassword(formData: FormData) {
             throw new Error(parsed.error.issues[0].message);
         }
 
+        const { password, confirmPassword } = parsed.data;
+
+        if (password !== confirmPassword) {
+            throw new Error('Passwords do not match.');
+        }
+
         const supabase = getSupabaseClient();
-        const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+        const { error } = await supabase.auth.updateUser({ password });
 
         if (error) {
             throw new Error(error.message);

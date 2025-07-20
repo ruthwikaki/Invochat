@@ -41,15 +41,6 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
         }
     }, [initialError]);
     
-    const handleSubmit = async (formData: FormData) => {
-        if (formData.get('password') !== formData.get('confirmPassword')) {
-            setError('Passwords do not match.');
-            return;
-        }
-        setError(null);
-        // The action is now directly on the form
-    }
-
     const handleInteraction = () => {
         if (error) setError(null);
     };
