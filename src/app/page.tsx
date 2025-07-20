@@ -29,9 +29,9 @@ export default async function AppRootPage() {
     const { data: { session } } = await supabase.auth.getSession();
 
     // If the user is already logged in, redirect them from the landing page
-    // to their dashboard.
+    // to their dashboard (which is the root of the app layout).
     if (session) {
-        redirect('/dashboard');
+        redirect('/');
     }
 
     // If there is no session, we should show the landing page.

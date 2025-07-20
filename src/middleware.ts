@@ -13,9 +13,6 @@ export async function middleware(req: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    // If Supabase config is missing, we can't do anything with auth.
-    // Allow the request to proceed, but log a warning.
-    // Downstream pages might handle this error more gracefully.
     console.warn("Supabase environment variables are not set. Middleware is bypassing auth checks.");
     return response;
   }
@@ -53,26 +50,32 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = req.nextUrl;
 
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
   const setupRoutes = ['/database-setup', '/env-check'];
+  
+  const isPublicRoute = publicRoutes.includes(pathname);
+  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup');
+  const isLandingPage = pathname === '/';
 
   // Allow access to setup routes regardless of auth state
   if (setupRoutes.includes(pathname)) {
     return response;
   }
-  
-  const isPublicRoute = publicRoutes.includes(pathname);
-  
-  // If the user is not logged in and is trying to access a protected route, redirect to login.
-  if (!user && !isPublicRoute) {
-    return NextResponse.redirect(new URL('/login', req.url));
-  }
 
-  // If the user IS logged in but doesn't have a company_id, they need to run the setup script.
-  if (user && !user.app_metadata.company_id) {
-    // Allow access to the env-check page, but redirect from anywhere else.
-    if (pathname !== '/env-check') {
+  if (user) {
+    // If the user IS logged in but doesn't have a company_id, they need to run the setup script.
+    if (!user.app_metadata.company_id && pathname !== '/env-check') {
         return NextResponse.redirect(new URL('/env-check', req.url));
+    }
+    // If user is logged in and tries to access login/signup, redirect to app root
+    if (isAuthRoute) {
+      return NextResponse.redirect(new URL('/', req.url));
+    }
+  } else {
+    // If user is not logged in, allow access to landing page.
+    // For all other routes, redirect to login.
+    if (!isLandingPage && !isPublicRoute) {
+      return NextResponse.redirect(new URL('/login', req.url));
     }
   }
 

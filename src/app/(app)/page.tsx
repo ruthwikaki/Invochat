@@ -1,6 +1,6 @@
 
 import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
-import { DashboardClientPage } from './dashboard-client-page';
+import { DashboardClientPage } from '@/components/dashboard/dashboard-client-page';
 import { AppPageHeader } from '@/components/ui/page';
 
 export default async function DashboardPage({
@@ -19,9 +19,7 @@ export default async function DashboardPage({
             <AppPageHeader
                 title="Dashboard"
                 description="Here's a high-level overview of your business performance."
-            >
-                {/* This functionality is handled by the client component now */}
-            </AppPageHeader>
+            />
             <DashboardClientPage 
                 initialMetrics={metrics} 
                 initialBriefing={briefing}
