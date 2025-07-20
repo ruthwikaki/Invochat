@@ -40,20 +40,6 @@ export const envValidation = EnvSchema.safeParse(process.env);
 
 // --- End Validation ---
 
-
-// Helper to parse numbers from env vars
-const parseIntWithDefault = (value: string | undefined, defaultValue: number): number => {
-    if (value === undefined) return defaultValue;
-    const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? defaultValue : parsed;
-};
-
-const parseFloatWithDefault = (value: string | undefined, defaultValue: number): number => {
-    if (value === undefined) return defaultValue;
-    const parsed = parseFloat(value);
-    return isNaN(parsed) ? defaultValue : parsed;
-};
-
 export const config = {
   app: {
     name: process.env.APP_NAME || 'InvoChat',
