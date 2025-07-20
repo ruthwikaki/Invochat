@@ -179,11 +179,11 @@ async function processCsv<T extends z.ZodType>(
                 resolve({ importId, processedCount, errorCount: validationErrors.length, errors: validationErrors, summaryMessage });
             },
         });
-        
+
         parser.on('error', (error: unknown) => {
             reject(new Error(getErrorMessage(error)));
         });
-
+        
         fileContentStream.pipe(parser);
     });
 }
