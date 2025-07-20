@@ -530,12 +530,12 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    const suggestions = await getReorderSuggestions.run({ companyId });
-    if (!suggestions) {
+    const result = await getReorderSuggestions.run({ companyId });
+    if (!result) {
         logError(new Error('getReorderSuggestions tool did not return an output.'), { companyId });
         return [];
     }
-    return suggestions;
+    return result;
 }
 
 export async function getInventoryLedger(variantId: string) {
