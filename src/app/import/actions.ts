@@ -6,14 +6,14 @@ import Papa from 'papaparse';
 import { z } from 'zod';
 import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { invalidateCompanyCache, rateLimit, refreshMaterializedViews } from '@/lib/redis';
+import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { CsvMappingOutput } from '@/types';
 import { revalidatePath } from 'next/cache';
 import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 import { getAuthContext } from '../data-actions';
-import { checkUserPermission } from '@/services/database';
+import { checkUserPermission, refreshMaterializedViews } from '@/services/database';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
