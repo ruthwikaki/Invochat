@@ -1,3 +1,4 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -50,16 +51,17 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
   const { pathname } = req.nextUrl;
 
-  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-  
+  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
+  const isPublicRoute = publicRoutes.some(route => pathname === route);
+
   if (user) {
-    // If user is logged in and tries to access a public-only route (except the landing page), redirect to dashboard
-    if (isPublicRoute && pathname !== '/') {
+    // If user is logged in, redirect them from auth pages to the dashboard.
+    // The root '/' is the public landing page, so allow them to see it.
+    if (pathname !== '/' && isPublicRoute) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } else {
-    // If user is not logged in and not on a public route, redirect to the login page.
+    // If user is not logged in and not on a public route, redirect to login.
     if (!isPublicRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
