@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -48,12 +47,13 @@ import {
   checkUserPermission,
   getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
   getSupplierPerformanceFromDB,
-  getInventoryTurnoverFromDB
+  getInventoryTurnoverFromDB,
+  getDashboardMetrics
 } from '@/services/database';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, CompanySettings, SupplierFormData, ProductUpdateData } from '@/types';
+import type { SupplierFormData, ProductUpdateData, Alert, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
