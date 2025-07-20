@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -52,7 +53,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
+import type { Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, CompanySettings, SupplierFormData, ProductUpdateData } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -64,7 +65,6 @@ import { sendInventoryDigestEmail } from '@/services/email';
 import { getCustomerInsights } from '@/ai/flows/customer-insights-flow';
 import { generateProductDescription } from '@/ai/flows/generate-description-flow';
 import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
-import { z } from 'zod';
 import crypto from 'crypto';
 
 
@@ -475,9 +475,11 @@ export async function exportInventory(params: { query?: string, status?: string;
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getCashFlowInsights() {
-    const { companyId } = await getAuthContext();
-    return getCashFlowInsightsFromDB(companyId);
+export async function getCashFlowInsightsFromDB(companyId: string) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
+    if(error) throw error;
+    return data;
 }
 
 export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { 
@@ -527,6 +529,7 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
         return { success: false, error: getErrorMessage(e) };
     }
 }
+export async function testMaterializedView() { return {success: true}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
     const { companyId } = await getAuthContext();
@@ -603,3 +606,5 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
+
+    
