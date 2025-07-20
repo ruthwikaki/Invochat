@@ -54,7 +54,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { Alert, Anomaly, CompanySettings, CustomerAnalytics, HealthCheckResult, InventoryAgingReportItem, InventoryAnalytics, InventoryRiskItem, Order, ProductLifecycleAnalysis, ProductUpdateData, PurchaseOrderWithSupplier, ReorderSuggestion, SalesAnalytics, Supplier, SupplierFormData, TeamMember, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, HealthCheckResult, ReorderSuggestion, InventoryAnalytics, CustomerAnalytics, SalesAnalytics, TeamMember, Supplier, Order, PurchaseOrderWithSupplier, Anomaly, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -322,7 +322,6 @@ export async function getAlertsData(): Promise<Alert[]> {
     return getAlertsFromDB(companyId);
 }
 export async function getDatabaseSchemaAndData() { 
-    const { companyId } = await getAuthContext();
     return getDbSchemaAndData();
 }
 export async function getTeamMembers(): Promise<TeamMember[]> {
@@ -605,3 +604,4 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
+
