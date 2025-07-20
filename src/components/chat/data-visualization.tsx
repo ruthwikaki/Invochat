@@ -11,7 +11,7 @@ import { useState } from 'react';
 
 type DataVisualizationProps = {
   visualization: {
-    type: 'table' | 'chart' | 'alert';
+    type: 'table' | 'chart' | 'alert' | 'none';
     data: Record<string, unknown>[];
     config?: Record<string, unknown>;
   };
@@ -20,6 +20,10 @@ type DataVisualizationProps = {
 
 export function DataVisualization({ visualization, title }: DataVisualizationProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  if (visualization.type === 'none') {
+    return null;
+  }
 
   const renderVisualization = (isExpandedView = false) => {
     switch (visualization.type) {
