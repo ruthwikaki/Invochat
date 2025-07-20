@@ -126,11 +126,6 @@ export function ChatMessage({
   const isUserMessage = message.role === 'user';
   const isLoading = message.id === 'loading';
   
-  const getInitials = (email: string | undefined) => {
-    if (!email) return 'U';
-    return email.charAt(0).toUpperCase();
-  };
-  
   const sanitizedContent = !isLoading ? DOMPurify.sanitize(message.content) : '';
 
   const messageVariants = {
@@ -157,7 +152,7 @@ export function ChatMessage({
                 : 'rounded-bl-none bg-card text-card-foreground',
             message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
         )}>
-            {isLoading ? <LoadingIndicator /> : sanitizedContent}
+            {isLoading ? <LoadingIndicator /> : <div dangerouslySetInnerHTML={{ __html: sanitizedContent }} />}
 
             {!isUserMessage && !isLoading && !message.isError &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
