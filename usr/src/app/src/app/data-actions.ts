@@ -260,13 +260,13 @@ export async function getPurchaseOrders(): Promise<PurchaseOrderWithSupplier[]> 
 export async function getInsightsPageData() { 
     const { companyId } = await getAuthContext();
     const [rawAnomalies, topDeadStockData, topLowStock] = await Promise.all([
-        getAnomalyInsightsFromDB(companyId),
+        getAnomalyInsightsFromDB(companyId) as Promise<Anomaly[]>,
         getDeadStockReportFromDB(companyId),
         getAlertsFromDB(companyId),
     ]);
 
      const explainedAnomalies = await Promise.all(
-        (rawAnomalies as Anomaly[]).map(async (anomaly) => {
+        rawAnomalies.map(async (anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -607,4 +607,3 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
-
