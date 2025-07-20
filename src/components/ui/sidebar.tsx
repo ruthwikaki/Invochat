@@ -19,7 +19,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { config } from "@/config/app-config"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_WIDTH = "16rem"
