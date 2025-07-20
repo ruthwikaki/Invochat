@@ -1,8 +1,9 @@
+
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
-import { TrendingUp, Package } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface TopProductsCardProps {
