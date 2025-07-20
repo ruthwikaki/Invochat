@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
-import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
+import { validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { CsvMappingOutput } from '@/types';
 import { revalidatePath } from 'next/cache';
