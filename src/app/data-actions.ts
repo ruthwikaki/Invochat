@@ -54,7 +54,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, HealthCheckResult, ReorderSuggestion, InventoryAnalytics, CustomerAnalytics, SalesAnalytics, TeamMember, Supplier, Order, PurchaseOrderWithSupplier, Anomaly, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, Supplier } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -527,7 +527,6 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function testMaterializedView() { return {success: true}; }
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
     const { companyId } = await getAuthContext();
@@ -605,3 +604,4 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     return data;
 }
 
+```
