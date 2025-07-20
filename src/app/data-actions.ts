@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -366,9 +367,9 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
         if (userId === memberId) throw new Error("You cannot change your own role.");
         
-        const result = await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        await updateTeamMemberRoleInDb(memberId, companyId, newRole);
         revalidatePath('/settings/profile');
-        return { success: result.success, error: result.error };
+        return { success: true };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
