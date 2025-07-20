@@ -633,5 +633,3 @@ export async function getInventoryTurnoverReportData(days: number = 90) {
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
     return getHistoricalSalesForSkusFromDB(companyId, skus);
 }
-
-    
