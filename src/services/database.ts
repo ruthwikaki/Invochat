@@ -388,16 +388,22 @@ export async function updateTeamMemberRoleInDb(memberId: string, companyId: stri
     return { success: true };
 }
 
-export async function getChannelFeesFromDB(companyId: string) { 
+export async function getChannelFeesFromDB(companyId: string): Promise<ChannelFee[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('channel_fees').select('*').eq('company_id', companyId);
-    if (error) throw error;
+    if (error) {
+        logError(error, { context: 'getChannelFeesFromDB failed' });
+        throw error;
+    }
     return data || [];
 }
 export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<ChannelFee>) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
-    if (error) throw error;
+    if (error) {
+        logError(error, { context: 'upsertChannelFeeInDB failed' });
+        throw error;
+    }
 }
 export async function getCompanyById(companyId: string) {
     const supabase = getServiceRoleClient();
@@ -513,7 +519,7 @@ export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
 export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {}
 
 export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
-    const supabase = getServiceRole-client();
+    const supabase = getServiceRoleClient();
     const { error } = await supabase.from('webhook_events').insert({
         integration_id: integrationId,
         webhook_id: webhookId
