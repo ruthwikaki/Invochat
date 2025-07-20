@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import { updatePassword } from '@/app/(auth)/actions';
+import { updatePassword } from '@/app/auth/actions';
 import { PasswordInput } from './PasswordInput';
 import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
 

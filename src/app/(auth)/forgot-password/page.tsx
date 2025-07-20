@@ -1,71 +1,87 @@
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
-import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { InvoChatLogo } from '@/components/invochat-logo';
-import { CheckCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
-import { generateCSRFToken } from '@/lib/csrf';
+export async function middleware(req: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: req.headers,
+    },
+  });
 
-export default function ForgotPasswordPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
-  const success = searchParams?.success === 'true';
-  generateCSRFToken();
-  
-  if (success) {
-    return (
-      <div className="w-full max-w-sm mx-auto">
-        <Card className="text-center">
-          <CardHeader>
-              <div className="mx-auto bg-success/10 p-3 rounded-full w-fit">
-                  <CheckCircle className="h-8 w-8 text-success" />
-              </div>
-              <CardTitle className="mt-4">Check Your Email</CardTitle>
-              <CardDescription>
-                  If an account with that email exists, we've sent a link to reset your password.
-              </CardDescription>
-          </CardHeader>
-          <CardContent>
-              <Button asChild className="w-full">
-                  <Link href="/login">Back to Sign In</Link>
-              </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn("Supabase environment variables are not set. Middleware is bypassing auth checks.");
+    return response;
   }
 
-  return (
-    <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
-        <div className="absolute inset-0 -z-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/10 to-slate-900" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(79,70,229,0.3),rgba(255,255,255,0))]" />
-        </div>
-      <Card className="w-full bg-transparent border-none p-8 space-y-6">
-        <CardHeader className="p-0 text-center">
-          <div className="flex justify-center items-center gap-3 mb-4">
-              <InvoChatLogo className="h-10 w-10 text-primary" />
-              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">InvoChat</h1>
-          </div>
-          <CardTitle className="text-2xl text-slate-200">Forgot Password</CardTitle>
-          <CardDescription className="text-slate-400">
-            Enter your email and we'll send you a link to reset your password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ForgotPasswordForm error={error} />
-          <div className="mt-4 text-center text-sm text-slate-400">
-            Remembered your password?{' '}
-            <Link href="/login" className="underline text-primary/90 hover:text-primary">
-              Sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+  const supabase = createServerClient(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      cookies: {
+        get(name: string) {
+          return req.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          req.cookies.set({ name, value, ...options });
+          response = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
+          response.cookies.set({ name, value, ...options });
+        },
+        remove(name: string, options: CookieOptions) {
+          req.cookies.set({ name, value: '', ...options });
+          response = NextResponse.next({
+            request: {
+              headers: req.headers,
+            },
+          });
+          response.cookies.set({ name, value: '', ...options });
+        },
+      },
+    }
   );
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  const { pathname } = req.nextUrl;
+
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+  const setupRoutes = ['/database-setup', '/env-check'];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) || pathname === '/';
+  
+  if (user) {
+    // If user is logged in but setup is incomplete, force them to the env-check page.
+    if (!user.app_metadata.company_id && !setupRoutes.includes(pathname)) {
+      return NextResponse.redirect(new URL('/env-check', req.url));
+    }
+    // If user is logged in and tries to access the public landing page or an auth page, redirect to dashboard.
+    if (isPublicRoute) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+  } else {
+    // If user is not logged in and not on a public route, redirect to the landing page.
+    if (!isPublicRoute && !setupRoutes.includes(pathname)) {
+      return NextResponse.redirect(new URL('/', req.url));
+    }
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - api/ (API routes have their own auth)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
+  ],
 }

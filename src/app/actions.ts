@@ -1,15 +1,16 @@
 
-
 'use server';
 
-import type { Message } from '@/types';
+import type { Message, Conversation } from '@/types';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
-import { getAuthContext } from './data-actions';
+import { getAuthContext } from '@/app/data-actions';
+import { revalidatePath } from 'next/cache';
+
 
 async function saveConversation(companyId: string, title: string) {
     const cookieStore = cookies();
@@ -71,7 +72,7 @@ async function saveMessage(message: Omit<Message, 'id' | 'created_at'>) {
     }
 }
 
-export async function getConversations() {
+export async function getConversations(): Promise<Conversation[]> {
     try {
         const cookieStore = cookies();
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -106,7 +107,7 @@ export async function getConversations() {
     }
 }
 
-export async function getMessages(conversationId: string) {
+export async function getMessages(conversationId: string): Promise<Message[]> {
     try {
         const cookieStore = cookies();
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -139,7 +140,7 @@ export async function getMessages(conversationId: string) {
             logError(error, { context: `Failed to get messages for conversation ${conversationId}` });
             return [];
         }
-        return data || [];
+        return (data || []) as Message[];
     } catch (e) {
         logError(e, { context: `getMessages action for conversation ${conversationId}` });
         return [];
@@ -230,6 +231,8 @@ export async function handleUserMessage({ content, conversationId }: { content: 
 
         const { id, created_at, ...messageToSave } = newMessage;
         await saveMessage(messageToSave);
+        
+        revalidatePath('/chat');
         
         return { newMessage, conversationId: finalConversationId };
 

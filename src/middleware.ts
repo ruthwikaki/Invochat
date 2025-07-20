@@ -47,35 +47,27 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   const { pathname } = req.nextUrl;
 
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
   const setupRoutes = ['/database-setup', '/env-check'];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route)) || pathname === '/';
   
-  const isPublicRoute = publicRoutes.includes(pathname);
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup');
-  const isLandingPage = pathname === '/';
-
-  // Allow access to setup routes regardless of auth state
-  if (setupRoutes.includes(pathname)) {
-    return response;
-  }
-
   if (user) {
-    // If the user IS logged in but doesn't have a company_id, they need to run the setup script.
-    if (!user.app_metadata.company_id && pathname !== '/env-check') {
-        return NextResponse.redirect(new URL('/env-check', req.url));
+    // If user is logged in but setup is incomplete, force them to the env-check page.
+    if (!user.app_metadata.company_id && !setupRoutes.includes(pathname)) {
+      return NextResponse.redirect(new URL('/env-check', req.url));
     }
-    // If user is logged in and tries to access login/signup, redirect to app root
-    if (isAuthRoute) {
-      return NextResponse.redirect(new URL('/', req.url));
+    // If user is logged in and tries to access the public landing page or an auth page, redirect to dashboard.
+    if (isPublicRoute) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } else {
-    // If user is not logged in, allow access to landing page.
-    // For all other routes, redirect to login.
-    if (!isLandingPage && !isPublicRoute) {
-      return NextResponse.redirect(new URL('/login', req.url));
+    // If user is not logged in and not on a public route, redirect to the landing page.
+    if (!isPublicRoute && !setupRoutes.includes(pathname)) {
+      return NextResponse.redirect(new URL('/', req.url));
     }
   }
 
@@ -89,7 +81,7 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - api/ (API routes which have their own auth)
+     * - api/ (API routes have their own auth)
      */
     '/((?!_next/static|_next/image|favicon.ico|api/).*)',
   ],

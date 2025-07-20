@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { signOut } from '@/app/(auth)/actions';
+import { signOut } from '@/app/auth/actions';
 
 export function UserAccountNav() {
   const { user } = useAuth();
