@@ -50,25 +50,18 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
   const { pathname } = req.nextUrl;
 
-  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-  const isAuthRoute = ['/login', '/signup', '/forgot-password', '/update-password'].some(route => pathname.startsWith(route));
+
+  // If the user is not logged in and is trying to access a protected route, redirect to login
+  if (!user && !isPublicRoute) {
+    return NextResponse.redirect(new URL('/login', req.url));
+  }
   
-  // If the user is logged in...
-  if (user) {
-    // And tries to access a public auth page, redirect them to the dashboard.
-    if (isAuthRoute) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-    // And their account setup is incomplete, force them to the setup page.
-    if (!user.app_metadata.company_id && !pathname.startsWith('/env-check') && !pathname.startsWith('/database-setup')) {
-      return NextResponse.redirect(new URL('/env-check', req.url));
-    }
-  } else { // If the user is NOT logged in...
-    // And is trying to access a protected route, redirect them to the login page.
-    if (!isPublicRoute) {
-       return NextResponse.redirect(new URL('/login', req.url));
-    }
+  // If the user is logged in and tries to access a public auth page, redirect to dashboard
+  if (user && isPublicRoute) {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
 
   return response;

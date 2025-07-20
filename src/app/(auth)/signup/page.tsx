@@ -15,11 +15,10 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signup, user } = useAuth();
+  const { supabase, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user) {
       router.push('/dashboard');
@@ -57,22 +56,25 @@ export default function SignupPage() {
     }
 
     setLoading(true);
-    try {
-      await signup(email, password);
-      toast({
-        title: 'Success',
-        description: 'Account created successfully! Please check your email for verification.',
-      });
-      router.push('/login');
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Signup Failed',
-        description: error.message || 'An unknown error occurred.',
-      });
-    } finally {
-      setLoading(false);
+    const { error } = await supabase.auth.signUp({
+        email,
+        password,
+    });
+    
+    if (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Signup Failed',
+            description: error.message || 'An unknown error occurred.',
+        });
+    } else {
+        toast({
+            title: 'Success',
+            description: 'Account created successfully! Please check your email for verification.',
+        });
+        router.push('/login');
     }
+    setLoading(false);
   };
 
   return (
