@@ -54,7 +54,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
+import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -322,8 +322,7 @@ export async function getAlertsData(): Promise<Alert[]> {
     return getAlertsFromDB(companyId);
 }
 export async function getDatabaseSchemaAndData() { 
-    const { companyId } = await getAuthContext();
-    return getDbSchemaAndData(companyId);
+    return getDbSchemaAndData();
 }
 export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();
@@ -351,9 +350,9 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
-        const result = await removeTeamMemberFromDb(memberId, companyId);
+        await removeTeamMemberFromDb(memberId, companyId);
         revalidatePath('/settings/profile');
-        return { success: result.success, error: result.error };
+        return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -368,9 +367,9 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
         if (userId === memberId) throw new Error("You cannot change your own role.");
         
-        const result = await updateTeamMemberRoleInDb(memberId, companyId, newRole);
+        await updateTeamMemberRoleInDb(memberId, companyId, newRole);
         revalidatePath('/settings/profile');
-        return { success: result.success, error: result.error };
+        return { success: true };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -383,7 +382,7 @@ export async function exportCustomers(params: { query?: string }) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        const { items } = await getCustomersFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -394,7 +393,7 @@ export async function exportSales(params: { query?: string }) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        const { items } = await getSalesFromDB(companyId, { ...params, page: 1, limit: 10000 });
+        const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items.map(item => ({
             order_number: item.order_number,
             created_at: item.created_at,
@@ -529,10 +528,14 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
     }
 }
 
-export async function getReorderReport(): Promise<ReorderSuggestion[]> { 
+export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    // This now correctly calls the AI flow which includes refinement.
-    return getReorderSuggestions.run({ companyId });
+    const result = await getReorderSuggestions.run({ companyId });
+    if (!result.output) {
+        logError(new Error('getReorderSuggestions tool did not return an output.'), { companyId });
+        return [];
+    }
+    return result.output;
 }
 
 export async function getInventoryLedger(variantId: string) {
