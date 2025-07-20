@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -38,7 +39,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      // The redirect is handled by the useEffect above.
+      // The redirect will be handled by the useEffect hook
       toast({
         title: 'Success',
         description: 'Logged in successfully!',
@@ -53,11 +54,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-
-  if (user) {
-    // Render a loading state or null while redirecting
-    return null;
-  }
 
   return (
     <Card className="w-full max-w-md">
