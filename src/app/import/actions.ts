@@ -6,7 +6,6 @@ import Papa from 'papaparse';
 import { z } from 'zod';
 import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logger } from '@/lib/logger';
 import { invalidateCompanyCache, rateLimit, refreshMaterializedViews } from '@/lib/redis';
 import { CSRF_FORM_NAME, validateCSRF } from '@/lib/csrf';
 import { getErrorMessage, logError } from '@/lib/error-handler';
