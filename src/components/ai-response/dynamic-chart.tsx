@@ -159,7 +159,6 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                     nameKey={config.nameKey}
                     aspectRatio={16 / 9}
                     isAnimationActive={isInView}
-                    content={<TreemapContent /> as any}
                 >
                     <Tooltip
                         contentStyle={{
@@ -168,6 +167,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                         }}
                          formatter={(value: number, name: string) => [value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), name]}
                     />
+                    <TreemapContent />
                 </Treemap>
             );
         case 'scatter':
