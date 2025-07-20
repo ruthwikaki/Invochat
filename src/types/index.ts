@@ -1,3 +1,4 @@
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -74,6 +75,7 @@ export const OrderSchema = z.object({
   order_number: z.string(),
   external_order_id: z.string().nullable(),
   customer_id: z.string().uuid().nullable(),
+  customer_email: z.string().email().nullable(),
   financial_status: z.string().nullable(),
   fulfillment_status: z.string().nullable(),
   currency: z.string().nullable(),
@@ -252,7 +254,7 @@ export const ProductUpdateSchema = z.object({
   title: z.string().min(1, 'Product Title is required.'),
   product_type: z.string().optional().nullable(),
 });
-export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
+export type ProductUpdateData = z.infer<typeof ProductUpdateData>;
 
 
 export const ReorderSuggestionBaseSchema = z.object({
@@ -489,3 +491,5 @@ export const AlertSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 export type Alert = z.infer<typeof AlertSchema>;
+
+    
