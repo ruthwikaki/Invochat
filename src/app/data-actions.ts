@@ -54,7 +54,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
+import type { Alert, Anomaly, CompanySettings, CustomerAnalytics, HealthCheckResult, InventoryAgingReportItem, InventoryAnalytics, InventoryRiskItem, Order, ProductLifecycleAnalysis, ProductUpdateData, PurchaseOrderWithSupplier, ReorderSuggestion, SalesAnalytics, Supplier, SupplierFormData, TeamMember, CustomerSegmentAnalysisItem, DashboardMetrics } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -323,7 +323,7 @@ export async function getAlertsData(): Promise<Alert[]> {
 }
 export async function getDatabaseSchemaAndData() { 
     const { companyId } = await getAuthContext();
-    return getDbSchemaAndData(companyId);
+    return getDbSchemaAndData();
 }
 export async function getTeamMembers(): Promise<TeamMember[]> {
     const { companyId } = await getAuthContext();

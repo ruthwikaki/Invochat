@@ -513,7 +513,7 @@ export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
 export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {}
 
 export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRole-client();
     const { error } = await supabase.from('webhook_events').insert({
         integration_id: integrationId,
         webhook_id: webhookId
@@ -540,4 +540,3 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
-
