@@ -109,7 +109,7 @@ export function IntegrationsClientPage() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
-    const { integrations, isLoading, error } = useIntegrations();
+    const { integrations, loading, error } = useIntegrations();
     
     const syncMutation = useMutation({
         mutationFn: async ({ integrationId, platform }: { integrationId: string, platform: Platform }) => {
@@ -164,7 +164,7 @@ export function IntegrationsClientPage() {
 
     const connectedPlatforms = new Set(integrations.map(i => i.platform));
     
-    if (isLoading) {
+    if (loading) {
         return (
             <div className="space-y-6">
                 <Skeleton className="h-32 w-full" />
