@@ -10,7 +10,6 @@ import { Search, DollarSign, ShoppingCart, Percent } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { ExportButton } from '../ui/export-button';
 import { Button } from '../ui/button';
