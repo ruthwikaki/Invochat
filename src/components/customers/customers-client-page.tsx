@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -6,7 +7,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 import type { Customer, CustomerAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Star, Download } from 'lucide-react';
+import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Download } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -240,7 +241,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                             <TableCell>
                                 <div className="flex items-center gap-3">
                                     <Avatar className="h-9 w-9">
-                                        <AvatarFallback>{customer.customer_name.charAt(0)}</AvatarFallback>
+                                        <AvatarFallback>{customer.customer_name?.charAt(0) || '?'}</AvatarFallback>
                                     </Avatar>
                                     <div>
                                         <div className="font-medium">{customer.customer_name}</div>
@@ -278,7 +279,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will permanently delete {customerToDelete?.customer_name}. If the customer has existing orders, their record will be preserved but marked as deleted (soft-delete). This action cannot be undone.
+                    This will permanently delete {customerToDelete?.customer_name || 'this customer'}. If the customer has existing orders, their record will be preserved but marked as deleted (soft-delete). This action cannot be undone.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
