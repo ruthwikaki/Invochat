@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -53,7 +54,7 @@ import {
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { SupplierFormData, ProductUpdateData, Alert, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
+import type { CompanySettings, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -475,11 +476,9 @@ export async function exportInventory(params: { query?: string, status?: string;
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getCashFlowInsightsFromDB(companyId: string) {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
-    if(error) throw error;
-    return data;
+export async function getCashFlowInsights() {
+    const { companyId } = await getAuthContext();
+    return getCashFlowInsightsFromDB(companyId);
 }
 
 export async function sendInventoryDigestEmailAction(): Promise<{ success: boolean; error?: string }> { 
@@ -607,4 +606,3 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     return data;
 }
 
-    
