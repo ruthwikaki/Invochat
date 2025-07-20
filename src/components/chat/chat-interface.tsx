@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Message } from '@/types';
-import { ArrowRight, Bot, Mic } from 'lucide-react';
+import { ArrowRight, Mic } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { ChatMessage } from './chat-message';
 import { useToast } from '@/hooks/use-toast';
