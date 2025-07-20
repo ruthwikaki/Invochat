@@ -39,11 +39,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
+      // The redirect will be handled by the useEffect hook
       toast({
         title: 'Success',
         description: 'Logged in successfully!',
       });
-      router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: 'destructive',

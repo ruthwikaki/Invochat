@@ -10,12 +10,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
-export default function SignupPage() {
+export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signup, user } = useAuth();
+  const { login, user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -26,10 +25,9 @@ export default function SignupPage() {
     }
   }, [user, router]);
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!email || !password || !confirmPassword) {
+    if (!email || !password) {
       toast({
         variant: 'destructive',
         title: 'Validation Error',
@@ -38,36 +36,18 @@ export default function SignupPage() {
       return;
     }
 
-    if (password !== confirmPassword) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: 'Passwords do not match.',
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: 'Password must be at least 6 characters long.',
-      });
-      return;
-    }
-
     setLoading(true);
     try {
-      await signup(email, password);
+      await login(email, password);
+      // On success, the useEffect hook will handle the redirect.
       toast({
         title: 'Success',
-        description: 'Account created successfully! Please check your email for verification.',
+        description: 'Logged in successfully!',
       });
-      router.push('/login');
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Signup Failed',
+        title: 'Login Failed',
         description: error.message || 'An unknown error occurred.',
       });
     } finally {
@@ -78,10 +58,10 @@ export default function SignupPage() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Create Account</CardTitle>
-        <CardDescription>Sign up to get started with ARVO</CardDescription>
+        <CardTitle className="text-2xl">Welcome Back</CardTitle>
+        <CardDescription>Enter your credentials to access your account</CardDescription>
       </CardHeader>
-      <form onSubmit={handleSignup}>
+      <form onSubmit={handleLogin}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -107,29 +87,24 @@ export default function SignupPage() {
               disabled={loading}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input 
-              id="confirmPassword" 
-              type="password" 
-              placeholder="Confirm your password"
-              value={confirmPassword} 
-              onChange={(e) => setConfirmPassword(e.target.value)} 
-              required 
-              disabled={loading}
-            />
-          </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? 'Signing in...' : 'Sign In'}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link href="/login" className="font-medium text-primary hover:underline">
-              Sign in
-            </Link>
-          </p>
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Don't have an account?{' '}
+              <Link href="/signup" className="font-medium text-primary hover:underline">
+                Sign up
+              </Link>
+            </p>
+            <p className="text-sm">
+              <Link href="/forgot-password" className="text-muted-foreground hover:text-primary">
+                Forgot your password?
+              </Link>
+            </p>
+          </div>
         </CardFooter>
       </form>
     </Card>
