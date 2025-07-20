@@ -30,11 +30,20 @@ export function DataVisualization({ visualization, title }: DataVisualizationPro
       case 'table':
         return <DataTable data={visualization.data} />;
       case 'chart':
+        // Guard clause to ensure the config is valid before rendering the chart
+        if (
+            !visualization.config || 
+            !visualization.config.chartType ||
+            !visualization.config.dataKey ||
+            !visualization.config.nameKey
+        ) {
+            return <p className="text-destructive text-sm p-4">Chart configuration is incomplete and cannot be displayed.</p>;
+        }
         return (
           <DynamicChart
-            chartType={visualization.config?.chartType as 'bar' | 'pie' | 'line' | 'treemap' | 'scatter'}
+            chartType={visualization.config.chartType as 'bar' | 'pie' | 'line' | 'treemap' | 'scatter'}
             data={visualization.data}
-            config={visualization.config || {}}
+            config={visualization.config as any}
             isExpanded={isExpandedView}
           />
         );
