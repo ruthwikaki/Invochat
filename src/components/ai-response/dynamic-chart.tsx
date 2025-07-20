@@ -36,14 +36,14 @@ interface DynamicChartProps {
 }
 
 interface TreemapContentProps {
-  depth: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  index: number;
-  name: string;
-  value: number;
+  depth?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  index?: number;
+  name?: string;
+  value?: number;
 }
 
 
@@ -51,6 +51,11 @@ interface TreemapContentProps {
 // This provides better visual styling than the default.
 const TreemapContent = (props: TreemapContentProps) => {
   const { depth, x, y, width, height, index, name, value } = props;
+
+  // Add runtime checks to ensure props from recharts are present
+  if (x === undefined || y === undefined || width === undefined || height === undefined || index === undefined || name === undefined || value === undefined || depth === undefined) {
+    return null;
+  }
 
   // Don't render text for very small boxes
   const showText = width > 60 && height > 25;
@@ -159,6 +164,7 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                     nameKey={config.nameKey}
                     aspectRatio={16 / 9}
                     isAnimationActive={isInView}
+                    content={<TreemapContent />}
                 >
                     <Tooltip
                         contentStyle={{
@@ -167,7 +173,6 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
                         }}
                          formatter={(value: number, name: string) => [value.toLocaleString('en-US', { style: 'currency', currency: 'USD' }), name]}
                     />
-                    <TreemapContent />
                 </Treemap>
             );
         case 'scatter':
