@@ -1,22 +1,24 @@
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { InvoChatLogo } from '@/components/invochat-logo';
 
-export function LandingHeader() {
+export default function AuthLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <header className="px-4 lg:px-6 h-16 flex items-center bg-background/80 backdrop-blur-md sticky top-0 z-50 border-b">
-      <Link href="/" className="flex items-center justify-center gap-2" prefetch={false}>
-        <InvoChatLogo className="h-8 w-8" />
-        <span className="text-xl font-semibold">ARVO</span>
-      </Link>
-      <nav className="ml-auto flex items-center gap-4 sm:gap-6">
-        <Button asChild variant="ghost">
-            <Link href="/login">Sign In</Link>
-        </Button>
-        <Button asChild>
-          <Link href="/signup">Sign Up</Link>
-        </Button>
-      </nav>
-    </header>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-md w-full space-y-8 p-4">
+        <div className="text-center">
+          <InvoChatLogo className="mx-auto h-12 w-auto" />
+          <h1 className="mt-4 text-3xl font-bold text-gray-900 dark:text-white">
+            ARVO
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Conversational Inventory Intelligence
+          </p>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }

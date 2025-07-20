@@ -50,22 +50,24 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
   const { pathname } = req.nextUrl;
 
-  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
-  
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
-  // If the user is not authenticated and the route is not public, redirect to login
+  // If user is not logged in and not on a public route, redirect to login
   if (!user && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
-  
-  if (user) {
-    // If the user is logged in, but their company setup is not complete, force them to the setup page
-    if (!user.app_metadata.company_id && !pathname.startsWith('/env-check')) {
-       return NextResponse.redirect(new URL('/env-check', req.url));
-    }
+
+  // If user is logged in, redirect them away from public auth pages to the dashboard
+  if (user && isPublicRoute) {
+    return NextResponse.redirect(new URL('/dashboard', req.url));
   }
   
+  // If user is logged in but setup is incomplete, force them to the env-check page.
+  if (user && !user.app_metadata.company_id && !pathname.startsWith('/env-check') && !pathname.startsWith('/database-setup')) {
+    return NextResponse.redirect(new URL('/env-check', req.url));
+  }
+
   return response;
 }
 
