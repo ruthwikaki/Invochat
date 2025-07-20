@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -530,12 +529,12 @@ export async function reconcileInventory(integrationId: string): Promise<{ succe
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     const { companyId } = await getAuthContext();
-    const result = await getReorderSuggestions.run({ companyId });
-    if (!result.output) {
+    const suggestions = await getReorderSuggestions({ companyId });
+    if (!suggestions) {
         logError(new Error('getReorderSuggestions tool did not return an output.'), { companyId });
         return [];
     }
-    return result.output;
+    return suggestions;
 }
 
 export async function getInventoryLedger(variantId: string) {
@@ -607,3 +606,5 @@ async function getCashFlowInsightsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
+
+    
