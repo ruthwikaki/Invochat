@@ -4,7 +4,7 @@
 import { headers } from 'next/headers';
 import Papa from 'papaparse';
 import { z } from 'zod';
-import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from './schemas';
+import { ProductCostImportSchema, SupplierImportSchema, HistoricalSalesImportSchema } from '@/app/import/schemas';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { invalidateCompanyCache, rateLimit } from '@/lib/redis';
 import { validateCSRF } from '@/lib/csrf';
@@ -256,9 +256,9 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         let requiresViewRefresh = false;
 
         const importSchemas = {
-            'product-costs': { schema: ProductCostImportSchema, tableName: 'inventory' },
-            'suppliers': { schema: SupplierImportSchema, tableName: 'suppliers' },
-            'historical-sales': { schema: HistoricalSalesImportSchema, tableName: 'sales' },
+            'product-costs': { schema: ProductCostImportSchema },
+            'suppliers': { schema: SupplierImportSchema },
+            'historical-sales': { schema: HistoricalSalesImportSchema },
         };
 
         const currentConfig = importSchemas[dataType as keyof typeof importSchemas];
