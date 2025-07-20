@@ -7,7 +7,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 import type { Customer, CustomerAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Download } from 'lucide-react';
+import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -24,9 +24,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { deleteCustomer } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
-import { Avatar, AvatarFallback } from '../ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
-import { ExportButton } from '../ui/export-button';
+import { ExportButton } from '@/components/ui/export-button';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
