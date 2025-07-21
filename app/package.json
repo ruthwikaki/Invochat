@@ -65,6 +65,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@opentelemetry/exporter-jaeger": "^0.52.1",
     "@playwright/test": "^1.45.3",
     "@types/dompurify": "^3.0.5",
     "@types/dotenv": "^8.2.0",
