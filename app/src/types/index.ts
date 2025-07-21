@@ -1,7 +1,6 @@
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { AnomalyExplanationInputSchema, AnomalySchema } from './ai-schemas';
+import type { AnomalyExplanationOutputSchema, AnomalySchema } from './ai-schemas';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -197,7 +196,7 @@ export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
 export type Platform = 'shopify' | 'woocommerce' | 'amazon_fba';
 
-export const IntegrationSyncStatusSchema = z.enum(['syncing_products', 'syncing_sales', 'syncing', 'success', 'failed', 'idle']);
+export const IntegrationSyncStatusSchema = z.enum(['syncing_products', 'syncing_sales', 'syncing_orders', 'syncing', 'success', 'failed', 'idle']);
 
 export type Integration = {
   id: string;
