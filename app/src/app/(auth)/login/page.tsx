@@ -7,15 +7,12 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function LoginPage({
-  searchParams,
-}: {
-  searchParams?: { [key: string]: string | string[] | undefined };
-}) {
-  const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
-  const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
+export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+  const message = searchParams.get('message');
   const { toast } = useToast();
   const router = useRouter();
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
@@ -9,6 +8,7 @@ import { logger } from '@/lib/logger';
 
 interface Props {
   children: ReactNode;
+  onReset: () => void;
 }
 
 interface State {
@@ -29,11 +29,6 @@ class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('React Error Boundary Caught:', { error: error.message, componentStack: errorInfo.componentStack });
   }
-  
-  private handleReset = () => {
-    this.setState({ hasError: false, error: null });
-  };
-
 
   public render() {
     if (this.state.hasError) {
@@ -56,7 +51,7 @@ class ErrorBoundary extends Component<Props, State> {
                            Error: {this.state.error.message}
                         </p>
                     )}
-                    <Button onClick={this.handleReset}>
+                    <Button onClick={this.props.onReset}>
                         Try Again
                     </Button>
                 </CardContent>

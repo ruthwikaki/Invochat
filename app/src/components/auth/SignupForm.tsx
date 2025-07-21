@@ -36,7 +36,7 @@ export function SignupForm() {
                 title: 'Signup Successful!',
                 description: 'Please check your email to verify your account.',
             });
-            router.push('/login');
+            router.push('/login?message=Account created. Please verify your email.');
         } catch (err: any) {
             setError(err.message || 'An unexpected error occurred during signup.');
         }

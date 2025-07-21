@@ -4,9 +4,10 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
+import type { User } from '@/types';
 
-export function UserAccountNav() {
-  const { user, logout } = useAuth();
+export function UserAccountNav({user}: {user: User | null}) {
+  const { logout } = useAuth();
 
   return (
       <div className="flex items-center gap-2 p-2">

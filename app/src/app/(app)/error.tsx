@@ -1,4 +1,3 @@
-
 'use client'; // Error components must be Client Components
 
 import { useEffect } from 'react';
@@ -15,7 +14,6 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log the error to Sentry
     Sentry.captureException(error);
   }, [error]);
 
