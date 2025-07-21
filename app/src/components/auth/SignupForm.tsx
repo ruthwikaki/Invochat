@@ -33,7 +33,7 @@ export function SignupForm() {
         try {
             // The Supabase client in the auth context will handle passing the company name.
             // We just need to provide the email and password here.
-            await signup(email, password);
+            await signup(email, password, companyName);
             toast({
                 title: 'Signup Successful!',
                 description: 'Please check your email to verify your account.',
