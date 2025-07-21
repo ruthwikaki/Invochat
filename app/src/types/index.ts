@@ -385,8 +385,6 @@ export const AnomalySchema = z.object({
     daily_revenue: z.number(),
     avg_revenue: z.number(),
     deviation_percentage: z.number(),
-    explanation: z.string().optional(),
-    suggestedAction: z.string().optional()
 });
 export type Anomaly = z.infer<typeof AnomalySchema>;
 
@@ -456,19 +454,18 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 
 export const AnomalyExplanationInputSchema = z.object({
-    anomaly: AnomalySchema,
-    dateContext: z.object({
-      dayOfWeek: z.string(),
-      month: z.string(),
-      season: z.string(),
-      knownHoliday: z.string().optional(),
-    }),
+    id: z.string(),
+    type: z.string(),
+    title: z.string(),
+    message: z.string(),
+    severity: z.string(),
+    timestamp: z.string(),
+    metadata: z.record(z.unknown()),
 });
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 
 export const AnomalyExplanationOutputSchema = z.object({
     explanation: z.string(),
-    confidence: z.enum(['high', 'medium', 'low']),
     suggestedAction: z.string().optional(),
 });
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
