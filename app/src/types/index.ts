@@ -1,7 +1,7 @@
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { AnomalyExplanationInputSchema, AnomalySchema } from './ai-schemas';
+import { AnomalyExplanationInputSchema, AnomalySchema, AnomalyExplanationOutputSchema } from './ai-schemas';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -453,11 +453,6 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 
-export const AnomalyExplanationOutputSchema = z.object({
-  explanation: z.string().describe("A concise, 1-2 sentence explanation for the anomaly or alert."),
-  confidence: z.enum(['high', 'medium', 'low']).describe("The AI's confidence in its explanation."),
-  suggestedAction: z.string().optional().describe("A brief, actionable suggestion for the user to take next."),
-});
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({

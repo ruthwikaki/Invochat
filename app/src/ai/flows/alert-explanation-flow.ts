@@ -31,6 +31,7 @@ const alertExplanationPrompt = ai.definePrompt({
     3.  **Suggest Action:** Provide a brief, actionable suggestion.
         - Example (Low Stock): "Consider creating a purchase order from its primary supplier."
         - Example (Dead Stock): "Suggest creating a promotional campaign to liquidate this inventory."
+    4. **Confidence:** Rate your confidence in the explanation as 'high', 'medium', or 'low'.
 
     Provide your response in the specified JSON format.
   `,
@@ -42,6 +43,7 @@ export async function generateAlertExplanation(alert: AnomalyExplanationInput): 
     return {
       explanation: "Could not determine a cause for this alert.",
       suggestedAction: "Manually review sales and inventory data related to this alert.",
+      confidence: 'low',
     };
   }
   return output;
