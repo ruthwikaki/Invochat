@@ -1,17 +1,19 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
-import type { User, SupabaseClient } from '@supabase/supabase-js';
+import type { User, SupabaseClient, Session } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { logError } from '@/lib/error-handler';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
   signup: (email: string, password: string, companyName: string) => Promise<void>;
+  logout: () => Promise<void>;
   supabase: SupabaseClient;
 }
 
@@ -19,6 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -31,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const getInitialSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
         setUser(session?.user ?? null);
       } catch (e) {
         logError(e, { context: 'Failed to get initial Supabase session'});
@@ -43,10 +47,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
         if (_event === 'SIGNED_IN') {
-            // Use replace to avoid adding a new entry to the history stack
             router.replace('/dashboard');
         }
         if (_event === 'SIGNED_OUT') {
@@ -58,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  // We only want this to run once on mount, so we disable the exhaustive-deps rule.
+  // We only want this to run once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -86,10 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = {
     user,
+    session,
     loading,
     login,
-    logout,
     signup,
+    logout,
     supabase,
   };
 
