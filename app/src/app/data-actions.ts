@@ -549,7 +549,7 @@ export async function getReorderReport(): Promise<ReorderSuggestion[]> {
 
         const { output } = await reorderRefinementPrompt({
             suggestions: baseSuggestions,
-            historicalSales: historicalSales,
+            historicalSales: historicalSales as any,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
         });
@@ -656,3 +656,5 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         return { success: false, error: getErrorMessage(e) };
     }
 }
+
+    

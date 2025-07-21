@@ -14,6 +14,7 @@ import { revalidatePath } from 'next/cache';
 import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 import { getAuthContext } from '../data-actions';
 import { checkUserPermission, refreshMaterializedViews } from '@/services/database';
+import type { Json } from '@/types/database.types';
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -51,8 +52,8 @@ async function updateImportJob(importId: string, updates: Partial<ImportResult>)
     const { error } = await supabase.from('imports').update({
         processed_rows: updates.processedCount,
         failed_rows: updates.errorCount,
-        errors: updates.errors,
-        summary: updates.summary,
+        errors: updates.errors as Json,
+        summary: updates.summary as Json,
         status: (updates.errorCount ?? 0) > 0 ? 'completed_with_errors' : 'completed',
         completed_at: new Date().toISOString()
     }).eq('id', importId);
@@ -66,7 +67,7 @@ async function failImportJob(importId: string, errorMessage: string) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('imports').update({
         status: 'failed',
-        errors: [{ row: 0, message: errorMessage, data: {} }],
+        errors: [{ row: 0, message: errorMessage, data: {} }] as Json,
         completed_at: new Date().toISOString()
     }).eq('id', importId);
      if (error) {
@@ -157,7 +158,7 @@ async function processCsv<T extends z.ZodType>(
 
                     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
                         const batch = validRows.slice(i, i + BATCH_SIZE);
-                        const { error: dbError } = await supabase.rpc(rpcToCall, { p_records: batch, p_company_id: companyId, p_user_id: userId });
+                        const { error: dbError } = await supabase.rpc(rpcToCall as any, { p_records: batch, p_company_id: companyId, p_user_id: userId });
                         if (dbError) {
                             logError(dbError, { context: `Transactional database error for ${importType}` });
                             validationErrors.push({ row: 0, message: `Database error during batch import: ${dbError.message}`, data: {} });
@@ -292,3 +293,5 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         return { success: false, isDryRun, summaryMessage: `An unexpected server error occurred: ${errorMessage}` };
     }
 }
+
+    
