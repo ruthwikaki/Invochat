@@ -134,7 +134,7 @@ export function IntegrationsClientPage() {
             toast({ title: 'Sync Started', description: 'Your data will be updated shortly.'});
             return { previousIntegrations };
         },
-        onError: (err, variables, context) => {
+        onError: (err, _variables, context) => {
             // Rollback on error
             if (context?.previousIntegrations) {
                 queryClient.setQueryData(['integrations'], context.previousIntegrations);
