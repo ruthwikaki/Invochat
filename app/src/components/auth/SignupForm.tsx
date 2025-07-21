@@ -1,55 +1,56 @@
-
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useFormStatus } from 'react-dom';
+import React, { useState } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, getCookie, CSRF_COOKIE_NAME } from '@/lib/csrf-client';
+import { useAuth } from '@/context/auth-context';
+import { useToast } from '@/hooks/use-toast';
 
-function SubmitButton({ disabled }: { disabled?: boolean }) {
-    const { pending } = useFormStatus();
-    return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={disabled || pending}>
-        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
-      </Button>
-    );
-}
+export function SignupForm() {
+    const [companyName, setCompanyName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const { signup } = useAuth();
+    const { toast } = useToast();
 
-interface SignupFormProps {
-    error: string | null;
-}
+    const handleSignup = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
 
-export function SignupForm({ error: initialError }: SignupFormProps) {
-    const [error, setError] = useState(initialError);
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
-    const formRef = useRef<HTMLFormElement>(null);
-
-    useEffect(() => {
-        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
-    }, []);
-    
-    useEffect(() => {
-        setError(initialError);
-        if (initialError) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('error');
-            window.history.replaceState({}, '', url.toString());
+        if (password !== confirmPassword) {
+            setError('Passwords do not match.');
+            return;
         }
-    }, [initialError]);
+
+        setIsLoading(true);
+        try {
+            // The Supabase client in the auth context will handle passing the company name.
+            // We just need to provide the email and password here.
+            await signup(email, password);
+            toast({
+                title: 'Signup Successful!',
+                description: 'Please check your email to verify your account.',
+            });
+        } catch (err: any) {
+            setError(err.message || 'An unexpected error occurred during signup.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleInteraction = () => {
         if (error) setError(null);
     };
 
     return (
-        <form ref={formRef} action={signup} className="grid gap-4" onChange={handleInteraction}>
-            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+        <form onSubmit={handleSignup} className="grid gap-4" onChange={handleInteraction}>
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
                 <Input
@@ -58,6 +59,9 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                     type="text"
                     placeholder="Your Company Inc."
                     required
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    disabled={isLoading}
                     className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
@@ -69,6 +73,9 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                     type="email"
                     placeholder="you@company.com"
                     required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
                     className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
@@ -80,6 +87,9 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                     placeholder="••••••••"
                     required
                     minLength={8}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
                 />
                 <p className="text-xs text-slate-400 px-1">
                     Must be at least 8 characters.
@@ -93,6 +103,9 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                     placeholder="••••••••"
                     required
                     minLength={8}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    disabled={isLoading}
                 />
             </div>
             {error && (
@@ -101,7 +114,9 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton disabled={!csrfToken} />
+            <Button type="submit" className="w-full h-12 text-base" disabled={isLoading}>
+                {isLoading ? <Loader2 className="animate-spin" /> : 'Create Account'}
+            </Button>
         </form>
     );
 }

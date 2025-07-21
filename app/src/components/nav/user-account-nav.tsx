@@ -3,18 +3,20 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
-import { signOut } from '@/app/(auth)/actions';
+import { useAuth } from '@/context/auth-context';
 
-export function UserAccountNav({ userEmail }: { userEmail: string | null }) {
+export function UserAccountNav() {
+  const { user, logout } = useAuth();
+
   return (
-    <form action={signOut} className="w-full">
       <div className="flex items-center gap-2 p-2">
         <Avatar className="h-8 w-8">
-          <AvatarFallback>{userEmail?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+          <AvatarFallback>{user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
         </Avatar>
-        <span className="text-sm truncate flex-1">{userEmail || 'No user found'}</span>
+        <span className="text-sm truncate flex-1">{user?.email || 'No user found'}</span>
         <Button
-          type="submit"
+          type="button"
+          onClick={logout}
           variant="ghost"
           size="icon"
           className="h-8 w-8 ml-auto"
@@ -23,6 +25,5 @@ export function UserAccountNav({ userEmail }: { userEmail: string | null }) {
           <LogOut className="h-4 w-4" />
         </Button>
       </div>
-    </form>
   );
 }

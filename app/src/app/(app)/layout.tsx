@@ -1,31 +1,51 @@
+'use client';
 import { Sidebar, SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/nav/sidebar';
 import ErrorBoundary from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { QueryClientProvider } from '@/context/query-client-provider';
 import { AppPage } from '@/components/ui/page';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { useAuth } from '@/context/auth-context';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default async function AppLayout({
+function AppLoadingSkeleton() {
+    return (
+        <div className="flex h-dvh w-full">
+            <div className="w-16 md:w-64 h-full p-2 border-r">
+                <Skeleton className="h-10 w-full mb-4" />
+                <div className="space-y-2">
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                </div>
+            </div>
+            <div className="flex-1 p-8">
+                <Skeleton className="h-12 w-1/3 mb-8" />
+                <Skeleton className="h-64 w-full" />
+            </div>
+        </div>
+    )
+}
+
+export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: {
-            get(name: string) {
-              return cookieStore.get(name)?.value
-            },
-          },
-        }
-    );
+    const { user, loading } = useAuth();
+    const router = useRouter();
 
-    const { data: { user } } = await supabase.auth.getUser();
+    useEffect(() => {
+        if (!loading && !user) {
+            router.push('/login');
+        }
+    }, [user, loading, router]);
+    
+    if (loading || !user) {
+        return <AppLoadingSkeleton />;
+    }
 
   return (
     <QueryClientProvider>
@@ -33,7 +53,7 @@ export default async function AppLayout({
         <div className="relative flex h-dvh w-full bg-background">
             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(theme(colors.border)_1px,transparent_1px)] [background-size:32px_32px]"></div>
             <Sidebar>
-                <AppSidebar userEmail={user?.email || null}/>
+                <AppSidebar />
             </Sidebar>
             <SidebarInset className="flex flex-1 flex-col overflow-y-auto">
             <ErrorBoundary>

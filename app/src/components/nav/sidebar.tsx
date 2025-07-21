@@ -92,7 +92,7 @@ function ConversationLink({ conversation }: { conversation: Conversation }) {
     );
 }
 
-export function AppSidebar({ userEmail }: { userEmail: string | null }) {
+export function AppSidebar() {
   const pathname = usePathname();
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
@@ -174,7 +174,7 @@ export function AppSidebar({ userEmail }: { userEmail: string | null }) {
             </SidebarMenuItem>
         </SidebarMenu>
         <Separator />
-        <UserAccountNav userEmail={userEmail} />
+        <UserAccountNav />
       </SidebarFooter>
     </>
   );

@@ -1,60 +1,45 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useFormStatus } from 'react-dom';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { useAuth } from '@/context/auth-context';
+import { useToast } from '@/hooks/use-toast';
 
-function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
-    const { pending } = useFormStatus();
-    return (
-        <Button 
-            type="submit" 
-            disabled={disabled || pending} 
-            className="w-full h-12 text-base font-semibold bg-primary text-primary-foreground shadow-lg transition-all duration-300 ease-in-out hover:bg-primary/90 hover:shadow-xl disabled:opacity-50 rounded-lg"
-        >
-            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
-        </Button>
-    )
-}
+export function LoginForm() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+  const { toast } = useToast();
 
-interface LoginFormProps {
-    error: string | null;
-    message: string | null;
-    csrfToken: string;
-}
-
-export function LoginForm({ error: initialError, message: initialMessage, csrfToken }: LoginFormProps) {
-  const [error, setError] = useState(initialError);
-  const [message, setMessage] = useState(initialMessage);
-
-  useEffect(() => {
-    setError(initialError);
-    setMessage(initialMessage);
-    if (initialError || initialMessage) {
-        // Clear the error from the URL without reloading the page
-        const url = new URL(window.location.href);
-        url.searchParams.delete('error');
-        url.searchParams.delete('message');
-        window.history.replaceState({}, '', url.toString());
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+    try {
+      await login(email, password);
+      toast({ title: 'Login Successful', description: 'Redirecting to your dashboard...' });
+      // Redirect is handled by the AuthProvider
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setIsLoading(false);
     }
-  }, [initialError, initialMessage]);
+  };
 
   const handleInteraction = () => {
     if (error) setError(null);
-    if (message) setMessage(null);
   };
 
   return (
-    <form action={login} className="space-y-4" onChange={handleInteraction}>
-        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
+    <form onSubmit={handleLogin} className="space-y-4" onChange={handleInteraction}>
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input
@@ -63,6 +48,9 @@ export function LoginForm({ error: initialError, message: initialMessage, csrfTo
                 type="email"
                 placeholder="you@company.com"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
                 className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
             />
         </div>
@@ -82,6 +70,9 @@ export function LoginForm({ error: initialError, message: initialMessage, csrfTo
                 name="password"
                 placeholder="••••••••"
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
             />
         </div>
         
@@ -91,16 +82,15 @@ export function LoginForm({ error: initialError, message: initialMessage, csrfTo
                 <AlertDescription>{error}</AlertDescription>
             </Alert>
         )}
-
-        {message && (
-            <Alert className="bg-green-500/10 border-green-500/30 text-green-400">
-                <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                <AlertDescription>{message}</AlertDescription>
-            </Alert>
-        )}
         
         <div className="pt-2">
-            <LoginSubmitButton disabled={!csrfToken} />
+            <Button 
+                type="submit" 
+                disabled={isLoading} 
+                className="w-full h-12 text-base font-semibold bg-primary text-primary-foreground shadow-lg transition-all duration-300 ease-in-out hover:bg-primary/90 hover:shadow-xl disabled:opacity-50 rounded-lg"
+            >
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+            </Button>
         </div>
     </form>
   );
