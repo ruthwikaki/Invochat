@@ -8,7 +8,7 @@ import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInve
 import { invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import type { Database, Json } from '@/types/database.types';
+import type { Json } from '@/types/database.types';
 
 // --- Authorization Helper ---
 /**

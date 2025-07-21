@@ -1,7 +1,7 @@
+
 'use client';
 
 import Link from 'next/link';
-import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { LoginForm } from '@/components/auth/LoginForm';
