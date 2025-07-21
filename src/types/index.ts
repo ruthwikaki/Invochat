@@ -1,7 +1,7 @@
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
-import type { AnomalyExplanationOutputSchema, AnomalySchema } from './ai-schemas';
+import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from './ai-schemas';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -197,18 +197,21 @@ export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
 export type Platform = 'shopify' | 'woocommerce' | 'amazon_fba';
 
-export type Integration = {
-  id: string;
-  company_id: string;
-  platform: Platform;
-  shop_domain: string | null;
-  shop_name: string | null;
-  is_active: boolean;
-  last_sync_at: string | null;
-  sync_status: 'syncing_products' | 'syncing_orders' | 'syncing_sales' | 'syncing' | 'success' | 'failed' | 'idle' | null;
-  created_at: string;
-  updated_at: string | null;
-};
+export const IntegrationSyncStatusSchema = z.enum(['syncing_products', 'syncing_sales', 'syncing_orders', 'syncing', 'success', 'failed', 'idle']);
+
+export const IntegrationSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  platform: z.custom<Platform>(),
+  shop_domain: z.string().nullable(),
+  shop_name: z.string().nullable(),
+  is_active: z.boolean(),
+  last_sync_at: z.string().nullable(),
+  sync_status: IntegrationSyncStatusSchema.nullable(),
+  created_at: z.string(),
+  updated_at: z.string().nullable(),
+});
+export type Integration = z.infer<typeof IntegrationSchema>;
 
 
 export type Conversation = {
@@ -389,6 +392,7 @@ export const HealthCheckResultSchema = z.object({
     metric: z.number(),
     message: z.string(),
 });
+export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
 
 export const ChannelFeeSchema = z.object({
     id: z.string().uuid(),
@@ -448,14 +452,6 @@ export const DeadStockItemSchema = z.object({
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 
-export const AnomalyExplanationInputSchema = z.object({
-    type: z.string(),
-    title: z.string(),
-    message: z.string(),
-    severity: z.string(),
-    timestamp: z.string(),
-    metadata: z.record(z.unknown()),
-});
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;

@@ -1,7 +1,7 @@
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { AnomalyExplanationInputSchema, AnomalySchema, AnomalyExplanationOutputSchema } from './ai-schemas';
+import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from './ai-schemas';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;

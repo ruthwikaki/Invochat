@@ -7,7 +7,7 @@
  * It uses the Resend email platform.
  */
 
-import type { Alert } from '@/types';
+import type { Alert, Anomaly } from '@/types';
 import { logger } from '@/lib/logger';
 import { Resend } from 'resend';
 import { config } from '@/config/app-config';
@@ -66,7 +66,8 @@ async function sendEmail(to: string, subject: string, text: string, context: str
  * @param alert The alert object containing details for the email.
  */
 export async function sendEmailAlert(alert: Alert): Promise<void> {
-  const subject = `InvoChat Alert: ${alert.title} - ${alert.metadata.productName || 'System Alert'}`;
+  const metadata = alert.metadata as Record<string, unknown>;
+  const subject = `InvoChat Alert: ${alert.title} - ${metadata.productName || 'System Alert'}`;
   
   const body = `
     A new alert has been triggered in your InvoChat account.
@@ -77,12 +78,12 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     Message: ${alert.message}
 
     Details:
-    - Product: ${alert.metadata.productName || 'N/A'}
-    - SKU: ${alert.metadata.productId ? `(ID: ${alert.metadata.productId})` : 'N/A'}
-    - Current Stock: ${alert.metadata.currentStock ?? 'N/A'}
-    - Reorder Point: ${alert.metadata.reorderPoint ?? 'N/A'}
-    - Last Sold Date: ${alert.metadata.lastSoldDate ? new Date(String(alert.metadata.lastSoldDate)).toLocaleDateString() : 'N/A'}
-    - Current Value: $${(alert.metadata.value ?? 0).toLocaleString()}
+    - Product: ${metadata.productName || 'N/A'}
+    - SKU: ${metadata.productId ? `(ID: ${metadata.productId})` : 'N/A'}
+    - Current Stock: ${metadata.currentStock ?? 'N/A'}
+    - Reorder Point: ${metadata.reorderPoint ?? 'N/A'}
+    - Last Sold Date: ${metadata.lastSoldDate ? new Date(String(metadata.lastSoldDate)).toLocaleDateString() : 'N/A'}
+    - Current Value: $${(metadata.value ?? 0).toLocaleString()}
 
     You can view this alert in your InvoChat dashboard.
   `.trim();
@@ -133,6 +134,8 @@ export async function sendWelcomeEmail(email: string): Promise<void> {
     await sendEmail(email, subject, body, "Welcome Email");
 }
 
+type AnomalyWithExplanation = Anomaly & { explanation?: string };
+
 /**
  * Sends a daily or weekly inventory digest email.
  * @param to The recipient's email address.
@@ -140,7 +143,7 @@ export async function sendWelcomeEmail(email: string): Promise<void> {
  */
 export async function sendInventoryDigestEmail(to: string, insights: {
     summary: string;
-    anomalies: (Record<string,unknown> & {anomaly_type: string, date: string, explanation?: string})[];
+    anomalies: AnomalyWithExplanation[];
     topDeadStock: { product_name: string; total_value: number; }[];
     topLowStock: Alert[];
 }): Promise<void> {
@@ -175,7 +178,8 @@ Top Items Low on Stock
 ---
 `;
         insights.topLowStock.forEach(item => {
-            body += `- ${item.metadata.productName} (${item.metadata.currentStock} units left)\n`;
+            const metadata = item.metadata as Record<string, unknown>;
+            body += `- ${metadata.productName} (${metadata.currentStock} units left)\n`;
         });
     }
     
