@@ -2,10 +2,11 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../logger';
 import { envValidation } from '@/config/app-config';
+import type { Database } from '@/types/database.types';
 
 // A private, module-level variable to cache the client instance.
 // It starts as null and will be populated on the first call to getServiceRoleClient.
-let supabaseAdmin: SupabaseClient | null = null;
+let supabaseAdmin: SupabaseClient<Database> | null = null;
 
 /**
  * Returns the Supabase admin client. It uses lazy initialization to create the client
@@ -14,7 +15,7 @@ let supabaseAdmin: SupabaseClient | null = null;
  *
  * @throws {Error} If the required Supabase environment variables are not set.
  */
-export function getServiceRoleClient(): SupabaseClient {
+export function getServiceRoleClient(): SupabaseClient<Database> {
   // If the client has already been created, return the cached instance.
   if (supabaseAdmin) {
     return supabaseAdmin;
@@ -32,7 +33,7 @@ export function getServiceRoleClient(): SupabaseClient {
   }
   
   // Create, cache, and return the client instance.
-  supabaseAdmin = createClient(
+  supabaseAdmin = createClient<Database>(
       envValidation.data.SUPABASE_URL, 
       envValidation.data.SUPABASE_SERVICE_ROLE_KEY, 
       {
