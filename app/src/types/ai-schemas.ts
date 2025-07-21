@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 // A single part of a multi-modal message, updated to support tool responses.
@@ -59,11 +60,11 @@ export const AnomalyExplanationInputSchema = z.object({
     timestamp: z.string(),
     metadata: z.record(z.unknown()),
 });
+export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 
 export const AnomalyExplanationOutputSchema = z.object({
   explanation: z.string().describe("A concise, 1-2 sentence explanation for the anomaly or alert."),
   confidence: z.enum(['high', 'medium', 'low']).describe("The AI's confidence in its explanation."),
   suggestedAction: z.string().optional().describe("A brief, actionable suggestion for the user to take next."),
 });
-export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
