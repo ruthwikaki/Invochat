@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -30,11 +31,11 @@ import {
   RefreshCw,
   Truck,
   Import,
-  User,
+  User as UserIcon,
   ShoppingCart,
   History
 } from 'lucide-react';
-import type { Conversation } from '@/types';
+import type { Conversation, User } from '@/types';
 
 
 const mainNav = [
@@ -57,7 +58,7 @@ const toolsNav = [
 ];
 
 const settingsNav = [
-    { href: '/settings/profile', label: 'Profile', icon: User },
+    { href: '/settings/profile', label: 'Profile', icon: UserIcon },
     { href: '/settings/integrations', label: 'Integrations', icon: PlusCircle },
 ];
 
@@ -92,7 +93,7 @@ function ConversationLink({ conversation }: { conversation: Conversation }) {
     );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ user }: { user: User | null }) {
   const pathname = usePathname();
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
@@ -174,7 +175,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
         </SidebarMenu>
         <Separator />
-        <UserAccountNav />
+        <UserAccountNav user={user} />
       </SidebarFooter>
     </>
   );
