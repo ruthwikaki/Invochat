@@ -22,7 +22,6 @@ export function LoginForm({ initialError }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login, loading } = useAuth();
-  const router = useRouter();
 
   useEffect(() => {
     setError(initialError);

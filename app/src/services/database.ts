@@ -392,7 +392,7 @@ export async function getIntegrationsByCompanyId(companyId: string): Promise<Int
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('integrations').select('*').eq('company_id', companyId);
     if (error) throw new Error(`Could not load integrations: ${error.message}`);
-    return data || [];
+    return (data as Integration[]) || [];
 }
 export async function deleteIntegrationFromDb(id: string, companyId: string) {
     const supabase = getServiceRoleClient();
@@ -453,7 +453,7 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<C
     if (!channel_name) {
         throw new Error("Channel name is required to upsert a fee.");
     }
-    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId, channel_name }, { onConflict: 'company_id, channel_name' });
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
     if (error) {
         logError(error, { context: 'upsertChannelFeeInDB failed' });
         throw error;
@@ -479,7 +479,7 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+export async function logUserFeedbackInDb() {
     // Placeholder function
 }
 export async function createExportJobInDb(companyId: string, userId: string) { 
@@ -489,7 +489,7 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews(companyId: string) {
+export async function refreshMaterializedViews() {
     // Placeholder function
 }
 
@@ -569,7 +569,7 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 }
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {
+export async function logPOCreationInDb() {
     // Placeholder
 }
 
@@ -591,13 +591,13 @@ export async function logWebhookEvent(integrationId: string, webhookId: string) 
     return { success: true };
 }
 
-export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) { return {}; }
-export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { return { fast_sellers: [], slow_sellers: [] }; }
-export async function getDemandForecastFromDB(companyId: string) { return []; }
-export async function getAbcAnalysisFromDB(companyId: string) { return []; }
-export async function getGrossMarginAnalysisFromDB(companyId: string) { return { products: [], channels: [] }; }
-export async function getMarginTrendsFromDB(companyId: string) { return []; }
-export async function getFinancialImpactOfPromotionFromDB(companyId: string, skus: string[], discount: number, duration: number) { return {}; }
+export async function getNetMarginByChannelFromDB() { return {}; }
+export async function getSalesVelocityFromDB() { return { fast_sellers: [], slow_sellers: [] }; }
+export async function getDemandForecastFromDB() { return []; }
+export async function getAbcAnalysisFromDB() { return []; }
+export async function getGrossMarginAnalysisFromDB() { return { products: [], channels: [] }; }
+export async function getMarginTrendsFromDB() { return []; }
+export async function getFinancialImpactOfPromotionFromDB() { return {}; }
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }

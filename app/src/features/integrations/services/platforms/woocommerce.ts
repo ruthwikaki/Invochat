@@ -4,7 +4,7 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration, Product, ProductVariant } from '@/types';
-import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
+import { refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 
@@ -129,6 +129,14 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),
                         location: null,
+                        barcode: null,
+                        compare_at_price: null,
+                        option1_name: null,
+                        option1_value: null,
+                        option2_name: null,
+                        option2_value: null,
+                        option3_name: null,
+                        option3_value: null,
                     });
                     continue;
                 }
@@ -155,6 +163,8 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                     inventory_quantity: variant.stock_quantity === null ? 0 : variant.stock_quantity,
                     external_variant_id: String(variant.id),
                     location: null,
+                    barcode: null,
+                    compare_at_price: null,
                 });
             }
 
@@ -245,7 +255,6 @@ export async function runWooCommerceFullSync(integration: Integration) {
         logger.info(`[Sync] Full sync completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
         
-        await invalidateCompanyCache(integration.company_id, ['dashboard']);
         await refreshMaterializedViews(integration.company_id);
 
     } catch(e: unknown) {
