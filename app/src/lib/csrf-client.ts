@@ -1,6 +1,8 @@
+
 'use client';
 
 export const CSRF_COOKIE_NAME = '__Host-csrf_token';
+export const CSRF_FORM_NAME = 'csrf_token';
 
 /**
  * Reads a cookie value on the client-side.
