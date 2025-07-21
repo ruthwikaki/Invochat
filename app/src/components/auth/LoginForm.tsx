@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PasswordInput } from './PasswordInput';
 import { useAuth } from '@/context/auth-context';
 import { getErrorMessage } from '@/lib/error-handler';
-import { useRouter } from 'next/navigation';
 
 interface LoginFormProps {
     initialError: string | null;
