@@ -101,7 +101,7 @@ export const getReorderSuggestions = ai.defineTool(
         
         const { output } = await reorderRefinementPrompt({
             suggestions: baseSuggestions,
-            historicalSales: historicalSales,
+            historicalSales: historicalSales as any,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
         });

@@ -1,6 +1,7 @@
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
+import type { AnomalyExplanationOutputSchema, AnomalySchema } from './ai-schemas';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -144,6 +145,8 @@ export const SupplierSchema = z.object({
     default_lead_time_days: z.number().int().nullable(),
     notes: z.string().nullable(),
     created_at: z.string().datetime({ offset: true }),
+    updated_at: z.string().datetime({ offset: true }).nullable(),
+    company_id: z.string().uuid(),
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
 
@@ -202,7 +205,7 @@ export type Integration = {
   shop_name: string | null;
   is_active: boolean;
   last_sync_at: string | null;
-  sync_status: 'syncing_products' | 'syncing_orders' | 'syncing' | 'success' | 'failed' | 'idle' | null;
+  sync_status: 'syncing_products' | 'syncing_orders' | 'syncing_sales' | 'syncing' | 'success' | 'failed' | 'idle' | null;
   created_at: string;
   updated_at: string | null;
 };
@@ -379,13 +382,6 @@ export const CustomerAnalyticsSchema = z.object({
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
-export const AnomalySchema = z.object({
-    date: z.string(),
-    anomaly_type: z.string(),
-    daily_revenue: z.number(),
-    avg_revenue: z.number(),
-    deviation_percentage: z.number(),
-});
 export type Anomaly = z.infer<typeof AnomalySchema>;
 
 export const HealthCheckResultSchema = z.object({
@@ -393,7 +389,6 @@ export const HealthCheckResultSchema = z.object({
     metric: z.number(),
     message: z.string(),
 });
-export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
 
 export const ChannelFeeSchema = z.object({
     id: z.string().uuid(),
@@ -454,21 +449,15 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 
 export const AnomalyExplanationInputSchema = z.object({
-    anomaly: AnomalySchema,
-    dateContext: z.object({
-      dayOfWeek: z.string(),
-      month: z.string(),
-      season: z.string(),
-      knownHoliday: z.string().optional(),
-    }),
+    type: z.string(),
+    title: z.string(),
+    message: z.string(),
+    severity: z.string(),
+    timestamp: z.string(),
+    metadata: z.record(z.unknown()),
 });
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 
-export const AnomalyExplanationOutputSchema = z.object({
-    explanation: z.string(),
-    confidence: z.enum(['high', 'medium', 'low']),
-    suggestedAction: z.string().optional(),
-});
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({

@@ -83,11 +83,7 @@ export async function POST(request: Request) {
                     .single();
 
                 if (integration) {
-                    const { success } = await logWebhookEvent(integration.id, 'shopify', webhookId);
-                    if (!success) {
-                        logError(new Error(`Shopify webhook replay attempt detected: ${webhookId}`), { status: 409 });
-                        return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
-                    }
+                    await logWebhookEvent(integration.id, webhookId);
                 }
             }
         }

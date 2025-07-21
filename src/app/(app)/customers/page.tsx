@@ -2,6 +2,7 @@
 import { getCustomersData, exportCustomers, getCustomerAnalytics } from '@/app/data-actions';
 import { CustomersClientPage } from '@/app/(app)/customers/customers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import type { Customer } from '@/types';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -33,7 +34,7 @@ export default async function CustomersPage({
         description="View and manage your customer list and analytics."
       />
       <CustomersClientPage
-        initialCustomers={customersData.items}
+        initialCustomers={customersData.items as Customer[]}
         totalCount={customersData.totalCount}
         itemsPerPage={ITEMS_PER_PAGE}
         analyticsData={analyticsData}

@@ -7,7 +7,7 @@ import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInve
 import { invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import type { Database } from '@/types/database.types';
+import type { Database, Json } from '@/types/database.types';
 
 // --- Authorization Helper ---
 /**
@@ -116,12 +116,15 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('products')
-        .select('product_type')
+        .select('product_type', {count: 'exact'})
         .eq('company_id', companyId)
-        .not('product_type', 'is', null)
-        .distinct();
+        .not('product_type', 'is', null);
+
     if (error) return [];
-    return data.map((item: { product_type: string | null }) => item.product_type).filter(Boolean) as string[];
+    
+    const distinctCategories = Array.from(new Set(data.map((item: { product_type: string | null }) => item.product_type).filter(Boolean) as string[]));
+
+    return distinctCategories;
 }
 
 export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
@@ -334,7 +337,7 @@ export async function getInventoryAgingReportFromDB(companyId: string): Promise<
 }
 export async function getProductLifecycleAnalysisFromDB(companyId: string): Promise<ProductLifecycleAnalysis> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis' as any, { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getProductLifecycleAnalysisFromDB failed' });
         throw error;
@@ -344,7 +347,7 @@ export async function getProductLifecycleAnalysisFromDB(companyId: string): Prom
 
 export async function getInventoryRiskReportFromDB(companyId: string): Promise<InventoryRiskItem[]> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_inventory_risk_report', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_risk_report' as any, { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getInventoryRiskReportFromDB failed' });
         throw error;
@@ -364,7 +367,7 @@ export async function getCustomerSegmentAnalysisFromDB(companyId: string): Promi
 
 export async function getCashFlowInsightsFromDB(companyId: string) {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_cash_flow_insights' as any, { p_company_id: companyId });
     if(error) throw error;
     return data;
 }
@@ -461,7 +464,7 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
         company_id: companyId,
         user_id: userId,
         action: action,
-        details: details
+        details: details as Json
     });
     if (error) {
         logError(error, { context: 'Failed to create audit log entry' });
@@ -497,7 +500,7 @@ export async function getHistoricalSalesForSkus(companyId: string, skus: string[
 
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
+    const { error } = await supabase.rpc('reconcile_inventory_from_integration' as any, { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
     if(error) throw error;
 }
 
@@ -536,7 +539,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     
     // The query returns { suppliers: { name: 'Supplier A' } }, so we need to flatten it.
     const flattenedData = (data || []).map(po => {
-        const typedPo = po as unknown as { suppliers: { name: string | null } | null };
+        const typedPo = po as any; // Cast to any to access nested property dynamically
         return {
             ...po,
             supplier_name: typedPo.suppliers?.name || 'N/A',
@@ -565,7 +568,7 @@ export async function logPOCreationInDb(poNumber: string, supplierName: string, 
     // Placeholder
 }
 
-export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
+export async function logWebhookEvent(integrationId: string, webhookId: string) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('webhook_events').insert({
         integration_id: integrationId,
@@ -593,3 +596,12 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
+export async function getCompanyIdForUser(userId: string): Promise<string | null> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('company_users').select('company_id').eq('user_id', userId).single();
+    if(error) {
+        logError(error, {context: 'getCompanyIdForUser failed'});
+        return null;
+    }
+    return data?.company_id || null;
+}

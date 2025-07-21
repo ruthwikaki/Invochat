@@ -1,3 +1,4 @@
+
 import { getInventoryTurnoverReportData } from '@/app/data-actions';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { InventoryTurnoverClientPage } from './inventory-turnover-client-page';
@@ -13,7 +14,7 @@ export default async function InventoryTurnoverPage() {
                 title="Inventory Turnover"
                 description="Analyze how efficiently your inventory is being sold and replenished."
             />
-            <InventoryTurnoverClientPage report={reportData} />
+            <InventoryTurnoverClientPage report={reportData as any} />
         </AppPage>
     );
 }

@@ -1,38 +1,24 @@
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { logger } from '../logger';
+import { createServerClient as createServerClientOriginal, type CookieOptions } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { envValidation } from '@/config/app-config';
 import type { Database } from '@/types/database.types';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// A private, module-level variable to cache the client instance.
-// It starts as null and will be populated on the first call to getServiceRoleClient.
+
 let supabaseAdmin: SupabaseClient<Database> | null = null;
 
-/**
- * Returns the Supabase admin client. It uses lazy initialization to create the client
- * on the first call, preventing startup crashes if environment variables are missing.
- * This function should only be called after the environment has been validated.
- *
- * @throws {Error} If the required Supabase environment variables are not set.
- */
 export function getServiceRoleClient(): SupabaseClient<Database> {
-  // If the client has already been created, return the cached instance.
   if (supabaseAdmin) {
     return supabaseAdmin;
   }
 
-  // Startup validation is now handled centrally in src/config/app-config.ts and the root layout.
-  // This check is a safeguard.
   if (!envValidation.success) {
      const errorDetails = envValidation.error.flatten().fieldErrors;
      const errorMessage = `Supabase admin client cannot be initialized due to missing environment variables: ${JSON.stringify(errorDetails)}`;
-     logger.error(errorMessage);
-     // This error will now be caught by the application's error boundaries
-     // because it's thrown during a request, not at startup.
      throw new Error(errorMessage);
   }
   
-  // Create, cache, and return the client instance.
   supabaseAdmin = createClient<Database>(
       envValidation.data.SUPABASE_URL, 
       envValidation.data.SUPABASE_SERVICE_ROLE_KEY, 
@@ -44,7 +30,41 @@ export function getServiceRoleClient(): SupabaseClient<Database> {
       }
   );
 
-  logger.info('[Supabase Admin] Lazily initialized Supabase admin client.');
-
   return supabaseAdmin;
+}
+
+// Re-export createServerClient for use in server components/actions
+export function createServerClient() {
+  const cookieStore = cookies()
+
+  if (!envValidation.success) {
+     const errorMessage = `Supabase admin client cannot be initialized due to missing environment variables.`;
+     throw new Error(errorMessage);
+  }
+
+  return createServerClientOriginal<Database>(
+    envValidation.data.NEXT_PUBLIC_SUPABASE_URL,
+    envValidation.data.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+          }
+        },
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // The `delete` method was called from a Server Component.
+          }
+        },
+      },
+    }
+  )
 }

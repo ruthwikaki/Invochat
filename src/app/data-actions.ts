@@ -57,7 +57,7 @@ import {
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, ChannelFee } from '@/types';
+import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, ChannelFee } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -271,7 +271,6 @@ export async function getInsightsPageData() {
      const explainedAnomalies = await Promise.all(
         (rawAnomalies || []).map(async (anomaly: Anomaly) => {
             const explanation = await generateAlertExplanation({
-                id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
                 title: anomaly.anomaly_type,
                 message: `Deviation of ${anomaly.deviation_percentage.toFixed(0)}% from the average.`,
@@ -284,14 +283,14 @@ export async function getInsightsPageData() {
     );
     
     const summary = await generateInsightsSummary({
-        anomalies: rawAnomalies, // Pass raw anomalies to summary
+        anomalies: rawAnomalies,
         lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
 
     return {
         summary,
-        anomalies: explainedAnomalies, // Return explained anomalies for rendering
+        anomalies: explainedAnomalies,
         topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
         topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
     };
@@ -444,8 +443,8 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
-export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
+export async function getInventoryConsistencyReport(): Promise<{healthy: boolean, metric: number, message: string}> { return {healthy: true, metric: 0, message: "OK"}; }
+export async function getFinancialConsistencyReport(): Promise<{healthy: boolean, metric: number, message: string}> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { 
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
