@@ -14,7 +14,7 @@ import { logger } from '@/lib/logger';
  * @returns The ID of the created or updated secret.
  */
 export async function createOrUpdateSecret(companyId: string, platform: string, plaintextValue: string): Promise<string> {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRoleClient() as any;
     // Use a predictable naming convention for secrets to ensure one per integration.
     const secretName = `${platform}_token_${companyId}`;
     
@@ -57,7 +57,7 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
  * @returns The decrypted secret value, or null if not found.
  */
 export async function getSecret(companyId: string, platform: string): Promise<string | null> {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRoleClient() as any;
     const secretName = `${platform}_token_${companyId}`;
 
     try {

@@ -1,14 +1,12 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logError, getErrorMessage } from '@/lib/error-handler';
+import { logError } from '@/lib/error-handler';
 import type { Integration, Product, ProductVariant } from '@/types';
-import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
+import { refreshMaterializedViews, invalidateCompanyCache } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
-import { config } from '@/config/app-config';
 
 async function wooCommerceFetch(
     storeUrl: string | null,
@@ -116,7 +114,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 });
             }
             
-            for (const wooProduct of wooProducts as { id: number; type: string; sku: string; stock_quantity: number | null, name: string, description: string, slug: string, categories: {name: string}[], tags: {name: string}[], status: string, images: {src: string}[] }[]) {
+            for (const wooProduct of wooProducts as { id: number; type: string; sku: string; stock_quantity: number | null, name: string, description: string, slug: string, categories: {name: string}[], tags: {name: string}[], status: string, images: {src: string}[], price: string }[]) {
                 const internalProductId = productIdMap.get(String(wooProduct.id));
                 if (!internalProductId) continue;
 
@@ -131,6 +129,14 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),
                         location: null,
+                        barcode: null,
+                        compare_at_price: null,
+                        option1_name: null,
+                        option1_value: null,
+                        option2_name: null,
+                        option2_value: null,
+                        option3_name: null,
+                        option3_value: null,
                     });
                     continue;
                 }
@@ -154,6 +160,8 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                     option3_value: variant.attributes[2]?.option,
                     price: Math.round(parseFloat(variant.price || '0') * 100),
                     cost: null,
+                    barcode: null,
+                    compare_at_price: null,
                     inventory_quantity: variant.stock_quantity === null ? 0 : variant.stock_quantity,
                     external_variant_id: String(variant.id),
                     location: null,

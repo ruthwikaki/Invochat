@@ -453,7 +453,7 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<C
     if (!channel_name) {
         throw new Error("Channel name is required to upsert a fee.");
     }
-    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId } as any, { onConflict: 'company_id, channel_name' });
     if (error) {
         logError(error, { context: 'upsertChannelFeeInDB failed' });
         throw error;
@@ -515,7 +515,7 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
         p_company_id: companyId,
         p_user_id: userId,
         p_suggestions: suggestions as unknown as Json,
-        p_idempotency_key: idempotencyKey,
+        p_idempotency_key: idempotencyKey || null,
     });
 
     if (error) {

@@ -51,13 +51,13 @@ export async function runSync(integrationId: string, companyId: string) {
 
             switch (integration.platform) {
                 case 'shopify':
-                    await runShopifyFullSync(integration);
+                    await runShopifyFullSync(integration as Integration);
                     break;
                 case 'woocommerce':
-                    await runWooCommerceFullSync(integration);
+                    await runWooCommerceFullSync(integration as Integration);
                     break;
                 case 'amazon_fba':
-                    await runAmazonFbaFullSync(integration);
+                    await runAmazonFbaFullSync(integration as Integration);
                     break;
                 default:
                     throw new Error(`Unsupported integration platform: ${integration.platform}`);
