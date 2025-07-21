@@ -3,8 +3,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, DeadStockItemSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem, Alert } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, DeadStockItemSchema, AlertSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -293,15 +293,27 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     };
     return (data as Anomaly[]) || [];
 }
-export async function getAlertsFromDB(companyId: string) { 
+export async function getAlertsFromDB(companyId: string): Promise<Alert[]> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    
+    if (error) {
+        logError(error, { context: `getAlertsFromDB failed for company ${companyId}` });
+        return []; // Always return a valid array
+    }
+
+    // Safely parse the data, defaulting to an empty array if parsing fails or data is null
+    const parseResult = AlertSchema.array().safeParse(data);
+    if (!parseResult.success) {
+        logError(parseResult.error, { context: `Zod parsing failed for getAlertsFromDB for company ${companyId}` });
+        return [];
+    }
+
+    return parseResult.data;
 }
 
 export async function getInventoryAgingReportFromDB(companyId: string) {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRole-Client();
     const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
     if (error) throw error;
     return data || [];
