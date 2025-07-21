@@ -270,7 +270,7 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        rawAnomalies.map(async (anomaly: Anomaly) => {
+        (rawAnomalies || []).map(async (anomaly: Anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',

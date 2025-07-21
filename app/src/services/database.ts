@@ -280,7 +280,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     if (error) throw error;
     return (data || []) as ReorderSuggestion[];
 }
-export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> { 
+export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('detect_anomalies', { p_company_id: companyId });
     if (error) {
