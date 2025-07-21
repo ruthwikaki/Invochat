@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import { requestPasswordReset } from '@/app/auth/actions';
+import { requestPasswordReset } from '@/app/(auth)/actions';
 import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
