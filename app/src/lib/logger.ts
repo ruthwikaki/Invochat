@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview A simple, centralized logger for the application.
  * This logger standardizes log output with timestamps and severity levels.
