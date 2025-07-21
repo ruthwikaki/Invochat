@@ -91,9 +91,9 @@ const finalResponsePrompt = ai.definePrompt({
 });
 
 
-const universalChatOrchestrator = ai.defineFlow(
+export const universalChatFlow = ai.defineFlow(
   {
-    name: 'universalChatOrchestrator',
+    name: 'universalChatFlow',
     inputSchema: UniversalChatInputSchema,
     outputSchema: UniversalChatOutputSchema,
   },
@@ -229,6 +229,3 @@ const universalChatOrchestrator = ai.defineFlow(
     }
   }
 );
-
-export const universalChatFlow = universalChatOrchestrator;
- 
