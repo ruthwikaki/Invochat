@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, DeadStockItemSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -264,7 +264,7 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
         logError(error);
         throw error;
     }
-    const deadStockItems: DeadStockItem[] = (data as DeadStockItem[]) || [];
+    const deadStockItems = DeadStockItemSchema.array().parse(data || []);
     const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
     const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
     
