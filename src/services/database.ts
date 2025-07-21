@@ -1,14 +1,13 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, AlertSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema, DeadStockItemSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
-import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
+import type { Database } from '@/types/database.types';
 
 // --- Authorization Helper ---
 /**
@@ -122,7 +121,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
         .not('product_type', 'is', null)
         .distinct();
     if (error) return [];
-    return data.map((item: { product_type: string }) => item.product_type) ?? [];
+    return data.map((item: { product_type: string | null }) => item.product_type).filter(Boolean) as string[];
 }
 
 export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
@@ -151,18 +150,24 @@ export async function getDashboardMetrics(companyId: string, dateRange: string):
     }
     return DashboardMetricsSchema.parse(data);
 }
-export async function getInventoryAnalyticsFromDB(companyId: string) { 
+export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
-    if (error) throw error;
-    return data;
+    if (error) {
+        logError(error, { context: 'getInventoryAnalyticsFromDB failed' });
+        throw error;
+    }
+    return InventoryAnalyticsSchema.parse(data);
 }
 
-export async function getSuppliersDataFromDB(companyId: string) { 
+export async function getSuppliersDataFromDB(companyId: string): Promise<Supplier[]> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('suppliers').select('*').eq('company_id', companyId);
-    if(error) throw error;
-    return data || [];
+    if(error) {
+        logError(error, { context: 'getSuppliersDataFromDB failed' });
+        throw error;
+    }
+    return z.array(SupplierSchema).parse(data || []);
 }
 export async function getSupplierByIdFromDB(id: string, companyId: string) { 
     const supabase = getServiceRoleClient();
@@ -243,42 +248,53 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     }
 }
 
-export async function getSalesAnalyticsFromDB(companyId: string) {
+export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
-    if (error) throw error;
-    return data;
-}
-
-export async function getCustomerAnalyticsFromDB(companyId: string) {
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
-    if(error) throw error;
-    return data;
-}
-export async function getDeadStockReportFromDB(companyId: string) { 
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
     if (error) {
-        logError(error);
+        logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    const deadStockItems = data || [];
-    const totalValue = deadStockItems.reduce((sum: number, item: { total_value: number }) => sum + item.total_value, 0);
-    const totalUnits = deadStockItems.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0);
-    
-    return {
-        deadStockItems: deadStockItems,
-        totalValue: totalValue,
-        totalUnits: totalUnits,
-    };
+    return SalesAnalyticsSchema.parse(data);
 }
+
+export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
+        throw error;
+    }
+    return CustomerAnalyticsSchema.parse(data);
+}
+
+export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
+
+    if (error) {
+        logError(error, { context: 'getDeadStockReportFromDB failed' });
+        // Return a default empty state on error to prevent downstream failures
+        return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
+    }
+    
+    // Safely parse the data with Zod. If parsing fails, it will throw an error.
+    const deadStockItems = DeadStockItemSchema.array().parse(data || []);
+    
+    // Calculate totals from the validated data
+    const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
+    const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
+    
+    return { deadStockItems, totalValue, totalUnits };
+}
+
 export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
     if (error) throw error;
     return (data || []) as ReorderSuggestion[];
 }
+
 export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('detect_anomalies', { p_company_id: companyId });
@@ -288,38 +304,62 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     };
     return (data as Anomaly[]) || [];
 }
-export async function getAlertsFromDB(companyId: string) { 
+export async function getAlertsFromDB(companyId: string): Promise<Alert[]> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    
+    if (error) {
+        logError(error, { context: `getAlertsFromDB failed for company ${companyId}` });
+        return []; // Always return a valid array
+    }
+
+    // Safely parse the data, defaulting to an empty array if parsing fails or data is null
+    const parseResult = AlertSchema.array().safeParse(data || []);
+    if (!parseResult.success) {
+        logError(parseResult.error, { context: `Zod parsing failed for getAlertsFromDB for company ${companyId}` });
+        return [];
+    }
+
+    return parseResult.data;
 }
 
-export async function getInventoryAgingReportFromDB(companyId: string) {
+export async function getInventoryAgingReportFromDB(companyId: string): Promise<InventoryAgingReportItem[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        logError(error, { context: 'getInventoryAgingReportFromDB failed' });
+        throw error;
+    }
+    return z.array(InventoryAgingReportItemSchema).parse(data || []);
 }
-export async function getProductLifecycleAnalysisFromDB(companyId: string) {
+export async function getProductLifecycleAnalysisFromDB(companyId: string): Promise<ProductLifecycleAnalysis> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_product_lifecycle_analysis', { p_company_id: companyId });
-    if (error) throw error;
-    return data;
+    if (error) {
+        logError(error, { context: 'getProductLifecycleAnalysisFromDB failed' });
+        throw error;
+    }
+    return ProductLifecycleAnalysisSchema.parse(data);
 }
 
-export async function getInventoryRiskReportFromDB(companyId: string) {
+export async function getInventoryRiskReportFromDB(companyId: string): Promise<InventoryRiskItem[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_risk_report', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        logError(error, { context: 'getInventoryRiskReportFromDB failed' });
+        throw error;
+    }
+    return z.array(InventoryRiskItemSchema).parse(data || []);
 }
 
-export async function getCustomerSegmentAnalysisFromDB(companyId: string) {
+export async function getCustomerSegmentAnalysisFromDB(companyId: string): Promise<CustomerSegmentAnalysisItem[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_customer_segment_analysis', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        logError(error, { context: 'getCustomerSegmentAnalysisFromDB failed' });
+        throw error;
+    }
+    return z.array(CustomerSegmentAnalysisItemSchema).parse(data || []);
 }
 
 export async function getCashFlowInsightsFromDB(companyId: string) {
@@ -428,7 +468,9 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {}
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+    // Placeholder function
+}
 export async function createExportJobInDb(companyId: string, userId: string) { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('export_jobs').insert({ company_id: companyId, requested_by_user_id: userId }).select().single();
@@ -436,8 +478,12 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews(companyId: string) {}
-export async function logSuccessfulLogin(userId: string, ip: string) {}
+export async function refreshMaterializedViews(companyId: string) {
+    // Placeholder function
+}
+export async function logSuccessfulLogin(userId: string, ip: string) {
+    // Placeholder function
+}
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
     const supabase = getServiceRoleClient();
@@ -460,7 +506,7 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
     const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
         p_company_id: companyId,
         p_user_id: userId,
-        p_suggestions: suggestions,
+        p_suggestions: suggestions as unknown as Json,
         p_idempotency_key: idempotencyKey,
     });
 
@@ -478,7 +524,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         .from('purchase_orders')
         .select(`
             *,
-            supplier_name:suppliers(name)
+            suppliers(name)
         `)
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
@@ -488,16 +534,12 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    // The query returns { supplier_name: { name: 'Supplier A' } }, so we need to flatten it.
+    // The query returns { suppliers: { name: 'Supplier A' } }, so we need to flatten it.
     const flattenedData = (data || []).map(po => {
-        // Safely access the nested property
-        const supplierName = (po.supplier_name && typeof po.supplier_name === 'object' && 'name' in po.supplier_name)
-            ? (po.supplier_name as { name: string | null }).name
-            : 'N/A';
-
+        const typedPo = po as unknown as { suppliers: { name: string | null } | null };
         return {
             ...po,
-            supplier_name: supplierName,
+            supplier_name: typedPo.suppliers?.name || 'N/A',
         };
     });
 
@@ -519,7 +561,9 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 }
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {}
+export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {
+    // Placeholder
+}
 
 export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
     const supabase = getServiceRoleClient();
@@ -549,5 +593,3 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
-
-    

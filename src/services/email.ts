@@ -7,7 +7,7 @@
  * It uses the Resend email platform.
  */
 
-import type { Alert, Anomaly } from '@/types';
+import type { Alert } from '@/types';
 import { logger } from '@/lib/logger';
 import { Resend } from 'resend';
 import { config } from '@/config/app-config';
@@ -81,7 +81,7 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     - SKU: ${alert.metadata.productId ? `(ID: ${alert.metadata.productId})` : 'N/A'}
     - Current Stock: ${alert.metadata.currentStock ?? 'N/A'}
     - Reorder Point: ${alert.metadata.reorderPoint ?? 'N/A'}
-    - Last Sold Date: ${alert.metadata.lastSoldDate ? new Date(alert.metadata.lastSoldDate).toLocaleDateString() : 'N/A'}
+    - Last Sold Date: ${alert.metadata.lastSoldDate ? new Date(String(alert.metadata.lastSoldDate)).toLocaleDateString() : 'N/A'}
     - Current Value: $${(alert.metadata.value ?? 0).toLocaleString()}
 
     You can view this alert in your InvoChat dashboard.
@@ -140,7 +140,7 @@ export async function sendWelcomeEmail(email: string): Promise<void> {
  */
 export async function sendInventoryDigestEmail(to: string, insights: {
     summary: string;
-    anomalies: Anomaly[];
+    anomalies: (Record<string,unknown> & {anomaly_type: string, date: string, explanation?: string})[];
     topDeadStock: { product_name: string; total_value: number; }[];
     topLowStock: Alert[];
 }): Promise<void> {

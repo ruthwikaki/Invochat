@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -31,7 +32,9 @@ export async function testGenkitConnection(): Promise<{ isConfigured: boolean; s
     const testPromise = ai.generate({
         prompt: "Say 'hello'",
         model: 'googleai/gemini-1.5-flash',
-        temperature: 0,
+        config: {
+          temperature: 0,
+        },
         output: { format: 'text' },
     });
 

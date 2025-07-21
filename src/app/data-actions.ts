@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -270,7 +269,7 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        rawAnomalies.map(async (anomaly: Anomaly) => {
+        (rawAnomalies || []).map(async (anomaly: Anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -285,16 +284,16 @@ export async function getInsightsPageData() {
     );
     
     const summary = await generateInsightsSummary({
-        anomalies: explainedAnomalies,
-        lowStockCount: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').length,
+        anomalies: rawAnomalies, // Pass raw anomalies to summary
+        lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
 
     return {
         summary,
-        anomalies: explainedAnomalies,
+        anomalies: explainedAnomalies, // Return explained anomalies for rendering
         topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
-        topLowStock: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').slice(0, 3),
+        topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
 export async function testSupabaseConnection() { return dbTestSupabase(); }
@@ -658,6 +657,3 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-
-    

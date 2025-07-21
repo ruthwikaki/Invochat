@@ -1,7 +1,7 @@
+
 import Redis from 'ioredis';
 import { logger } from './logger';
 import { getErrorMessage } from './error-handler';
-import { config } from '@/config/app-config';
 
 // A private, module-level variable to hold the singleton instance.
 let redis: Redis | null = null;
@@ -10,9 +10,9 @@ let isInitializing = false;
 // Mock client to be used when Redis is not configured.
 // It mimics the Redis methods we use so the app doesn't crash.
 const mockRedisClient = {
-    get: async (key: string) => null,
-    set: async (key: string, value: string, ...args: unknown[]) => 'OK' as const,
-    del: async (...keys: string[]) => 1 as const,
+    get: async (_key: string) => null,
+    set: async (_key: string, _value: string, ..._args: unknown[]) => 'OK' as const,
+    del: async (..._keys: string[]) => 1 as const,
     pipeline: function () { // The pipeline function needs to return an object with the chained methods
         const pipeline = {
             zremrangebyscore: () => pipeline,
@@ -21,12 +21,12 @@ const mockRedisClient = {
             expire: () => pipeline,
             exec: async () => [[null, 0], [null, 0], [null, 0], [null, 1]],
         };
-        return pipeline;
+        return pipeline as unknown as Redis.Pipeline;
     },
     ping: async () => 'PONG' as const,
-    incr: async (key: string) => 1,
-    incrbyfloat: async (key: string, inc: number) => String(inc),
-    zcard: async (key: string) => 0,
+    incr: async (_key: string) => 1,
+    incrbyfloat: async (_key: string, inc: number) => String(inc),
+    zcard: async (_key: string) => 0,
 };
 
 
@@ -114,7 +114,7 @@ if (!redis) {
 
 
 // Export the singleton instance (or the mock if initialization failed).
-export const redisClient = redis || mockRedisClient;
+export const redisClient = redis || (mockRedisClient as unknown as Redis);
 export const isRedisEnabled = !!redis;
 
 /**
@@ -134,7 +134,7 @@ export async function invalidateCompanyCache(companyId: string, types: ('dashboa
     if (keysToInvalidate.length > 0) {
         try {
             logger.info(`[Redis] Invalidating cache for company ${companyId}. Keys: ${keysToInvalidate.join(', ')}`);
-            await redisClient.del(keysToInvalidate);
+            await redisClient.del(...keysToInvalidate);
         } catch (e) {
             logger.error(`[Redis] Cache invalidation failed for company ${companyId}:`, e);
         }
