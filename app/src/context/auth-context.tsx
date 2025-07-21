@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -61,7 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  // We only want this to run once on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
