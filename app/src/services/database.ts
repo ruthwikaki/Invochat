@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -256,16 +256,17 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
     if(error) throw error;
     return data;
 }
-export async function getDeadStockReportFromDB(companyId: string) { 
+
+export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: DeadStockItem[], totalValue: number, totalUnits: number }> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
     if (error) {
         logError(error);
         throw error;
     }
-    const deadStockItems = data || [];
-    const totalValue = deadStockItems.reduce((sum: number, item: { total_value: number }) => sum + item.total_value, 0);
-    const totalUnits = deadStockItems.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0);
+    const deadStockItems: DeadStockItem[] = (data as DeadStockItem[]) || [];
+    const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
+    const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
     
     return {
         deadStockItems: deadStockItems,
@@ -286,7 +287,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
         logError(error, { context: `getAnomalyInsightsFromDB failed for company ${companyId}` });
         return []; // Return empty array on error
     };
-    return data || [];
+    return (data as Anomaly[]) || [];
 }
 export async function getAlertsFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
