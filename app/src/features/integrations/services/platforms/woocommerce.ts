@@ -4,7 +4,7 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration, Product, ProductVariant } from '@/types';
-import { refreshMaterializedViews } from '@/services/database';
+import { refreshMaterializedViews, invalidateCompanyCache } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 
@@ -137,6 +137,9 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         option2_value: null,
                         option3_name: null,
                         option3_value: null,
+                        reorder_point: null,
+                        reorder_quantity: null,
+                        supplier_id: null
                     });
                     continue;
                 }
@@ -165,6 +168,9 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                     location: null,
                     barcode: null,
                     compare_at_price: null,
+                    reorder_point: null,
+                    reorder_quantity: null,
+                    supplier_id: null
                 });
             }
 
@@ -255,6 +261,7 @@ export async function runWooCommerceFullSync(integration: Integration) {
         logger.info(`[Sync] Full sync completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
         
+        await invalidateCompanyCache(integration.company_id, ['dashboard']);
         await refreshMaterializedViews(integration.company_id);
 
     } catch(e: unknown) {
