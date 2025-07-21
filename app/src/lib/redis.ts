@@ -135,7 +135,7 @@ export async function invalidateCompanyCache(companyId: string, types: ('dashboa
     if (keysToInvalidate.length > 0) {
         try {
             logger.info(`[Redis] Invalidating cache for company ${companyId}. Keys: ${keysToInvalidate.join(', ')}`);
-            await redisClient.del(keysToInvalidate);
+            await redisClient.del(...keysToInvalidate);
         } catch (e) {
             logger.error(`[Redis] Cache invalidation failed for company ${companyId}:`, e);
         }

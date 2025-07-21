@@ -453,7 +453,6 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
-
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
