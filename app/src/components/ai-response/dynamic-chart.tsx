@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useRef } from 'react';
@@ -221,6 +220,10 @@ function renderChart(props: DynamicChartProps, isInView: boolean) {
 export function DynamicChart(props: DynamicChartProps) {
     const ref = useRef(null);
     const isInView = useInView(ref, { once: true, amount: 0.3 });
+
+    if (!props.config || !props.config.dataKey || !props.config.nameKey) {
+        return <p className="text-destructive text-sm p-4">Chart configuration is incomplete and cannot be displayed.</p>;
+    }
 
     if (props.data.length === 0) {
         return <p>No data available to display the chart.</p>;

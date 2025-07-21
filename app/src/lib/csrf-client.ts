@@ -1,4 +1,3 @@
-
 'use client';
 
 export const CSRF_COOKIE_NAME = '__Host-csrf_token';

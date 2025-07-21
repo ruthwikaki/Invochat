@@ -1,8 +1,7 @@
-
 import { AppPageHeader } from "@/components/ui/page";
 import { TeamMembersCard } from "./_components/team-members-card";
-import { CompanySettingsCard } from "../_components/company-settings-card";
-import { ChannelFeesCard } from "../_components/channel-fees-card";
+import { CompanySettingsCard } from "./_components/company-settings-card";
+import { ChannelFeesCard } from "./_components/channel-fees-card";
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 

@@ -1,4 +1,3 @@
-
 import { getCompanySettings } from "@/app/data-actions"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CompanySettingsForm } from "./company-settings-form"
