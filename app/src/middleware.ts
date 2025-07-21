@@ -53,8 +53,9 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
 
   // Define public routes that do not require authentication
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup'];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  const isLandingPage = pathname === '/';
   
   // If the user is logged in
   if (user) {
@@ -70,13 +71,8 @@ export async function middleware(req: NextRequest) {
   } 
   // If the user is not logged in
   else {
-    // Allow access to landing page, but redirect other root access to login
-    if (pathname === '/') {
-        return NextResponse.next();
-    }
-    // If the user is trying to access a protected route, redirect them to the login page.
-    const isProtectedRoute = !isPublicRoute && !pathname.startsWith('/auth/callback') && !pathname.startsWith('/env-check') && !pathname.startsWith('/database-setup');
-    if (isProtectedRoute) {
+    // Allow access to the landing page, but protect all other non-public routes.
+    if (!isPublicRoute && !isLandingPage) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
