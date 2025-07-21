@@ -1,9 +1,13 @@
+'use client';
 
 import Link from 'next/link';
+import { useAuth } from '@/context/auth-context';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { LoginForm } from '@/components/auth/LoginForm';
-import { generateCSRFToken } from '@/lib/csrf';
+import { useToast } from '@/hooks/use-toast';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage({
   searchParams,
@@ -12,7 +16,15 @@ export default function LoginPage({
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
-  generateCSRFToken();
+  const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (message) {
+      toast({ title: 'Success', description: message });
+      router.replace('/login'); // Clear the message from URL
+    }
+  }, [message, toast, router]);
 
   return (
     <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
@@ -32,7 +44,7 @@ export default function LoginPage({
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <LoginForm error={error} message={message} />
+          <LoginForm initialError={error} />
           <div className="mt-6 text-center text-sm">
             <span className="text-slate-400">Don't have an account? </span>
             <Link href="/signup" className="font-medium text-primary hover:underline">

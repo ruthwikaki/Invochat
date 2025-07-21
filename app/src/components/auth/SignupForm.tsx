@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PasswordInput } from './PasswordInput';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 export function SignupForm() {
     const [companyName, setCompanyName] = useState('');
@@ -16,9 +17,9 @@ export function SignupForm() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const { signup } = useAuth();
+    const { signup, loading } = useAuth();
     const { toast } = useToast();
+    const router = useRouter();
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -29,19 +30,15 @@ export function SignupForm() {
             return;
         }
 
-        setIsLoading(true);
         try {
-            // The Supabase client in the auth context will handle passing the company name.
-            // We just need to provide the email and password here.
             await signup(email, password, companyName);
             toast({
                 title: 'Signup Successful!',
                 description: 'Please check your email to verify your account.',
             });
+            router.push('/login');
         } catch (err: any) {
             setError(err.message || 'An unexpected error occurred during signup.');
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -61,7 +58,7 @@ export function SignupForm() {
                     required
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    disabled={isLoading}
+                    disabled={loading}
                     className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
@@ -75,7 +72,7 @@ export function SignupForm() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    disabled={isLoading}
+                    disabled={loading}
                     className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
@@ -89,7 +86,7 @@ export function SignupForm() {
                     minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={loading}
                 />
                 <p className="text-xs text-slate-400 px-1">
                     Must be at least 8 characters.
@@ -105,7 +102,7 @@ export function SignupForm() {
                     minLength={8}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={loading}
                 />
             </div>
             {error && (
@@ -114,8 +111,8 @@ export function SignupForm() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full h-12 text-base" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : 'Create Account'}
+            <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
+                {loading ? <Loader2 className="animate-spin" /> : 'Create Account'}
             </Button>
         </form>
     );

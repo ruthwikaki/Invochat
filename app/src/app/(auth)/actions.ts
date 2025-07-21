@@ -1,9 +1,5 @@
 'use server';
 
-// This file is being kept for now to support password reset and signout actions,
-// which are simpler to handle as form actions. Login and signup are now handled
-// client-side via the useAuth hook for a better user experience.
-
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
