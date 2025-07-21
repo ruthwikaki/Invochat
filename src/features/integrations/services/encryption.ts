@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { logError, getErrorMessage } from '@/lib/error-handler';
+import { logError } from '@/lib/error-handler';
 import { logger } from '@/lib/logger';
 
 /**
