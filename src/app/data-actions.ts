@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -57,7 +58,7 @@ import {
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, ChannelFee } from '@/types';
+import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, ChannelFee } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -443,8 +444,8 @@ export async function requestCompanyDataExport(): Promise<{ success: boolean, jo
         return { success: false, error: getErrorMessage(e) };
     }
 }
-export async function getInventoryConsistencyReport(): Promise<{healthy: boolean, metric: number, message: string}> { return {healthy: true, metric: 0, message: "OK"}; }
-export async function getFinancialConsistencyReport(): Promise<{healthy: boolean, metric: number, message: string}> { return {healthy: true, metric: 0, message: "OK"}; }
+export async function getInventoryConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
+export async function getFinancialConsistencyReport(): Promise<HealthCheckResult> { return {healthy: true, metric: 0, message: "OK"}; }
 export async function getInventoryAgingData(): Promise<InventoryAgingReportItem[]> { 
     const { companyId } = await getAuthContext();
     return getInventoryAgingReportFromDB(companyId);
@@ -549,7 +550,7 @@ export async function getReorderReport(): Promise<ReorderSuggestion[]> {
 
         const { output } = await reorderRefinementPrompt({
             suggestions: baseSuggestions,
-            historicalSales: historicalSales,
+            historicalSales: historicalSales as any,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
         });

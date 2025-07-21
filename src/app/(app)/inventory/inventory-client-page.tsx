@@ -30,7 +30,7 @@ interface InventoryClientPageProps {
   exportAction: (params: { query: string; status: string; sortBy: string; sortDirection: string; }) => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
-type SortableColumn = 'product_title' | 'product_status' | 'total_quantity';
+type SortableColumn = 'product_title' | 'product_status' | 'inventory_quantity';
 
 const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, value: string | number, icon: React.ElementType, label?: string }) => (
     <Card>
@@ -281,9 +281,9 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                             <TableRow>
                                 <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
-                                <SortableHeader column="product_status" label="Status" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                                <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Variants</TableHead>
-                                <SortableHeader column="total_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                                <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
                                 <TableHead className="w-16 text-center">Actions</TableHead>
                             </TableRow>
                         </TableHeader>

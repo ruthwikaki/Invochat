@@ -1,16 +1,20 @@
 
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
-import { User, SupabaseClient } from '@supabase/supabase-js';
+import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
+import { logError } from '@/lib/error-handler';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, companyName: string) => Promise<void>;
   logout: () => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
   supabase: SupabaseClient;
 }
 
@@ -18,71 +22,79 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  // Create Supabase client
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
   useEffect(() => {
-    // Get initial session
     const getInitialSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error getting session:', error);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch (e) {
+        logError(e, { context: 'Failed to get initial Supabase session'});
+      } finally {
+        setLoading(false);
       }
-      setUser(session?.user ?? null);
-      setLoading(false);
     };
 
-    getInitialSession();
+    void getInitialSession();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        if (_event === 'SIGNED_IN') {
+            router.replace('/dashboard');
+        }
+        if (_event === 'SIGNED_OUT') {
+            router.replace('/login');
+        }
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, [supabase.auth]);
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      throw new Error(error.message);
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
   };
 
-  const signup = async (email: string, password: string) => {
+  const signup = async (email: string, password: string, companyName: string) => {
     const { error } = await supabase.auth.signUp({
-      email,
-      password,
+        email,
+        password,
+        options: {
+            data: {
+                company_name: companyName
+            }
+        }
     });
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw error;
   };
 
   const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw new Error(error.message);
-    }
+    await supabase.auth.signOut();
   };
 
   const value = {
     user,
+    session,
     loading,
     login,
-    logout,
     signup,
+    logout,
     supabase,
   };
 

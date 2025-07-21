@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -11,7 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME } from '@/lib/csrf-client';
+import { getCookie } from '@/lib/csrf-client';
 
 function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -27,10 +29,10 @@ function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
 }
 
 interface LoginFormProps {
-    error: string | null;
+    initialError: string | null;
 }
 
-export function LoginForm({ error: initialError }: LoginFormProps) {
+export function LoginForm({ initialError }: LoginFormProps) {
   const [error, setError] = useState(initialError);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 

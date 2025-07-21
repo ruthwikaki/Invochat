@@ -1,51 +1,32 @@
 
-'use server';
 
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { LandingPage } from '@/components/landing/landing-page';
 import { redirect } from 'next/navigation';
 
+// The root of the authenticated app redirects to the dashboard.
+// This is hit after the middleware confirms the user is authenticated.
 export default async function RootPage() {
-    try {
-        console.log('🚀 Root page executing...');
-        
-        const cookieStore = cookies();
-        console.log('🍪 Cookies available');
-        
-        const supabase = createServerClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          {
-            cookies: {
-              get(name: string) {
-                return cookieStore.get(name)?.value
-              },
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+        cookies: {
+            get(name: string) {
+            return cookieStore.get(name)?.value;
             },
-          }
-        );
-        
-        console.log('📡 Supabase client created');
-
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-            console.error('❌ Session error:', error);
-            throw error;
+        },
         }
-        
-        console.log('✅ Session check complete, user exists:', !!session?.user);
+    );
+    const { data: { user } } = await supabase.auth.getUser();
 
-        if (session) {
-            console.log('➡️ Redirecting to dashboard');
-            redirect('/dashboard');
-        } else {
-            console.log('➡️ Redirecting to login');
-            redirect('/login');
-        }
-    } catch (error) {
-        console.error('💥 Root page error:', error);
-        // In a real app, you might want a fallback UI here instead of throwing,
-        // but for debugging, re-throwing is perfect.
-        throw error;
+    if (user) {
+        redirect('/dashboard');
     }
+
+    return (
+        <LandingPage />
+    );
 }

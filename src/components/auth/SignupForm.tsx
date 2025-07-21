@@ -1,7 +1,8 @@
 
+
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -28,7 +29,6 @@ interface SignupFormProps {
 export function SignupForm({ error: initialError }: SignupFormProps) {
     const [error, setError] = useState(initialError);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
-    const formRef = useRef<HTMLFormElement>(null);
 
     useEffect(() => {
         setCsrfToken(getCookie(CSRF_COOKIE_NAME));
@@ -48,7 +48,7 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
     };
 
     return (
-        <form ref={formRef} action={signup} className="grid gap-4" onChange={handleInteraction}>
+        <form action={signup} className="grid gap-4" onChange={handleInteraction}>
             {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>

@@ -1,18 +1,20 @@
 
+
 'use client';
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTransition } from 'react';
-import { CompanySettings, CompanySettingsSchema } from '@/types';
+import type { CompanySettings } from '@/types';
+import { CompanySettingsSchema } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { updateCompanySettings } from '@/app/data-actions';
 import { Loader2 } from 'lucide-react';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 const SettingsFormSchema = CompanySettingsSchema.pick({
     dead_stock_days: true,
@@ -39,8 +41,12 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
         const csrfToken = getCookie(CSRF_FORM_NAME);
         if(csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
 
-        await updateCompanySettings(formData);
-        toast({ title: 'Settings saved successfully' });
+        const result = await updateCompanySettings(formData);
+        if(result) {
+            toast({ title: 'Settings saved successfully' });
+        } else {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to save settings.' });
+        }
     });
   };
 
