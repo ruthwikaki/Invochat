@@ -2,8 +2,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem, Alert, Integration } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, DeadStockItemSchema, AlertSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, DeadStockItemSchema, AlertSchema, SalesAnalyticsSchema, InventoryAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
@@ -150,18 +150,24 @@ export async function getDashboardMetrics(companyId: string, dateRange: string):
     }
     return DashboardMetricsSchema.parse(data);
 }
-export async function getInventoryAnalyticsFromDB(companyId: string) { 
+export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
-    if (error) throw error;
-    return data;
+    if (error) {
+        logError(error, { context: 'getInventoryAnalyticsFromDB failed' });
+        throw error;
+    }
+    return InventoryAnalyticsSchema.parse(data);
 }
 
-export async function getSuppliersDataFromDB(companyId: string) { 
+export async function getSuppliersDataFromDB(companyId: string): Promise<Supplier[]> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('suppliers').select('*').eq('company_id', companyId);
-    if(error) throw error;
-    return data || [];
+    if(error) {
+        logError(error, { context: 'getSuppliersDataFromDB failed' });
+        throw error;
+    }
+    return z.array(SupplierSchema).parse(data || []);
 }
 export async function getSupplierByIdFromDB(id: string, companyId: string) { 
     const supabase = getServiceRoleClient();
@@ -242,18 +248,24 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     }
 }
 
-export async function getSalesAnalyticsFromDB(companyId: string) {
+export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
-    if (error) throw error;
-    return data;
+    if (error) {
+        logError(error, { context: 'getSalesAnalyticsFromDB failed' });
+        throw error;
+    }
+    return SalesAnalyticsSchema.parse(data);
 }
 
-export async function getCustomerAnalyticsFromDB(companyId: string) {
+export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
-    if(error) throw error;
-    return data;
+    if(error) {
+        logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
+        throw error;
+    }
+    return CustomerAnalyticsSchema.parse(data);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: DeadStockItem[], totalValue: number, totalUnits: number }> {
@@ -311,31 +323,43 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     return parseResult.data;
 }
 
-export async function getInventoryAgingReportFromDB(companyId: string) {
+export async function getInventoryAgingReportFromDB(companyId: string): Promise<InventoryAgingReportItem[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        logError(error, { context: 'getInventoryAgingReportFromDB failed' });
+        throw error;
+    }
+    return z.array(InventoryAgingReportItemSchema).parse(data || []);
 }
-export async function getProductLifecycleAnalysisFromDB(companyId: string) {
+export async function getProductLifecycleAnalysisFromDB(companyId: string): Promise<ProductLifecycleAnalysis> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_product_lifecycle_analysis', { p_company_id: companyId });
-    if (error) throw error;
-    return data;
+    if (error) {
+        logError(error, { context: 'getProductLifecycleAnalysisFromDB failed' });
+        throw error;
+    }
+    return ProductLifecycleAnalysisSchema.parse(data);
 }
 
-export async function getInventoryRiskReportFromDB(companyId: string) {
+export async function getInventoryRiskReportFromDB(companyId: string): Promise<InventoryRiskItem[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_risk_report', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        logError(error, { context: 'getInventoryRiskReportFromDB failed' });
+        throw error;
+    }
+    return z.array(InventoryRiskItemSchema).parse(data || []);
 }
 
-export async function getCustomerSegmentAnalysisFromDB(companyId: string) {
+export async function getCustomerSegmentAnalysisFromDB(companyId: string): Promise<CustomerSegmentAnalysisItem[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_customer_segment_analysis', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        logError(error, { context: 'getCustomerSegmentAnalysisFromDB failed' });
+        throw error;
+    }
+    return z.array(CustomerSegmentAnalysisItemSchema).parse(data || []);
 }
 
 export async function getCashFlowInsightsFromDB(companyId: string) {
@@ -358,7 +382,7 @@ export async function getInventoryTurnoverFromDB(companyId: string, days: number
 }
 
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRoleRoleClient();
     const { data, error } = await supabase.from('integrations').select('*').eq('company_id', companyId);
     if (error) throw new Error(`Could not load integrations: ${error.message}`);
     return data || [];
