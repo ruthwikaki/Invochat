@@ -453,7 +453,7 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<C
     if (!channel_name) {
         throw new Error("Channel name is required to upsert a fee.");
     }
-    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId } as any, { onConflict: 'company_id, channel_name' });
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
     if (error) {
         logError(error, { context: 'upsertChannelFeeInDB failed' });
         throw error;
@@ -515,7 +515,7 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
         p_company_id: companyId,
         p_user_id: userId,
         p_suggestions: suggestions as unknown as Json,
-        p_idempotency_key: idempotencyKey || null,
+        p_idempotency_key: idempotencyKey,
     });
 
     if (error) {
@@ -591,13 +591,34 @@ export async function logWebhookEvent(integrationId: string, webhookId: string) 
     return { success: true };
 }
 
-export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) { return {}; }
-export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { return { fast_sellers: [], slow_sellers: [] }; }
-export async function getDemandForecastFromDB(companyId: string) { return []; }
-export async function getAbcAnalysisFromDB(companyId: string) { return []; }
-export async function getGrossMarginAnalysisFromDB(companyId: string) { return { products: [], channels: [] }; }
-export async function getMarginTrendsFromDB(companyId: string) { return []; }
-export async function getFinancialImpactOfPromotionFromDB(companyId: string, skus: string[], discount: number, duration: number) { return {}; }
+export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) { 
+    logError(new Error("getNetMarginByChannelFromDB is not implemented"), { companyId, channelName });
+    return {};
+}
+export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { 
+    logError(new Error("getSalesVelocityFromDB is not implemented"), { companyId, days, limit });
+    return { fast_sellers: [], slow_sellers: [] };
+}
+export async function getDemandForecastFromDB(companyId: string) { 
+    logError(new Error("getDemandForecastFromDB is not implemented"), { companyId });
+    return [];
+}
+export async function getAbcAnalysisFromDB(companyId: string) { 
+    logError(new Error("getAbcAnalysisFromDB is not implemented"), { companyId });
+    return [];
+}
+export async function getGrossMarginAnalysisFromDB(companyId: string) { 
+    logError(new Error("getGrossMarginAnalysisFromDB is not implemented"), { companyId });
+    return { products: [], channels: [] };
+}
+export async function getMarginTrendsFromDB(companyId: string) { 
+    logError(new Error("getMarginTrendsFromDB is not implemented"), { companyId });
+    return [];
+}
+export async function getFinancialImpactOfPromotionFromDB(companyId: string, skus: string[], discount: number, duration: number) { 
+    logError(new Error("getFinancialImpactOfPromotionFromDB is not implemented"), { companyId, skus, discount, duration });
+    return {};
+}
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
