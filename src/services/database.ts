@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -391,7 +392,7 @@ export async function getIntegrationsByCompanyId(companyId: string): Promise<Int
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('integrations').select('*').eq('company_id', companyId);
     if (error) throw new Error(`Could not load integrations: ${error.message}`);
-    return (data as Integration[]) || [];
+    return (data || []) as Integration[];
 }
 export async function deleteIntegrationFromDb(id: string, companyId: string) {
     const supabase = getServiceRoleClient();
@@ -488,7 +489,7 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews() {
+export async function refreshMaterializedViews(companyId: string) {
     // Placeholder function
 }
 

@@ -137,9 +137,6 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         option2_value: null,
                         option3_name: null,
                         option3_value: null,
-                        reorder_point: null,
-                        reorder_quantity: null,
-                        supplier_id: null
                     });
                     continue;
                 }
@@ -163,14 +160,11 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                     option3_value: variant.attributes[2]?.option,
                     price: Math.round(parseFloat(variant.price || '0') * 100),
                     cost: null,
+                    barcode: null,
+                    compare_at_price: null,
                     inventory_quantity: variant.stock_quantity === null ? 0 : variant.stock_quantity,
                     external_variant_id: String(variant.id),
                     location: null,
-                    barcode: null,
-                    compare_at_price: null,
-                    reorder_point: null,
-                    reorder_quantity: null,
-                    supplier_id: null
                 });
             }
 

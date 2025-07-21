@@ -56,7 +56,7 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
 
 export async function updateSettingsInDb(companyId: string, settings: Partial<CompanySettings>): Promise<{success: boolean, error?: string}> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('company_settings').update({ ...settings, updated_at: new Date().toISOString() }).eq('company_id', companyId).select().single();
+    const { error } = await supabase.from('company_settings').update({ ...settings, updated_at: new Date().toISOString() }).eq('company_id', companyId).select().single();
     if (error) {
       logError(error, {context: 'updateSettingsInDb failed'});
       return {success: false, error: error.message };
@@ -489,7 +489,7 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews() {
+export async function refreshMaterializedViews(companyId: string) {
     // Placeholder function
 }
 
@@ -591,13 +591,13 @@ export async function logWebhookEvent(integrationId: string, webhookId: string) 
     return { success: true };
 }
 
-export async function getNetMarginByChannelFromDB() { return {}; }
-export async function getSalesVelocityFromDB() { return { fast_sellers: [], slow_sellers: [] }; }
-export async function getDemandForecastFromDB() { return []; }
-export async function getAbcAnalysisFromDB() { return []; }
-export async function getGrossMarginAnalysisFromDB() { return { products: [], channels: [] }; }
-export async function getMarginTrendsFromDB() { return []; }
-export async function getFinancialImpactOfPromotionFromDB() { return {}; }
+export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) { return {}; }
+export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { return { fast_sellers: [], slow_sellers: [] }; }
+export async function getDemandForecastFromDB(companyId: string) { return []; }
+export async function getAbcAnalysisFromDB(companyId: string) { return []; }
+export async function getGrossMarginAnalysisFromDB(companyId: string) { return { products: [], channels: [] }; }
+export async function getMarginTrendsFromDB(companyId: string) { return []; }
+export async function getFinancialImpactOfPromotionFromDB(companyId: string, skus: string[], discount: number, duration: number) { return {}; }
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
