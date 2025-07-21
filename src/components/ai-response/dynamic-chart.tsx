@@ -21,11 +21,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import type { ReactElement } from 'react';
 
 interface DynamicChartProps {
     chartType: 'bar' | 'pie' | 'line' | 'treemap' | 'scatter';
     data: Record<string, unknown>[];
-    config: {
+    config?: { // Make config optional
         dataKey: string;
         nameKey: string;
         xAxisKey?: string;
@@ -49,7 +50,7 @@ interface TreemapContentProps {
 
 // A new component to render the content of each treemap rectangle
 // This provides better visual styling than the default.
-const TreemapContent = (props: TreemapContentProps) => {
+const TreemapContent = (props: TreemapContentProps): ReactElement | null => {
   const { depth, x, y, width, height, index, name, value } = props;
 
   // Add runtime checks to ensure props from recharts are present
@@ -93,6 +94,11 @@ const TreemapContent = (props: TreemapContentProps) => {
 
 function renderChart(props: DynamicChartProps, isInView: boolean) {
     const { chartType, data, config } = props;
+
+    // Add a guard clause for missing or invalid config
+    if (!config || !config.dataKey || !config.nameKey) {
+        return <p>Chart could not be displayed due to incomplete configuration.</p>;
+    }
     
     switch (chartType) {
         case 'bar':
