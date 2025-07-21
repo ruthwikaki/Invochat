@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -279,11 +279,14 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     if (error) throw error;
     return (data || []) as ReorderSuggestion[];
 }
-export async function getAnomalyInsightsFromDB(companyId: string) { 
+export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('detect_anomalies', { p_company_id: companyId });
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        logError(error, { context: `getAnomalyInsightsFromDB failed for company ${companyId}` });
+        return []; // Return empty array on error
+    };
+    return (data as Anomaly[]) || [];
 }
 export async function getAlertsFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
@@ -546,3 +549,5 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
+
+    
