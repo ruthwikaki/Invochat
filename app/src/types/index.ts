@@ -385,6 +385,8 @@ export const AnomalySchema = z.object({
     daily_revenue: z.number(),
     avg_revenue: z.number(),
     deviation_percentage: z.number(),
+    explanation: z.string().optional(),
+    suggestedAction: z.string().optional()
 });
 export type Anomaly = z.infer<typeof AnomalySchema>;
 
