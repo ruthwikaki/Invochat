@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -11,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
+import { CSRF_FORM_NAME } from '@/lib/csrf';
 
 function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -29,16 +28,12 @@ function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
 interface LoginFormProps {
     error: string | null;
     message: string | null;
+    csrfToken: string;
 }
 
-export function LoginForm({ error: initialError, message: initialMessage }: LoginFormProps) {
+export function LoginForm({ error: initialError, message: initialMessage, csrfToken }: LoginFormProps) {
   const [error, setError] = useState(initialError);
   const [message, setMessage] = useState(initialMessage);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
-  }, []);
 
   useEffect(() => {
     setError(initialError);
@@ -59,7 +54,7 @@ export function LoginForm({ error: initialError, message: initialMessage }: Logi
 
   return (
     <form action={login} className="space-y-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+        <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input
