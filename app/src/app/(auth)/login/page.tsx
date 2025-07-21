@@ -7,21 +7,22 @@ import { InvoChatLogo } from '@/components/invochat-logo';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
   const message = searchParams.get('message');
   const { toast } = useToast();
-  const router = useRouter();
 
   useEffect(() => {
     if (message) {
       toast({ title: 'Success', description: message });
-      router.replace('/login'); // Clear the message from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('message');
+      window.history.replaceState({}, '', url.toString());
     }
-  }, [message, toast, router]);
+  }, [message, toast]);
 
   return (
     <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
