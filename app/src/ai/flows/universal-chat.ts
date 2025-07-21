@@ -147,9 +147,9 @@ export const universalChatFlow = ai.defineFlow(
         });
         
         let finalResponse: UniversalChatOutput;
+        const toolRequest = response.toolRequests[0];
 
-        if (response.toolRequests.length > 0) {
-            const toolRequest = response.toolRequests[0];
+        if (toolRequest) {
             const toolName = toolRequest.name;
             const toolResponseData = toolRequest.output;
 

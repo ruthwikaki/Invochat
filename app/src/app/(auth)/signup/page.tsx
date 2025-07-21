@@ -4,8 +4,12 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { SignupForm } from '@/components/auth/SignupForm';
+import { useSearchParams } from 'next/navigation';
 
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+
   return (
      <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
         <div className="absolute inset-0 -z-10">
@@ -24,7 +28,7 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <SignupForm />
+          <SignupForm error={error} />
            <div className="mt-4 text-center text-sm text-slate-400">
             Already have an account?{' '}
             <Link href="/login" className="underline text-primary/90 hover:text-primary">

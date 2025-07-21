@@ -1,5 +1,4 @@
 
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalyExplanationInputSchema, AnomalySchema } from './ai-schemas';
@@ -198,6 +197,8 @@ export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
 export type Platform = 'shopify' | 'woocommerce' | 'amazon_fba';
 
+export const IntegrationSyncStatusSchema = z.enum(['syncing_products', 'syncing_sales', 'syncing', 'success', 'failed', 'idle']);
+
 export type Integration = {
   id: string;
   company_id: string;
@@ -206,7 +207,7 @@ export type Integration = {
   shop_name: string | null;
   is_active: boolean;
   last_sync_at: string | null;
-  sync_status: 'syncing_products' | 'syncing_sales' | 'syncing' | 'success' | 'failed' | 'idle' | null;
+  sync_status: z.infer<typeof IntegrationSyncStatusSchema> | null;
   created_at: string;
   updated_at: string | null;
 };
@@ -451,7 +452,6 @@ export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
-
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({

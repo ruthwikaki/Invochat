@@ -1,54 +1,54 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useFormStatus } from 'react-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { useAuth } from '@/context/auth-context';
-import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
+import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf-client';
 
-export function SignupForm() {
-    const [companyName, setCompanyName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [error, setError] = useState<string | null>(null);
-    const { signup, loading } = useAuth();
-    const { toast } = useToast();
-    const router = useRouter();
+function SubmitButton({ disabled }: { disabled?: boolean }) {
+    const { pending } = useFormStatus();
+    return (
+      <Button type="submit" className="w-full h-12 text-base" disabled={disabled || pending}>
+        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
+      </Button>
+    );
+}
 
-    const handleSignup = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError(null);
+interface SignupFormProps {
+    error: string | null;
+}
 
-        if (password !== confirmPassword) {
-            setError('Passwords do not match.');
-            return;
+export function SignupForm({ error: initialError }: SignupFormProps) {
+    const [error, setError] = useState(initialError);
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    }, []);
+    
+    useEffect(() => {
+        setError(initialError);
+        if (initialError) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('error');
+            window.history.replaceState({}, '', url.toString());
         }
-
-        try {
-            await signup(email, password, companyName);
-            toast({
-                title: 'Signup Successful!',
-                description: 'Please check your email to verify your account.',
-            });
-            router.push('/login?message=Account created. Please verify your email.');
-        } catch (err: any) {
-            setError(err.message || 'An unexpected error occurred during signup.');
-        }
-    };
+    }, [initialError]);
 
     const handleInteraction = () => {
         if (error) setError(null);
     };
 
     return (
-        <form onSubmit={handleSignup} className="grid gap-4" onChange={handleInteraction}>
+        <form action={signup} className="grid gap-4" onChange={handleInteraction}>
+            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
                 <Input
@@ -57,9 +57,6 @@ export function SignupForm() {
                     type="text"
                     placeholder="Your Company Inc."
                     required
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    disabled={loading}
                     className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
@@ -71,9 +68,6 @@ export function SignupForm() {
                     type="email"
                     placeholder="you@company.com"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
                     className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
@@ -85,9 +79,6 @@ export function SignupForm() {
                     placeholder="••••••••"
                     required
                     minLength={8}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
                 />
                 <p className="text-xs text-slate-400 px-1">
                     Must be at least 8 characters.
@@ -101,9 +92,6 @@ export function SignupForm() {
                     placeholder="••••••••"
                     required
                     minLength={8}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    disabled={loading}
                 />
             </div>
             {error && (
@@ -112,9 +100,7 @@ export function SignupForm() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" className="w-full h-12 text-base" disabled={loading}>
-                {loading ? <Loader2 className="animate-spin" /> : 'Create Account'}
-            </Button>
+            <SubmitButton disabled={!csrfToken} />
         </form>
     );
 }

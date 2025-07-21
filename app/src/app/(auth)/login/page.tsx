@@ -8,12 +8,17 @@ import { LoginForm } from '@/components/auth/LoginForm';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { generateCSRFToken } from '@/lib/csrf';
 
 export default function LoginPage() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
   const message = searchParams.get('message');
   const { toast } = useToast();
+
+  useEffect(() => {
+    generateCSRFToken();
+  }, []);
 
   useEffect(() => {
     if (message) {
