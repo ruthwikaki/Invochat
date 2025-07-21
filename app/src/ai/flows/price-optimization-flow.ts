@@ -36,7 +36,7 @@ const suggestPricesPrompt = ai.definePrompt({
           name: z.string(),
           cost: z.number().nullable(), // cost can be null
           price: z.number().nullable(), // in cents
-          quantity: z.number(),
+          inventory_quantity: z.number(),
       })),
     }),
   },
@@ -111,4 +111,3 @@ export const getPriceOptimizationSuggestions = ai.defineTool(
     },
     async (input) => suggestPriceOptimizationsFlow(input)
 );
-

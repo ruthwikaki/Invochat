@@ -199,18 +199,19 @@ export type Platform = 'shopify' | 'woocommerce' | 'amazon_fba';
 
 export const IntegrationSyncStatusSchema = z.enum(['syncing_products', 'syncing_sales', 'syncing_orders', 'syncing', 'success', 'failed', 'idle']);
 
-export type Integration = {
-  id: string;
-  company_id: string;
-  platform: Platform;
-  shop_domain: string | null;
-  shop_name: string | null;
-  is_active: boolean;
-  last_sync_at: string | null;
-  sync_status: z.infer<typeof IntegrationSyncStatusSchema> | null;
-  created_at: string;
-  updated_at: string | null;
-};
+export const IntegrationSchema = z.object({
+  id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  platform: z.custom<Platform>(),
+  shop_domain: z.string().nullable(),
+  shop_name: z.string().nullable(),
+  is_active: z.boolean(),
+  last_sync_at: z.string().nullable(),
+  sync_status: IntegrationSyncStatusSchema.nullable(),
+  created_at: z.string(),
+  updated_at: z.string().nullable(),
+});
+export type Integration = z.infer<typeof IntegrationSchema>;
 
 
 export type Conversation = {
@@ -480,4 +481,3 @@ export const AlertSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 export type Alert = z.infer<typeof AlertSchema>;
-

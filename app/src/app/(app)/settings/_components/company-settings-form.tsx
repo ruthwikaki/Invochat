@@ -80,4 +80,3 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
     </form>
   );
 }
-

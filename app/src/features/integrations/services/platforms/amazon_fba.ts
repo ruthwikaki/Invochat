@@ -4,10 +4,9 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration } from '@/types';
-import { refreshMaterializedViews } from '@/services/database';
+import { refreshMaterializedViews, invalidateCompanyCache } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
-import { invalidateCompanyCache } from '@/lib/redis';
 
 // This is a placeholder for the actual Amazon FBA API client.
 // In a real-world scenario, this would use the Selling Partner API (SP-API).
@@ -74,4 +73,3 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         throw e;
     }
 }
-

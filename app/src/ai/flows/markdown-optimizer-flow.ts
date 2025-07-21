@@ -108,4 +108,3 @@ export const getMarkdownSuggestions = ai.defineTool(
     },
     async (input) => markdownOptimizerFlow(input)
 );
-
