@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -269,7 +270,7 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        (rawAnomalies || []).map(async (anomaly: Anomaly) => {
+        rawAnomalies.map(async (anomaly: Anomaly) => {
             const explanation = await generateAlertExplanation({
                 id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
@@ -658,4 +659,3 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     }
 }
 
-    
