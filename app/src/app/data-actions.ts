@@ -286,7 +286,7 @@ export async function getInsightsPageData() {
     
     const summary = await generateInsightsSummary({
         anomalies: explainedAnomalies,
-        lowStockCount: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').length,
+        lowStockCount: (topLowStock as Alert[] || []).filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
 
@@ -294,7 +294,7 @@ export async function getInsightsPageData() {
         summary,
         anomalies: explainedAnomalies,
         topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
-        topLowStock: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').slice(0, 3),
+        topLowStock: (topLowStock as Alert[] || []).filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
 export async function testSupabaseConnection() { return dbTestSupabase(); }
@@ -658,6 +658,3 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-
-    

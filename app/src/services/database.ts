@@ -260,26 +260,30 @@ export async function getCustomerAnalyticsFromDB(companyId: string) {
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: DeadStockItem[], totalValue: number, totalUnits: number }> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
+
     if (error) {
-        logError(error);
-        throw error;
+        logError(error, { context: 'getDeadStockReportFromDB failed' });
+        // Return a default empty state on error to prevent downstream failures
+        return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
     }
+    
+    // Safely parse the data with Zod. If parsing fails, it will throw an error.
     const deadStockItems = DeadStockItemSchema.array().parse(data || []);
+    
+    // Calculate totals from the validated data
     const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
     const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
     
-    return {
-        deadStockItems: deadStockItems,
-        totalValue: totalValue,
-        totalUnits: totalUnits,
-    };
+    return { deadStockItems, totalValue, totalUnits };
 }
+
 export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
     if (error) throw error;
     return (data || []) as ReorderSuggestion[];
 }
+
 export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anomaly[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('detect_anomalies', { p_company_id: companyId });
@@ -289,6 +293,7 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     };
     return (data as Anomaly[]) || [];
 }
+
 export async function getAlertsFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
