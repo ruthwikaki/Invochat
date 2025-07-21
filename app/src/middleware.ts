@@ -53,15 +53,14 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
 
   // Define public routes that do not require authentication
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
-  const isPublicRoute = publicRoutes.some(route => pathname === route);
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   
   // If the user is logged in
   if (user) {
-    // Check if the user's company is set up
-    const companyId = user.app_metadata?.company_id;
-    if (!companyId && !pathname.startsWith('/env-check')) {
-      return NextResponse.redirect(new URL('/env-check', req.url));
+    // If user has no company_id, they must complete setup
+    if (!user.app_metadata.company_id && !pathname.startsWith('/env-check')) {
+        return NextResponse.redirect(new URL('/env-check', req.url));
     }
 
     // If company is set up and they are on a public-only route, redirect to dashboard.
@@ -71,12 +70,13 @@ export async function middleware(req: NextRequest) {
   } 
   // If the user is not logged in
   else {
-    // Redirect to landing page if root is accessed
+    // Allow access to landing page, but redirect other root access to login
     if (pathname === '/') {
-        return NextResponse.redirect(new URL('/login', req.url));
+        return NextResponse.next();
     }
     // If the user is trying to access a protected route, redirect them to the login page.
-    if (!isPublicRoute) {
+    const isProtectedRoute = !isPublicRoute && !pathname.startsWith('/auth/callback') && !pathname.startsWith('/env-check') && !pathname.startsWith('/database-setup');
+    if (isProtectedRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
