@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -292,7 +293,6 @@ export async function getAnomalyInsightsFromDB(companyId: string): Promise<Anoma
     };
     return (data as Anomaly[]) || [];
 }
-
 export async function getAlertsFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_alerts', { p_company_id: companyId });
