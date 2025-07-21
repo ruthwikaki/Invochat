@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for ARVO.
@@ -149,7 +150,7 @@ export const universalChatFlow = ai.defineFlow(
         const toolRequest = response.toolRequests[0];
 
         if (toolRequest) {
-            const toolName = toolRequest.name;
+            const toolName = toolRequest.tool.name;
             const toolResponseData = toolRequest.output;
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);

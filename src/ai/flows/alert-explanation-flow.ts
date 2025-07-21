@@ -5,9 +5,8 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'zod';
-import type { AnomalyExplanationInput, AnomalyExplanationOutput } from '@/types/ai-schemas';
-import { AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from '@/types/ai-schemas';
+import type { AnomalyExplanationInput, AnomalyExplanationOutput } from '@/types';
+import { AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from '@/types';
 
 const alertExplanationPrompt = ai.definePrompt({
   name: 'alertExplanationPrompt',
@@ -48,3 +47,4 @@ export async function generateAlertExplanation(alert: AnomalyExplanationInput): 
   }
   return output;
 }
+

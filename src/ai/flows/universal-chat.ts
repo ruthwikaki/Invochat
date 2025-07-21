@@ -16,17 +16,31 @@ import { logger } from '@/lib/logger';
 import { getEconomicIndicators } from './economic-tool';
 import { getDeadStockReport } from './dead-stock-tool';
 import { getInventoryTurnoverReport } from './inventory-turnover-tool';
+import { getReorderSuggestions } from './reorder-tool';
+import { getSupplierAnalysisTool } from './analyze-supplier-flow';
+import { getMarkdownSuggestions } from './markdown-optimizer-flow';
+import { getPriceOptimizationSuggestions } from './price-optimization-flow';
+import { getBundleSuggestions } from './suggest-bundles-flow';
+import { findHiddenMoney } from './hidden-money-finder-flow';
+import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
-import { getProductDemandForecast } from './product-demand-forecast-flow';
 import type { MessageData } from 'genkit';
 
+// These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator = [
-    getEconomicIndicators,
+    getReorderSuggestions,
     getDeadStockReport,
     getInventoryTurnoverReport,
+    getSupplierAnalysisTool,
+    getMarkdownSuggestions,
+    getPriceOptimizationSuggestions,
+    getBundleSuggestions,
+    findHiddenMoney,
+    getEconomicIndicators,
+    getProductDemandForecast,
     getDemandForecast,
     getAbcAnalysis,
     getGrossMarginAnalysis,
@@ -34,20 +48,19 @@ const safeToolsForOrchestrator = [
     getMarginTrends,
     getSalesVelocity,
     getPromotionalImpactAnalysis,
-    getProductDemandForecast,
 ];
 
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
 const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
-  input: { schema: z.object({ userQuery: z.string(), toolResult: z.string() }) },
+  input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
     You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
     The result from your internal tools is:
-    {{{toolResult}}}
+    {{{json toolResult}}}
 
     **YOUR TASK:**
     Your goal is to synthesize this information into a clear, concise, and actionable response for the user. Do NOT just repeat the data. Provide insight.
@@ -78,9 +91,9 @@ const finalResponsePrompt = ai.definePrompt({
 });
 
 
-const universalChatOrchestrator = ai.defineFlow(
+export const universalChatFlow = ai.defineFlow(
   {
-    name: 'universalChatOrchestrator',
+    name: 'universalChatFlow',
     inputSchema: UniversalChatInputSchema,
     outputSchema: UniversalChatOutputSchema,
   },
@@ -125,56 +138,70 @@ const universalChatOrchestrator = ai.defineFlow(
         const response = await ai.generate({
           model: config.ai.model,
           tools: safeToolsForOrchestrator,
+          toolChoice: 'auto',
           messages,
           config: {
+            temperature: 0.2, // Slightly more creative for better synthesis
             maxOutputTokens: config.ai.maxOutputTokens,
           }
         });
         
-        const text = response.text;
+        let finalResponse: UniversalChatOutput;
+        const toolRequest = response.toolRequests[0];
 
-        if (text) {
-            logger.info(`[UniversalChat:Flow] AI generated response. Synthesizing final response from text: "${text}"`);
+        if (toolRequest) {
+            const toolName = toolRequest.tool.name;
+            const toolResponseData = toolRequest.output;
+
+            logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 
             const { output: finalOutput } = await finalResponsePrompt(
-                { userQuery, toolResult: text },
-                {
-                    model: config.ai.model,
-                    config: { maxOutputTokens: config.ai.maxOutputTokens }
-                }
+                { userQuery, toolResult: toolResponseData },
+                { model: config.ai.model, config: { maxOutputTokens: config.ai.maxOutputTokens } }
             );
-
+            
             if (!finalOutput) {
                 throw new Error('The AI model did not return a valid final response object after tool use.');
             }
 
-            const responseToCache: UniversalChatOutput = {
+            finalResponse = {
                 ...finalOutput,
-                data: null, // Data for visualization is not directly available in this simplified flow
+                data: toolResponseData, // Attach the raw data for visualization
+                toolName: toolName,
+            };
+
+        } else if(response.text) {
+             logger.info(`[UniversalChat:Flow] AI generated a text-only response. Synthesizing final response.`);
+            const { output: finalOutput } = await finalResponsePrompt(
+                { userQuery, toolResult: response.text },
+                { model: config.ai.model, config: { maxOutputTokens: config.ai.maxOutputTokens } }
+            );
+
+            if (!finalOutput) {
+                throw new Error('The AI model did not return a valid final response object from text.');
+            }
+
+             finalResponse = {
+                ...finalOutput,
+                data: null,
                 toolName: undefined,
             };
 
-            if (isRedisEnabled) {
-                await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
-            }
-            return responseToCache;
-
+        } else {
+             logger.warn("[UniversalChat:Flow] No tool or text was generated. Answering from general knowledge.");
+             finalResponse = {
+                response: "I'm sorry, I was unable to generate a specific response from your business data. Please try rephrasing your question.",
+                data: [],
+                visualization: { type: 'none', title: '', data: [] },
+                confidence: 0.5,
+                assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
+            };
         }
-
-        logger.warn("[UniversalChat:Flow] No text was generated. Answering from general knowledge.");
-
-        const responseToCache: UniversalChatOutput = {
-            response: "I'm sorry, I was unable to generate a specific response from your business data. Please try rephrasing your question.",
-            data: [],
-            visualization: { type: 'none', title: '', data: [] },
-            confidence: 0.5,
-            assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
-        };
-
+       
         if (isRedisEnabled) {
-            await redisClient.set(cacheKey, JSON.stringify(responseToCache), 'EX', config.redis.ttl.aiQuery);
+            await redisClient.set(cacheKey, JSON.stringify(finalResponse), 'EX', config.redis.ttl.aiQuery);
         }
-        return responseToCache;
+        return finalResponse;
 
     } catch (e: unknown) {
         const errorMessage = getErrorMessage(e);
@@ -202,5 +229,3 @@ const universalChatOrchestrator = ai.defineFlow(
     }
   }
 );
-
-export const universalChatFlow = universalChatOrchestrator;
