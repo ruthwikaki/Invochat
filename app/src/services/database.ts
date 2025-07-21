@@ -2,12 +2,12 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, DeadStockItemSchema, AlertSchema, SalesAnalyticsSchema, InventoryAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, InventoryAnalytics, SalesAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, Supplier, SupplierFormData, Integration } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, AlertSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema, DeadStockItemSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
-import { logger } from '@/lib/logger';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
+import type { Database, Json } from '@/types/database.types';
 
 // --- Authorization Helper ---
 /**
@@ -121,7 +121,7 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
         .not('product_type', 'is', null)
         .distinct();
     if (error) return [];
-    return data.map((item: { product_type: string }) => item.product_type) ?? [];
+    return data.map((item: { product_type: string | null }) => item.product_type).filter(Boolean) as string[];
 }
 
 export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
@@ -268,7 +268,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
     return CustomerAnalyticsSchema.parse(data);
 }
 
-export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: DeadStockItem[], totalValue: number, totalUnits: number }> {
+export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_dead_stock_report', { p_company_id: companyId });
 
@@ -382,7 +382,7 @@ export async function getInventoryTurnoverFromDB(companyId: string, days: number
 }
 
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
-    const supabase = getServiceRoleRoleClient();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('integrations').select('*').eq('company_id', companyId);
     if (error) throw new Error(`Could not load integrations: ${error.message}`);
     return data || [];
@@ -468,7 +468,9 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {}
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+    // Placeholder function
+}
 export async function createExportJobInDb(companyId: string, userId: string) { 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('export_jobs').insert({ company_id: companyId, requested_by_user_id: userId }).select().single();
@@ -476,8 +478,12 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews(companyId: string) {}
-export async function logSuccessfulLogin(userId: string, ip: string) {}
+export async function refreshMaterializedViews(companyId: string) {
+    // Placeholder function
+}
+export async function logSuccessfulLogin(userId: string, ip: string) {
+    // Placeholder function
+}
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
     const supabase = getServiceRoleClient();
@@ -500,7 +506,7 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
     const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
         p_company_id: companyId,
         p_user_id: userId,
-        p_suggestions: suggestions,
+        p_suggestions: suggestions as unknown as Json,
         p_idempotency_key: idempotencyKey,
     });
 
@@ -518,7 +524,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         .from('purchase_orders')
         .select(`
             *,
-            supplier_name:suppliers(name)
+            suppliers(name)
         `)
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
@@ -528,16 +534,12 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    // The query returns { supplier_name: { name: 'Supplier A' } }, so we need to flatten it.
+    // The query returns { suppliers: { name: 'Supplier A' } }, so we need to flatten it.
     const flattenedData = (data || []).map(po => {
-        // Safely access the nested property
-        const supplierName = (po.supplier_name && typeof po.supplier_name === 'object' && 'name' in po.supplier_name)
-            ? (po.supplier_name as { name: string | null }).name
-            : 'N/A';
-
+        const typedPo = po as unknown as { suppliers: { name: string | null } | null };
         return {
             ...po,
-            supplier_name: supplierName,
+            supplier_name: typedPo.suppliers?.name || 'N/A',
         };
     });
 
@@ -559,9 +561,11 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 }
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {}
+export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {
+    // Placeholder
+}
 
-export async function logWebhookEvent(integrationId: string, source: string, webhookId: string) {
+export async function logWebhookEvent(integrationId: string, webhookId: string) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('webhook_events').insert({
         integration_id: integrationId,

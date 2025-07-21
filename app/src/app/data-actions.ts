@@ -284,7 +284,7 @@ export async function getInsightsPageData() {
     );
     
     const summary = await generateInsightsSummary({
-        anomalies: explainedAnomalies,
+        anomalies: rawAnomalies,
         lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
