@@ -9,9 +9,8 @@ export const CSRF_FORM_NAME = 'csrf_token';
 /**
  * Generates a CSRF token using crypto.randomUUID() and sets it as a cookie.
  * This should be called from a Server Component or Route Handler that renders the form.
- * @returns The generated token.
  */
-export function generateCSRFToken(): string {
+export function generateCSRFToken(): void {
   const token = crypto.randomUUID();
   cookies().set({
     name: CSRF_COOKIE_NAME,
@@ -21,7 +20,6 @@ export function generateCSRFToken(): string {
     path: '/',
     sameSite: 'strict',
   });
-  return token;
 }
 
 /**

@@ -1,8 +1,9 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, InventoryAnalytics, SalesAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, Supplier, SupplierFormData, Integration } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, AlertSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema, DeadStockItemSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
@@ -118,10 +119,13 @@ export async function getInventoryCategoriesFromDB(companyId: string): Promise<s
         .from('products')
         .select('product_type')
         .eq('company_id', companyId)
-        .not('product_type', 'is', null)
-        .distinct();
+        .not('product_type', 'is', null);
+
     if (error) return [];
-    return data.map((item: { product_type: string | null }) => item.product_type).filter(Boolean) as string[];
+    
+    const distinctCategories = Array.from(new Set(data.map((item: { product_type: string | null }) => item.product_type).filter(Boolean) as string[]));
+
+    return distinctCategories;
 }
 
 export async function getInventoryLedgerFromDB(companyId: string, variantId: string) {
@@ -385,7 +389,7 @@ export async function getIntegrationsByCompanyId(companyId: string): Promise<Int
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('integrations').select('*').eq('company_id', companyId);
     if (error) throw new Error(`Could not load integrations: ${error.message}`);
-    return data || [];
+    return (data as Integration[]) || [];
 }
 export async function deleteIntegrationFromDb(id: string, companyId: string) {
     const supabase = getServiceRoleClient();
@@ -442,7 +446,11 @@ export async function getChannelFeesFromDB(companyId: string): Promise<ChannelFe
 }
 export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<ChannelFee>) {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
+    const { channel_name } = feeData;
+    if (!channel_name) {
+        throw new Error("Channel name is required to upsert a fee.");
+    }
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId, channel_name }, { onConflict: 'company_id, channel_name' });
     if (error) {
         logError(error, { context: 'upsertChannelFeeInDB failed' });
         throw error;
@@ -461,7 +469,7 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
         company_id: companyId,
         user_id: userId,
         action: action,
-        details: details
+        details: details as Json
     });
     if (error) {
         logError(error, { context: 'Failed to create audit log entry' });
@@ -479,9 +487,6 @@ export async function createExportJobInDb(companyId: string, userId: string) {
 }
 
 export async function refreshMaterializedViews(companyId: string) {
-    // Placeholder function
-}
-export async function logSuccessfulLogin(userId: string, ip: string) {
     // Placeholder function
 }
 
@@ -593,3 +598,12 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }
+export async function getCompanyIdForUser(userId: string): Promise<string | null> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('company_users').select('company_id').eq('user_id', userId).single();
+    if(error) {
+        logError(error, {context: 'getCompanyIdForUser failed'});
+        return null;
+    }
+    return data?.company_id || null;
+}
