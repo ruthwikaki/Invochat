@@ -385,14 +385,14 @@ export const CustomerAnalyticsSchema = z.object({
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
-export type Anomaly = z.infer<typeof AnomalySchema>;
-
 export const HealthCheckResultSchema = z.object({
     healthy: z.boolean(),
     metric: z.number(),
     message: z.string(),
 });
 export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
+
+export type Anomaly = z.infer<typeof AnomalySchema>;
 
 export const ChannelFeeSchema = z.object({
     id: z.string().uuid(),

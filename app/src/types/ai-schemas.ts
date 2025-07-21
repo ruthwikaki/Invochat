@@ -1,6 +1,14 @@
 
 import { z } from 'zod';
 
+export const AnomalySchema = z.object({
+  date: z.string(),
+  anomaly_type: z.string(),
+  daily_revenue: z.number(),
+  avg_revenue: z.number(),
+  deviation_percentage: z.number(),
+});
+
 // A single part of a multi-modal message, updated to support tool responses.
 const ContentPartSchema = z.object({
   text: z.string().optional(),
@@ -41,16 +49,6 @@ export const UniversalChatOutputSchema = z.object({
   toolName: z.string().optional().describe("The name of the tool that was called to generate this response, if applicable."),
 });
 export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
-
-
-export const AnomalySchema = z.object({
-  date: z.string(),
-  anomaly_type: z.string(),
-  daily_revenue: z.number(),
-  avg_revenue: z.number(),
-  deviation_percentage: z.number(),
-});
-
 
 export const AnomalyExplanationInputSchema = z.object({
     type: z.string(),

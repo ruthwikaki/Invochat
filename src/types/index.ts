@@ -3,6 +3,10 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from './ai-schemas';
 
+export { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema };
+export type { Anomaly, AnomalyExplanationInput, AnomalyExplanationOutput } from './ai-schemas';
+
+
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
 
@@ -385,8 +389,6 @@ export const CustomerAnalyticsSchema = z.object({
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
-export type Anomaly = z.infer<typeof AnomalySchema>;
-
 export const HealthCheckResultSchema = z.object({
     healthy: z.boolean(),
     metric: z.number(),
@@ -451,10 +453,6 @@ export const DeadStockItemSchema = z.object({
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
-
-export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
-
-export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),

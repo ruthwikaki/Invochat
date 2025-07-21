@@ -341,7 +341,7 @@ export async function getInventoryAgingReportFromDB(companyId: string): Promise<
 }
 export async function getProductLifecycleAnalysisFromDB(companyId: string): Promise<ProductLifecycleAnalysis> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis' as any, { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getProductLifecycleAnalysisFromDB failed' });
         throw error;
@@ -351,7 +351,7 @@ export async function getProductLifecycleAnalysisFromDB(companyId: string): Prom
 
 export async function getInventoryRiskReportFromDB(companyId: string): Promise<InventoryRiskItem[]> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_inventory_risk_report' as any, { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_risk_report', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getInventoryRiskReportFromDB failed' });
         throw error;
@@ -371,7 +371,7 @@ export async function getCustomerSegmentAnalysisFromDB(companyId: string): Promi
 
 export async function getCashFlowInsightsFromDB(companyId: string) {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_cash_flow_insights' as any, { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
     if(error) throw error;
     return data;
 }
@@ -489,7 +489,7 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews() {
+export async function refreshMaterializedViews(companyId: string) {
     // Placeholder function
 }
 
@@ -591,13 +591,13 @@ export async function logWebhookEvent(integrationId: string, webhookId: string) 
     return { success: true };
 }
 
-export async function getNetMarginByChannelFromDB() { return {}; }
-export async function getSalesVelocityFromDB() { return { fast_sellers: [], slow_sellers: [] }; }
-export async function getDemandForecastFromDB() { return []; }
-export async function getAbcAnalysisFromDB() { return []; }
-export async function getGrossMarginAnalysisFromDB() { return { products: [], channels: [] }; }
-export async function getMarginTrendsFromDB() { return []; }
-export async function getFinancialImpactOfPromotionFromDB() { return {}; }
+export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) { return {}; }
+export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { return { fast_sellers: [], slow_sellers: [] }; }
+export async function getDemandForecastFromDB(companyId: string) { return []; }
+export async function getAbcAnalysisFromDB(companyId: string) { return []; }
+export async function getGrossMarginAnalysisFromDB(companyId: string) { return { products: [], channels: [] }; }
+export async function getMarginTrendsFromDB(companyId: string) { return []; }
+export async function getFinancialImpactOfPromotionFromDB(companyId: string, skus: string[], discount: number, duration: number) { return {}; }
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
 export async function testMaterializedView() { return {success: true}; }

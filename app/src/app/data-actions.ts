@@ -24,7 +24,6 @@ import {
   testSupabaseConnection as dbTestSupabase,
   testDatabaseQuery as dbTestQuery,
   updateProductInDb,
-  logUserFeedbackInDb,
   getDeadStockReportFromDB,
   getAnomalyInsightsFromDB,
   getDbSchemaAndData,
@@ -52,7 +51,8 @@ import {
   getReorderSuggestionsFromDB,
   getCashFlowInsightsFromDB,
   getChannelFeesFromDB,
-  upsertChannelFeeInDB
+  upsertChannelFeeInDB,
+  logUserFeedbackInDb
 } from '@/services/database';
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
@@ -656,5 +656,3 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-    
