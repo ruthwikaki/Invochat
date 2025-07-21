@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
@@ -7,7 +8,7 @@ import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, ArrowDownUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -280,7 +281,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                             <TableRow>
                                 <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
-                                <SortableHeader column="product_status" label="Status" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                                <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Variants</TableHead>
                                 <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
                                 <TableHead className="w-16 text-center">Actions</TableHead>
