@@ -23,6 +23,7 @@ import { getPriceOptimizationSuggestions } from './price-optimization-flow';
 import { getBundleSuggestions } from './suggest-bundles-flow';
 import { findHiddenMoney } from './hidden-money-finder-flow';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
+import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
@@ -40,6 +41,13 @@ const safeToolsForOrchestrator = [
     findHiddenMoney,
     getEconomicIndicators,
     getProductDemandForecast,
+    getDemandForecast,
+    getAbcAnalysis,
+    getGrossMarginAnalysis,
+    getNetMarginByChannel,
+    getMarginTrends,
+    getSalesVelocity,
+    getPromotionalImpactAnalysis,
 ];
 
 
@@ -223,3 +231,4 @@ const universalChatOrchestrator = ai.defineFlow(
 );
 
 export const universalChatFlow = universalChatOrchestrator;
+ 
