@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, AlertSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema, DeadStockItemSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
@@ -54,12 +54,15 @@ export async function getSettings(companyId: string): Promise<CompanySettings> {
     return CompanySettingsSchema.parse(newData);
 }
 
-export async function updateSettingsInDb(companyId: string, settings: Partial<CompanySettings>): Promise<CompanySettings> {
+export async function updateSettingsInDb(companyId: string, settings: Partial<CompanySettings>): Promise<{success: boolean, error?: string}> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('company_settings').update({ ...settings, updated_at: new Date().toISOString() }).eq('company_id', companyId).select().single();
-    if (error) throw error;
+    if (error) {
+      logError(error, {context: 'updateSettingsInDb failed'});
+      return {success: false, error: error.message };
+    }
     await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
-    return CompanySettingsSchema.parse(data);
+    return { success: true };
 }
 
 export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number, limit?: number; offset?: number; status?: string; sortBy?: string; sortDirection?: string; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
@@ -338,7 +341,7 @@ export async function getInventoryAgingReportFromDB(companyId: string): Promise<
 }
 export async function getProductLifecycleAnalysisFromDB(companyId: string): Promise<ProductLifecycleAnalysis> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis' as any, { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getProductLifecycleAnalysisFromDB failed' });
         throw error;
@@ -348,7 +351,7 @@ export async function getProductLifecycleAnalysisFromDB(companyId: string): Prom
 
 export async function getInventoryRiskReportFromDB(companyId: string): Promise<InventoryRiskItem[]> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_inventory_risk_report', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_risk_report' as any, { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getInventoryRiskReportFromDB failed' });
         throw error;
@@ -368,7 +371,7 @@ export async function getCustomerSegmentAnalysisFromDB(companyId: string): Promi
 
 export async function getCashFlowInsightsFromDB(companyId: string) {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_cash_flow_insights' as any, { p_company_id: companyId });
     if(error) throw error;
     return data;
 }
@@ -389,7 +392,7 @@ export async function getIntegrationsByCompanyId(companyId: string): Promise<Int
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('integrations').select('*').eq('company_id', companyId);
     if (error) throw new Error(`Could not load integrations: ${error.message}`);
-    return (data as Integration[]) || [];
+    return data || [];
 }
 export async function deleteIntegrationFromDb(id: string, companyId: string) {
     const supabase = getServiceRoleClient();
@@ -502,7 +505,7 @@ export async function getHistoricalSalesForSkus(companyId: string, skus: string[
 
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
+    const { error } = await supabase.rpc('reconcile_inventory_from_integration' as any, { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
     if(error) throw error;
 }
 
@@ -541,7 +544,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     
     // The query returns { suppliers: { name: 'Supplier A' } }, so we need to flatten it.
     const flattenedData = (data || []).map(po => {
-        const typedPo = po as unknown as { suppliers: { name: string | null } | null };
+        const typedPo = po as any; // Cast to any to access nested property dynamically
         return {
             ...po,
             supplier_name: typedPo.suppliers?.name || 'N/A',

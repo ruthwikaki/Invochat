@@ -1,27 +1,42 @@
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+'use server';
+
+import { createServerClient as createServerClientOriginal, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { envValidation } from '@/config/app-config';
 import type { Database } from '@/types/database.types';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+
+let supabaseAdmin: SupabaseClient<Database> | null = null;
 
 export function getServiceRoleClient(): SupabaseClient<Database> {
-  const supabaseUrl = envValidation.success ? envValidation.data.SUPABASE_URL : process.env.SUPABASE_URL;
-  const serviceKey = envValidation.success ? envValidation.data.SUPABASE_SERVICE_ROLE_KEY : process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseAdmin) {
+    return supabaseAdmin;
+  }
 
-  if (!supabaseUrl || !serviceKey) {
-    throw new Error('Supabase URL or Service Role Key is not configured.');
+  if (!envValidation.success) {
+     const errorDetails = envValidation.error.flatten().fieldErrors;
+     const errorMessage = `Supabase admin client cannot be initialized due to missing environment variables: ${JSON.stringify(errorDetails)}`;
+     throw new Error(errorMessage);
   }
   
-  return createClient(supabaseUrl, serviceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  supabaseAdmin = createClient<Database>(
+      envValidation.data.SUPABASE_URL, 
+      envValidation.data.SUPABASE_SERVICE_ROLE_KEY, 
+      {
+          auth: {
+              autoRefreshToken: false,
+              persistSession: false
+          }
+      }
+  );
+
+  return supabaseAdmin;
 }
 
 // Re-export createServerClient for use in server components/actions
-export function createServerSupabaseClient() {
+export function createServerClient() {
   const cookieStore = cookies()
 
   if (!envValidation.success) {
@@ -29,7 +44,7 @@ export function createServerSupabaseClient() {
      throw new Error(errorMessage);
   }
 
-  return createServerClient<Database>(
+  return createServerClientOriginal<Database>(
     envValidation.data.NEXT_PUBLIC_SUPABASE_URL,
     envValidation.data.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
