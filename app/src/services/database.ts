@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem, Alert } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, User, TeamMember, Supplier, SupplierFormData, Product, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, DeadStockItem, Alert, Integration } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, SupplierFormSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, DeadStockItemSchema, AlertSchema } from '@/types';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
@@ -303,7 +303,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
     }
 
     // Safely parse the data, defaulting to an empty array if parsing fails or data is null
-    const parseResult = AlertSchema.array().safeParse(data);
+    const parseResult = AlertSchema.array().safeParse(data || []);
     if (!parseResult.success) {
         logError(parseResult.error, { context: `Zod parsing failed for getAlertsFromDB for company ${companyId}` });
         return [];
@@ -313,7 +313,7 @@ export async function getAlertsFromDB(companyId: string): Promise<Alert[]> {
 }
 
 export async function getInventoryAgingReportFromDB(companyId: string) {
-    const supabase = getServiceRole-Client();
+    const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
     if (error) throw error;
     return data || [];
