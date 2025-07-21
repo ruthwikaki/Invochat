@@ -62,3 +62,4 @@ export const getEconomicIndicators = ai.defineTool(
     }
   }
 );
+

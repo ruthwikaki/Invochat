@@ -21,3 +21,4 @@ export function getCookie(name: string): string | null {
     }
     return null;
 }
+

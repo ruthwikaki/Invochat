@@ -84,3 +84,4 @@ export async function getSecret(companyId: string, platform: string): Promise<st
         throw e;
     }
 }
+

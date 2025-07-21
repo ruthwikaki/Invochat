@@ -85,7 +85,7 @@ export const suggestPriceOptimizationsFlow = ai.defineFlow(
         name: p.product_title,
         cost: p.cost,
         price: p.price,
-        quantity: p.inventory_quantity
+        inventory_quantity: p.inventory_quantity
       }));
 
       const { output } = await suggestPricesPrompt({ products: productSubset });
@@ -111,3 +111,4 @@ export const getPriceOptimizationSuggestions = ai.defineTool(
     },
     async (input) => suggestPriceOptimizationsFlow(input)
 );
+
