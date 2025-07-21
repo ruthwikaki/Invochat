@@ -1,6 +1,14 @@
 
 import { z } from 'zod';
 
+export const AnomalySchema = z.object({
+  date: z.string(),
+  anomaly_type: z.string(),
+  daily_revenue: z.number(),
+  avg_revenue: z.number(),
+  deviation_percentage: z.number(),
+});
+
 // A single part of a multi-modal message, updated to support tool responses.
 const ContentPartSchema = z.object({
   text: z.string().optional(),
@@ -12,7 +20,7 @@ const ContentPartSchema = z.object({
 
 // A message in the conversation history, aligned with Genkit's history message structure.
 const HistoryMessageSchema = z.object({
-  role: z.enum(['user', 'assistant', 'tool']), // Role can be user, model, or tool
+  role: z.enum(['user', 'assistant', 'tool', 'model']),
   content: z.array(ContentPartSchema),
 });
 
@@ -36,7 +44,25 @@ export const UniversalChatOutputSchema = z.object({
   }).optional().describe("A suggested visualization for the data."),
   confidence: z.number().min(0).max(1).describe("A score from 0.0 (low) to 1.0 (high) indicating the AI's confidence in the generated SQL query and response."),
   assumptions: z.array(z.string()).optional().describe("A list of any assumptions the AI had to make to answer the query."),
+  isError: z.boolean().optional(),
   // Add a field to specify which tool was called, if any.
   toolName: z.string().optional().describe("The name of the tool that was called to generate this response, if applicable."),
 });
 export type UniversalChatOutput = z.infer<typeof UniversalChatOutputSchema>;
+
+export const AnomalyExplanationInputSchema = z.object({
+    type: z.string(),
+    title: z.string(),
+    message: z.string(),
+    severity: z.string(),
+    timestamp: z.string(),
+    metadata: z.record(z.unknown()),
+});
+export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
+
+export const AnomalyExplanationOutputSchema = z.object({
+  explanation: z.string().describe("A concise, 1-2 sentence explanation for the anomaly or alert."),
+  confidence: z.enum(['high', 'medium', 'low']).describe("The AI's confidence in its explanation."),
+  suggestedAction: z.string().optional().describe("A brief, actionable suggestion for the user to take next."),
+});
+export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
