@@ -14,12 +14,12 @@ import { logger } from '@/lib/logger';
  * @returns The ID of the created or updated secret.
  */
 export async function createOrUpdateSecret(companyId: string, platform: string, plaintextValue: string): Promise<string> {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRoleClient() as any;
     // Use a predictable naming convention for secrets to ensure one per integration.
     const secretName = `${platform}_token_${companyId}`;
     
     try {
-        const { data: secret, error } = await (supabase as any).vault.secrets.create({
+        const { data: secret, error } = await supabase.vault.secrets.create({
             name: secretName,
             secret: plaintextValue,
             description: `API token for ${platform} for company ${companyId}`,
@@ -30,7 +30,7 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
             if (error.message.includes('unique constraint')) {
                 logger.info(`[Vault] Secret for ${secretName} already exists. Updating it instead.`);
                 // Update the existing secret with the new value.
-                const { data: updatedSecret, error: updateError } = await (supabase as any).vault.secrets.update(secretName, {
+                const { data: updatedSecret, error: updateError } = await supabase.vault.secrets.update(secretName, {
                     secret: plaintextValue,
                 });
                 if (updateError) {
@@ -57,11 +57,11 @@ export async function createOrUpdateSecret(companyId: string, platform: string, 
  * @returns The decrypted secret value, or null if not found.
  */
 export async function getSecret(companyId: string, platform: string): Promise<string | null> {
-    const supabase = getServiceRoleClient();
+    const supabase = getServiceRoleClient() as any;
     const secretName = `${platform}_token_${companyId}`;
 
     try {
-        const { data, error } = await (supabase as any).vault.secrets.retrieve(secretName);
+        const { data, error } = await supabase.vault.secrets.retrieve(secretName);
         
         if (error) {
             // A 404 error is expected if the secret doesn't exist yet.
