@@ -60,22 +60,19 @@ export async function POST(request: Request) {
                     .single();
 
                 if (integration) {
-                    await logWebhookEvent(integration.id, webhookId);
+                    const { success } = await logWebhookEvent(integration.id, webhookId);
+                    if (!success) {
+                        logError(new Error(`WooCommerce webhook replay attempt detected: ${webhookId}`), { status: 409 });
+                        return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                    }
                 }
             }
         }
 
         const cookieStore = cookies();
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-        if (!supabaseUrl || !supabaseAnonKey) {
-            throw new Error("Supabase environment variables are not set.");
-        }
-
         const authSupabase = createServerClient(
-            supabaseUrl,
-            supabaseAnonKey,
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
             {
               cookies: { get: (name: string) => cookieStore.get(name)?.value },
             }
@@ -121,3 +118,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
     }
 }
+
+    

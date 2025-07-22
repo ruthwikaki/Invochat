@@ -2,6 +2,7 @@
 import Redis, { Pipeline } from 'ioredis';
 import { logger } from './logger';
 import { getErrorMessage } from './error-handler';
+import { config } from '@/config/app-config';
 
 // A private, module-level variable to hold the singleton instance.
 let redis: Redis | null = null;
@@ -210,8 +211,10 @@ export async function rateLimit(
 
         return { limited: isLimited, remaining };
     } catch (error) {
-        logger.error(`[Redis] Rate limiting failed for action "${action}". Failing ${failClosed ? 'closed' : 'open'}.`, error);
+        logger.error(`[Redis] Rate limiting failed for action "${action}". Failing ${failClosed ? 'open' : 'open'}.`, error);
         // If Redis fails, fail open or closed based on the flag. This is a critical design choice.
-        return { limited: failClosed ? failClosed : false, remaining: failClosed ? 0 : limit };
+        return { limited: failClosed, remaining: failClosed ? 0 : limit };
     }
 }
+
+    

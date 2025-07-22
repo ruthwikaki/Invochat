@@ -241,3 +241,5 @@ export async function handleUserMessage({ content, conversationId }: { content: 
         return { error: `Sorry, I encountered an unexpected problem: ${getErrorMessage(e)}` };
     }
 }
+
+    
