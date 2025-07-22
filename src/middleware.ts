@@ -13,11 +13,6 @@ export async function middleware(req: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
   const { pathname } = req.nextUrl;
-  
-  console.log('🔍 Middleware executing for path:', pathname);
-  console.log('🔑 Supabase URL exists:', !!supabaseUrl);
-  console.log('🔑 Supabase Anon Key exists:', !!supabaseAnonKey);
-
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn("Supabase environment variables are not set. Middleware is bypassing auth checks.");
@@ -58,36 +53,27 @@ export async function middleware(req: NextRequest) {
   const user = session?.user;
 
   // Define public routes that do not require authentication
-  const publicRoutes = ['/', '/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
-  const isPublicRoute = publicRoutes.some(route => pathname === route);
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup'];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  const isLandingPage = pathname === '/';
   
-  console.log('👤 User authenticated:', !!user);
-  console.log('🛡️ Is public route:', isPublicRoute);
-
-
   // If the user is logged in
   if (user) {
-    // If the user is on a public-only route (like login/signup), redirect them to the dashboard.
-    if (isPublicRoute && pathname !== '/') {
-        console.log('➡️ Redirecting authenticated user from public route to /dashboard');
+    // If user has no company_id, they must complete setup
+    if (!user.app_metadata.company_id && !pathname.startsWith('/env-check')) {
+        return NextResponse.redirect(new URL('/env-check', req.url));
+    }
+
+    // If company is set up and they are on a public-only route, redirect to dashboard.
+    if (isPublicRoute) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } 
   // If the user is not logged in
   else {
-    // If the user is trying to access a protected route, redirect them to the login page.
-    if (!isPublicRoute) {
-      console.log('➡️ Redirecting unauthenticated user to /login');
+    // Allow access to the landing page, but protect all other non-public routes.
+    if (!isPublicRoute && !isLandingPage) {
       return NextResponse.redirect(new URL('/login', req.url));
-    }
-  }
-
-  if (pathname === '/') {
-    console.log('🏠 Root path logic. User:', !!user, 'Redirecting to:', user ? '/dashboard' : '/login');
-    if (user) {
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-    } else {
-        return NextResponse.redirect(new URL('/login', req.url));
     }
   }
 
