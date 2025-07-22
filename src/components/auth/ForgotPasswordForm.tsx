@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
+import { generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -27,9 +27,10 @@ interface ForgotPasswordFormProps {
 export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormProps) {
   const [error, setError] = useState(initialError);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    generateAndSetCsrfToken(setCsrfToken);
   }, []);
 
   useEffect(() => {
@@ -44,10 +45,16 @@ export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormPr
   const handleInteraction = () => {
     if (error) setError(null);
   };
+  
+  const formAction = (formData: FormData) => {
+    startTransition(async () => {
+        await requestPasswordReset(formData);
+    })
+  }
 
   return (
-    <form action={requestPasswordReset} className="grid gap-4" onChange={handleInteraction}>
-      {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+    <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
+      {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
       <div className="grid gap-2">
         <Label htmlFor="email" className="text-slate-300">Email</Label>
         <Input
@@ -65,7 +72,7 @@ export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormPr
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <SubmitButton disabled={!csrfToken} />
+      <SubmitButton disabled={!csrfToken || isPending} />
     </form>
   );
 }

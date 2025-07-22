@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf';
+import { generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -27,9 +27,10 @@ interface UpdatePasswordFormProps {
 export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormProps) {
     const [error, setError] = useState(initialError);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
 
     useEffect(() => {
-        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+        generateAndSetCsrfToken(setCsrfToken);
     }, []);
 
     useEffect(() => {
@@ -45,9 +46,15 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
         if (error) setError(null);
     };
     
+    const formAction = (formData: FormData) => {
+        startTransition(async () => {
+            await updatePassword(formData);
+        });
+    }
+
   return (
-    <form action={updatePassword} className="grid gap-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+    <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
+        {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
         <div className="grid gap-2">
           <Label htmlFor="password" className="text-slate-300">New Password</Label>
            <PasswordInput
@@ -75,7 +82,7 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <SubmitButton disabled={!csrfToken} />
+        <SubmitButton disabled={!csrfToken || isPending} />
     </form>
   );
 }

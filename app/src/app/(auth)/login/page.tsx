@@ -3,7 +3,6 @@ import { LoginForm } from '@/components/auth/LoginForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import Link from 'next/link';
-import { generateCSRFToken } from '@/lib/csrf';
 
 export default function LoginPage({
   searchParams,
@@ -11,7 +10,6 @@ export default function LoginPage({
   searchParams?: { [key: string]: string | undefined };
 }) {
   const error = searchParams?.error;
-  generateCSRFToken();
 
   return (
     <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
