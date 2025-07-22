@@ -1,6 +1,6 @@
 
 
-import { getSales, exportSales, getSalesAnalytics } from '@/app/data-actions';
+import { getSalesData, exportSales, getSalesAnalytics } from '@/app/data-actions';
 import { SalesClientPage } from '@/components/sales/sales-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
@@ -18,7 +18,7 @@ export default async function SalesPage({
   const page = Number(searchParams?.page) || 1;
 
   const [salesData, analyticsData] = await Promise.all([
-    getSales({ query, page, limit: ITEMS_PER_PAGE }),
+    getSalesData({ query, page, limit: ITEMS_PER_PAGE }),
     getSalesAnalytics(),
   ]);
 
@@ -36,7 +36,7 @@ export default async function SalesPage({
       <SalesClientPage
         initialSales={salesData.items}
         totalCount={salesData.totalCount}
-        itemsPerPage={itemsPerPage}
+        itemsPerPage={ITEMS_PER_PAGE}
         analyticsData={analyticsData}
         exportAction={handleExport}
       />
