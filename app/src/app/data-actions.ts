@@ -312,7 +312,7 @@ export async function logUserFeedback(formData: FormData): Promise<{ success: bo
         const subjectType = formData.get('subjectType') as string;
         const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
 
-        await logUserFeedbackInDb();
+        await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
         
         return { success: true };
     } catch(e) {

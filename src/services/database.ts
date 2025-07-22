@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -452,7 +453,7 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<C
     if (!channel_name) {
         throw new Error("Channel name is required to upsert a fee.");
     }
-    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId } as any, { onConflict: 'company_id, channel_name' });
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
     if (error) {
         logError(error, { context: 'upsertChannelFeeInDB failed' });
         throw error;
@@ -478,8 +479,20 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb() {
-    // Placeholder function
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: string) {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('feedback').insert({
+      user_id: userId,
+      company_id: companyId,
+      subject_id: subjectId,
+      subject_type: subjectType,
+      feedback: feedback as any,
+    });
+  
+    if (error) {
+      logError(error, { context: 'logUserFeedbackInDb failed' });
+      throw error;
+    }
 }
 export async function createExportJobInDb(companyId: string, userId: string) { 
     const supabase = getServiceRoleClient();
@@ -638,3 +651,4 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
+
