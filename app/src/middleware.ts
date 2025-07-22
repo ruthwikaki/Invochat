@@ -15,8 +15,8 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("Supabase environment variables are not set. Middleware is bypassing auth checks.");
-    return response;
+    // This case is handled by the root layout, but as a safeguard:
+    return NextResponse.next();
   }
 
   const supabase = createServerClient(
@@ -52,27 +52,27 @@ export async function middleware(req: NextRequest) {
   const { data: { session } } = await supabase.auth.getSession();
   const user = session?.user;
 
-  // Define public routes that do not require authentication
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-  const isLandingPage = pathname === '/';
+  // Define routes that are only accessible to unauthenticated users
+  const authRoutes = ['/login', '/signup', '/forgot-password', '/update-password'];
+
+  // Define fully public routes
+  const publicRoutes = ['/'];
+
+  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.includes(pathname);
+  const isProtectedRoute = !isAuthRoute && !isPublicRoute;
   
   // If the user is logged in
   if (user) {
-    // If user has no company_id, they must complete setup
-    if (!user.app_metadata.company_id && !pathname.startsWith('/env-check')) {
-        return NextResponse.redirect(new URL('/env-check', req.url));
-    }
-
-    // If company is set up and they are on a public-only route, redirect to dashboard.
-    if (isPublicRoute) {
+    // If user tries to access an auth route (e.g., /login), redirect to dashboard
+    if (isAuthRoute) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } 
   // If the user is not logged in
   else {
-    // Allow access to the landing page, but protect all other non-public routes.
-    if (!isPublicRoute && !isLandingPage) {
+    // If the user is trying to access a protected route, redirect to login
+    if (isProtectedRoute) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }

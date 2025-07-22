@@ -1,17 +1,17 @@
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import { signOut } from '@/app/(auth)/actions';
 import { logError } from '@/lib/error-handler';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, companyName: string) => Promise<void>;
   logout: () => Promise<void>;
   supabase: SupabaseClient;
 }
@@ -49,12 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        if (_event === 'SIGNED_IN') {
-            router.replace('/dashboard');
-        }
-        if (_event === 'SIGNED_OUT') {
-            router.replace('/login');
-        }
+        // The middleware now handles all redirects, so we can remove
+        // the redirect logic from here to simplify the context.
       }
     );
 
@@ -64,34 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-  };
-
-  const signup = async (email: string, password: string, companyName: string) => {
-    const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-            data: {
-                company_name: companyName
-            }
-        }
-    });
-    if (error) throw error;
-  };
-
   const logout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
+    router.push('/login'); // Redirect after sign-out
   };
 
   const value = {
     user,
     session,
     loading,
-    login,
-    signup,
     logout,
     supabase,
   };

@@ -22,7 +22,7 @@ export function UserAccountNav({user}: {user: User | null}) {
             size="icon"
             className="h-8 w-8 ml-auto"
             aria-label="Sign Out"
-            onClick={logout}
+            onClick={() => logout()}
         >
             <LogOut className="h-4 w-4" />
         </Button>
