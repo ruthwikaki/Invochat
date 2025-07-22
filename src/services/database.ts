@@ -34,7 +34,7 @@ export async function checkUserPermission(userId: string, requiredRole: 'Admin' 
 export async function getSettings(companyId: string): Promise<CompanySettings> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('company_settings').select('*').eq('company_id', companyId).single();
-    if (error && error.code !== 'PGRST116') {
+    if (error && error.code !== 'PGRST116') { // PGRST116: no rows found
         throw error;
     }
     if (data) return CompanySettingsSchema.parse(data);
