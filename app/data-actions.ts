@@ -635,12 +635,12 @@ export async function getHistoricalSalesForSkus(companyId: string, skus: string[
     return getHistoricalSalesForSkusFromDB(companyId, skus);
 }
 
-export async function getChannelFees(): Promise<ChannelFee[]> {
+export async function getChannelFees() {
     const { companyId } = await getAuthContext();
     return getChannelFeesFromDB(companyId);
 }
 
-export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
+export async function upsertChannelFee(formData: FormData) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
@@ -650,9 +650,9 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
             fixed_fee: formData.get('fixed_fee') ? parseInt(String(formData.get('fixed_fee')), 10) : null,
             percentage_fee: formData.get('percentage_fee') ? parseFloat(String(formData.get('percentage_fee'))) : null,
         };
-        await upsertChannelFeeInDB(companyId, feeData);
+        const result = await upsertChannelFeeInDB(companyId, feeData);
         revalidatePath('/settings/profile');
-        return { success: true };
+        return { success: true, data: result };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
