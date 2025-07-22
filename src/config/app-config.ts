@@ -85,6 +85,7 @@ export const config = {
   redis: {
     ttl: {
         aiQuery: parseIntWithDefault(process.env.REDIS_TTL_AI_QUERY_SECONDS, 3600), // 1 hour
+        dashboard: parseIntWithDefault(process.env.REDIS_TTL_DASHBOARD_SECONDS, 900), // 15 minutes
         performanceMetrics: parseIntWithDefault(process.env.REDIS_TTL_PERF_METRICS_SECONDS, 86400), // 24 hours
     }
   }
