@@ -446,7 +446,7 @@ export async function getChannelFeesFromDB(companyId: string): Promise<ChannelFe
     }
     return data || [];
 }
-export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<ChannelFee>) {
+export async function upsertChannelFeeInDb(companyId: string, feeData: Partial<ChannelFee>) {
     const supabase = getServiceRoleClient();
     const { channel_name } = feeData;
     if (!channel_name) {
