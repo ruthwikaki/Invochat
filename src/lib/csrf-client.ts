@@ -1,12 +1,14 @@
 
 'use client';
 
-import { CSRF_COOKIE_NAME } from './csrf';
 import { Dispatch, SetStateAction } from 'react';
+import { logger } from './logger';
+
+export const CSRF_COOKIE_NAME = '__Host-csrf_token';
+export const CSRF_FORM_NAME = 'csrf_token';
 
 /**
  * Reads a cookie value on the client-side.
- * This is a helper function for client components to get the CSRF token.
  * @param name The name of the cookie to read.
  * @returns The cookie value, or null if not found.
  */
@@ -23,10 +25,8 @@ export function getCookie(name: string): string | null {
 }
 
 /**
- * A client-side helper to fetch and set a CSRF token.
- * This function is necessary because the token must be generated on the server
- * via a Server Action, and then read by the client.
- * @param setCsrfToken The state setter from a `useState` hook.
+ * A client-side helper to fetch a CSRF token from a dedicated API route.
+ * @param setCsrfToken The state setter from a `useState` hook to store the token.
  */
 export async function generateAndSetCsrfToken(setCsrfToken: Dispatch<SetStateAction<string | null>>) {
     try {
@@ -34,8 +34,10 @@ export async function generateAndSetCsrfToken(setCsrfToken: Dispatch<SetStateAct
         if (response.ok) {
             const token = getCookie(CSRF_COOKIE_NAME);
             setCsrfToken(token);
+        } else {
+            logger.error('Failed to fetch CSRF token from API.', { status: response.status });
         }
     } catch (error) {
-        console.error('Failed to generate CSRF token:', error);
+        logger.error('Error fetching CSRF token:', error);
     }
 }

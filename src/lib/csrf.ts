@@ -1,4 +1,6 @@
 
+'use server';
+
 import { logger } from './logger';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
@@ -36,21 +38,4 @@ export function validateCSRF(formData: FormData): void {
     logger.warn(`[CSRF] Invalid token. Action rejected. Form: ${tokenFromForm}, Cookie: ${tokenFromCookie}`);
     throw new Error('Invalid form submission. Please refresh the page and try again.');
   }
-}
-
-/**
- * Reads a cookie value on the client-side.
- * This is a helper function for client components to get the CSRF token.
- * @param name The name of the cookie to read.
- * @returns The cookie value, or null if not found.
- */
-export function getCookie(name: string): string | null {
-    if (typeof document === 'undefined') {
-        // This function is client-side only, return null on the server.
-        return null;
-    }
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift() || null;
-    return null;
 }
