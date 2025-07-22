@@ -36,6 +36,7 @@ import {
   History
 } from 'lucide-react';
 import type { Conversation } from '@/types';
+import type { User } from '@supabase/supabase-js';
 import { useAuth } from '@/context/auth-context';
 
 
