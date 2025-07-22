@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import type { Supplier } from '@/types';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 interface SupplierFormProps {
   initialData?: Supplier;

@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -27,19 +26,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTeamMembers, inviteTeamMember, removeTeamMember, updateTeamMemberRole } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
-import { useAuth } from '@/context/auth-context';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import type { TeamMember } from '@/types';
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
 });
 
-export function TeamMembersCard() {
+interface TeamMembersCardProps {
+    currentUserId: string | null;
+}
+
+export function TeamMembersCard({ currentUserId }: TeamMembersCardProps) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
-    const { user } = useAuth();
     
-    const { data: teamMembers, isLoading } = useQuery({
+    const { data: teamMembers, isLoading } = useQuery<TeamMember[]>({
         queryKey: ['teamMembers'],
         queryFn: getTeamMembers,
     });
@@ -107,7 +109,7 @@ export function TeamMembersCard() {
         invite(formData);
     });
     
-    const currentUserRole = teamMembers?.find(m => m.id === user?.id)?.role;
+    const currentUserRole = teamMembers?.find(m => m.id === currentUserId)?.role;
     const canManageTeam = currentUserRole === 'Owner' || currentUserRole === 'Admin';
     const isOwner = currentUserRole === 'Owner';
     
@@ -161,7 +163,7 @@ export function TeamMembersCard() {
                                             formData.append('newRole', newRole);
                                             updateRole(formData);
                                         }}
-                                        disabled={!isOwner || member.id === user?.id || member.role === 'Owner'}
+                                        disabled={!isOwner || member.id === currentUserId || member.role === 'Owner'}
                                     >
                                         <SelectTrigger className="w-[120px] h-8">
                                             <SelectValue />
@@ -174,7 +176,7 @@ export function TeamMembersCard() {
                                     </Select>
                                 </TableCell>
                                 <TableCell>
-                                    {canManageTeam && member.role !== 'Owner' && member.id !== user?.id && (
+                                    {canManageTeam && member.role !== 'Owner' && member.id !== currentUserId && (
                                         <Button variant="ghost" size="sm" onClick={() => {
                                             const formData = new FormData();
                                             formData.append('memberId', member.id);

@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -46,7 +45,7 @@ export async function syncProducts(integration: Integration, accessToken: string
             productsToUpsert.push({
                 company_id: integration.company_id,
                 title: shopifyProduct.title,
-                description: '',
+                description: DOMPurify.sanitize(shopifyProduct.body_html),
                 handle: shopifyProduct.handle,
                 product_type: shopifyProduct.product_type,
                 tags: shopifyProduct.tags.split(',').map((t: string) => t.trim()),

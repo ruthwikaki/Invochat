@@ -20,7 +20,7 @@ import {
 import { PlatformLogo } from './platform-logos';
 import { useState, useEffect, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 interface IntegrationCardProps {
     integration: Integration;
@@ -86,7 +86,7 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
                         <h3 className="text-lg font-semibold">{integration.shop_name}</h3>
                         {isDemo && <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600"><TestTube2 className="h-3 w-3 mr-1" />Demo Mode</Badge>}
                     </div>
-                    <p className="text-sm text-muted-foreground">{integration.shop_domain?.replace('https://', '') || 'Integration'}</p>
+                    <p className="text-sm text-muted-foreground">{integration.shop_domain?.replace(/https?:\/\//, '') || 'Integration'}</p>
                     {renderStatus()}
                 </div>
                 <div className="flex items-center gap-2">

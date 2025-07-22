@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ShopifyConnectModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export function ShopifyConnectModal({ isOpen, onClose }: ShopifyConnectModalProps) {
     const { toast } = useToast();
+    const queryClient = useQueryClient();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
@@ -48,8 +50,8 @@ export function ShopifyConnectModal({ isOpen, onClose }: ShopifyConnectModalProp
 
             if (response.ok) {
                 toast({ title: 'Success!', description: 'Your Shopify store has been connected.' });
+                await queryClient.invalidateQueries({ queryKey: ['integrations'] });
                 onClose();
-                window.location.reload(); // Reload to show the new integration card
             } else {
                 setError(result.error || 'An unknown error occurred.');
             }

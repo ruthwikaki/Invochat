@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface WooCommerceConnectModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export function WooCommerceConnectModal({ isOpen, onClose }: WooCommerceConnectModalProps) {
     const { toast } = useToast();
+    const queryClient = useQueryClient();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
@@ -49,8 +51,8 @@ export function WooCommerceConnectModal({ isOpen, onClose }: WooCommerceConnectM
 
             if (response.ok) {
                 toast({ title: 'Success!', description: 'Your WooCommerce store has been connected.' });
+                await queryClient.invalidateQueries({ queryKey: ['integrations'] });
                 onClose();
-                window.location.reload();
             } else {
                 setError(result.error || 'An unknown error occurred.');
             }

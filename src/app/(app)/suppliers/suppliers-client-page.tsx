@@ -21,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Supplier[] }) {
   const router = useRouter();

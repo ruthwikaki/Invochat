@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AmazonConnectModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export function AmazonConnectModal({ isOpen, onClose }: AmazonConnectModalProps) {
     const { toast } = useToast();
+    const queryClient = useQueryClient();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
@@ -48,8 +50,8 @@ export function AmazonConnectModal({ isOpen, onClose }: AmazonConnectModalProps)
 
             if (response.ok) {
                 toast({ title: 'Success!', description: 'Your Amazon FBA account has been connected.' });
+                await queryClient.invalidateQueries({ queryKey: ['integrations'] });
                 onClose();
-                window.location.reload();
             } else {
                 setError(result.error || 'An unknown error occurred.');
             }

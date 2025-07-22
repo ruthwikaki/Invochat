@@ -25,7 +25,7 @@ import {
 import { deleteCustomer } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 import { ExportButton } from '@/components/ui/export-button';
 
 interface CustomersClientPageProps {
