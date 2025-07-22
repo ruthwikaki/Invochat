@@ -7,9 +7,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
-import { getReorderSuggestionsFromDB, getSettings } from '@/services/database';
+import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
 import { ReorderSuggestionBaseSchema } from '@/types';
-import { getHistoricalSalesForSkus } from '@/app/data-actions';
 
 // The input for the AI refinement prompt
 const ReorderRefinementInputSchema = z.object({
@@ -128,3 +127,5 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
+    

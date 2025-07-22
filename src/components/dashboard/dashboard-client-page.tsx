@@ -25,6 +25,10 @@ import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
+import { getDashboardData } from '@/app/data-actions';
+import { Skeleton } from '../ui/skeleton';
 
 interface DashboardClientPageProps {
     initialMetrics: DashboardMetrics;
@@ -59,11 +63,42 @@ const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { 
 
 export function DashboardClientPage({ initialMetrics, initialBriefing }: DashboardClientPageProps) {
     const router = useRouter();
+    const [metrics, setMetrics] = useState(initialMetrics);
+    const [loading, setLoading] = useState(false);
 
     const handleDateChange = (value: string) => {
+        setLoading(true);
         router.push(`/dashboard?range=${value}`);
+        getDashboardData(value).then(data => {
+            setMetrics(data);
+            setLoading(false);
+        });
     };
     
+    if (loading) {
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row items-start justify-between gap-4">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-10 w-[180px]" />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Skeleton className="h-24"/>
+            <Skeleton className="h-24"/>
+            <Skeleton className="h-24"/>
+            <Skeleton className="h-24"/>
+          </div>
+          <Skeleton className="h-48" />
+           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+             <Skeleton className="h-28"/>
+             <Skeleton className="h-28"/>
+             <Skeleton className="h-28"/>
+             <Skeleton className="h-28"/>
+           </div>
+        </div>
+      )
+    }
+
     return (
         <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -92,18 +127,20 @@ export function DashboardClientPage({ initialMetrics, initialBriefing }: Dashboa
             <MorningBriefingCard briefing={initialBriefing} />
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
-                <StatCard title="Total Sales" value={initialMetrics.total_sales.toLocaleString()} change={`${initialMetrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
-                <StatCard title="New Customers" value={initialMetrics.new_customers.toLocaleString()} change={`${initialMetrics.customers_change.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
-                <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value)} icon={TrendingDown} gradient="bg-rose-500" />
+                <StatCard title="Total Revenue" value={formatCentsAsCurrency(metrics.total_revenue)} change={`${metrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={metrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
+                <StatCard title="Total Sales" value={metrics.total_sales.toLocaleString()} change={`${metrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={metrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
+                <StatCard title="New Customers" value={metrics.new_customers.toLocaleString()} change={`${metrics.customers_change.toFixed(1)}%`} icon={Users} changeType={metrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
+                <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(metrics.dead_stock_value)} icon={TrendingDown} gradient="bg-rose-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SalesChart data={initialMetrics.sales_over_time} />
-                <TopProductsCard data={initialMetrics.top_selling_products} />
+                <SalesChart data={metrics.sales_over_time} />
+                <TopProductsCard data={metrics.top_selling_products} />
             </div>
             
-            <InventorySummaryCard data={initialMetrics.inventory_summary} />
+            <InventorySummaryCard data={metrics.inventory_summary} />
         </motion.div>
     );
 }
+
+    
