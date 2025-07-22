@@ -389,7 +389,6 @@ export async function exportCustomers(params: { query?: string }) {
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
-        logError(e);
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -409,7 +408,6 @@ export async function exportSales(params: { query?: string }) {
         })));
         return { success: true, data: csv };
     } catch (e) {
-        logError(e);
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -432,7 +430,6 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
         });
         return { success: true, data: csv };
     } catch (e) {
-        logError(e);
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -478,7 +475,6 @@ export async function exportInventory(params: { query?: string, status?: string;
 
         return { success: true, data: csv };
     } catch (e) {
-        logError(e);
         return { success: false, error: getErrorMessage(e) };
     }
 }
