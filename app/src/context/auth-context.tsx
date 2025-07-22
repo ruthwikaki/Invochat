@@ -49,8 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        // The middleware now handles all redirects, so we can remove
-        // the redirect logic from here to simplify the context.
       }
     );
 
