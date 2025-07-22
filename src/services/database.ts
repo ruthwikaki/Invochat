@@ -569,9 +569,6 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 }
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-export async function logPOCreationInDb() {
-    // Placeholder
-}
 
 export async function logWebhookEvent(integrationId: string, webhookId: string) {
     const supabase = getServiceRoleClient();
@@ -607,7 +604,7 @@ export async function getSalesVelocityFromDB(companyId: string, days: number, li
         logError(error, { context: 'getSalesVelocityFromDB failed' });
         throw error;
     }
-    return data;
+    return data; 
 }
 export async function getDemandForecastFromDB(companyId: string) { 
     const supabase = getServiceRoleClient();
