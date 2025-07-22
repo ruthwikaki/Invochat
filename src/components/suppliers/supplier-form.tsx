@@ -39,17 +39,6 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
 
   const onSubmit = (data: SupplierFormData) => {
     startTransition(async () => {
-      const formData = new FormData();
-      const csrfToken = getCookie(CSRF_FORM_NAME);
-      if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
-
-      // Append form data to FormData object
-      Object.entries(data).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
-          formData.append(key, String(value));
-        }
-      });
-      
       const action = initialData
         ? updateSupplier(initialData.id, data)
         : createSupplier(data);

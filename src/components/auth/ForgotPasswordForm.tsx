@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useTransition } from 'react';
@@ -9,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
-import { generateAndSetCsrfToken } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -47,14 +46,14 @@ export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormPr
   };
   
   const formAction = (formData: FormData) => {
-    startTransition(async () => {
-        await requestPasswordReset(formData);
+    startTransition(() => {
+        requestPasswordReset(formData);
     })
   }
 
   return (
     <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
-      {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
+      {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
       <div className="grid gap-2">
         <Label htmlFor="email" className="text-slate-300">Email</Label>
         <Input

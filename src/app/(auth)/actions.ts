@@ -31,14 +31,14 @@ export async function login(formData: FormData) {
   );
 
   try {
-    validateCSRF(formData);
+    await validateCSRF(formData);
     const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
     });
     if (error) {
         logError(error, { context: 'Login failed' });
-        redirect(`/login?error=${encodeURIComponent(error.message)}`);
+        redirect(`/login?error=${encodeURIComponent('Invalid login credentials.')}`);
     }
   } catch (e) {
     const message = getErrorMessage(e);
@@ -81,7 +81,7 @@ export async function signup(formData: FormData) {
   );
 
   try {
-    validateCSRF(formData);
+    await validateCSRF(formData);
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -130,6 +130,7 @@ export async function signOut() {
 
   await supabase.auth.signOut();
   revalidatePath('/', 'layout');
+  redirect('/login');
 }
 
 
@@ -146,7 +147,7 @@ export async function requestPasswordReset(formData: FormData) {
       }
     );
     try {
-      validateCSRF(formData);
+      await validateCSRF(formData);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
       });
@@ -184,7 +185,7 @@ export async function updatePassword(formData: FormData) {
     }
 
     try {
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const { error } = await supabase.auth.updateUser({ password });
         if (error) {
             logError(error, { context: 'Password update failed' });

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useTransition } from 'react';
@@ -11,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { generateAndSetCsrfToken } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -36,7 +35,6 @@ export function LoginForm({ initialError }: LoginFormProps) {
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    // Generate and set the token when the component mounts
     generateAndSetCsrfToken(setCsrfToken);
   }, []);
 
@@ -52,16 +50,16 @@ export function LoginForm({ initialError }: LoginFormProps) {
   const handleInteraction = () => {
     if (error) setError(null);
   };
-
+  
   const formAction = (formData: FormData) => {
-    startTransition(async () => {
-        await login(formData);
-    });
+      startTransition(() => {
+          login(formData);
+      });
   }
 
   return (
     <form action={formAction} className="space-y-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
+        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
             <Input

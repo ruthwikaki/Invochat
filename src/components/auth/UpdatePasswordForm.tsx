@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { generateAndSetCsrfToken } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -47,14 +47,14 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
     };
     
     const formAction = (formData: FormData) => {
-        startTransition(async () => {
-            await updatePassword(formData);
+        startTransition(() => {
+            updatePassword(formData);
         });
     }
 
   return (
     <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
+        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="grid gap-2">
           <Label htmlFor="password" className="text-slate-300">New Password</Label>
            <PasswordInput

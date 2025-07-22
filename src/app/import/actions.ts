@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { headers } from 'next/headers';
@@ -245,7 +246,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             return { success: false, isDryRun, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
         }
 
-        validateCSRF(formData);
+        await validateCSRF(formData);
 
         if (!file || file.size === 0) {
             return { success: false, isDryRun, summaryMessage: 'No file was uploaded or the file is empty.' };

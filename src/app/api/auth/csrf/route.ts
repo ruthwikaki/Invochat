@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
  */
 export async function POST() {
   try {
-    generateCSRFToken();
+    await generateCSRFToken();
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (e) {
     return NextResponse.json({ success: false, error: 'Failed to generate CSRF token.' }, { status: 500 });
