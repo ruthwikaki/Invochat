@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -593,39 +592,67 @@ export async function logWebhookEvent(integrationId: string, webhookId: string) 
 }
 
 export async function getNetMarginByChannelFromDB(companyId: string, channelName: string) {
-    // Acknowledging unused parameters to satisfy TypeScript compiler
-    console.log(companyId, channelName);
-    logError(new Error("getNetMarginByChannelFromDB is not implemented"), { companyId, channelName }); return {}; 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_net_margin_by_channel', { p_company_id: companyId, p_channel_name: channelName });
+    if(error) {
+        logError(error, { context: 'getNetMarginByChannelFromDB failed' });
+        throw error;
+    }
+    return data; 
 }
 export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { 
-    // Acknowledging unused parameters
-    console.log(companyId, days, limit);
-    logError(new Error("getSalesVelocityFromDB is not implemented"), { companyId, days, limit }); return { fast_sellers: [], slow_sellers: [] }; 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_sales_velocity', { p_company_id: companyId, p_days: days, p_limit: limit });
+    if(error) {
+        logError(error, { context: 'getSalesVelocityFromDB failed' });
+        throw error;
+    }
+    return data;
 }
 export async function getDemandForecastFromDB(companyId: string) { 
-    // Acknowledging unused parameters
-    console.log(companyId);
-    logError(new Error("getDemandForecastFromDB is not implemented"), { companyId }); return []; 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('forecast_demand', { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'getDemandForecastFromDB failed' });
+        throw error;
+    }
+    return data; 
 }
 export async function getAbcAnalysisFromDB(companyId: string) { 
-    // Acknowledging unused parameters
-    console.log(companyId);
-    logError(new Error("getAbcAnalysisFromDB is not implemented"), { companyId }); return []; 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_abc_analysis', { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'getAbcAnalysisFromDB failed' });
+        throw error;
+    }
+    return data; 
 }
 export async function getGrossMarginAnalysisFromDB(companyId: string) { 
-    // Acknowledging unused parameters
-    console.log(companyId);
-    logError(new Error("getGrossMarginAnalysisFromDB is not implemented"), { companyId }); return { products: [], channels: [] }; 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_gross_margin_analysis', { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'getGrossMarginAnalysisFromDB failed' });
+        throw error;
+    }
+    return data; 
 }
 export async function getMarginTrendsFromDB(companyId: string) { 
-    // Acknowledging unused parameters
-    console.log(companyId);
-    logError(new Error("getMarginTrendsFromDB is not implemented"), { companyId }); return []; 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_margin_trends', { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'getMarginTrendsFromDB failed' });
+        throw error;
+    }
+    return data; 
 }
 export async function getFinancialImpactOfPromotionFromDB(companyId: string, skus: string[], discount: number, duration: number) { 
-    // Acknowledging unused parameters
-    console.log(companyId, skus, discount, duration);
-    logError(new Error("getFinancialImpactOfPromotionFromDB is not implemented"), { companyId, skus, discount, duration }); return {}; 
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_financial_impact_of_promotion', { p_company_id: companyId, p_skus: skus, p_discount_percentage: discount, p_duration_days: duration });
+    if(error) {
+        logError(error, { context: 'getFinancialImpactOfPromotionFromDB failed' });
+        throw error;
+    }
+    return data; 
 }
 export async function testSupabaseConnection() { return {success: true}; }
 export async function testDatabaseQuery() { return {success: true}; }
@@ -639,5 +666,3 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
-
-    
