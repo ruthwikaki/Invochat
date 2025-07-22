@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -7,6 +8,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
 import { envValidation } from '@/config/app-config';
 import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
+import { AppInitializer } from '@/components/app-initializer';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -14,8 +16,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'ARVO - Conversational Inventory Intelligence',
-  description: 'AI-powered inventory management for ARVO',
+  title: 'InvoChat - Conversational Inventory Intelligence',
+  description: 'AI-powered inventory management for InvoChat',
 };
 
 export default async function RootLayout({
@@ -44,7 +46,9 @@ export default async function RootLayout({
             disableTransitionOnChange
         >
           <AuthProvider>
-            {children}
+            <AppInitializer>
+              {children}
+            </AppInitializer>
             <Toaster />
           </AuthProvider>
         </ThemeProvider>

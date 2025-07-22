@@ -14,7 +14,13 @@ export async function middleware(req: NextRequest) {
   
   const { pathname } = req.nextUrl;
 
+  // Middleware should not run on static assets or API routes.
+  if (pathname.startsWith('/_next') || pathname.startsWith('/api/') || pathname.startsWith('/static') || pathname.endsWith('.ico') || pathname.endsWith('.png')) {
+    return response;
+  }
+
   if (!supabaseUrl || !supabaseAnonKey) {
+    // This is a server-side log, safe to use.
     console.warn("Supabase environment variables are not set. Middleware is bypassing auth checks.");
     return response;
   }
@@ -60,6 +66,7 @@ export async function middleware(req: NextRequest) {
   // If the user is logged in
   if (user) {
     // If user has no company_id, they must complete setup
+    // This is critical for ensuring data is correctly associated with a tenant
     if (!user.app_metadata.company_id && !pathname.startsWith('/env-check')) {
         return NextResponse.redirect(new URL('/env-check', req.url));
     }
@@ -84,11 +91,11 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
+     * - api/ (API routes have their own auth logic)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - api/ (API routes have their own auth)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }
