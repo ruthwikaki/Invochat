@@ -371,5 +371,4 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     </>
   );
 }
-
     
