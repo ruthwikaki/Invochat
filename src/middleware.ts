@@ -49,7 +49,7 @@ export async function middleware(req: NextRequest) {
               headers: req.headers,
             },
           });
-          response.cookies.set({ name, value, '', ...options });
+          response.cookies.delete({ name, ...options });
         },
       },
     }
