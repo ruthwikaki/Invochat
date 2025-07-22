@@ -3,15 +3,13 @@
 import { logger } from './logger';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
-
-export const CSRF_COOKIE_NAME = '__Host-csrf_token';
-export const CSRF_FORM_NAME = 'csrf_token';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from './csrf-client'; // Import constants from client-safe file
 
 /**
  * Generates a CSRF token using crypto.randomUUID() and sets it as a cookie.
  * This should be called from a Server Component or Route Handler that renders the form.
  */
-export function generateCSRFToken(): void {
+export async function generateCSRFToken(): Promise<void> {
   const token = crypto.randomUUID();
   cookies().set({
     name: CSRF_COOKIE_NAME,
@@ -29,7 +27,7 @@ export function generateCSRFToken(): void {
  * @param formData The FormData object from the form submission.
  * @throws {Error} If the tokens are missing or do not match.
  */
-export function validateCSRF(formData: FormData): void {
+export async function validateCSRF(formData: FormData): Promise<void> {
   const tokenFromCookie = cookies().get(CSRF_COOKIE_NAME)?.value;
   const tokenFromForm = formData.get(CSRF_FORM_NAME) as string | null;
 

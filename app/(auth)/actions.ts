@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { redirect } from 'next/navigation';
-import { generateCSRFToken, validateCSRF } from '@/lib/csrf';
+import { validateCSRF } from '@/lib/csrf';
 
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
@@ -31,15 +31,14 @@ export async function login(formData: FormData) {
   );
 
   try {
-    // Note: The CSRF token is expected to be passed in the form data by the client component.
-    validateCSRF(formData);
+    await validateCSRF(formData);
     const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
     });
     if (error) {
         logError(error, { context: 'Login failed' });
-        redirect(`/login?error=${encodeURIComponent(error.message)}`);
+        redirect(`/login?error=${encodeURIComponent('Invalid login credentials.')}`);
     }
   } catch (e) {
     const message = getErrorMessage(e);
@@ -82,7 +81,7 @@ export async function signup(formData: FormData) {
   );
 
   try {
-    validateCSRF(formData);
+    await validateCSRF(formData);
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -148,7 +147,7 @@ export async function requestPasswordReset(formData: FormData) {
       }
     );
     try {
-      validateCSRF(formData);
+      await validateCSRF(formData);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
       });
@@ -186,7 +185,7 @@ export async function updatePassword(formData: FormData) {
     }
 
     try {
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const { error } = await supabase.auth.updateUser({ password });
         if (error) {
             logError(error, { context: 'Password update failed' });

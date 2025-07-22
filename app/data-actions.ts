@@ -120,7 +120,7 @@ export async function getCompanySettings(): Promise<CompanySettings> {
 export async function updateCompanySettings(formData: FormData) {
   const { companyId, userId } = await getAuthContext();
   await checkUserPermission(userId, 'Admin');
-  validateCSRF(formData);
+  await validateCSRF(formData);
   const settings = {
     dead_stock_days: Number(formData.get('dead_stock_days')),
     fast_moving_days: Number(formData.get('fast_moving_days')),
@@ -197,7 +197,7 @@ export async function deleteSupplier(formData: FormData) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteSupplierFromDb(id, companyId);
         revalidatePath('/suppliers');
@@ -216,7 +216,7 @@ export async function disconnectIntegration(formData: FormData) {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const id = formData.get('integrationId') as string;
         await deleteIntegrationFromDb(id, companyId);
         revalidatePath('/settings/integrations');
@@ -236,7 +236,7 @@ export async function deleteCustomer(formData: FormData): Promise<{ success: boo
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteCustomerFromDb(id, companyId);
         revalidatePath('/customers');
@@ -308,7 +308,7 @@ export async function logUserFeedback(formData: FormData): Promise<{ success: bo
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const subjectId = formData.get('subjectId') as string;
         const subjectType = formData.get('subjectType') as string;
         const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
@@ -335,7 +335,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const email = formData.get('email') as string;
         const company = await getCompanyById(companyId);
         await inviteUserToCompanyInDb(companyId, company?.name || 'your company', email);
@@ -349,7 +349,7 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Owner');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
@@ -364,7 +364,7 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Owner');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
         if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
@@ -581,7 +581,7 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData): P
     const { companyId, userId } = await getAuthContext();
     await checkUserPermission(userId, 'Admin');
     try {
-        validateCSRF(formData);
+        await validateCSRF(formData);
 
         const suggestionsString = formData.get('suggestions') as string;
         if (!suggestionsString) {
@@ -644,7 +644,7 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const feeData = {
             channel_name: formData.get('channel_name') as string,
             fixed_fee: formData.get('fixed_fee') ? parseInt(String(formData.get('fixed_fee')), 10) : null,

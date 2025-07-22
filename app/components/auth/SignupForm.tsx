@@ -9,8 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME } from '@/lib/csrf-client';
-import { generateAndSetCsrfToken } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
