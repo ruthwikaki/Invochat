@@ -50,7 +50,7 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
         if(csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
 
         const result = await updateCompanySettings(formData);
-        if(result) {
+        if(result.success) {
             toast({ title: 'Settings saved successfully' });
         } else {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to save settings.' });
