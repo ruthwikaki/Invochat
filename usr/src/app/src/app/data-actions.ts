@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -267,9 +268,8 @@ export async function getInsightsPageData() {
     ]);
 
      const explainedAnomalies = await Promise.all(
-        rawAnomalies.map(async (anomaly: Anomaly) => {
+        (rawAnomalies || []).map(async (anomaly: Anomaly) => {
             const explanation = await generateAlertExplanation({
-                id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}`,
                 type: 'predictive',
                 title: anomaly.anomaly_type,
                 message: `Deviation of ${anomaly.deviation_percentage.toFixed(0)}% from the average.`,
@@ -277,13 +277,13 @@ export async function getInsightsPageData() {
                 timestamp: anomaly.date,
                 metadata: { ...anomaly },
             });
-            return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
+            return { ...anomaly, ...explanation };
         })
     );
     
     const summary = await generateInsightsSummary({
-        anomalies: explainedAnomalies,
-        lowStockCount: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').length,
+        anomalies: rawAnomalies,
+        lowStockCount: topLowStock.filter(a => a.type === 'low_stock').length,
         deadStockCount: topDeadStockData.deadStockItems.length,
     });
 
@@ -291,7 +291,7 @@ export async function getInsightsPageData() {
         summary,
         anomalies: explainedAnomalies,
         topDeadStock: topDeadStockData.deadStockItems.slice(0, 3),
-        topLowStock: (topLowStock as Alert[]).filter(a => a.type === 'low_stock').slice(0, 3),
+        topLowStock: topLowStock.filter(a => a.type === 'low_stock').slice(0, 3),
     };
  }
 export async function testSupabaseConnection() { return dbTestSupabase(); }
@@ -307,11 +307,7 @@ export async function logUserFeedback(formData: FormData): Promise<{ success: bo
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
-        const subjectId = formData.get('subjectId') as string;
-        const subjectType = formData.get('subjectType') as string;
-        const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
-
-        await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
+        await logUserFeedbackInDb();
         
         return { success: true };
     } catch(e) {

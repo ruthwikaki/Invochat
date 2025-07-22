@@ -24,6 +24,7 @@ import {
   testSupabaseConnection as dbTestSupabase,
   testDatabaseQuery as dbTestQuery,
   updateProductInDb,
+  logUserFeedbackInDb,
   getDeadStockReportFromDB,
   getAnomalyInsightsFromDB,
   getDbSchemaAndData,
@@ -49,15 +50,12 @@ import {
   getInventoryTurnoverFromDB,
   getDashboardMetrics,
   getReorderSuggestionsFromDB,
-  getCashFlowInsightsFromDB,
-  getChannelFeesFromDB,
-  upsertChannelFeeInDB,
-  logUserFeedbackInDb
+  getCashFlowInsightsFromDB
 } from '@/services/database';
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
 import { isRedisEnabled, testRedisConnection as redisTest } from '@/lib/redis';
-import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember, ChannelFee } from '@/types';
+import type { CompanySettings, Supplier, SupplierFormData, ProductUpdateData, Alert, Anomaly, HealthCheckResult, InventoryAgingReportItem, ReorderSuggestion, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem, DashboardMetrics, Order, PurchaseOrderWithSupplier, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, TeamMember } from '@/types';
 import { DashboardMetricsSchema, ReorderSuggestionSchema } from '@/types';
 import { deleteIntegrationFromDb } from '@/services/database';
 import { validateCSRF } from '@/lib/csrf';
@@ -545,7 +543,7 @@ export async function getReorderReport(): Promise<ReorderSuggestion[]> {
 
         const { output } = await reorderRefinementPrompt({
             suggestions: baseSuggestions,
-            historicalSales: historicalSales as any,
+            historicalSales: historicalSales,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
         });
@@ -628,29 +626,6 @@ export async function getInventoryTurnoverReportData(days: number = 90) {
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
     return getHistoricalSalesForSkusFromDB(companyId, skus);
-}
-
-export async function getChannelFees(): Promise<ChannelFee[]> {
-    const { companyId } = await getAuthContext();
-    return getChannelFeesFromDB(companyId);
-}
-
-export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
-        validateCSRF(formData);
-        const feeData = {
-            channel_name: formData.get('channel_name') as string,
-            fixed_fee: formData.get('fixed_fee') ? parseInt(String(formData.get('fixed_fee')), 10) : null,
-            percentage_fee: formData.get('percentage_fee') ? parseFloat(String(formData.get('percentage_fee'))) : null,
-        };
-        await upsertChannelFeeInDB(companyId, feeData);
-        revalidatePath('/settings/profile');
-        return { success: true };
-    } catch(e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
 }
 
     

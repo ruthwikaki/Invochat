@@ -33,7 +33,7 @@ const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
     confidence: z.number().min(0).max(1).describe("The AI's confidence in its seasonal adjustment."),
 });
 
-const reorderRefinementPrompt = ai.definePrompt({
+export const reorderRefinementPrompt = ai.definePrompt({
     name: 'reorderRefinementPrompt',
     input: { schema: ReorderRefinementInputSchema },
     output: { schema: z.array(EnhancedReorderSuggestionSchema) },
@@ -102,7 +102,7 @@ export const getReorderSuggestions = ai.defineTool(
         
         const { output } = await reorderRefinementPrompt({
             suggestions: baseSuggestions,
-            historicalSales: historicalSales,
+            historicalSales: historicalSales as any,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
         });
@@ -129,3 +129,5 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
+    

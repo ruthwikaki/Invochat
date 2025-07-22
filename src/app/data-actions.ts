@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -25,7 +24,6 @@ import {
   testSupabaseConnection as dbTestSupabase,
   testDatabaseQuery as dbTestQuery,
   updateProductInDb,
-  logUserFeedbackInDb,
   getDeadStockReportFromDB,
   getAnomalyInsightsFromDB,
   getDbSchemaAndData,
@@ -53,7 +51,8 @@ import {
   getReorderSuggestionsFromDB,
   getCashFlowInsightsFromDB,
   getChannelFeesFromDB,
-  upsertChannelFeeInDB
+  upsertChannelFeeInDB,
+  logUserFeedbackInDb
 } from '@/services/database';
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
@@ -279,7 +278,7 @@ export async function getInsightsPageData() {
                 timestamp: anomaly.date,
                 metadata: { ...anomaly },
             });
-            return { ...anomaly, ...explanation, id: `anomaly_${anomaly.date}_${anomaly.anomaly_type}` };
+            return { ...anomaly, ...explanation };
         })
     );
     
@@ -313,7 +312,7 @@ export async function logUserFeedback(formData: FormData): Promise<{ success: bo
         const subjectType = formData.get('subjectType') as string;
         const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
 
-        await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
+        await logUserFeedbackInDb();
         
         return { success: true };
     } catch(e) {
@@ -657,3 +656,5 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         return { success: false, error: getErrorMessage(e) };
     }
 }
+
+    

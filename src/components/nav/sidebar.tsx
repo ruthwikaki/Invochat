@@ -31,11 +31,12 @@ import {
   RefreshCw,
   Truck,
   Import,
-  User,
+  User as UserIcon,
   ShoppingCart,
   History
 } from 'lucide-react';
-import type { Conversation } from '@/types';
+import type { Conversation, User } from '@/types';
+import { useAuth } from '@/context/auth-context';
 
 
 const mainNav = [
@@ -58,7 +59,7 @@ const toolsNav = [
 ];
 
 const settingsNav = [
-    { href: '/settings/profile', label: 'Profile', icon: User },
+    { href: '/settings/profile', label: 'Profile', icon: UserIcon },
     { href: '/settings/integrations', label: 'Integrations', icon: PlusCircle },
 ];
 
@@ -95,6 +96,7 @@ function ConversationLink({ conversation }: { conversation: Conversation }) {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => getConversations(),
@@ -105,7 +107,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center gap-2">
             <InvoChatLogo className="h-8 w-8 text-primary" />
-            <span className="text-lg font-semibold">InvoChat</span>
+            <span className="text-lg font-semibold">ARVO</span>
         </div>
       </SidebarHeader>
       
@@ -175,8 +177,10 @@ export function AppSidebar() {
             </SidebarMenuItem>
         </SidebarMenu>
         <Separator />
-        <UserAccountNav />
+        <UserAccountNav user={user} />
       </SidebarFooter>
     </>
   );
 }
+
+    

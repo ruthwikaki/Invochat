@@ -1,3 +1,4 @@
+
 'use client';
 import { Sidebar, SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/nav/sidebar';
@@ -40,3 +41,5 @@ export default function AppLayout({
     </QueryClientProvider>
   );
 }
+
+    

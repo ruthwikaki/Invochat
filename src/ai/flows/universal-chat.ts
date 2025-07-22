@@ -150,8 +150,8 @@ export const universalChatFlow = ai.defineFlow(
         const toolRequest = response.toolRequests[0];
 
         if (toolRequest) {
-            const toolName = toolRequest.tool.name;
-            const toolResponseData = toolRequest.output;
+            const toolName = toolRequest.name;
+            const toolResponseData = toolRequest.input;
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 
