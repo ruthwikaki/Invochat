@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextResponse } from 'next/server';
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
                     .single();
 
                 if (integration) {
-                    const { success } = await logWebhookEvent(integration.id, 'shopify', webhookId);
+                    const { success } = await logWebhookEvent(integration.id, webhookId);
                     if (!success) {
                         logError(new Error(`Shopify webhook replay attempt detected: ${webhookId}`), { status: 409 });
                         return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
