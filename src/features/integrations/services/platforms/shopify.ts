@@ -7,7 +7,6 @@ import type { Integration, Product, ProductVariant } from '@/types';
 import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
-import { config } from '@/config/app-config';
 import DOMPurify from 'isomorphic-dompurify';
 
 const SHOPIFY_API_VERSION = '2024-07';
