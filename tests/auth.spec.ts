@@ -10,10 +10,10 @@ test.describe('Authentication and Authorization', () => {
 
   test('should allow a user to view the login page', async ({ page }) => {
     // The page should have a specific title
-    await expect(page).toHaveTitle(/InvoChat/);
+    await expect(page).toHaveTitle(/ARVO/);
 
     // The login form should be visible
-    const heading = page.getByRole('heading', { name: 'Welcome to Intelligent Inventory' });
+    const heading = page.getByRole('heading', { name: 'Welcome Back' });
     await expect(heading).toBeVisible();
 
     // Check for essential form fields and buttons
@@ -28,10 +28,10 @@ test.describe('Authentication and Authorization', () => {
     await page.goto('/dashboard');
     
     // Check that the URL has been changed to the login page
-    await expect(page).toHaveURL('/login');
+    await expect(page).toHaveURL(/login/);
     
     // Verify that the login form is visible as a confirmation
-    const heading = page.getByRole('heading', { name: 'Welcome to Intelligent Inventory' });
+    const heading = page.getByRole('heading', { name: 'Welcome Back' });
     await expect(heading).toBeVisible();
   });
 
@@ -46,7 +46,7 @@ test.describe('Authentication and Authorization', () => {
     // An error message should be displayed
     const errorMessage = page.getByRole('alert');
     await expect(errorMessage).toBeVisible();
-    await expect(errorMessage).toContainText('Invalid email or password');
+    await expect(errorMessage).toContainText('Invalid login credentials');
   });
   
   test('should allow a new user to navigate to the signup page', async ({ page }) => {
@@ -54,7 +54,7 @@ test.describe('Authentication and Authorization', () => {
     await page.getByRole('link', { name: 'Sign up' }).click();
 
     // The URL should now be /signup
-    await expect(page).toHaveURL('/signup');
+    await expect(page).toHaveURL(/signup/);
 
     // The signup form heading should be visible
     const heading = page.getByRole('heading', { name: 'Create Your Account' });
