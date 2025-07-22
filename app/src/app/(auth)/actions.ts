@@ -130,6 +130,7 @@ export async function signOut() {
 
   await supabase.auth.signOut();
   revalidatePath('/', 'layout');
+  redirect('/login');
 }
 
 
