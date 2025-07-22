@@ -1,8 +1,7 @@
 
-import Redis from 'ioredis';
+import Redis, { Pipeline } from 'ioredis';
 import { logger } from './logger';
 import { getErrorMessage } from './error-handler';
-import { config } from '@/config/app-config';
 
 // A private, module-level variable to hold the singleton instance.
 let redis: Redis | null = null;
@@ -22,7 +21,7 @@ const mockRedisClient = {
             expire: () => pipeline,
             exec: async () => [[null, 0], [null, 0], [null, 0], [null, 1]],
         };
-        return pipeline as unknown as Redis.Pipeline;
+        return pipeline as unknown as Pipeline;
     },
     ping: async () => 'PONG' as const,
     incr: async (_key: string) => 1,

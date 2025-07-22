@@ -35,7 +35,8 @@ import {
   ShoppingCart,
   History
 } from 'lucide-react';
-import type { Conversation, User } from '@/types';
+import type { Conversation } from '@/types';
+import { useAuth } from '@/context/auth-context';
 
 
 const mainNav = [
@@ -93,8 +94,9 @@ function ConversationLink({ conversation }: { conversation: Conversation }) {
     );
 }
 
-export function AppSidebar({ user }: { user: User | null }) {
+export function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => getConversations(),

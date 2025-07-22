@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -453,7 +452,7 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<C
     if (!channel_name) {
         throw new Error("Channel name is required to upsert a fee.");
     }
-    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId } as any, { onConflict: 'company_id, channel_name' });
     if (error) {
         logError(error, { context: 'upsertChannelFeeInDB failed' });
         throw error;
@@ -574,9 +573,7 @@ export async function logPOCreationInDb(poNumber: string, supplierName: string, 
     // Placeholder
 }
 
-export async function logWebhookEvent(integrationId: string, platform: string, webhookId: string) {
-    // Acknowledging unused parameters to satisfy TypeScript compiler
-    console.log(platform);
+export async function logWebhookEvent(integrationId: string, webhookId: string) {
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('webhook_events').insert({
         integration_id: integrationId,

@@ -29,7 +29,7 @@ export default function AppLayout({
         <div className="relative flex h-dvh w-full bg-background">
             <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(theme(colors.border)_1px,transparent_1px)] [background-size:32px_32px]"></div>
             <Sidebar>
-                <AppSidebar user={user} />
+                <AppSidebar />
             </Sidebar>
             <SidebarInset className="flex flex-1 flex-col overflow-y-auto">
             <ErrorBoundary key={resetKey} onReset={handleReset}>
