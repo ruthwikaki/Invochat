@@ -1,0 +1,41 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('Inventory Page', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/inventory');
+  });
+
+  test('should load inventory analytics and table', async ({ page }) => {
+    await expect(page.getByText('Total Inventory Value')).toBeVisible();
+    await expect(page.getByText('Total Products')).toBeVisible();
+
+    const tableRows = page.locator('table > tbody > tr');
+    await expect(tableRows.first()).toBeVisible();
+  });
+
+  test('should filter inventory by name', async ({ page }) => {
+    await page.fill('input[placeholder*="Search by product title"]', 'FBA Product');
+    
+    // Check that only rows with the search term are visible
+    const firstRow = page.locator('table > tbody > tr').first();
+    await expect(firstRow).toContainText('FBA Product');
+    
+    await page.fill('input[placeholder*="Search by product title"]', '');
+    await expect(page.locator('table > tbody > tr').first()).toContainText('Simulated');
+  });
+
+  test('should expand a product to show variants', async ({ page }) => {
+    const firstRow = page.locator('table > tbody > tr').first();
+    const expandButton = firstRow.locator('button[aria-label="Toggle product variants"]');
+    
+    // Check that variants are initially hidden
+    const variantTable = page.locator('table table'); // Nested table for variants
+    await expect(variantTable).not.toBeVisible();
+    
+    await expandButton.click();
+    
+    // Check that the variant table is now visible
+    await expect(variantTable).toBeVisible();
+    await expect(variantTable.locator('tbody tr').first()).toBeVisible();
+  });
+});
