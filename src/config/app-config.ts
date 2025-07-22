@@ -49,7 +49,7 @@ const parseIntWithDefault = (value: string | undefined, defaultValue: number): n
 
 export const config = {
   app: {
-    name: process.env.APP_NAME || 'InvoChat',
+    name: process.env.APP_NAME || 'ARVO',
     url: envValidation.success ? envValidation.data.SITE_URL : 'http://localhost:3000',
     environment: process.env.NODE_ENV,
   },

@@ -57,7 +57,7 @@ const finalResponsePrompt = ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are an expert AI inventory analyst for the InvoChat application. Your tone is professional, intelligent, and helpful.
+    You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
     The result from your internal tools is:
     {{{json toolResult}}}
