@@ -53,10 +53,6 @@ import {
   getChannelFeesFromDB,
   upsertChannelFeeInDB,
   logUserFeedbackInDb,
-  getConversations as getConversationsFromDB,
-  getMessages as getMessagesFromDB,
-  saveMessage as saveMessageInDB,
-  saveConversation as saveConversationInDB,
 } from '@/services/database';
 import { reorderRefinementPrompt } from '@/ai/flows/reorder-tool';
 import { testGenkitConnection as genkitTest } from '@/services/genkit';
@@ -101,97 +97,9 @@ export async function getAuthContext() {
     return { companyId, userId: user.id, userEmail: user.email };
 }
 
-// --- CHAT-RELATED SERVER ACTIONS ---
-
-export async function getConversations(): Promise<Conversation[]> {
-    const { userId } = await getAuthContext();
-    return getConversationsFromDB(userId);
-}
-
-export async function getMessages(conversationId: string): Promise<Message[]> {
-    const { userId } = await getAuthContext();
-    return getMessagesFromDB(conversationId, userId);
-}
-
-
-export async function handleUserMessage({ content, conversationId }: { content: string, conversationId: string | null }) {
-    try {
-        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60, true);
-        if (limited) {
-            return { error: 'You have reached the request limit. Please try again in a minute.' };
-        }
-
-        const { companyId, userId } = await getAuthContext();
-        
-        let currentConversationId = conversationId;
-        if (!currentConversationId) {
-            const newTitle = content.length > 50 ? `${content.substring(0, 50)}...` : content;
-            currentConversationId = await saveConversationInDB(userId, companyId, newTitle);
-        }
-        
-        if (!currentConversationId) {
-            throw new Error('Failed to create or retrieve a valid conversation ID.');
-        }
-
-        const userMessageToSave = {
-            conversation_id: currentConversationId,
-            company_id: companyId,
-            role: 'user' as const,
-            content: content,
-        };
-        await saveMessageInDB(userMessageToSave);
-
-        const historyData = await getMessagesFromDB(currentConversationId, userId, config.ai.historyLimit);
-
-        const conversationHistory = (historyData || []).map(m => ({
-            role: m.role as 'user' | 'assistant' | 'tool',
-            content: [{ text: m.content }]
-        })).reverse();
-
-
-        const response = await universalChatFlow({ companyId, conversationHistory });
-        
-        const finalConversationId = (response as any).conversationId || currentConversationId;
-        if (!finalConversationId) {
-            throw new Error('Could not determine conversation ID after processing message.');
-        }
-
-        const newMessage: Message = {
-            id: `ai_${Date.now()}`,
-            conversation_id: finalConversationId,
-            company_id: companyId,
-            role: 'assistant',
-            content: response.response,
-            visualization: response.visualization,
-            confidence: response.confidence,
-            assumptions: response.assumptions,
-            component: (response as any).component,
-            componentProps: (response as any).componentProps,
-            isError: (response as { isError?: boolean }).isError || false,
-            created_at: new Date().toISOString(),
-        };
-
-        const { id, created_at, ...messageToSave } = newMessage;
-        await saveMessageInDB(messageToSave);
-        
-        revalidatePath('/chat');
-        
-        return { newMessage, conversationId: finalConversationId };
-
-    } catch(e) {
-        logError(e, { context: `handleUserMessage action for conversation ${conversationId}` });
-        return { error: `Sorry, I encountered an unexpected problem: ${getErrorMessage(e)}` };
-    }
-}
-
-
-// --- Simplified Core Actions ---
-
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();
     const metrics = await getDashboardMetrics(companyId, dateRange);
-    // Ensure that even if the RPC returns null/undefined, we provide a default structure.
     if (!metrics) {
         return {
             total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0,

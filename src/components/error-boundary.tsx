@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import * as Sentry from '@sentry/nextjs';
+import { useAuth } from '@/context/auth-context';
+
 
 interface Props {
   children: ReactNode;
@@ -29,6 +32,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('React Error Boundary Caught:', { error: error.message, componentStack: errorInfo.componentStack });
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
   public render() {
