@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Supplier } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,36 +22,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
-import { db } from '@/lib/database-queries';
-import { getCurrentCompanyId } from '@/lib/auth-helpers';
-import { Skeleton } from '../ui/skeleton';
-
 
 export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Supplier[] }) {
   const router = useRouter();
   const { toast } = useToast();
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
-  const [suppliers, setSuppliers] = useState(initialSuppliers);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        const companyId = await getCurrentCompanyId();
-        if (!companyId) return;
-        
-        const data = await db.getCompanySuppliers(companyId);
-        setSuppliers(data as Supplier[]);
-      } catch (error) {
-        console.error('Data fetch failed:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    
-    fetchData();
-  }, []);
 
   const handleDelete = async () => {
     if (!supplierToDelete) return;
@@ -64,22 +39,12 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
 
     if (result.success) {
       toast({ title: 'Supplier Deleted' });
-      setSuppliers(prev => prev.filter(s => s.id !== supplierToDelete.id));
+      router.refresh();
     } else {
       toast({ variant: 'destructive', title: 'Error', description: result.error });
     }
     setSupplierToDelete(null);
   };
-  
-  if (loading) {
-      return (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-      )
-  }
 
   return (
     <>
@@ -96,14 +61,14 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
               </TableRow>
             </TableHeader>
             <TableBody>
-              {suppliers.length === 0 ? (
+              {initialSuppliers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
                     No suppliers found.
                   </TableCell>
                 </TableRow>
               ) : (
-                suppliers.map(supplier => (
+                initialSuppliers.map(supplier => (
                   <TableRow key={supplier.id}>
                     <TableCell className="font-medium">{supplier.name}</TableCell>
                     <TableCell>{supplier.email || 'N/A'}</TableCell>
@@ -156,5 +121,3 @@ export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Su
     </>
   );
 }
-
-    
