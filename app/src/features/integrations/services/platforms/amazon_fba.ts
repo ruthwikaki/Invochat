@@ -11,7 +11,7 @@ import { getSecret } from '../encryption';
 // This is a placeholder for the actual Amazon FBA API client.
 // In a real-world scenario, this would use the Selling Partner API (SP-API).
 // For demonstration purposes, this will be a no-op.
-async function syncProducts(integration: Integration, credentials: { sellerId: string; authToken: string }) {
+async function syncProducts(credentials: { sellerId: string; authToken: string }) {
     logger.info(`[Sync Simulation] Starting Amazon FBA product sync for Seller ID: ${credentials.sellerId}`);
     // const fbaApi = await getFbaApiClient(credentials);
     // const products = await fbaApi.listInventory();
@@ -20,7 +20,7 @@ async function syncProducts(integration: Integration, credentials: { sellerId: s
 }
 
 
-async function syncSales(integration: Integration, credentials: { sellerId: string; authToken: string }) {
+async function syncSales(credentials: { sellerId: string; authToken: string }) {
     logger.info(`[Sync Simulation] Starting Amazon FBA sales sync for Seller ID: ${credentials.sellerId}`);
     // const fbaApi = await getFbaApiClient(credentials);
     // const orders = await fbaApi.listOrders();
@@ -40,11 +40,11 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         
         logger.info(`[Sync] Starting product sync simulation for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_products' }).eq('id', integration.id);
-        await syncProducts(integration, credentials);
+        await syncProducts(credentials);
 
         logger.info(`[Sync] Starting sales sync simulation for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'syncing_sales' }).eq('id', integration.id);
-        await syncSales(integration, credentials);
+        await syncSales(credentials);
 
         logger.info(`[Sync] Full sync simulation completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);

@@ -489,9 +489,8 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews(companyId: string) {
+export async function refreshMaterializedViews() {
     // Placeholder function
-    console.log('refreshMaterializedViews called for company:', companyId);
 }
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
@@ -516,7 +515,7 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
         p_company_id: companyId,
         p_user_id: userId,
         p_suggestions: suggestions as unknown as Json,
-        p_idempotency_key: idempotencyKey,
+        p_idempotency_key: idempotencyKey ?? null,
     });
 
     if (error) {
@@ -570,7 +569,7 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 }
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {
+export async function logPOCreationInDb() {
     // Placeholder
 }
 

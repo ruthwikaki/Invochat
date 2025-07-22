@@ -35,7 +35,7 @@ import {
   ShoppingCart,
   History
 } from 'lucide-react';
-import type { Conversation, User } from '@/types';
+import type { Conversation } from '@/types';
 import { useAuth } from '@/context/auth-context';
 
 
@@ -182,5 +182,3 @@ export function AppSidebar() {
     </>
   );
 }
-
-    

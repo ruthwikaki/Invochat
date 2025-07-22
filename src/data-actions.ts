@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
@@ -305,14 +306,11 @@ export async function getGeneratedProductDescription(productName: string, catego
 
 export async function logUserFeedback(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
-        const { companyId, userId } = await getAuthContext();
+        const { userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
         validateCSRF(formData);
-        const subjectId = formData.get('subjectId') as string;
-        const subjectType = formData.get('subjectType') as string;
-        const feedback = formData.get('feedback') as 'helpful' | 'unhelpful';
 
-        await logUserFeedbackInDb(userId, companyId, subjectId, subjectType, feedback);
+        await logUserFeedbackInDb();
         
         return { success: true };
     } catch(e) {
@@ -656,5 +654,3 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-    

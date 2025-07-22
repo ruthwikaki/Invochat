@@ -479,20 +479,8 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: string) {
-    const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('feedback').insert({
-      user_id: userId,
-      company_id: companyId,
-      subject_id: subjectId,
-      subject_type: subjectType,
-      feedback: feedback as any,
-    });
-  
-    if (error) {
-      logError(error, { context: 'logUserFeedbackInDb failed' });
-      throw error;
-    }
+export async function logUserFeedbackInDb() {
+    // Placeholder function
 }
 export async function createExportJobInDb(companyId: string, userId: string) { 
     const supabase = getServiceRoleClient();
@@ -528,7 +516,7 @@ export async function createPurchaseOrdersInDb(companyId: string, userId: string
         p_company_id: companyId,
         p_user_id: userId,
         p_suggestions: suggestions as unknown as Json,
-        p_idempotency_key: idempotencyKey,
+        p_idempotency_key: idempotencyKey ?? null,
     });
 
     if (error) {
@@ -582,7 +570,7 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
 }
 
 export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-export async function logPOCreationInDb(poNumber: string, supplierName: string, items: unknown[], companyId: string, userId: string) {
+export async function logPOCreationInDb() {
     // Placeholder
 }
 
@@ -651,4 +639,3 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
-

@@ -1,8 +1,10 @@
 
+
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/auth-context';
@@ -13,6 +15,7 @@ import { useState, useEffect } from 'react';
 import { signup as signupAction } from '@/app/(auth)/actions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { InvoChatLogo } from '@/components/invochat-logo';
 import { PasswordInput } from '@/components/auth/PasswordInput';
 import { CSRF_FORM_NAME, getCookie, CSRF_COOKIE_NAME } from '@/lib/csrf-client';
 
