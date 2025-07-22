@@ -1,200 +1,45 @@
 
-'use client';
+import { LoginForm } from '@/components/auth/LoginForm';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { InvoChatLogo } from '@/components/invochat-logo';
+import Link from 'next/link';
+import { generateCSRFToken } from '@/lib/csrf';
 
-import { useState, useEffect } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-
-export default function DebugLoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  useEffect(() => {
-    testConnection();
-  }, []);
-
-  const testConnection = async () => {
-    try {
-      setConnectionStatus('checking');
-      
-      // Test basic connection by checking auth state
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        throw error;
-      }
-
-      setConnectionStatus('connected');
-      setMessage(`Connection successful. Current session: ${session ? 'Active' : 'None'}`);
-    } catch (error: any) {
-      setConnectionStatus('error');
-      setMessage(`Connection failed: ${error.message}`);
-    }
-  };
-
-  const handleTestLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage('');
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        setMessage(`Login failed: ${error.message}`);
-      } else {
-        setMessage(`Login successful! User ID: ${data.user?.id}, Email: ${data.user?.email}`);
-        
-        // Test redirect after delay
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 2000);
-      }
-    } catch (error: any) {
-      setMessage(`Login error: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTestSignup = async () => {
-    if (!email || !password) {
-      setMessage('Please enter email and password first');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            company_name: 'Test Company',
-            company_id: crypto.randomUUID(),
-          }
-        }
-      });
-
-      if (error) {
-        setMessage(`Signup failed: ${error.message}`);
-      } else {
-        setMessage(`Signup successful! Check your email for confirmation. User ID: ${data.user?.id}`);
-      }
-    } catch (error: any) {
-      setMessage(`Signup error: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        setMessage(`Logout error: ${error.message}`);
-      } else {
-        setMessage('Logged out successfully');
-        testConnection(); // Refresh connection status
-      }
-    } catch (error: any) {
-      setMessage(`Logout error: ${error.message}`);
-    }
-  };
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams?: { [key: string]: string | undefined };
+}) {
+  const error = searchParams?.error;
+  generateCSRFToken();
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Debug Login & Supabase Test</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Connection Status */}
-          <Alert>
-            <AlertDescription>
-              <strong>Connection Status:</strong>{' '}
-              <span className={
-                connectionStatus === 'connected' ? 'text-green-600' :
-                connectionStatus === 'error' ? 'text-red-600' :
-                'text-yellow-600'
-              }>
-                {connectionStatus === 'checking' && 'Checking...'}
-                {connectionStatus === 'connected' && 'Connected ✓'}
-                {connectionStatus === 'error' && 'Failed ✗'}
-              </span>
-            </AlertDescription>
-          </Alert>
-
-          {/* Environment Info */}
-          <div className="text-xs text-gray-500 space-y-1">
-            <p><strong>Supabase URL:</strong> {process.env.NEXT_PUBLIC_SUPABASE_URL}</p>
-            <p><strong>Anon Key:</strong> {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 20)}...</p>
-          </div>
-
-          {/* Login Form */}
-          <form onSubmit={handleTestLogin} className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="test@example.com"
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="password"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Testing...' : 'Test Login'}
-              </Button>
-              <Button type="button" onClick={handleTestSignup} className="w-full" variant="outline" disabled={loading}>
-                Test Signup
-              </Button>
-              <Button type="button" onClick={handleLogout} className="w-full" variant="outline">
-                Test Logout
-              </Button>
-              <Button type="button" onClick={testConnection} className="w-full" variant="outline">
-                Test Connection
-              </Button>
-            </div>
-          </form>
-
-          {/* Message Display */}
-          {message && (
-            <Alert>
-              <AlertDescription className="text-sm">
-                {message}
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+    <div className="relative w-full max-w-md overflow-hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700/50">
+        <div className="absolute inset-0 -z-10">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-primary/10 to-slate-900" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(79,70,229,0.3),rgba(255,255,255,0))]" />
+        </div>
+        <Card className="w-full bg-transparent border-none p-8 space-y-6">
+            <CardHeader className="p-0 text-center">
+                <Link href="/" className="flex justify-center items-center gap-3 mb-4">
+                    <InvoChatLogo className="h-10 w-10 text-primary" />
+                    <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">ARVO</h1>
+                </Link>
+                <CardTitle className="text-2xl text-slate-200">Welcome Back</CardTitle>
+                <CardDescription className="text-slate-400">
+                    Sign in to access your inventory dashboard.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+                <LoginForm initialError={error || null} />
+                <div className="mt-4 text-center text-sm text-slate-400">
+                    Don&apos;t have an account?{' '}
+                    <Link href="/signup" className="underline text-primary/90 hover:text-primary">
+                    Sign up
+                    </Link>
+                </div>
+            </CardContent>
+        </Card>
     </div>
   );
 }

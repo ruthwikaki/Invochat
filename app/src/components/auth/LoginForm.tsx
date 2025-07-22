@@ -41,7 +41,6 @@ export function LoginForm({ initialError }: LoginFormProps) {
   useEffect(() => {
     setError(initialError);
     if (initialError) {
-        // Clear the error from the URL without reloading the page
         const url = new URL(window.location.href);
         url.searchParams.delete('error');
         window.history.replaceState({}, '', url.toString());

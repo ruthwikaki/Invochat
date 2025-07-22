@@ -1,12 +1,11 @@
 
-
 'use server';
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runSync } from '@/features/integrations/services/sync-service';
 import { logError } from '@/lib/error-handler';
-import { createServerClient } from '@/lib/supabase/admin';
+import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import crypto from 'crypto';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -70,7 +69,14 @@ export async function POST(request: Request) {
             }
         }
 
-        const authSupabase = createServerClient();
+        const cookieStore = cookies();
+        const authSupabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+              cookies: { get: (name: string) => cookieStore.get(name)?.value },
+            }
+        );
         const { data: { user } } = await authSupabase.auth.getUser();
         let companyId = user?.app_metadata?.company_id;
 
