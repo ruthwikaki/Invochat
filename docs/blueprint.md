@@ -2,12 +2,12 @@
 
 ## Core Features:
 
-- Natural Language Chat: Natural Language Chat: Ask questions in plain English
-- Dead Stock Analysis: Dead Stock Analysis: Find money trapped in slow inventory. Use of tool to identify when data should be queried to accomplish a user's intention.
-- Smart Reordering: Smart Reordering: "What should I order from Johnson Supply?". Use of tool to identify when data should be queried to accomplish a user's intention.
-- Supplier Performance: Supplier Performance: "Which vendor delivers on time?". Use of tool to identify when data should be queried to accomplish a user's intention.
-- Multi-Warehouse View: Multi-Warehouse View: See inventory across all locations
-- Predictive Alerts: Predictive Alerts: "You'll run out of XYZ Cleaner in 7 days"
+- Natural Language Chat: Ask questions in plain English
+- Dead Stock Analysis: Find money trapped in slow inventory. Use of tool to identify when data should be queried to accomplish a user's intention.
+- Smart Reordering: "What should I order from Johnson Supply?". Use of tool to identify when data should be queried to accomplish a user's intention.
+- Supplier Performance: "Which vendor delivers on time?". Use of tool to identify when data should be queried to accomplish a user's intention.
+- Multi-Warehouse View: See inventory across all locations
+- Predictive Alerts: "You'll run out of XYZ Cleaner in 7 days"
 
 ## Style Guidelines:
 
