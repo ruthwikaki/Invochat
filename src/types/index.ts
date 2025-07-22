@@ -1,7 +1,7 @@
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { AnomalySchema as AIAnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from './ai-schemas';
+import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -385,12 +385,13 @@ export const CustomerAnalyticsSchema = z.object({
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
-export const HealthCheckResultSchema = z.object({
-    healthy: z.boolean(),
-    metric: z.number(),
-    message: z.string(),
-});
+export { HealthCheckResultSchema };
 export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;
+
+export { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema };
+export type Anomaly = z.infer<typeof AnomalySchema>;
+export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
+export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const ChannelFeeSchema = z.object({
     id: z.string().uuid(),
@@ -449,10 +450,6 @@ export const DeadStockItemSchema = z.object({
 });
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
-
-export type Anomaly = z.infer<typeof AIAnomalySchema>;
-export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
-export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const SupplierPerformanceReportSchema = z.object({
     supplier_name: z.string(),

@@ -66,3 +66,10 @@ export const AnomalyExplanationOutputSchema = z.object({
   suggestedAction: z.string().optional().describe("A brief, actionable suggestion for the user to take next."),
 });
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
+
+export const HealthCheckResultSchema = z.object({
+    healthy: z.boolean(),
+    metric: z.number(),
+    message: z.string(),
+});
+export type HealthCheckResult = z.infer<typeof HealthCheckResultSchema>;

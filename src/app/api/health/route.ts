@@ -43,7 +43,7 @@ export async function GET() {
   // Check Database Connection
   try {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('users').select('id').limit(1);
+    const { error } = await supabase.from('companies').select('id').limit(1);
     if (error) {
       throw error;
     }
@@ -102,5 +102,3 @@ export async function GET() {
     }
   );
 }
-
-    
