@@ -49,7 +49,7 @@ export async function middleware(req: NextRequest) {
               headers: req.headers,
             },
           });
-          response.cookies.set({ name, value: '', ...options });
+          response.cookies.set({ name, value, '', ...options });
         },
       },
     }
@@ -95,7 +95,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - sentry-test/ (Sentry test route)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|sentry-test).*)',
   ],
 }

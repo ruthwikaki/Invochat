@@ -1,3 +1,4 @@
+
 'use server';
 
 import { logger } from './logger';
@@ -5,8 +6,8 @@ import { cookies } from 'next/headers';
 import crypto from 'crypto';
 
 // Define constants locally to avoid exporting them from a server file.
-const CSRF_COOKIE_NAME = '__Host-csrf_token';
-const CSRF_FORM_NAME = 'csrf_token';
+export const CSRF_COOKIE_NAME = '__Host-csrf_token';
+export const CSRF_FORM_NAME = 'csrf_token';
 
 /**
  * Generates a CSRF token using crypto.randomUUID() and sets it as a cookie.
