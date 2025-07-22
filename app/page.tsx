@@ -1,9 +1,7 @@
 
-import { redirect } from 'next/navigation';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { LandingPage } from '@/components/landing/landing-page';
-
+import { redirect } from 'next/navigation';
 
 export default async function RootPage() {
     const cookieStore = cookies();
@@ -22,8 +20,8 @@ export default async function RootPage() {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session) {
-        redirect('/dashboard');
+        return redirect('/dashboard');
     }
 
-    return <LandingPage />;
+    return redirect('/login');
 }

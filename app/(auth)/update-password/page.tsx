@@ -22,7 +22,7 @@ export default function UpdatePasswordPage({
           <CardHeader className="p-0 text-center">
             <Link href="/" className="flex justify-center items-center gap-3 mb-4">
               <InvoChatLogo className="h-10 w-10 text-primary" />
-              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">ARVO</h1>
+              <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">InvoChat</h1>
             </Link>
             <CardTitle className="text-2xl text-slate-200">Create a New Password</CardTitle>
             <CardDescription className="text-slate-400">
