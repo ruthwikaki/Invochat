@@ -56,4 +56,3 @@ export async function suggestCsvMappings(input: CsvMappingInput): Promise<CsvMap
   }
   return output;
 }
-
