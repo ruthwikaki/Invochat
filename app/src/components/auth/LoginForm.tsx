@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { AlertTriangle, Loader2 } from 'lucide-react';
@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -33,9 +34,10 @@ interface LoginFormProps {
 export function LoginForm({ initialError }: LoginFormProps) {
   const [error, setError] = useState(initialError);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+    generateAndSetCsrfToken(setCsrfToken);
   }, []);
 
   useEffect(() => {
@@ -50,9 +52,15 @@ export function LoginForm({ initialError }: LoginFormProps) {
   const handleInteraction = () => {
     if (error) setError(null);
   };
+  
+  const formAction = (formData: FormData) => {
+      startTransition(() => {
+          login(formData);
+      });
+  }
 
   return (
-    <form action={login} className="space-y-4" onChange={handleInteraction}>
+    <form action={formAction} className="space-y-4" onChange={handleInteraction}>
         {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="space-y-2">
             <Label htmlFor="email" className="text-slate-300">Email</Label>
@@ -92,7 +100,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
         )}
         
         <div className="pt-2">
-            <LoginSubmitButton disabled={!csrfToken} />
+            <LoginSubmitButton disabled={!csrfToken || isPending} />
         </div>
     </form>
   );

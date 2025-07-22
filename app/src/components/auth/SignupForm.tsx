@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, CSRF_COOKIE_NAME, getCookie } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -28,9 +29,10 @@ interface SignupFormProps {
 export function SignupForm({ error: initialError }: SignupFormProps) {
     const [error, setError] = useState(initialError);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
 
     useEffect(() => {
-        setCsrfToken(getCookie(CSRF_COOKIE_NAME));
+        generateAndSetCsrfToken(setCsrfToken);
     }, []);
     
     useEffect(() => {
@@ -46,8 +48,14 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
         if (error) setError(null);
     };
 
+    const formAction = (formData: FormData) => {
+        startTransition(() => {
+            signup(formData);
+        });
+    }
+
     return (
-        <form action={signup} className="grid gap-4" onChange={handleInteraction}>
+        <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
             {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
             <div className="grid gap-2">
                 <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
@@ -100,7 +108,7 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton disabled={!csrfToken} />
+            <SubmitButton disabled={!csrfToken || isPending} />
         </form>
     );
 }
