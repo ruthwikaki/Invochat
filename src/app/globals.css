@@ -2,14 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #__next {
-  height: 100%;
-}
-
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
-}
- 
 @layer base {
   :root {
     --background: 240 10% 99%; /* off-white */
@@ -90,4 +82,12 @@ body {
   .font-tabular {
     font-feature-settings: 'tnum' on;
   }
+}
+
+html, body, #__next {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 }
