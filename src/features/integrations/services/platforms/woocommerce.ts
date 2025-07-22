@@ -124,7 +124,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         company_id: integration.company_id,
                         sku: wooProduct.sku || `WOO-${wooProduct.id}`,
                         title: null,
-                        price: Math.round(parseFloat((wooProduct as unknown as { price: string }).price || '0') * 100),
+                        price: Math.round(parseFloat(wooProduct.price || '0') * 100),
                         cost: null,
                         inventory_quantity: wooProduct.stock_quantity === null ? 0 : wooProduct.stock_quantity,
                         external_variant_id: String(wooProduct.id),

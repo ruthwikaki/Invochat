@@ -11,21 +11,6 @@ import { getSecret } from '../encryption';
 // This is a placeholder for the actual Amazon FBA API client.
 // In a real-world scenario, this would use the Selling Partner API (SP-API).
 // For demonstration purposes, this will be a no-op.
-async function getFbaApiClient(credentials: { sellerId: string; authToken: string }) {
-    logger.info(`[Sync Simulation] Faking FBA API client for Seller ID: ${credentials.sellerId}`);
-    return {
-        listInventory: async () => {
-             logger.info(`[Sync Simulation] Faking FBA listInventory call.`);
-             return []; 
-        },
-        listOrders: async () => {
-            logger.info(`[Sync Simulation] Faking FBA listOrders call.`);
-            return []; 
-        },
-    };
-}
-
-
 async function syncProducts(integration: Integration, credentials: { sellerId: string; authToken: string }) {
     logger.info(`[Sync Simulation] Starting Amazon FBA product sync for Seller ID: ${credentials.sellerId}`);
     // const fbaApi = await getFbaApiClient(credentials);
