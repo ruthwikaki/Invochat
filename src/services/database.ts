@@ -4,10 +4,12 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, AlertSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema, DeadStockItemSchema } from '@/types';
-import { invalidateCompanyCache } from '@/lib/redis';
+import { invalidateCompanyCache, isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
+import { config } from '@/config/app-config';
+import { logger } from '@/lib/logger';
 
 // --- Authorization Helper ---
 /**
@@ -144,6 +146,20 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
 }
 
 export async function getDashboardMetrics(companyId: string, dateRange: string): Promise<DashboardMetrics> {
+    const cacheKey = `cache:dashboard:${companyId}:${dateRange}`;
+    if (isRedisEnabled) {
+      try {
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) {
+          logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+          return DashboardMetricsSchema.parse(JSON.parse(cachedData));
+        }
+        logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+      } catch (e) {
+        logError(e, { context: 'Redis cache get failed for dashboard metrics' });
+      }
+    }
+
     const supabase = getServiceRoleClient();
     const days = parseInt(dateRange.replace('d', ''));
     if (isNaN(days)) {
@@ -154,7 +170,14 @@ export async function getDashboardMetrics(companyId: string, dateRange: string):
         logError(error, { context: 'Failed to get dashboard metrics' });
         throw new Error('Could not retrieve dashboard metrics from the database.');
     }
-    return DashboardMetricsSchema.parse(data);
+    
+    const metrics = DashboardMetricsSchema.parse(data);
+
+    if (isRedisEnabled) {
+      await redisClient.set(cacheKey, JSON.stringify(metrics), 'EX', config.redis.ttl.dashboard);
+    }
+
+    return metrics;
 }
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> { 
     const supabase = getServiceRoleClient();
@@ -188,6 +211,7 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
         if (error) {
             throw error;
         }
+        await invalidateCompanyCache(companyId, ['suppliers']);
     } catch (error) {
         logError(error, { context: 'createSupplierInDb failed' });
         throw new Error(`Could not create supplier: ${getErrorMessage(error)}`);
@@ -200,6 +224,7 @@ export async function updateSupplierInDb(id: string, companyId: string, formData
         if (error) {
             throw error;
         }
+        await invalidateCompanyCache(companyId, ['suppliers']);
     } catch (error) {
         logError(error, { context: `updateSupplierInDb failed for id: ${id}` });
         throw new Error(`Could not update supplier: ${getErrorMessage(error)}`);
@@ -212,6 +237,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
         if (error) {
             throw error;
         }
+        await invalidateCompanyCache(companyId, ['suppliers']);
     } catch (e) {
         logError(e, { context: `deleteSupplierFromDb failed for id: ${id}` });
         throw new Error(`Could not delete supplier: ${getErrorMessage(e)}`);

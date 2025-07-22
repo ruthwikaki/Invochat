@@ -125,12 +125,12 @@ export const isRedisEnabled = !!redis;
  * @param companyId The UUID of the company whose cache should be invalidated.
  * @param types An array of cache types to invalidate (e.g., 'dashboard', 'alerts').
  */
-export async function invalidateCompanyCache(companyId: string, types: ('dashboard' | 'alerts' | 'deadstock' | 'suppliers')[]): Promise<void> {
+export async function invalidateCompanyCache(companyId: string, types: ('dashboard' | 'alerts' | 'deadstock' | 'suppliers' | 'inventory')[]): Promise<void> {
     if (!isRedisEnabled) {
         return;
     }
     
-    const keysToInvalidate = types.map(type => `company:${companyId}:${type}`);
+    const keysToInvalidate = types.map(type => `cache:${type}:${companyId}`);
     
     if (keysToInvalidate.length > 0) {
         try {
