@@ -32,7 +32,7 @@ test.describe('Integrations Management', () => {
     });
 
     // 3. Find and click the "Connect Store" button for Shopify
-    const shopifyCard = page.locator('div').filter({ hasText: 'Shopify' }).first();
+    const shopifyCard = page.locator('div').filter({ hasText: 'Sync your products, inventory levels' }).first();
     const connectButton = shopifyCard.getByRole('button', { name: 'Connect Store' });
     await connectButton.click();
 
@@ -49,8 +49,31 @@ test.describe('Integrations Management', () => {
     await modal.getByRole('button', { name: 'Test & Connect' }).click();
 
     // 7. Verify the success toast appears, confirming the UI handled the mocked response correctly.
-    // Since the page reloads on success, checking for the toast is the most reliable assertion.
     const successToast = page.getByText('Your Shopify store has been connected.');
     await expect(successToast).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should allow syncing an already connected store', async ({ page }) => {
+    // This test assumes an integration card is already rendered
+    const integrationCard = page.locator('div').filter({ hasText: /Last synced/ }).first();
+    await expect(integrationCard).toBeVisible();
+
+    // Mock the sync API call
+    await page.route('/api/shopify/sync', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, message: "Sync started" }),
+      });
+    });
+
+    const syncButton = integrationCard.getByRole('button', { name: 'Sync Now' });
+    await syncButton.click();
+
+    // Check for the "Sync Started" toast
+    await expect(page.getByText('Sync Started')).toBeVisible();
+
+    // The button should enter a temporary loading state
+    await expect(integrationCard.getByText(/Starting sync/)).toBeVisible();
   });
 });

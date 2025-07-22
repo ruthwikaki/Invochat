@@ -134,8 +134,6 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
   
   inventory.forEach(variant => {
     const productId = variant.product_id;
-    if (productId === '__proto__') return;
-
     if (!Object.prototype.hasOwnProperty.call(productMap, productId)) {
       productMap[productId] = {
         product_id: productId,
@@ -146,10 +144,8 @@ const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
         total_quantity: 0
       };
     }
-    if (Object.prototype.hasOwnProperty.call(productMap, productId)) {
-        productMap[productId].variants.push(variant);
-        productMap[productId].total_quantity += variant.inventory_quantity;
-    }
+    productMap[productId].variants.push(variant);
+    productMap[productId].total_quantity += variant.inventory_quantity;
   });
   
   return Object.values(productMap);
