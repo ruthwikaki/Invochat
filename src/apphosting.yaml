@@ -1,0 +1,13 @@
+# Settings to manage and configure a Firebase App Hosting backend.
+# https://firebase.google.com/docs/app-hosting/configure
+
+# Production builds of Next.js apps can be memory-intensive, so we
+# recommend providing at least 1 GiB of memory for better performance.
+resources:
+  cpu: 1
+  memoryMiB: 1024
+
+runConfig:
+  # Increase this value to allow for more server instances to handle traffic.
+  # This has been increased from 20 to 50 for better scalability.
+  maxInstances: 50
