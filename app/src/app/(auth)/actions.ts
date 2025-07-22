@@ -31,7 +31,7 @@ export async function login(formData: FormData) {
   );
 
   try {
-    validateCSRF(formData);
+    await validateCSRF(formData);
     const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -81,7 +81,7 @@ export async function signup(formData: FormData) {
   );
 
   try {
-    validateCSRF(formData);
+    await validateCSRF(formData);
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -147,7 +147,7 @@ export async function requestPasswordReset(formData: FormData) {
       }
     );
     try {
-      validateCSRF(formData);
+      await validateCSRF(formData);
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
       });
@@ -185,7 +185,7 @@ export async function updatePassword(formData: FormData) {
     }
 
     try {
-        validateCSRF(formData);
+        await validateCSRF(formData);
         const { error } = await supabase.auth.updateUser({ password });
         if (error) {
             logError(error, { context: 'Password update failed' });
