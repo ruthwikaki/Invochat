@@ -44,4 +44,13 @@ test.describe('Sales Page', () => {
     }
   });
 
+  test('should allow exporting sales data', async ({ page }) => {
+    const exportButton = page.getByRole('button', { name: 'Export' });
+    const downloadPromise = page.waitForEvent('download');
+
+    await exportButton.click();
+
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('sales_orders.csv');
+  });
 });

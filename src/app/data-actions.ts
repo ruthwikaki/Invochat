@@ -2,7 +2,7 @@
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import {
   getSettings,
@@ -72,7 +72,6 @@ import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 import crypto from 'crypto';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { config } from '@/config/app-config';
-import { headers } from 'next/headers';
 
 
 export async function getAuthContext() {
@@ -96,6 +95,125 @@ export async function getAuthContext() {
     
     return { companyId, userId: user.id, userEmail: user.email };
 }
+
+export async function getConversations() {
+    const { userId } = await getAuthContext();
+    const supabase = getServiceRoleClient();
+
+    const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('user_id', userId)
+        .order('last_accessed_at', { ascending: false })
+        .limit(20);
+
+    if (error) {
+        logError(error, { context: 'Failed to fetch conversations' });
+        return [];
+    }
+
+    return data as Conversation[];
+}
+
+export async function getMessages(conversationId: string) {
+    const { userId } = await getAuthContext();
+    const supabase = getServiceRoleClient();
+    
+    const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .eq('company_id', (await getAuthContext()).companyId) // Ensure user can only access their own company's messages
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        logError(error, { context: 'Failed to fetch messages for conversation', conversationId });
+        return [];
+    }
+    return data as Message[];
+}
+
+export async function handleUserMessage({ content, conversationId }: { content: string, conversationId: string | null }): Promise<{ newMessage?: Message, conversationId?: string, error?: string }> {
+    const { companyId, userId } = await getAuthContext();
+
+    const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+    const { limited } = await rateLimit(ip, 'ai_chat', config.ratelimit.ai, 60 * 60); // Limit per hour
+    if (limited) {
+        return { error: 'You have reached the AI chat limit for this hour. Please try again later.' };
+    }
+
+    const supabase = getServiceRoleClient();
+    let currentConversationId = conversationId;
+
+    try {
+        // If it's a new chat, create a conversation record first
+        if (!currentConversationId) {
+            const { data: newConversation, error } = await supabase
+                .from('conversations')
+                .insert({
+                    user_id: userId,
+                    company_id: companyId,
+                    title: content.substring(0, 40)
+                })
+                .select()
+                .single();
+
+            if (error) throw new Error(`Failed to create new conversation: ${error.message}`);
+            currentConversationId = newConversation.id;
+        }
+
+        const userMessage: Omit<Message, 'id' | 'created_at'> = {
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'user',
+            content,
+        };
+
+        const { error: userMessageError } = await supabase.from('messages').insert(userMessage);
+        if (userMessageError) throw new Error(`Failed to save user message: ${userMessageError.message}`);
+
+        // Get conversation history to provide context to the AI
+        const { data: history, error: historyError } = await supabase
+            .from('messages')
+            .select('role, content, visualization')
+            .eq('conversation_id', currentConversationId)
+            .order('created_at', { ascending: true })
+            .limit(config.ai.historyLimit);
+        
+        if (historyError) throw new Error(`Failed to get conversation history: ${historyError.message}`);
+        
+        const aiResponse = await universalChatFlow({
+            companyId,
+            conversationHistory: history as any,
+        });
+
+        const assistantMessage: Omit<Message, 'id' | 'created_at'> = {
+            conversation_id: currentConversationId,
+            company_id: companyId,
+            role: 'assistant',
+            content: aiResponse.response,
+            visualization: aiResponse.visualization,
+            confidence: aiResponse.confidence,
+            assumptions: aiResponse.assumptions,
+            isError: aiResponse.isError,
+        };
+
+        const { data: savedAssistantMessage, error: assistantMessageError } = await supabase
+            .from('messages')
+            .insert(assistantMessage)
+            .select()
+            .single();
+
+        if (assistantMessageError) throw new Error(`Failed to save assistant message: ${assistantMessageError.message}`);
+
+        return { newMessage: savedAssistantMessage as Message, conversationId: currentConversationId };
+
+    } catch (e) {
+        logError(e, { context: 'handleUserMessage failed' });
+        return { error: getErrorMessage(e) };
+    }
+}
+
 
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();

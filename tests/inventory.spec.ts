@@ -63,4 +63,22 @@ test.describe('Inventory Page', () => {
     const productRows = page.locator('table > tbody > tr > td:has-text("Simulated")');
     await expect(productRows).toHaveCount(0);
   });
+
+  test('should allow exporting data to CSV', async ({ page }) => {
+    const exportButton = page.getByRole('button', { name: 'Export' });
+    
+    // Start waiting for the download before clicking the button.
+    const downloadPromise = page.waitForEvent('download');
+    
+    await exportButton.click();
+    
+    const download = await downloadPromise;
+
+    // Verify the download.
+    expect(download.suggestedFilename()).toBe('inventory.csv');
+    
+    // Optional: check file size to ensure it's not empty
+    const size = await download.size();
+    expect(size).toBeGreaterThan(0);
+  });
 });
