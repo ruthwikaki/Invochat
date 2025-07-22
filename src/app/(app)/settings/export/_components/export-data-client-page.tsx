@@ -53,6 +53,6 @@ export function ExportDataClientPage() {
                 </Button>
             </CardContent>
         </Card>
-    );
+    )
 }
     
