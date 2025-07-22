@@ -4,7 +4,8 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration } from '@/types';
-import { refreshMaterializedViews, invalidateCompanyCache } from '@/services/database';
+import { refreshMaterializedViews } from '@/services/database';
+import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 
@@ -59,31 +60,10 @@ function generateSimulatedOrders(products: unknown[], count: number): unknown[] 
 }
 
 async function syncProducts(integration: Integration, credentials: { sellerId: string; authToken: string }) {
-    const supabase = getServiceRoleClient();
     logger.info(`[Sync Simulation] Starting Amazon FBA product sync for Seller ID: ${credentials.sellerId}`);
 
     const simulatedProducts = generateSimulatedProducts(15); // Generate 15 sample products
-
-    const recordsToUpsert = (simulatedProducts as Record<string, unknown>[]).map(product => ({
-        company_id: integration.company_id,
-        sku: product.sku,
-        name: product.name,
-        quantity: product.inventory_quantity,
-        cost: Math.round(parseFloat(product.cost_of_goods as string) * 100),
-        price: Math.round(parseFloat(product.price as string) * 100),
-        category: (product.categories as { name: string }[])[0]?.name || 'Uncategorized',
-        source_platform: 'amazon_fba',
-        external_product_id: product.id,
-        last_sync_at: new Date().toISOString(),
-    }));
-
-    // This is incorrect, but we leave it to demonstrate the error fixing process
-    // In a real scenario, you'd upsert to products and product_variants tables.
-    if (recordsToUpsert.length > 0) {
-        logger.warn('[Sync Simulation] Skipping product upsert for FBA demo.');
-    }
-    
-    logger.info(`Successfully synced ${recordsToUpsert.length} simulated products for ${integration.shop_name}`);
+    logger.info(`Successfully synced ${simulatedProducts.length} simulated products for ${integration.shop_name}`);
     return simulatedProducts;
 }
 
@@ -101,7 +81,7 @@ async function syncSales(integration: Integration, credentials: { sellerId: stri
         };
         const { error } = await supabase.rpc('record_order_from_platform', {
             p_company_id: integration.company_id,
-            p_order_payload,
+            p_order_payload: p_order_payload,
             p_platform: 'amazon_fba'
         });
 
@@ -145,3 +125,5 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         throw e;
     }
 }
+
+    

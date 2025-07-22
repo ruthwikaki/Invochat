@@ -4,13 +4,11 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration } from '@/types';
-import { refreshMaterializedViews, invalidateCompanyCache } from '@/services/database';
+import { refreshMaterializedViews } from '@/services/database';
+import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 
-// This is a placeholder for the actual Amazon FBA API client.
-// In a real-world scenario, this would use the Selling Partner API (SP-API).
-// For demonstration purposes, this will be a no-op.
 async function syncProducts(credentials: { sellerId: string; authToken: string }) {
     logger.info(`[Sync Simulation] Starting Amazon FBA product sync for Seller ID: ${credentials.sellerId}`);
     // const fbaApi = await getFbaApiClient(credentials);
@@ -58,3 +56,5 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         throw e;
     }
 }
+
+    

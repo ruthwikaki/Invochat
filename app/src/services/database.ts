@@ -479,7 +479,7 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb() {
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: string) {
     // Placeholder function
 }
 export async function createExportJobInDb(companyId: string, userId: string) { 
@@ -489,8 +489,9 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function refreshMaterializedViews() {
+export async function refreshMaterializedViews(companyId: string) {
     // Placeholder function
+    console.log('refreshMaterializedViews called for company:', companyId);
 }
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
@@ -638,3 +639,5 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
+
+    

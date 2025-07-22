@@ -341,7 +341,7 @@ export async function getInventoryAgingReportFromDB(companyId: string): Promise<
 }
 export async function getProductLifecycleAnalysisFromDB(companyId: string): Promise<ProductLifecycleAnalysis> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis' as any, { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_product_lifecycle_analysis', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getProductLifecycleAnalysisFromDB failed' });
         throw error;
@@ -351,7 +351,7 @@ export async function getProductLifecycleAnalysisFromDB(companyId: string): Prom
 
 export async function getInventoryRiskReportFromDB(companyId: string): Promise<InventoryRiskItem[]> {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_inventory_risk_report' as any, { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_risk_report', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getInventoryRiskReportFromDB failed' });
         throw error;
@@ -371,7 +371,7 @@ export async function getCustomerSegmentAnalysisFromDB(companyId: string): Promi
 
 export async function getCashFlowInsightsFromDB(companyId: string) {
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_cash_flow_insights' as any, { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_cash_flow_insights', { p_company_id: companyId });
     if(error) throw error;
     return data;
 }
@@ -453,7 +453,7 @@ export async function upsertChannelFeeInDB(companyId: string, feeData: Partial<C
     if (!channel_name) {
         throw new Error("Channel name is required to upsert a fee.");
     }
-    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId }, { onConflict: 'company_id, channel_name' });
+    const { error } = await supabase.from('channel_fees').upsert({ ...feeData, company_id: companyId } as any, { onConflict: 'company_id, channel_name' });
     if (error) {
         logError(error, { context: 'upsertChannelFeeInDB failed' });
         throw error;
@@ -506,7 +506,7 @@ export async function getHistoricalSalesForSkus(companyId: string, skus: string[
 
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.rpc('reconcile_inventory_from_integration' as any, { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
+    const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
     if(error) throw error;
 }
 
@@ -639,3 +639,5 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
+
+    
