@@ -1,4 +1,3 @@
-
 import { generateCSRFToken } from '@/lib/csrf';
 import { NextResponse } from 'next/server';
 

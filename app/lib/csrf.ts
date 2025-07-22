@@ -1,10 +1,9 @@
-
 'use server';
 
 import { logger } from './logger';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from './csrf-client'; // Import constants from client-safe file
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from './csrf-client';
 
 /**
  * Generates a CSRF token using crypto.randomUUID() and sets it as a cookie.
