@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -29,15 +28,24 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
 
   const form = useForm<z.infer<typeof SettingsFormSchema>>({
     resolver: zodResolver(SettingsFormSchema),
-    defaultValues: settings,
+    defaultValues: {
+      ...settings,
+      high_value_threshold: settings.high_value_threshold / 100 // Convert cents to dollars for display
+    },
   });
 
   const onSubmit = (data: z.infer<typeof SettingsFormSchema>) => {
     startTransition(async () => {
         const formData = new FormData();
-        Object.entries(data).forEach(([key, value]) => {
+        const finalData = {
+          ...data,
+          high_value_threshold: Math.round(data.high_value_threshold * 100) // Convert back to cents
+        };
+
+        Object.entries(finalData).forEach(([key, value]) => {
             formData.append(key, String(value));
         });
+
         const csrfToken = getCookie(CSRF_FORM_NAME);
         if(csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
 
@@ -65,12 +73,12 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
         </div>
          <div className="space-y-1">
           <Label htmlFor="overstock_multiplier">Overstock Multiplier</Label>
-          <Input id="overstock_multiplier" type="number" {...form.register('overstock_multiplier', { valueAsNumber: true })} />
+          <Input id="overstock_multiplier" type="number" step="0.1" {...form.register('overstock_multiplier', { valueAsNumber: true })} />
            <p className="text-xs text-muted-foreground">Multiplier for average sales to identify overstocked items.</p>
         </div>
          <div className="space-y-1">
           <Label htmlFor="high_value_threshold">High-Value Threshold ($)</Label>
-          <Input id="high_value_threshold" type="number" {...form.register('high_value_threshold', { valueAsNumber: true })} />
+          <Input id="high_value_threshold" type="number" step="0.01" {...form.register('high_value_threshold', { valueAsNumber: true })} />
            <p className="text-xs text-muted-foreground">Cost-of-goods threshold to be considered a 'high-value' item.</p>
         </div>
       </div>
