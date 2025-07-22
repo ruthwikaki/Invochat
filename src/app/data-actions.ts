@@ -37,7 +37,8 @@ import {
     getSupplierPerformanceFromDB,
     getInventoryTurnoverFromDB,
     getMorningBriefing as getMorningBriefingFromChat,
-    getDashboardMetrics
+    getDashboardMetrics,
+    checkUserPermission
 } from '@/services/database';
 import { SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
@@ -155,7 +156,8 @@ export async function getTeamMembers() {
 
 export async function inviteTeamMember(formData: FormData): Promise<{ success: boolean, error?: string }> {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const email = formData.get('email') as string;
         const company = await getCompanyById(companyId);
@@ -169,6 +171,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
 export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
@@ -183,6 +186,7 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
 export async function updateTeamMemberRole(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Owner');
         await validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
         const newRole = formData.get('newRole') as 'Admin' | 'Member';
@@ -298,9 +302,9 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData) {
         const { companyId, userId } = await getAuthContext();
         await validateCSRF(formData);
         const suggestions = JSON.parse(formData.get('suggestions') as string) as ReorderSuggestion[];
-        const createdPoCount = await createPurchaseOrdersInDb(companyId, userId, suggestions);
+        const result = await createPurchaseOrdersInDb(companyId, userId, suggestions);
         revalidatePath('/purchase-orders');
-        return { success: true, createdPoCount };
+        return { success: true, createdPoCount: result.created_po_count };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -350,6 +354,7 @@ export async function upsertChannelFee(formData: FormData) {
 export async function requestCompanyDataExport() {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         const job = await createExportJobInDb(companyId, userId);
         return { success: true, jobId: job.id };
     } catch (e) {
@@ -360,6 +365,7 @@ export async function requestCompanyDataExport() {
 export async function reconcileInventory(integrationId: string) {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await reconcileInventoryInDb(companyId, integrationId, userId);
         return { success: true };
     } catch (e) {

@@ -2,8 +2,8 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase/admin';
-import { cookies } from 'next/headers';
 import type { User } from '@/types';
+import { logError } from './error-handler';
 
 /**
  * Gets the current authenticated user from the server-side context.
@@ -13,9 +13,10 @@ import type { User } from '@/types';
 export async function getCurrentUser(): Promise<User | null> {
   const supabase = createServerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
+  
   if (error) {
     // In a server context, it's better to log and return null than to throw.
-    console.error("Error fetching current user:", error.message);
+    logError(error, { context: "Error fetching current user in auth-helpers" });
     return null;
   }
   return user as User | null;
