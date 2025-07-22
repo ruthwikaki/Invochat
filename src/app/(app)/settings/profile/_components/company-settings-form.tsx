@@ -43,7 +43,7 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
         };
 
         Object.entries(finalData).forEach(([key, value]) => {
-            formData.append(key, String(value));
+            formData.append(String(key), String(value));
         });
 
         const csrfToken = getCookie(CSRF_FORM_NAME);

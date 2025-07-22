@@ -1,5 +1,4 @@
 
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -182,10 +181,10 @@ export type PurchaseOrderLineItem = z.infer<typeof PurchaseOrderLineItemSchema>;
 
 export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
-  dead_stock_days: z.number().int().positive().default(90),
-  fast_moving_days: z.number().int().positive().default(30),
-  overstock_multiplier: z.number().positive().default(3),
-  high_value_threshold: z.number().int().nonnegative().default(100000), // Stored in cents
+  dead_stock_days: z.coerce.number().int().positive().default(90),
+  fast_moving_days: z.coerce.number().int().positive().default(30),
+  overstock_multiplier: z.coerce.number().positive().default(3),
+  high_value_threshold: z.coerce.number().nonnegative().default(100000), // Stored in cents
   predictive_stock_days: z.number().int().positive().default(7),
   currency: z.string().default('USD'),
   tax_rate: z.number().nonnegative().default(0),
