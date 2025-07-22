@@ -72,6 +72,7 @@ import { generateAlertExplanation } from '@/ai/flows/alert-explanation-flow';
 import crypto from 'crypto';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { config } from '@/config/app-config';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 
 export async function getAuthContext() {
