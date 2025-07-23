@@ -46,7 +46,7 @@ const nextConfig = defineNextConfig({
     const cspHeader = `
       default-src 'self';
       script-src 'self' 'unsafe-eval';
-      style-src 'self';
+      style-src 'self' 'unsafe-inline';
       img-src 'self' data: https://placehold.co;
       font-src 'self';
       connect-src 'self' https://*.supabase.co wss://*.supabase.co https://generativelanguage.googleapis.com;
@@ -123,5 +123,3 @@ module.exports = withSentryConfig(
     // See the following for more information:
     // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
     automaticVercelMonitors: true,
-  }
-);
