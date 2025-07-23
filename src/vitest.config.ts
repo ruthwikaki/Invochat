@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -15,7 +14,7 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/*.spec.ts',
+      '**/*.spec.ts', // Exclude Playwright tests
       '**/e2e/**',
       '**/integration/**',
       '**/security/**',
