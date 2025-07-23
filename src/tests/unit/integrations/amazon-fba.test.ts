@@ -28,23 +28,22 @@ const mockCredentials = { sellerId: 'AMZN123', authToken: 'TOKENABC' };
 
 describe('Amazon FBA Integration Service', () => {
   let supabaseMock: any;
+  let updateMock: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
+    updateMock = vi.fn().mockReturnThis();
     supabaseMock = {
       from: vi.fn(() => ({
-        update: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({ data: mockIntegration, error: null })
-            }))
-          }))
-        })),
+        update: updateMock,
+        eq: vi.fn().mockReturnThis()
       })),
       rpc: vi.fn().mockResolvedValue({ error: null }),
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
   });
 
   it('should run a full sync simulation successfully', async () => {
@@ -54,9 +53,9 @@ describe('Amazon FBA Integration Service', () => {
     expect(encryption.getSecret).toHaveBeenCalledWith(mockIntegration.company_id, 'amazon_fba');
     
     // Check that sync status was updated multiple times
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
     
     // Check that sales data was recorded via RPC
     expect(supabaseMock.rpc).toHaveBeenCalledWith(
@@ -73,14 +72,14 @@ describe('Amazon FBA Integration Service', () => {
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(null);
 
     await expect(runAmazonFbaFullSync(mockIntegration)).rejects.toThrow('Could not retrieve Amazon FBA credentials.');
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'failed' });
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'failed' });
   });
 
    it('should handle database errors during sync', async () => {
     const dbError = new Error('RPC call failed');
     supabaseMock.rpc.mockResolvedValue({ error: dbError });
 
-    await expect(runAmazonFbaFullSync(mockIntegration)).rejects.toThrow(dbError);
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'failed' });
+    await expect(runAmazonFbaFullSync(mockIntegration)).rejects.toThrow('RPC call failed');
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'failed' });
   });
 });

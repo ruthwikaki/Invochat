@@ -12,8 +12,15 @@ export function getErrorMessage(error: unknown): string {
   if (typeof error === 'string') {
     return error
   }
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+  if (error && typeof error === 'object') {
+    if ('message' in error && typeof error.message === 'string') {
       return error.message;
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      // Fallback if stringification fails
+    }
   }
   return 'An unknown error occurred'
 }
