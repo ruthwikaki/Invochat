@@ -11,14 +11,14 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/*.spec.ts', // Exclude Playwright tests
       '**/e2e/**',
-      '**/integration/**',
-      '**/*.spec.ts', // Exclude all Playwright tests
+      '**/integration/**'
     ],
     include: [
-      '**/*.test.ts',   // Include all Vitest unit tests
+      '**/*.test.ts',
       '**/*.test.tsx',
-    ],
+    ]
   },
   resolve: {
     alias: {
