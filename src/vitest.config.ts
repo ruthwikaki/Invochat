@@ -6,9 +6,12 @@ import tsconfigPaths from 'vitest-tsconfig-paths'
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   test: {
-    // Only include files with .test.ts or .test.tsx for Vitest
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/tests/setup.ts'],
+    // Only include files in the unit directory for Vitest
     include: ['src/tests/unit/**/*.test.{ts,tsx}'],
-    // Exclude all other tests, especially Playwright spec files
+    // Exclude all other tests
     exclude: [
       'src/tests/*.spec.ts',
       'src/tests/e2e/**/*.spec.ts',
@@ -18,9 +21,6 @@ export default defineConfig({
       'src/tests/security/**/*.spec.ts',
       'node_modules/**/*',
     ],
-    environment: 'jsdom',
-    setupFiles: ['src/tests/setup.ts'],
-    globals: true,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

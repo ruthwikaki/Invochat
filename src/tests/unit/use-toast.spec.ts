@@ -17,7 +17,7 @@ const ToastWrapper = ({ children }: { children: React.ReactNode }) => (
 describe('useToast hook', () => {
   it('should allow adding and dismissing toasts', () => {
     const { result } = renderHook(() => useToast(), {
-      wrapper: ToastWrapper,
+      wrapper: ({ children }) => <ToastWrapper>{children}</ToastWrapper>,
     });
 
     act(() => {
