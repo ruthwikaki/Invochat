@@ -47,7 +47,7 @@ export async function syncProducts(integration: Integration, accessToken: string
                 description: DOMPurify.sanitize(shopifyProduct.body_html),
                 handle: shopifyProduct.handle,
                 product_type: shopifyProduct.product_type,
-                tags: shopifyProduct.tags.split(',').map((t: string) => t.trim()),
+                tags: shopifyProduct.tags?.split(',').map((t: string) => t.trim()) || [],
                 status: shopifyProduct.status,
                 image_url: shopifyProduct.image?.src,
                 external_product_id: String(shopifyProduct.id),

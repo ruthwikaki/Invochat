@@ -4,29 +4,29 @@
 
 @layer base {
   :root {
-    --background: 240 10% 98%;
-    --foreground: 224 23% 10%;
-    --card: 0 0% 100%;
+    --background: 0 0% 98%; /* Off-white #FAFAFA */
+    --foreground: 224 23% 10%; /* Text Primary #111827 */
+    --card: 0 0% 100%; /* Surface White #FFFFFF */
     --card-foreground: 224 23% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 23% 10%;
-    --primary: 257 58% 52%;
+    --primary: 257 58% 52%; /* Deep Purple #6B46C1 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 215 19% 35%;
+    --secondary: 215 19% 35%; /* Slate #475569 */
     --secondary-foreground: 0 0% 100%;
     --muted: 220 9% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 220 9% 96%;
-    --accent-foreground: 224 23% 10%;
-    --destructive: 350 91% 60%;
+    --muted-foreground: 220 9% 46%; /* Text Secondary #4B5563 */
+    --accent: 257 58% 95%; /* Lighter purple for accents */
+    --accent-foreground: 257 58% 30%;
+    --destructive: 350 91% 60%; /* Danger Rose #F43F5E */
     --destructive-foreground: 0 0% 100%;
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 257 58% 52%;
     --radius: 0.5rem;
-    --success: 158 79% 44%;
+    --success: 158 79% 44%; /* Success Emerald #10B981 */
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 38 92% 50%; /* Warning Amber #F59E0B */
     --warning-foreground: 0 0% 100%;
     --chart-1: 257 58% 52%;
     --chart-2: 158 79% 44%;
@@ -37,19 +37,19 @@
 
   .dark {
     --background: 224 23% 10%;
-    --foreground: 240 10% 98%;
-    --card: 215 19% 35%;
-    --card-foreground: 240 10% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --foreground: 0 0% 98%;
+    --card: 215 19% 15%;
+    --card-foreground: 0 0% 98%;
+    --popover: 224 23% 10%;
+    --popover-foreground: 0 0% 98%;
     --primary: 257 58% 62%;
     --primary-foreground: 0 0% 100%;
     --secondary: 215 19% 25%;
     --secondary-foreground: 0 0% 100%;
     --muted: 215 19% 25%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 32% 17%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 350 91% 70%;
     --destructive-foreground: 0 0% 100%;
     --border: 215 19% 25%;

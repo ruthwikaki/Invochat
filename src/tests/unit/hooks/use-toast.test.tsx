@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
-import { useToast, Toaster } from '@/hooks/use-toast'
-import React from 'react'
+
+import { renderHook, act } from '@testing-library/react';
+import { useToast } from '@/hooks/use-toast';
+import { describe, it, expect } from 'vitest';
+import { Toaster } from '@/components/ui/toaster';
+import React from 'react';
 
 // Wrapper component to provide the necessary context for the toast hook
 const ToastWrapper = ({ children }: { children: React.ReactNode }) => (

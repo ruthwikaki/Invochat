@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
@@ -14,6 +15,7 @@ export default defineConfig({
     exclude: [
       'node_modules/**',
       'src/tests/**/*.{spec}.{ts,tsx}',
+      'src/tests/e2e/**'
     ],
     coverage: {
       provider: 'v8',

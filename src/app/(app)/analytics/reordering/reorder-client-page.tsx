@@ -14,7 +14,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/data-actions';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 import { getErrorMessage } from '@/lib/error-handler';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
