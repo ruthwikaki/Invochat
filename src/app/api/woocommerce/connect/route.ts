@@ -23,9 +23,9 @@ export async function POST(request: Request) {
 
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'connect', config.ratelimit.connect, 3600, true);
+        const { limited } = await rateLimit(ip, 'api_call', 100, 3600);
         if (limited) {
-            return NextResponse.json({ error: 'Too many connection attempts. Please try again in an hour.' }, { status: 429 });
+            return new Response('Rate limit exceeded', { status: 429 });
         }
 
         const cookieStore = cookies();
