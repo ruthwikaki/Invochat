@@ -8,12 +8,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
-    // Include both .test and .spec files for unit tests
-    include: ['src/tests/unit/**/*.{test,spec}.{ts,tsx}'],
-    // Only exclude e2e tests and node_modules
+    // Only run files in the unit directory with .test.ts or .test.tsx extensions
+    include: ['src/tests/unit/**/*.test.{ts,tsx}'],
     exclude: [
-      'src/tests/e2e/**/*',
-      'node_modules/**/*',
+      'node_modules/**',
+      'src/tests/e2e/**'
     ],
     coverage: {
       provider: 'v8',
@@ -25,11 +24,6 @@ export default defineConfig({
         '**/*.config.{js,ts}',
         '**/dist/**',
       ],
-    },
-  },
-  resolve: {
-    alias: {
-      '@': new URL('./src', import.meta.url).pathname,
     },
   },
 })
