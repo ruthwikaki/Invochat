@@ -35,12 +35,12 @@ import {
     reconcileInventoryInDb,
     getSupplierPerformanceFromDB,
     getInventoryTurnoverFromDB,
-    getMorningBriefing as getMorningBriefingFromChat,
     getDashboardMetrics,
     checkUserPermission,
     getReorderSuggestionsFromDB,
     getHistoricalSalesForSkus
 } from '@/services/database';
+import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -414,8 +414,9 @@ export async function getDashboardData(dateRange: string) {
 
 export async function getMorningBriefing(dateRange: string) {
     const { companyId } = await getAuthContext();
+    const user = await getCurrentUser();
     const metrics = await getDashboardMetrics(companyId, dateRange);
-    return getMorningBriefingFromChat({metrics});
+    return generateMorningBriefing({ metrics, companyName: user?.user_metadata?.company_name });
 }
 
 export async function getSupplierPerformanceReportData() {
