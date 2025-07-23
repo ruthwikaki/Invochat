@@ -3,6 +3,7 @@
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { 
     getDeadStockReportFromDB, 
     getSupplierByIdFromDB, 
@@ -38,7 +39,11 @@ import {
     getDashboardMetrics,
     checkUserPermission,
     getReorderSuggestionsFromDB,
-    getHistoricalSalesForSkus
+    getHistoricalSalesForSkus,
+    getQueryPatternsForCompany,
+    saveSuccessfulQuery,
+    getDatabaseSchemaAndData,
+    refreshMaterializedViews
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData } from '@/types';
@@ -46,7 +51,6 @@ import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation, ReorderSuggestion } from '@/types';
-import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { z } from 'zod';
 
 export async function getProducts() {
@@ -524,3 +528,5 @@ export async function handleUserMessage(params: { content: string, conversationI
     return { error: errorMessage };
   }
 }
+
+    
