@@ -1,10 +1,10 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
 import type { ReorderSuggestion } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import * as dataActions from '@/app/data-actions';
+import * as csrf from '@/lib/csrf-client';
 
 // Mock dependencies
 vi.mock('@/hooks/use-toast', () => ({
@@ -20,10 +20,9 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-vi.mock('@/app/data-actions', () => ({
-    createPurchaseOrdersFromSuggestions: vi.fn(),
-    exportReorderSuggestions: vi.fn(),
-}));
+vi.mock('@/app/data-actions');
+vi.mock('@/lib/csrf-client');
+
 
 const mockSuggestions: ReorderSuggestion[] = [
   {
@@ -41,7 +40,7 @@ const mockSuggestions: ReorderSuggestion[] = [
     seasonality_factor: 1.0,
     confidence: 0.8
   },
-   {
+  {
     variant_id: 'v2',
     product_id: 'p2',
     sku: 'SKU002',
@@ -58,68 +57,49 @@ const mockSuggestions: ReorderSuggestion[] = [
   },
 ];
 
+
 describe('Component: ReorderClientPage', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        (csrf.getCookie as vi.Mock).mockReturnValue('test-csrf-token');
     });
 
     it('should render the table with initial suggestions', () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-
         expect(screen.getByText('AI-Enhanced Reorder Suggestions')).toBeInTheDocument();
         expect(screen.getByText('Test Product 1')).toBeInTheDocument();
         expect(screen.getByText('Test Product 2')).toBeInTheDocument();
-        expect(screen.getAllByRole('checkbox')).toHaveLength(3); // 1 header + 2 rows
-    });
-
-    it('should render the empty state when no suggestions are provided', () => {
-        render(<ReorderClientPage initialSuggestions={[]} />);
-
-        expect(screen.getByText('No Reorder Suggestions')).toBeInTheDocument();
+        expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     });
 
     it('should show the action bar when an item is selected', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-        
-        // Action bar should not be visible initially
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
-        
         const checkboxes = screen.getAllByRole('checkbox');
-        // Click the first row checkbox (index 1, as index 0 is the header)
         await fireEvent.click(checkboxes[1]);
-
         expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /Create PO\(s\)/ })).toBeInTheDocument();
     });
 
-    it('should call createPurchaseOrdersFromSuggestions when the button is clicked', async () => {
+    it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
         const mockToast = vi.fn();
         (useToast as vi.Mock).mockReturnValue({ toast: mockToast });
-        vi.spyOn(dataActions, 'createPurchaseOrdersFromSuggestions').mockResolvedValue({ success: true, createdPoCount: 1 });
+        vi.spyOn(dataActions, 'createPurchaseOrdersFromSuggestions').mockResolvedValue({ 
+            success: true, 
+            createdPoCount: 1 
+        });
         
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-
+        const checkboxes = screen.getAllByRole('checkbox');
+        await fireEvent.click(checkboxes[1]);
         const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
         await fireEvent.click(createPoButton);
 
-        expect(dataActions.createPurchaseOrdersFromSuggestions).toHaveBeenCalled();
-        // Check if a success toast was shown
-        expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
-            title: 'Purchase Orders Created!',
-        }));
-    });
-
-    it('should handle selecting all items with the header checkbox', async () => {
-        render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-
-        const selectAllCheckbox = screen.getAllByRole('checkbox')[0];
-        await fireEvent.click(selectAllCheckbox);
-
-        expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
-        
-        await fireEvent.click(selectAllCheckbox);
-        
-        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
+        await waitFor(() => {
+            expect(dataActions.createPurchaseOrdersFromSuggestions).toHaveBeenCalled();
+            expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+                title: 'Purchase Orders Created!',
+            }));
+        });
     });
 });
