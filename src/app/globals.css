@@ -10,7 +10,7 @@
     --card-foreground: 0 0% 98%;
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
-    --primary: 257 58% 52%;
+    --primary: 257 58% 62%;
     --primary-foreground: 0 0% 98%;
     --secondary: 240 3.7% 15.9%;
     --secondary-foreground: 0 0% 98%;
@@ -24,15 +24,15 @@
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
     --radius: 0.5rem;
-    --success: 158 79% 44%;
+    --success: 158 79% 54%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 38 92% 60%;
     --warning-foreground: 0 0% 100%;
-    --chart-1: 257 58% 52%;
-    --chart-2: 158 79% 44%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 350 91% 60%;
-    --chart-5: 215 19% 35%;
+    --chart-1: 257 58% 62%;
+    --chart-2: 158 79% 54%;
+    --chart-3: 38 92% 60%;
+    --chart-4: 350 91% 70%;
+    --chart-5: 215 19% 45%;
   }
 
   .dark {
@@ -65,11 +65,12 @@
     --chart-4: 350 91% 70%;
     --chart-5: 215 19% 45%;
   }
+}
 
+@layer base {
   * {
     @apply border-border;
   }
-
   body {
     @apply bg-background text-foreground;
   }
