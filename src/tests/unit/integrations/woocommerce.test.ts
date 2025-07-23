@@ -58,13 +58,16 @@ describe('WooCommerce Integration Service', () => {
 
     supabaseMock = {
       from: vi.fn(() => ({
-        update: vi.fn(() => ({ eq: vi.fn().mockReturnThis() })),
+        update: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
         upsert: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{id: 'prod-id-1', external_product_id: '1'}, {id: 'prod-id-2', external_product_id: '2'}], error: null }) })),
       })),
       rpc: vi.fn().mockResolvedValue({ error: null }),
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
   });
 
   it('should run a full sync successfully', async () => {

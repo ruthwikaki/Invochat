@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
@@ -73,12 +74,19 @@ describe('Component: ReorderClientPage', () => {
         expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     });
 
-    it('should show the action bar when an item is selected', async () => {
+    it('should show the action bar when items are selected by default', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
+        // By default, all items are selected, so the bar should be visible.
+        expect(screen.getByText(/item\(s\) selected/)).toBeInTheDocument();
+        
+        // Uncheck one item
         const checkboxes = screen.getAllByRole('checkbox');
         await fireEvent.click(checkboxes[1]);
         expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+
+        // Uncheck the last item
+        await fireEvent.click(checkboxes[2]);
+        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
     });
 
     it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
@@ -90,8 +98,7 @@ describe('Component: ReorderClientPage', () => {
         });
         
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-        const checkboxes = screen.getAllByRole('checkbox');
-        await fireEvent.click(checkboxes[1]);
+        
         const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
         await fireEvent.click(createPoButton);
 
