@@ -5,6 +5,7 @@ import * as encryption from '@/features/integrations/services/encryption';
 import * as database from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { Integration } from '@/types';
+import * as redis from '@/lib/redis';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -20,6 +21,7 @@ function createFetchResponse(data: any, totalPages = 1) {
 vi.mock('@/features/integrations/services/encryption');
 vi.mock('@/services/database');
 vi.mock('@/lib/supabase/admin');
+vi.mock('@/lib/redis');
 
 const mockIntegration: Integration = {
   id: 'woo-integration-id',
@@ -65,7 +67,7 @@ describe('WooCommerce Integration Service', () => {
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
-    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue(undefined);
+    vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
     vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
