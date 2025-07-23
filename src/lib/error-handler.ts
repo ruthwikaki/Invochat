@@ -26,6 +26,9 @@ export function getErrorMessage(error: unknown): string {
   if (typeof error === 'string') {
     return error;
   }
+  if (error === null || error === undefined) {
+    return 'An unknown and non-stringifiable error occurred.';
+  }
   try {
     // Attempt to stringify, but handle potential circular references
     return JSON.stringify(error, null, 2);

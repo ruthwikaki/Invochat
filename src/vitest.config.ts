@@ -9,6 +9,13 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './tests/setup.ts',
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      // Exclude Playwright E2E tests from the Vitest runner
+      '**/*.spec.ts',
+    ],
   },
   resolve: {
     alias: {
