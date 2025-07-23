@@ -9,7 +9,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
     // Ensure Vitest only runs unit tests
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/tests/unit/**/*.{test,spec}.{ts,tsx}'],
     // Exclude all other test types
     exclude: [
       '**/node_modules/**',

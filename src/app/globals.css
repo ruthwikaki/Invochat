@@ -28,11 +28,11 @@
     --input: 220 13% 91%;
     --ring: 257 88% 63%;
     --radius: 0.5rem;
-    --chart-1: 257 88% 63%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 350 91% 60%;
-    --chart-5: 217 91% 60%;
+    --chart-1: hsl(var(--primary));
+    --chart-2: hsl(var(--secondary));
+    --chart-3: hsl(var(--destructive));
+    --chart-4: hsl(var(--success));
+    --chart-5: hsl(var(--warning));
   }
 
   .dark {
@@ -59,12 +59,11 @@
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 257 88% 73%;
-    --radius: 0.5rem;
-    --chart-1: 257 88% 73%;
-    --chart-2: 142 66% 46%;
-    --chart-3: 38 82% 60%;
-    --chart-4: 0 74% 50%;
-    --chart-5: 217 81% 70%;
+    --chart-1: hsl(var(--primary));
+    --chart-2: hsl(var(--secondary));
+    --chart-3: hsl(var(--destructive));
+    --chart-4: hsl(var(--success));
+    --chart-5: hsl(var(--warning));
   }
 }
 

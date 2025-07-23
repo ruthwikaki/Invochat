@@ -6,7 +6,7 @@ export default defineConfig({
   // Only run files with .spec.ts extension for Playwright
   testMatch: '**/*.spec.ts',
   // Ignore all unit test files
-  testIgnore: '**/*.test.ts',
+  testIgnore: '**/unit/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
