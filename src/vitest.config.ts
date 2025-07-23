@@ -16,8 +16,8 @@ export default defineConfig({
       '**/integration/**'
     ],
     include: [
-      '**/*.test.ts',
-      '**/*.test.tsx',
+      '**/tests/unit/**/*.test.ts',
+      '**/tests/unit/**/*.test.tsx'
     ]
   },
   resolve: {
