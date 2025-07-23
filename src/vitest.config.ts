@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vitest-tsconfig-paths'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
@@ -8,11 +8,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
-    // Run only unit/component tests with Vitest
-    include: ['src/tests/unit/**/*.test.{ts,tsx}'],
-    // Exclude all Playwright spec files
+    // Include both .test and .spec files for unit tests
+    include: ['src/tests/unit/**/*.{test,spec}.{ts,tsx}'],
+    // Only exclude e2e tests and node_modules
     exclude: [
-      '**/*.spec.ts',
       'src/tests/e2e/**/*',
       'node_modules/**/*',
     ],
@@ -26,6 +25,11 @@ export default defineConfig({
         '**/*.config.{js,ts}',
         '**/dist/**',
       ],
+    },
+  },
+  resolve: {
+    alias: {
+      '@': new URL('./src', import.meta.url).pathname,
     },
   },
 })
