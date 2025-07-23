@@ -78,7 +78,7 @@ describe('Component: ReorderClientPage', () => {
     it('should show the action bar when items are selected, and hide it when all are deselected', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
 
-        // Action bar should not be visible initially
+        // Action bar should not be visible initially because the default state is now empty
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
         const checkboxes = screen.getAllByRole('checkbox');
