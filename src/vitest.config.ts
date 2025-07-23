@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vitest-tsconfig-paths'
@@ -9,7 +8,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
-    // Only include files with .test.ts or .test.tsx for Vitest
+    // Only include files with .test.tsx for Vitest
     include: ['src/tests/unit/**/*.test.{ts,tsx}'],
     // Exclude Playwright's .spec files and other configurations
     exclude: [
