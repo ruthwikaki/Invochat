@@ -1,3 +1,4 @@
+
 {
   "name": "invochat",
   "version": "0.1.0",
@@ -9,9 +10,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:unit && npm run test:e2e",
-    "test:unit": "vitest",
+    "test:unit": "vitest 'src/tests/unit/**/*.test.ts'",
     "test:e2e": "playwright test",
-    "test:unit:watch": "vitest --watch",
+    "test:unit:watch": "vitest --watch 'src/tests/unit/**/*.test.ts'",
     "test:unit:ui": "vitest --ui",
     "test:unit:coverage": "vitest --coverage",
     "test:e2e:headed": "playwright test --headed",
@@ -74,6 +75,7 @@
     "@playwright/test": "^1.45.3",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
+    "@types/dompurify": "^3.0.5",
     "@types/dotenv": "^8.2.0",
     "@types/node": "^20.14.10",
     "@types/papaparse": "^5.3.14",

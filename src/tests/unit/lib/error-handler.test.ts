@@ -1,3 +1,4 @@
+
 import { isError, getErrorMessage, logError } from '@/lib/error-handler';
 import { logger } from '@/lib/logger';
 import { describe, it, expect, vi } from 'vitest';
@@ -32,6 +33,7 @@ describe('getErrorMessage', () => {
   });
   it('should handle null and undefined', () => {
     expect(getErrorMessage(null)).toBe('An unknown and non-stringifiable error occurred.');
+    expect(getErrorMessage(undefined)).toBe('An unknown and non-stringifiable error occurred.');
   });
 });
 
