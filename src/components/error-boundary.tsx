@@ -7,8 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AlertTriangle } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import * as Sentry from '@sentry/nextjs';
-import { useAuth } from '@/context/auth-context';
-
 
 interface Props {
   children: ReactNode;
