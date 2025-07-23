@@ -4,6 +4,11 @@ import { getDeadStockReport } from '@/ai/flows/dead-stock-tool';
 import * as database from '@/services/database';
 
 vi.mock('@/services/database');
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    defineTool: vi.fn((config, func) => ({ ...config, func })),
+  },
+}));
 
 const mockDeadStockData = {
   deadStockItems: [

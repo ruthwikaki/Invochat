@@ -5,6 +5,11 @@ import * as database from '@/services/database';
 import type { SupplierPerformanceReport } from '@/types';
 
 vi.mock('@/services/database');
+vi.mock('@/ai/genkit', () => ({
+  ai: {
+    defineTool: vi.fn((config, func) => ({ ...config, func })),
+  },
+}));
 
 const mockPerformanceData: SupplierPerformanceReport[] = [
   {
