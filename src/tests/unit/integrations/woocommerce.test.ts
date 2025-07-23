@@ -37,7 +37,7 @@ const mockCredentials = { consumerKey: 'ck_test', consumerSecret: 'cs_test' };
 
 const mockWooProducts = [
   { id: 1, name: 'Simple Product', type: 'simple', sku: 'SIMPLE1', price: '20.00', stock_quantity: 10, images: [], tags: [], categories: [] },
-  { id: 2, name: 'Variable Product', type: 'variable', sku: 'VAR1', images: [], tags: [], categories: [] }
+  { id: 2, name: 'Variable Product', type: 'variable', sku: 'VAR1', images: [], tags: [], categories: [], variations: [3] }
 ];
 
 const mockWooVariations = [
@@ -67,8 +67,8 @@ describe('WooCommerce Integration Service', () => {
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
-    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue(undefined);
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
   });
 
   it('should run a full sync successfully', async () => {
