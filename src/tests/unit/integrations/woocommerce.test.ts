@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runWooCommerceFullSync } from '@/features/integrations/services/platforms/woocommerce';
 import * as encryption from '@/features/integrations/services/encryption';
@@ -18,14 +17,7 @@ function createFetchResponse(data: any, totalPages = 1) {
 }
 
 vi.mock('@/features/integrations/services/encryption');
-vi.mock('@/services/database', async (importOriginal) => {
-    const actual = await importOriginal<typeof database>();
-    return {
-        ...actual,
-        invalidateCompanyCache: vi.fn().mockResolvedValue(undefined),
-        refreshMaterializedViews: vi.fn().mockResolvedValue(undefined),
-    };
-});
+vi.mock('@/services/database');
 vi.mock('@/lib/supabase/admin');
 
 const mockIntegration: Integration = {
