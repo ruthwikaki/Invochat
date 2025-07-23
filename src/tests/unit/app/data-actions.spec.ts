@@ -1,8 +1,10 @@
 
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardData } from '@/app/data-actions';
 import * as database from '@/services/database';
 import type { DashboardMetrics } from '@/types';
+import * as authHelpers from '@/lib/auth-helpers';
 
 // Mock dependencies
 vi.mock('@/services/database');
@@ -10,6 +12,7 @@ vi.mock('@/lib/redis', () => ({
   isRedisEnabled: false, // Ensure cache is disabled for these tests
   redisClient: {},
 }));
+vi.mock('@/lib/auth-helpers');
 
 const mockDashboardMetrics: DashboardMetrics = {
   total_revenue: 12500000,
@@ -33,6 +36,11 @@ describe('Server Actions: getDashboardData', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    // Mock the auth context to always return a valid user/company
+    (authHelpers.getAuthContext as vi.Mock).mockResolvedValue({
+        userId: 'test-user-id',
+        companyId: 'test-company-id'
+    });
   });
 
   it('should fetch and return dashboard metrics successfully', async () => {
