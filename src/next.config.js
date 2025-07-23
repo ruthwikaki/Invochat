@@ -5,10 +5,9 @@
  * @param {T} config
  * @returns {T}
  */
-function defineNextConfig(config) {
-  return config;
+function defineNextConfig (config) {
+  return config
 }
-
 
 /** @type {import('next').NextConfig} */
 const nextConfig = defineNextConfig({
@@ -19,16 +18,16 @@ const nextConfig = defineNextConfig({
   webpack: (config, { dev }) => {
     // This setting can help resolve strange build issues on Windows,
     // especially when the project is in a cloud-synced directory like OneDrive.
-    config.resolve.symlinks = false;
-    return config;
+    config.resolve.symlinks = false
+    return config
   },
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'placehold.co',
-      },
-    ],
+        hostname: 'placehold.co'
+      }
+    ]
   },
   experimental: {
     // This is required to fix critical dependency warnings/errors with server-side packages.
@@ -39,10 +38,10 @@ const nextConfig = defineNextConfig({
       'handlebars',
       '@supabase/supabase-js',
       '@supabase/realtime-js',
-      'ioredis',
-    ],
+      'ioredis'
+    ]
   },
-  async headers() {
+  async headers () {
     const cspHeader = `
       default-src 'self';
       script-src 'self';
@@ -54,7 +53,7 @@ const nextConfig = defineNextConfig({
       base-uri 'self';
       form-action 'self';
       object-src 'none';
-    `.replace(/\s{2,}/g, ' ').trim();
+    `.replace(/\s{2,}/g, ' ').trim()
 
     return [
       {
@@ -63,11 +62,11 @@ const nextConfig = defineNextConfig({
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: cspHeader,
+            value: cspHeader
           },
           {
             key: 'X-Content-Type-Options',
-            value: 'nosniff',
+            value: 'nosniff'
           },
           {
             key: 'X-XSS-Protection',
@@ -75,28 +74,28 @@ const nextConfig = defineNextConfig({
           },
           {
             key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
+            value: 'SAMEORIGIN'
           },
           {
             key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload',
+            value: 'max-age=63072000; includeSubDomains; preload'
           },
           {
             key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin',
+            value: 'origin-when-cross-origin'
           },
           {
             key: 'Permissions-Policy',
-            value: "camera=(), microphone=(), geolocation=()",
+            value: 'camera=(), microphone=(), geolocation=()'
           }
-        ],
-      },
-    ];
-  },
-});
+        ]
+      }
+    ]
+  }
+})
 
 // The Sentry webpack plugin gets loaded here.
-const { withSentryConfig } = require("@sentry/nextjs");
+const { withSentryConfig } = require('@sentry/nextjs')
 
 module.exports = withSentryConfig(
   nextConfig,
@@ -107,7 +106,7 @@ module.exports = withSentryConfig(
     // Suppresses source map uploading logs during build
     silent: true,
     org: process.env.SENTRY_ORG,
-    project: process.env.SENTRY_PROJECT,
+    project: process.env.SENTRY_PROJECT
   },
   {
     // For all available options, see:
@@ -122,6 +121,6 @@ module.exports = withSentryConfig(
     // Enables automatic instrumentation of Vercel Cron Monitors.
     // See the following for more information:
     // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
-    automaticVercelMonitors: true,
+    automaticVercelMonitors: true
   }
-);
+)
