@@ -77,26 +77,21 @@ describe('Component: ReorderClientPage', () => {
 
     it('should show the action bar when items are selected, and hide it when all are deselected', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-
-        // Action bar should not be visible initially
-        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
-
         const checkboxes = screen.getAllByRole('checkbox');
-        // Click the first row checkbox
-        await fireEvent.click(checkboxes[1]);
-        expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+        const selectAllCheckbox = checkboxes[0];
 
-        // Click the second row checkbox
-        await fireEvent.click(checkboxes[2]);
-        expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
+        // Action bar should be visible initially because items are pre-selected
+        expect(screen.getByText(/item\(s\) selected/)).toBeInTheDocument();
 
-        // Uncheck the first item
-        await fireEvent.click(checkboxes[1]);
-        expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+        // Uncheck all items using the header checkbox
+        await fireEvent.click(selectAllCheckbox);
         
-        // Uncheck the last item
-        await fireEvent.click(checkboxes[2]);
+        // Action bar should now be hidden
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
+
+        // Check one item
+        await fireEvent.click(checkboxes[1]);
+        expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
     });
 
     it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
@@ -109,10 +104,6 @@ describe('Component: ReorderClientPage', () => {
         
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
         
-        // Select an item to show the button
-        const checkboxes = screen.getAllByRole('checkbox');
-        await fireEvent.click(checkboxes[1]);
-
         const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
         await fireEvent.click(createPoButton);
 
