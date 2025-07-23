@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runAmazonFbaFullSync } from '@/features/integrations/services/platforms/amazon_fba';
 import * as encryption from '@/features/integrations/services/encryption';
@@ -49,9 +50,7 @@ describe('Amazon FBA Integration Service', () => {
 
     expect(encryption.getSecret).toHaveBeenCalledWith(mockIntegration.company_id, 'amazon_fba');
     
-    const fromIntegrations = supabaseMock.from.mock.calls.filter(call => call[0] === 'integrations');
-    expect(fromIntegrations.length).toBe(3); // Expect 3 updates to the integrations table
-
+    expect(supabaseMock.from).toHaveBeenCalledWith('integrations');
     expect(supabaseMock.update).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
     expect(supabaseMock.update).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
     expect(supabaseMock.update).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));

@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
@@ -73,18 +74,25 @@ describe('Component: ReorderClientPage', () => {
         expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     });
 
-    it('should show the action bar when items are selected by default, and hide it when all are deselected', async () => {
+    it('should show the action bar when items are selected, and hide it when all are deselected', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-        
-        // By default, all items are selected, so the bar should be visible.
-        expect(screen.getByText(/item\(s\) selected/)).toBeInTheDocument();
-        expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
+
+        // Action bar should not be visible initially
+        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
         const checkboxes = screen.getAllByRole('checkbox');
-        // Uncheck the first item
+        // Click the first row checkbox
         await fireEvent.click(checkboxes[1]);
         expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
 
+        // Click the second row checkbox
+        await fireEvent.click(checkboxes[2]);
+        expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
+
+        // Uncheck the first item
+        await fireEvent.click(checkboxes[1]);
+        expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+        
         // Uncheck the last item
         await fireEvent.click(checkboxes[2]);
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
@@ -100,6 +108,10 @@ describe('Component: ReorderClientPage', () => {
         
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
         
+        // Select an item to show the button
+        const checkboxes = screen.getAllByRole('checkbox');
+        await fireEvent.click(checkboxes[1]);
+
         const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
         await fireEvent.click(createPoButton);
 
