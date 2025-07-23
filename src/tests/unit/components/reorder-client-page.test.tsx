@@ -73,15 +73,15 @@ describe('Component: ReorderClientPage', () => {
         expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     });
 
-    it('should show the action bar when items are selected by default', async () => {
+    it('should show the action bar when items are selected by default, and hide it when all are deselected', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
         
         // By default, all items are selected, so the bar should be visible.
         expect(screen.getByText(/item\(s\) selected/)).toBeInTheDocument();
         expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
 
-        // Uncheck one item
         const checkboxes = screen.getAllByRole('checkbox');
+        // Uncheck the first item
         await fireEvent.click(checkboxes[1]);
         expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
 
