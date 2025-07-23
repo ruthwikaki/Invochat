@@ -1,7 +1,7 @@
 
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as universalChat from '@/ai/flows/universal-chat';
+import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
 import * as redis from '@/lib/redis';
 import type { MessageData, GenerateResponse } from 'genkit';
@@ -76,7 +76,7 @@ describe('Universal Chat Flow', () => {
         generateMock.mockResolvedValue(mockToolResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
-        const result = await universalChat.universalChatFlow(input);
+        const result = await universalChatFlow(input);
 
         expect(generateMock).toHaveBeenCalledWith(expect.objectContaining({
             toolChoice: 'auto',
@@ -93,7 +93,7 @@ describe('Universal Chat Flow', () => {
         generateMock.mockResolvedValue(mockTextResponse);
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
-        await universalChat.universalChatFlow(input);
+        await universalChatFlow(input);
         
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
             { userQuery: mockUserQuery, toolResult: 'I cannot help with that.' },
@@ -106,7 +106,7 @@ describe('Universal Chat Flow', () => {
         const redisGetMock = vi.spyOn(redis.redisClient, 'get').mockResolvedValue(JSON.stringify(mockFinalResponse));
 
         const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
-        const result = await universalChat.universalChatFlow(input);
+        const result = await universalChatFlow(input);
 
         expect(redisGetMock).toHaveBeenCalled();
         expect(generateMock).not.toHaveBeenCalled();
