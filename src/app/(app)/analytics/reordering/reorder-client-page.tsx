@@ -61,7 +61,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   const router = useRouter();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
-  const [selectedSuggestions, setSelectedSuggestions] = useState<ReorderSuggestion[]>(initialSuggestions);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<ReorderSuggestion[]>([]);
 
   const handleSelect = (suggestion: ReorderSuggestion, checked: boolean) => {
     setSelectedSuggestions(prev => 

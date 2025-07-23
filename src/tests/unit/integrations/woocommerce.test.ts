@@ -50,25 +50,22 @@ const mockWooOrders = [
 
 describe('WooCommerce Integration Service', () => {
   let supabaseMock: any;
-  let updateMock: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
     (fetch as vi.Mock).mockClear();
 
-    updateMock = vi.fn().mockReturnThis();
     supabaseMock = {
-      from: vi.fn(() => ({
-        update: updateMock,
-        eq: vi.fn().mockReturnThis(),
-        upsert: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{id: 'prod-id-1', external_product_id: '1'}, {id: 'prod-id-2', external_product_id: '2'}], error: null }) })),
-      })),
+      from: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      upsert: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{id: 'prod-id-1', external_product_id: '1'}, {id: 'prod-id-2', external_product_id: '2'}], error: null }) })),
       rpc: vi.fn().mockResolvedValue({ error: null }),
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
-    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue(undefined);
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
   it('should run a full sync successfully', async () => {
@@ -83,18 +80,18 @@ describe('WooCommerce Integration Service', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
 
     // Verify variant and product upserts
-    expect(supabaseMock.from('products').upsert).toHaveBeenCalled();
-    expect(supabaseMock.from('product_variants').upsert).toHaveBeenCalled();
+    expect(supabaseMock.from).toHaveBeenCalledWith('products');
+    expect(supabaseMock.from).toHaveBeenCalledWith('product_variants');
     
     // Check that both simple and variable product variants were processed
-    const upsertedVariants = supabaseMock.from('product_variants').upsert.mock.calls[0][0];
+    const upsertedVariants = supabaseMock.upsert.mock.calls.find(call => call[0][0].product_id)[0];
     expect(upsertedVariants.find((v: any) => v.sku === 'SIMPLE1')).toBeDefined();
     expect(upsertedVariants.find((v: any) => v.sku === 'VAR1-S')).toBeDefined();
 
     // Verify status updates
-    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
-    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
-    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
+    expect(supabaseMock.update).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
+    expect(supabaseMock.update).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
+    expect(supabaseMock.update).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
   });
 
   it('should throw an error if credentials are not found', async () => {
