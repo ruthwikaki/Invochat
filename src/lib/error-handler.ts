@@ -1,64 +1,49 @@
-/**
- * @fileoverview Centralized, type-safe error handling utilities.
- */
-import { logger } from './logger';
 
-const isProduction = process.env.NODE_ENV === 'production';
+import { logger } from './logger'
 
-/**
- * Type guard to check if an unknown value is an Error object.
- * @param error The value to check.
- * @returns True if the value is an Error, false otherwise.
- */
-export function isError(error: unknown): error is Error {
-  return error instanceof Error;
+export function isError(value: unknown): value is Error {
+  return value instanceof Error
 }
 
-/**
- * Extracts a message from an unknown error type.
- * @param error The error to process.
- * @returns A string representing the error message.
- */
 export function getErrorMessage(error: unknown): string {
   if (isError(error)) {
-    return error.message;
+    return error.message
   }
   if (typeof error === 'string') {
-    return error;
+    return error
   }
-  if (error === null || error === undefined) {
-    return 'An unknown and non-stringifiable error occurred.';
-  }
-  try {
-    // Attempt to stringify, but handle potential circular references
-    return JSON.stringify(error, null, 2);
-  } catch {
-    return 'An unknown and non-stringifiable error occurred.';
+  return 'An unknown error occurred'
+}
+
+export function logError(error: unknown, context?: string): void {
+  const message = getErrorMessage(error)
+  const logMessage = context ? `[${context}] ${message}` : message
+  
+  if (isError(error)) {
+    logger.error(logMessage, { error, stack: error.stack })
+  } else {
+    logger.error(logMessage, { error })
   }
 }
 
-/**
- * A type-safe error logger. It automatically captures the stack trace if available
- * but redacts it in production logs to prevent information disclosure.
- * @param error The error to log.
- * @param context Additional context for the error log.
- */
-export function logError(error: unknown, context: Record<string, unknown> = {}) {
-    const message = getErrorMessage(error);
-    
-    // Construct a log object with context and error details
-    const logObject: Record<string, unknown> = {
-        ...context,
-    };
-    
-    // In development, we want the full stack trace for easier debugging.
-    // In production, we explicitly OMIT the stack trace from logs to prevent leaking sensitive information.
-    if (!isProduction) {
-        if (isError(error)) {
-            logObject.stack = error.stack;
-        }
-    }
+export class AppError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 500
+  ) {
+    super(message)
+    this.name = 'AppError'
+  }
+}
 
-    // Use the centralized logger
-    logger.error(message, logObject);
+export function handleAsyncError<T extends (...args: any[]) => Promise<any>>(
+  fn: T
+): T {
+  return ((...args: any[]) => {
+    return fn(...args).catch((error: unknown) => {
+      logError(error, fn.name)
+      throw error
+    })
+  }) as T
 }

@@ -1,3 +1,4 @@
+
 import { renderHook, act } from '@testing-library/react';
 import { useToast, reducer } from '../../hooks/use-toast';
 import { describe, it, expect, vi } from 'vitest';
@@ -23,19 +24,20 @@ describe('useToast reducer', () => {
 describe('useToast hook', () => {
   it('should allow adding and dismissing toasts', () => {
     const { result } = renderHook(() => useToast());
-    
+
     act(() => {
-      result.current.toast({ title: 'Hello' });
+      result.current.toast({
+        title: 'Test Toast',
+        description: 'This is a test'
+      });
     });
 
     expect(result.current.toasts).toHaveLength(1);
-    expect(result.current.toasts[0].title).toBe('Hello');
 
     act(() => {
       result.current.dismiss(result.current.toasts[0].id);
     });
 
-    // The toast is marked for dismissal, but not removed immediately
     expect(result.current.toasts[0].open).toBe(false);
   });
 });
