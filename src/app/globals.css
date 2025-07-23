@@ -65,9 +65,7 @@
     --chart-4: hsl(var(--success));
     --chart-5: hsl(var(--warning));
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
