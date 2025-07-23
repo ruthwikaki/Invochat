@@ -69,9 +69,9 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
 export async function getUnifiedInventoryFromDB(companyId: string, params: { query?: string; page?: number, limit?: number; offset?: number; status?: string; sortBy?: string; sortDirection?: string; }): Promise<{items: UnifiedInventoryItem[], totalCount: number}> {
     const supabase = getServiceRoleClient();
     
-    // The view name is 'product_variants_with_details'
+    // The view name is 'product_variants_with_details_mat'
     let query = supabase
-        .from('product_variants_with_details')
+        .from('product_variants_with_details_mat')
         .select('*', { count: 'exact' })
         .eq('company_id', companyId);
 
@@ -212,6 +212,7 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
             throw error;
         }
         await invalidateCompanyCache(companyId, ['suppliers']);
+        await refreshMaterializedViews(companyId);
     } catch (error) {
         logError(error, { context: 'createSupplierInDb failed' });
         throw new Error(`Could not create supplier: ${getErrorMessage(error)}`);
@@ -225,6 +226,7 @@ export async function updateSupplierInDb(id: string, companyId: string, formData
             throw error;
         }
         await invalidateCompanyCache(companyId, ['suppliers']);
+        await refreshMaterializedViews(companyId);
     } catch (error) {
         logError(error, { context: `updateSupplierInDb failed for id: ${id}` });
         throw new Error(`Could not update supplier: ${getErrorMessage(error)}`);
@@ -515,8 +517,14 @@ export async function createExportJobInDb(companyId: string, userId: string) {
 }
 
 export async function refreshMaterializedViews(companyId: string) {
-    // Placeholder function
-    console.log('refreshMaterializedViews called for company:', companyId);
+    logger.info(`[DB] Refreshing materialized views for company ${companyId}`);
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.rpc('refresh_product_variants_view', { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'Failed to refresh materialized views', companyId });
+    } else {
+        logger.info(`[DB] Successfully refreshed materialized views for company ${companyId}`);
+    }
 }
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
