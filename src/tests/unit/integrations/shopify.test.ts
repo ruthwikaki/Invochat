@@ -36,7 +36,7 @@ const mockIntegration: Integration = {
 
 const mockShopifyProducts = {
   products: [
-    { id: 1, title: 'Product 1', variants: [{ id: 101, sku: 'P1V1', price: '10.00' }] },
+    { id: 1, title: 'Product 1', variants: [{ id: 101, sku: 'P1V1', price: '10.00' }], tags: 'tag1, tag2', options: [{name: 'Size'}] },
   ],
 };
 
@@ -46,20 +46,25 @@ const mockShopifyOrders = {
 
 describe('Shopify Integration Service', () => {
   let supabaseMock: any;
+  let updateMock: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
     (fetch as vi.Mock).mockClear();
 
+    updateMock = vi.fn().mockReturnThis();
     supabaseMock = {
       from: vi.fn(() => ({
-        update: vi.fn(() => ({ eq: vi.fn().mockReturnThis() })),
+        update: updateMock,
+        eq: vi.fn().mockReturnThis(),
         upsert: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{id: 'prod-id', external_product_id: '1'}], error: null }) })),
       })),
       rpc: vi.fn().mockResolvedValue({ error: null }),
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue('shpat_test_token');
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
   });
 
   it('should run a full sync successfully', async () => {
@@ -78,9 +83,9 @@ describe('Shopify Integration Service', () => {
     expect(supabaseMock.rpc).toHaveBeenCalledWith('record_order_from_platform', expect.anything());
 
     // Verify status updates
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
     
     // Verify post-sync actions
     expect(database.invalidateCompanyCache).toHaveBeenCalled();

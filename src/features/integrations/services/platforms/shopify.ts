@@ -4,7 +4,7 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration, Product, ProductVariant } from '@/types';
-import { invalidateCompanyCache, refreshMaterializedViews } from '@/services/database';
+import * as database from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
 import DOMPurify from 'isomorphic-dompurify';
@@ -78,11 +78,11 @@ export async function syncProducts(integration: Integration, accessToken: string
                         company_id: integration.company_id,
                         sku: variant.sku || `SHOPIFY-${variant.id}`,
                         title: variant.title === 'Default Title' ? null : variant.title,
-                        option1_name: shopifyProduct.options?.[0]?.name,
+                        option1_name: shopifyProduct.options?.[0]?.name || null,
                         option1_value: variant.option1,
-                        option2_name: shopifyProduct.options?.[1]?.name,
+                        option2_name: shopifyProduct.options?.[1]?.name || null,
                         option2_value: variant.option2,
-                        option3_name: shopifyProduct.options?.[2]?.name,
+                        option3_name: shopifyProduct.options?.[2]?.name || null,
                         option3_value: variant.option3,
                         barcode: variant.barcode,
                         price: Math.round(parseFloat(variant.price) * 100),
@@ -175,8 +175,8 @@ export async function runShopifyFullSync(integration: Integration) {
         logger.info(`[Sync] Full sync completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
         
-        await invalidateCompanyCache(integration.company_id, ['dashboard']);
-        await refreshMaterializedViews(integration.company_id);
+        await database.invalidateCompanyCache(integration.company_id, ['dashboard']);
+        await database.refreshMaterializedViews(integration.company_id);
         
     } catch(e) {
         logError(e, { context: `Shopify sync failed for integration ${integration.id}` });

@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
@@ -76,6 +75,7 @@ describe('Component: ReorderClientPage', () => {
 
     it('should show the action bar when items are selected by default', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
+        
         // By default, all items are selected, so the bar should be visible.
         expect(screen.getByText(/item\(s\) selected/)).toBeInTheDocument();
         
