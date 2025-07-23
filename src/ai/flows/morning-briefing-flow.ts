@@ -44,8 +44,8 @@ export const morningBriefingPrompt = ai.definePrompt({
         - Example (Dead Stock): "I've noticed that {{metrics.deadStockItemsCount}} items haven't sold in a while, tying up capital. Let's create a plan to move this inventory."
         - Example (Stable): "Things are looking stable. Your sales are steady and inventory levels are healthy. Keep up the great work!"
     3.  **Create a Call to Action (CTA):** Based on your summary, what is the most logical next step? Provide text and a relevant link for a button.
-        - If the issue is low stock, link to '/reordering'.
-        - If the issue is dead stock, link to '/dead-stock'.
+        - If the issue is low stock, link to '/analytics/reordering'.
+        - If the issue is dead stock, link to '/analytics/dead-stock'.
         - If things are stable, you can link to the '/analytics' page for deeper insights.
 
     Provide your response in the specified JSON format.
