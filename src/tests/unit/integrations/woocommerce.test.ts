@@ -18,7 +18,14 @@ function createFetchResponse(data: any, totalPages = 1) {
 }
 
 vi.mock('@/features/integrations/services/encryption');
-vi.mock('@/services/database');
+vi.mock('@/services/database', async (importOriginal) => {
+    const actual = await importOriginal<typeof database>();
+    return {
+        ...actual,
+        invalidateCompanyCache: vi.fn().mockResolvedValue(undefined),
+        refreshMaterializedViews: vi.fn().mockResolvedValue(undefined),
+    };
+});
 vi.mock('@/lib/supabase/admin');
 
 const mockIntegration: Integration = {
@@ -37,8 +44,8 @@ const mockIntegration: Integration = {
 const mockCredentials = { consumerKey: 'ck_test', consumerSecret: 'cs_test' };
 
 const mockWooProducts = [
-  { id: 1, name: 'Simple Product', type: 'simple', sku: 'SIMPLE1', price: '20.00', stock_quantity: 10 },
-  { id: 2, name: 'Variable Product', type: 'variable', sku: 'VAR1' }
+  { id: 1, name: 'Simple Product', type: 'simple', sku: 'SIMPLE1', price: '20.00', stock_quantity: 10, images: [], tags: [], categories: [] },
+  { id: 2, name: 'Variable Product', type: 'variable', sku: 'VAR1', images: [], tags: [], categories: [] }
 ];
 
 const mockWooVariations = [
@@ -51,14 +58,16 @@ const mockWooOrders = [
 
 describe('WooCommerce Integration Service', () => {
   let supabaseMock: any;
+  let updateMock: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
     (fetch as vi.Mock).mockClear();
 
+    updateMock = vi.fn().mockReturnThis();
     supabaseMock = {
       from: vi.fn(() => ({
-        update: vi.fn().mockReturnThis(),
+        update: updateMock,
         eq: vi.fn().mockReturnThis(),
         upsert: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{id: 'prod-id-1', external_product_id: '1'}, {id: 'prod-id-2', external_product_id: '2'}], error: null }) })),
       })),
@@ -66,8 +75,8 @@ describe('WooCommerce Integration Service', () => {
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
-    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue(undefined);
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
   it('should run a full sync successfully', async () => {
@@ -91,9 +100,9 @@ describe('WooCommerce Integration Service', () => {
     expect(upsertedVariants.find((v: any) => v.sku === 'VAR1-S')).toBeDefined();
 
     // Verify status updates
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
-    expect(supabaseMock.from('integrations').update).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
+    expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
   });
 
   it('should throw an error if credentials are not found', async () => {

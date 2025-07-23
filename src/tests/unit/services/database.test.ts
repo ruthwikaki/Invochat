@@ -32,10 +32,10 @@ describe('Database Service - Business Logic', () => {
     const supabaseMock = getServiceRoleClient();
     (supabaseMock.rpc as vi.Mock).mockResolvedValue({ data: mockDashboardData, error: null });
 
-    const result = await getDashboardMetrics('test-company-id', '30d');
+    const result = await getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d');
 
     expect(supabaseMock.rpc).toHaveBeenCalledWith('get_dashboard_metrics', {
-      p_company_id: 'test-company-id',
+      p_company_id: 'd1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a',
       p_days: 30,
     });
 
@@ -48,6 +48,6 @@ describe('Database Service - Business Logic', () => {
     const dbError = new Error('Database connection error');
     (supabaseMock.rpc as vi.Mock).mockResolvedValue({ data: null, error: dbError });
 
-    await expect(getDashboardMetrics('test-company-id', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
+    await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
   });
 });
