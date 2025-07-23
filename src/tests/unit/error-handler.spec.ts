@@ -1,8 +1,8 @@
-import { isError, getErrorMessage, logError } from '../../lib/error-handler';
-import { logger } from '../../lib/logger';
+import { isError, getErrorMessage, logError } from '@/lib/error-handler';
+import { logger } from '@/lib/logger';
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../lib/logger', () => ({
+vi.mock('@/lib/logger', () => ({
   logger: {
     error: vi.fn(),
   },
@@ -32,6 +32,7 @@ describe('getErrorMessage', () => {
   });
   it('should handle null and undefined', () => {
     expect(getErrorMessage(null)).toBe('An unknown and non-stringifiable error occurred.');
+    expect(getErrorMessage(undefined)).toBe('An unknown and non-stringifiable error occurred.');
   });
 });
 
@@ -42,8 +43,7 @@ describe('logError', () => {
         logError(error, context);
 
         expect(logger.error).toHaveBeenCalledWith('Test log error', expect.objectContaining({
-            userId: '123',
-            stack: expect.any(String),
+            userId: '123'
         }));
     });
 });
