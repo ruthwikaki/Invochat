@@ -9,16 +9,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
-    // Only include files in the unit directory for Vitest
+    // Only include files with .test.ts or .test.tsx for Vitest
     include: ['src/tests/unit/**/*.test.{ts,tsx}'],
-    // Exclude all other tests
+    // Exclude Playwright's .spec files and other configurations
     exclude: [
-      'src/tests/*.spec.ts',
-      'src/tests/e2e/**/*.spec.ts',
-      'src/tests/api/**/*.spec.ts',
-      'src/tests/integration/**/*.spec.ts',
-      'src/tests/performance/**/*.spec.ts',
-      'src/tests/security/**/*.spec.ts',
+      '**/*.spec.ts',
       'node_modules/**/*',
     ],
     coverage: {
