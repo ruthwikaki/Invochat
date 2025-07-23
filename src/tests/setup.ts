@@ -1,4 +1,3 @@
-
 import { vi } from 'vitest';
 
 // Mock the logger to prevent console output during tests
@@ -36,11 +35,13 @@ vi.mock('@/lib/supabase/admin', () => ({
   createServerClient: vi.fn(),
 }));
 
-vi.mock('@/lib/auth-helpers', () => ({
-    getAuthContext: vi.fn().mockResolvedValue({
-        userId: 'test-user-id',
-        companyId: 'test-company-id',
-    }),
-    getCurrentUser: vi.fn(),
-    getCurrentCompanyId: vi.fn(),
-}));
+vi.mock('@/lib/auth-helpers', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        getAuthContext: vi.fn().mockResolvedValue({
+            userId: 'test-user-id',
+            companyId: 'test-company-id',
+        }),
+    }
+});
