@@ -1,3 +1,4 @@
+
 'use client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { formatCentsAsCurrency } from '@/lib/utils';
@@ -51,8 +52,8 @@ export function InventorySummaryCard({ data }: InventorySummaryCardProps) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <SummaryItem label="Healthy Stock" value={data.in_stock_value} colorClass="bg-green-500" />
-                    <SummaryItem label="Low Stock" value={data.low_stock_value} colorClass="bg-amber-500" link="/reordering" />
-                    <SummaryItem label="Dead Stock" value={data.dead_stock_value} colorClass="bg-red-500" link="/dead-stock" />
+                    <SummaryItem label="Low Stock" value={data.low_stock_value} colorClass="bg-amber-500" link="/analytics/reordering" />
+                    <SummaryItem label="Dead Stock" value={data.dead_stock_value} colorClass="bg-red-500" link="/analytics/dead-stock" />
                 </div>
             </CardContent>
         </Card>
