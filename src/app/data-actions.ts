@@ -26,7 +26,6 @@ import {
     getSalesFromDB,
     getSalesAnalyticsFromDB,
     getCustomerAnalyticsFromDB,
-    getReorderSuggestionsFromDB,
     createPurchaseOrdersInDb,
     getPurchaseOrdersFromDB,
     getInventoryLedgerFromDB,
@@ -38,9 +37,11 @@ import {
     getInventoryTurnoverFromDB,
     getMorningBriefing as getMorningBriefingFromChat,
     getDashboardMetrics,
-    checkUserPermission
+    checkUserPermission,
+    getReorderSuggestionsFromDB,
+    getHistoricalSalesForSkus
 } from '@/services/database';
-import { SupplierFormData } from '@/types';
+import type { SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -268,10 +269,12 @@ export async function deleteCustomer(formData: FormData) {
 export async function exportCustomers(params: { query: string }) {
     try {
         const { companyId } = await getAuthContext();
+        // Fetch all customers matching the query, up to a reasonable limit.
         const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
+        logError(e, { context: 'exportCustomers failed' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -284,10 +287,27 @@ export async function getCustomerAnalytics() {
 export async function exportInventory(params: { query: string; status: string; sortBy: string; sortDirection: string; }) {
     try {
         const { companyId } = await getAuthContext();
+        // Fetch all inventory items matching the filters, up to a reasonable limit.
         const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, offset: 0, limit: 10000 });
-        const csv = Papa.unparse(items);
+        
+        // Customize the data for a cleaner CSV export
+        const dataToExport = items.map(item => ({
+            product_title: item.product_title,
+            variant_title: item.title,
+            sku: item.sku,
+            inventory_quantity: item.inventory_quantity,
+            price_dollars: item.price ? (item.price / 100).toFixed(2) : '0.00',
+            cost_dollars: item.cost ? (item.cost / 100).toFixed(2) : '0.00',
+            product_status: item.product_status,
+            product_type: item.product_type,
+            location: item.location,
+            barcode: item.barcode,
+        }));
+        
+        const csv = Papa.unparse(dataToExport);
         return { success: true, data: csv };
     } catch (e) {
+        logError(e, { context: 'exportInventory failed' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -304,7 +324,8 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData) {
         const suggestions = JSON.parse(formData.get('suggestions') as string) as ReorderSuggestion[];
         const result = await createPurchaseOrdersInDb(companyId, userId, suggestions);
         revalidatePath('/purchase-orders');
-        return { success: true, createdPoCount: result.created_po_count };
+        revalidatePath('/analytics/reordering');
+        return { success: true, createdPoCount: result };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -312,9 +333,21 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData) {
 
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
     try {
-        const csv = Papa.unparse(suggestions);
+        const dataToExport = suggestions.map(s => ({
+            sku: s.sku,
+            product_name: s.product_name,
+            supplier_name: s.supplier_name,
+            current_quantity: s.current_quantity,
+            suggested_reorder_quantity: s.suggested_reorder_quantity,
+            unit_cost: s.unit_cost !== null && s.unit_cost !== undefined ? (s.unit_cost / 100).toFixed(2) : '',
+            total_cost: s.unit_cost !== null && s.unit_cost !== undefined ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : '',
+            adjustment_reason: s.adjustment_reason,
+            confidence: s.confidence,
+        }));
+        const csv = Papa.unparse(dataToExport);
         return { success: true, data: csv };
     } catch (e) {
+        logError(e, { context: 'exportReorderSuggestions failed' });
         return { success: false, error: getErrorMessage(e) };
     }
 }
@@ -482,3 +515,5 @@ export async function handleUserMessage(params: { content: string, conversationI
     return { error: errorMessage };
   }
 }
+
+    
