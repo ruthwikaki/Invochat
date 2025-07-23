@@ -1,4 +1,6 @@
 
+'use server';
+
 import { z } from 'zod';
 
 export const AnomalySchema = z.object({
