@@ -15,12 +15,12 @@ test.describe('Sales Page', () => {
   });
 
   test('should filter sales by order number', async ({ page }) => {
-    await page.fill('input[placeholder*="Search by order number"]', 'ORD-');
+    await page.fill('input[placeholder*="Search by order number"]', 'FBA-SIM-ORD');
     
     const tableBody = page.locator('table > tbody');
-    await expect(tableBody).toContainText('ORD-');
+    await expect(tableBody).toContainText('FBA-SIM-ORD');
     
     await page.fill('input[placeholder*="Search by order number"]', '');
-    await expect(tableBody).toContainText('ORD-'); // assuming data doesn't change
+    await expect(tableBody).toContainText('FBA-SIM-ORD'); // assuming data doesn't change
   });
 });
