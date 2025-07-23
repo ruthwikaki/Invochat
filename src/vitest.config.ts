@@ -11,12 +11,12 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/*.spec.ts', // Exclude Playwright tests
       '**/e2e/**',
-      '**/integration/**'
+      '**/integration/**',
+      '**/*.spec.ts', // Exclude all Playwright tests
     ],
     include: [
-      '**/*.test.ts',
+      '**/*.test.ts',   // Include all Vitest unit tests
       '**/*.test.tsx',
     ],
   },

@@ -11,11 +11,12 @@ const baseURL = `http://localhost:${PORT}`;
 export default defineConfig({
   // Timeout per test
   timeout: 30 * 1000,
-  // Test directory
+  // Test directory - Point it to the root of the tests folder
   testDir: path.join(__dirname, 'tests'),
+  // Only run files with a .spec.ts extension
   testMatch: '**/*.spec.ts',
-  // If a test fails, retry it additional 2 times
-  retries: 2,
+  // Ignore unit tests
+  testIgnore: '**/*.test.ts',
   // Artifacts folder where screenshots, videos, and traces are stored.
   outputDir: 'test-results/',
 

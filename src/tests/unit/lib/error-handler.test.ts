@@ -1,7 +1,12 @@
-
 import { isError, getErrorMessage, logError } from '@/lib/error-handler';
 import { logger } from '@/lib/logger';
 import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    error: vi.fn(),
+  },
+}));
 
 describe('isError', () => {
   it('should return true for Error objects', () => {
@@ -37,12 +42,9 @@ describe('logError', () => {
         const context = { userId: '123' };
         logError(error, context);
 
-        const expectedLogObject = {
+        expect(logger.error).toHaveBeenCalledWith('Test log error', expect.objectContaining({
             userId: '123',
-            // In dev mode (which vitest is), stack should be included
             stack: expect.any(String),
-        };
-
-        expect(logger.error).toHaveBeenCalledWith('Test log error', expect.objectContaining(expectedLogObject));
+        }));
     });
 });
