@@ -1,11 +1,13 @@
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
 import type { Integration, Product, ProductVariant } from '@/types';
-import * as database from '@/services/database';
+import { refreshMaterializedViews } from '@/services/database';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
+import { invalidateCompanyCache } from '@/lib/redis';
 
 async function wooCommerceFetch(
     storeUrl: string | null,
@@ -254,8 +256,8 @@ export async function runWooCommerceFullSync(integration: Integration) {
         logger.info(`[Sync] Full sync completed for ${integration.shop_name}`);
         await supabase.from('integrations').update({ sync_status: 'success', last_sync_at: new Date().toISOString() }).eq('id', integration.id);
         
-        await database.invalidateCompanyCache(integration.company_id, ['dashboard']);
-        await database.refreshMaterializedViews(integration.company_id);
+        await invalidateCompanyCache(integration.company_id, ['dashboard']);
+        await refreshMaterializedViews(integration.company_id);
 
     } catch(e: unknown) {
         logError(e, { context: `WooCommerce full sync failed for integration ${integration.id}`});
