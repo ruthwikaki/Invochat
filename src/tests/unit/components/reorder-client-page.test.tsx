@@ -78,7 +78,8 @@ describe('Component: ReorderClientPage', () => {
         
         // By default, all items are selected, so the bar should be visible.
         expect(screen.getByText(/item\(s\) selected/)).toBeInTheDocument();
-        
+        expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
+
         // Uncheck one item
         const checkboxes = screen.getAllByRole('checkbox');
         await fireEvent.click(checkboxes[1]);

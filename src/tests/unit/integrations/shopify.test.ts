@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runShopifyFullSync } from '@/features/integrations/services/platforms/shopify';
 import * as encryption from '@/features/integrations/services/encryption';
@@ -36,7 +35,7 @@ const mockIntegration: Integration = {
 
 const mockShopifyProducts = {
   products: [
-    { id: 1, title: 'Product 1', variants: [{ id: 101, sku: 'P1V1', price: '10.00' }], tags: 'tag1, tag2', options: [{name: 'Size'}] },
+    { id: 1, title: 'Product 1', variants: [{ id: 101, sku: 'P1V1', price: '10.00', option1: 'Small' }], tags: 'tag1, tag2', options: [{name: 'Size'}] },
   ],
 };
 
@@ -63,8 +62,8 @@ describe('Shopify Integration Service', () => {
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue('shpat_test_token');
-    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue(undefined);
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
   it('should run a full sync successfully', async () => {

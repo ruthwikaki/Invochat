@@ -28,41 +28,42 @@ const mockCredentials = { sellerId: 'AMZN123', authToken: 'TOKENABC' };
 describe('Amazon FBA Integration Service', () => {
   let supabaseMock: any;
   let updateMock: any;
+  let eqMock: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
-    updateMock = vi.fn().mockReturnThis();
+    
+    // Deeper mock for Supabase client to allow chaining
+    eqMock = vi.fn().mockReturnThis();
+    updateMock = vi.fn(() => ({ eq: eqMock }));
+    
     supabaseMock = {
       from: vi.fn(() => ({
         update: updateMock,
-        eq: vi.fn().mockReturnThis()
       })),
       rpc: vi.fn().mockResolvedValue({ error: null }),
     };
+
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
-    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue();
-    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue();
+    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue(undefined);
+    vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
   it('should run a full sync simulation successfully', async () => {
     await runAmazonFbaFullSync(mockIntegration);
 
-    // Check that credentials were retrieved
     expect(encryption.getSecret).toHaveBeenCalledWith(mockIntegration.company_id, 'amazon_fba');
     
-    // Check that sync status was updated multiple times
     expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_products' });
     expect(updateMock).toHaveBeenCalledWith({ sync_status: 'syncing_sales' });
     expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
     
-    // Check that sales data was recorded via RPC
     expect(supabaseMock.rpc).toHaveBeenCalledWith(
         'record_order_from_platform', 
         expect.objectContaining({ p_platform: 'amazon_fba' })
     );
 
-    // Check that caches were invalidated and views refreshed
     expect(database.invalidateCompanyCache).toHaveBeenCalled();
     expect(database.refreshMaterializedViews).toHaveBeenCalled();
   });
