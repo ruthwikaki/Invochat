@@ -296,3 +296,5 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
+
+    
