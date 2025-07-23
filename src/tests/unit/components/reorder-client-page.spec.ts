@@ -65,7 +65,9 @@
     --chart-4: hsl(var(--success));
     --chart-5: hsl(var(--warning));
   }
+}
 
+@layer base {
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;

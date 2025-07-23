@@ -7,7 +7,7 @@ import path from 'path';
  */
 export default defineConfig({
   testDir: './src/tests',
-  // Only include files with .spec.ts for Playwright
+  // Only include files with .spec.ts for Playwright E2E tests
   testMatch: '**/*.spec.ts',
   // Exclude unit tests from Playwright runs
   testIgnore: '**/unit/**/*.test.{ts,tsx}',
