@@ -1,75 +1,128 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
+import type { ReorderSuggestion } from '@/types';
+import { useToast } from '@/hooks/use-toast';
+import * as dataActions from '@/app/data-actions';
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 257 88% 63%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 0 0% 100%;
-    --warning: 47.9 95.8% 53.1%;
-    --warning-foreground: 240 10% 3.9%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 10% 3.9%;
-    --radius: 0.5rem;
-    --chart-1: hsl(var(--primary));
-    --chart-2: hsl(var(--secondary));
-    --chart-3: hsl(var(--destructive));
-    --chart-4: hsl(var(--success));
-    --chart-5: hsl(var(--warning));
-  }
+// Mock dependencies
+vi.mock('@/hooks/use-toast', () => ({
+  useToast: vi.fn(() => ({
+    toast: vi.fn(),
+  })),
+}));
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 257 88% 63%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
-    --warning: 47.9 95.8% 53.1%;
-    --warning-foreground: 240 10% 3.9%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --chart-1: hsl(var(--primary));
-    --chart-2: hsl(var(--secondary));
-    --chart-3: hsl(var(--destructive));
-    --chart-4: hsl(var(--success));
-    --chart-5: hsl(var(--warning));
-  }
-}
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 
-@layer base {
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-}
+vi.mock('@/app/data-actions', () => ({
+    createPurchaseOrdersFromSuggestions: vi.fn(),
+    exportReorderSuggestions: vi.fn(),
+}));
+
+vi.mock('@/lib/csrf-client', () => ({
+    getCookie: vi.fn(),
+    CSRF_FORM_NAME: 'csrf_token'
+}));
+
+const mockSuggestions: ReorderSuggestion[] = [
+  {
+    variant_id: 'v1',
+    product_id: 'p1',
+    sku: 'SKU001',
+    product_name: 'Test Product 1',
+    supplier_name: 'Test Supplier',
+    supplier_id: 's1',
+    current_quantity: 5,
+    suggested_reorder_quantity: 50,
+    unit_cost: 1000,
+    base_quantity: 50,
+    adjustment_reason: 'AI adjustment reason',
+    seasonality_factor: 1.0,
+    confidence: 0.8
+  },
+  {
+    variant_id: 'v2',
+    product_id: 'p2',
+    sku: 'SKU002',
+    product_name: 'Test Product 2',
+    supplier_name: 'Test Supplier',
+    supplier_id: 's1',
+    current_quantity: 10,
+    suggested_reorder_quantity: 25,
+    unit_cost: 2000,
+    base_quantity: 25,
+    adjustment_reason: null,
+    seasonality_factor: null,
+    confidence: null
+  },
+];
+
+describe('Component: ReorderClientPage', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('should render the table with initial suggestions', () => {
+        render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
+
+        expect(screen.getByText('AI-Enhanced Reorder Suggestions')).toBeInTheDocument();
+        expect(screen.getByText('Test Product 1')).toBeInTheDocument();
+        expect(screen.getByText('Test Product 2')).toBeInTheDocument();
+        expect(screen.getAllByRole('checkbox')).toHaveLength(3); // 1 header + 2 rows
+    });
+
+    it('should render the empty state when no suggestions are provided', () => {
+        render(<ReorderClientPage initialSuggestions={[]} />);
+
+        expect(screen.getByText('No Reorder Suggestions')).toBeInTheDocument();
+    });
+
+    it('should show the action bar when an item is selected', async () => {
+        render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
+        
+        // Action bar should not be visible initially
+        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
+        
+        const checkboxes = screen.getAllByRole('checkbox');
+        // Click the first row checkbox (index 1, as index 0 is the header)
+        await fireEvent.click(checkboxes[1]);
+
+        expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Create PO\(s\)/ })).toBeInTheDocument();
+    });
+
+    it('should call createPurchaseOrdersFromSuggestions when the button is clicked', async () => {
+        const mockToast = vi.fn();
+        (useToast as vi.Mock).mockReturnValue({ toast: mockToast });
+        vi.spyOn(dataActions, 'createPurchaseOrdersFromSuggestions').mockResolvedValue({ 
+            success: true, 
+            createdPoCount: 1 
+        });
+        
+        render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
+
+        // Select an item first
+        const checkboxes = screen.getAllByRole('checkbox');
+        await fireEvent.click(checkboxes[1]);
+
+        const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
+        await fireEvent.click(createPoButton);
+
+        await waitFor(() => {
+            expect(dataActions.createPurchaseOrdersFromSuggestions).toHaveBeenCalled();
+        });
+        
+        await waitFor(() => {
+            expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+                title: 'Purchase Orders Created!',
+            }));
+        });
+    });
+    
+});
