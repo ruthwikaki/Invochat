@@ -9,7 +9,7 @@ export default defineConfig({
   testDir: './src/tests',
   // Only include files with .spec.ts for Playwright
   testMatch: '**/*.spec.ts',
-  // Exclude unit tests
+  // Exclude unit tests from Playwright runs
   testIgnore: '**/unit/**/*.test.*',
   /* Run tests in files in parallel */
   fullyParallel: true,

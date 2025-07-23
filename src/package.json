@@ -9,12 +9,10 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "npm run test:unit && npm run test:e2e",
+    "test": "vitest",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:all": "npm run test:unit && npm run test:e2e"
+    "test:watch": "vitest --watch"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
