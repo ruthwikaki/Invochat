@@ -66,12 +66,15 @@
     --chart-4: 0 74% 50%;
     --chart-5: 217 81% 70%;
   }
+}
 
+@layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
   .font-tabular {
     font-feature-settings: 'tnum' on;
