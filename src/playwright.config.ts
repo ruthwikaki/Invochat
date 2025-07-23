@@ -2,8 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
 export default defineConfig({
-  testDir: './tests',
+  testDir: './src/tests',
+  // Only run files with .spec.ts extension for Playwright
   testMatch: '**/*.spec.ts',
+  // Ignore all unit test files
   testIgnore: '**/*.test.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
