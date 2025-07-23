@@ -6,6 +6,7 @@ import * as encryption from '@/features/integrations/services/encryption';
 import * as database from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { Integration } from '@/types';
+import * as redis from '@/lib/redis';
 
 // Mock fetch globally
 global.fetch = vi.fn();
@@ -21,6 +22,7 @@ function createFetchResponse(data: any, linkHeader: string | null = null) {
 vi.mock('@/features/integrations/services/encryption');
 vi.mock('@/services/database');
 vi.mock('@/lib/supabase/admin');
+vi.mock('@/lib/redis');
 
 const mockIntegration: Integration = {
   id: 'shopify-integration-id',
@@ -62,7 +64,7 @@ describe('Shopify Integration Service', () => {
     };
     (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue('shpat_test_token');
-    vi.spyOn(database, 'invalidateCompanyCache').mockResolvedValue(undefined);
+    vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
     vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
@@ -86,7 +88,7 @@ describe('Shopify Integration Service', () => {
     expect(supabaseMock.update).toHaveBeenCalledWith(expect.objectContaining({ sync_status: 'success' }));
     
     // Verify post-sync actions
-    expect(database.invalidateCompanyCache).toHaveBeenCalled();
+    expect(redis.invalidateCompanyCache).toHaveBeenCalled();
     expect(database.refreshMaterializedViews).toHaveBeenCalled();
   });
 
