@@ -1,4 +1,8 @@
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @layer base {
   :root {
     --background: 240 10% 99%; /* off-white */
@@ -68,11 +72,7 @@
     --chart-5: 217 81% 70%;
   }
 }
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
+ 
 @layer base {
   * {
     @apply border-border;
