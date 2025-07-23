@@ -524,5 +524,3 @@ export async function handleUserMessage(params: { content: string, conversationI
     return { error: errorMessage };
   }
 }
-
-    
