@@ -12,17 +12,20 @@ export function getErrorMessage(error: unknown): string {
   if (typeof error === 'string') {
     return error
   }
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+      return error.message;
+  }
   return 'An unknown error occurred'
 }
 
-export function logError(error: unknown, context?: string): void {
+export function logError(error: unknown, context?: Record<string, any>): void {
   const message = getErrorMessage(error)
-  const logMessage = context ? `[${context}] ${message}` : message
+  const logMessage = context ? `${JSON.stringify(context)}: ${message}` : message
   
   if (isError(error)) {
-    logger.error(logMessage, { error, stack: error.stack })
+    logger.error(logMessage, { error, stack: error.stack, ...context })
   } else {
-    logger.error(logMessage, { error })
+    logger.error(logMessage, { error, ...context })
   }
 }
 
@@ -42,7 +45,7 @@ export function handleAsyncError<T extends (...args: any[]) => Promise<any>>(
 ): T {
   return ((...args: any[]) => {
     return fn(...args).catch((error: unknown) => {
-      logError(error, fn.name)
+      logError(error, { functionName: fn.name })
       throw error
     })
   }) as T
