@@ -3,6 +3,18 @@ import { renderHook, act } from '@testing-library/react';
 import { useToast, reducer } from '../../hooks/use-toast';
 import { describe, it, expect, vi } from 'vitest';
 
+// Mock document for jsdom environment
+const mockDocument = {
+  getElementById: vi.fn(),
+  createElement: vi.fn(() => ({
+    focus: vi.fn(),
+    setAttribute: vi.fn(),
+    style: {}
+  }))
+}
+
+vi.stubGlobal('document', mockDocument)
+
 describe('useToast reducer', () => {
   it('should add a toast', () => {
     const initialState = { toasts: [] };
@@ -20,6 +32,7 @@ describe('useToast reducer', () => {
     expect(state.toasts[0].open).toBe(false);
   });
 });
+
 
 describe('useToast hook', () => {
   it('should allow adding and dismissing toasts', () => {
