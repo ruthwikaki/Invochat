@@ -3,12 +3,6 @@ import { isError, getErrorMessage, logError } from '@/lib/error-handler';
 import { logger } from '@/lib/logger';
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('@/lib/logger', () => ({
-  logger: {
-    error: vi.fn(),
-  },
-}));
-
 describe('isError', () => {
   it('should return true for Error objects', () => {
     expect(isError(new Error('test'))).toBe(true);
