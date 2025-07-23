@@ -4,12 +4,13 @@
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, ProductUpdateData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Anomaly, Alert, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, InventoryAgingReportItem, ProductLifecycleAnalysis, InventoryRiskItem, CustomerSegmentAnalysisItem } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, ProductUpdateSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, AlertSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAgingReportItemSchema, ProductLifecycleAnalysisSchema, InventoryRiskItemSchema, CustomerSegmentAnalysisItemSchema, DeadStockItemSchema } from '@/types';
-import { invalidateCompanyCache, isRedisEnabled, redisClient, rateLimit } from '@/lib/redis';
+import { isRedisEnabled, redisClient, rateLimit } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
+import { invalidateCompanyCache } from '@/lib/redis';
 
 // --- Input Validation Schemas ---
 const ChartQuerySchema = z.object({
@@ -436,17 +437,23 @@ export async function getDashboardMetrics(companyId: string, dateRange: string):
 
     try {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_dashboard_metrics', { 
+        const response = await supabase.rpc('get_dashboard_metrics', { 
             p_company_id: companyId, 
             p_days: days 
         });
+
+        if (!response) {
+            throw new Error('No response from get_dashboard_metrics RPC call.');
+        }
+
+        const { data, error } = response;
         
         if (error) {
             logError(error, { context: 'getDashboardMetrics RPC failed', companyId, days });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
         
-        const metrics = DashboardMetricsSchema.parse(data);
+        const metrics = data ? DashboardMetricsSchema.parse(data) : null;
 
         // Cache the result
         if (isRedisEnabled) {
