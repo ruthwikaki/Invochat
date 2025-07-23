@@ -1,5 +1,17 @@
-import '@testing-library/jest-dom'
-import { vi } from 'vitest'
+import '@testing-library/jest-dom/vitest';
+import { vi } from 'vitest';
+import { JSDOM } from 'jsdom';
+
+// Setup JSDOM
+const dom = new JSDOM('<!doctype html><html><body></body></html>', {
+    url: 'http://localhost/'
+});
+global.window = dom.window as unknown as Window & typeof globalThis;
+global.document = dom.window.document;
+global.navigator = dom.window.navigator;
+global.requestAnimationFrame = cb => setTimeout(cb, 0);
+global.cancelAnimationFrame = id => clearTimeout(id);
+
 
 // Mock Next.js router
 vi.mock('next/navigation', () => ({
@@ -14,7 +26,7 @@ vi.mock('next/navigation', () => ({
     get: vi.fn(),
   }),
   usePathname: () => '/test',
-}))
+}));
 
 // Mock Supabase
 vi.mock('@/lib/supabase/client', () => ({
@@ -34,7 +46,7 @@ vi.mock('@/lib/supabase/client', () => ({
       single: vi.fn().mockResolvedValue({ data: null }),
     })),
   }),
-}))
+}));
 
 // Mock environment variables
 vi.mock('@/config/app-config', () => ({
@@ -51,7 +63,7 @@ vi.mock('@/config/app-config', () => ({
       ttl: {}
     }
   }
-}))
+}));
 
 // Mock Redis
 vi.mock('@/lib/redis', () => ({
@@ -59,7 +71,7 @@ vi.mock('@/lib/redis', () => ({
   redisClient: null,
   isRedisEnabled: false,
   invalidateCompanyCache: vi.fn().mockResolvedValue(undefined),
-}))
+}));
 
 // Mock logger
 vi.mock('@/lib/logger', () => ({
@@ -69,7 +81,7 @@ vi.mock('@/lib/logger', () => ({
     warn: vi.fn(),
     debug: vi.fn(),
   },
-}))
+}));
 
 vi.mock('@/lib/auth-helpers', async (importOriginal) => {
     const actual = await importOriginal();
@@ -79,11 +91,11 @@ vi.mock('@/lib/auth-helpers', async (importOriginal) => {
             userId: 'test-user-id',
             companyId: 'test-company-id',
         }),
-    }
+    };
 });
 
 
 // Global test setup
 beforeEach(() => {
-  vi.clearAllMocks()
-})
+  vi.clearAllMocks();
+});

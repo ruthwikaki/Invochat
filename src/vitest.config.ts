@@ -7,24 +7,23 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./tests/setup.ts'],
+    setupFiles: ['./src/tests/setup.ts'],
     // Ensure Vitest only runs unit tests
-    include: ['**/*.test.ts', '**/*.test.tsx'],
+    include: ['src/**/*.test.{ts,tsx}'],
     // Exclude all other test types
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/*.spec.ts', // Exclude Playwright tests
-      '**/e2e/**',
-      '**/integration/**',
-      '**/security/**',
-      '**/performance/**',
-      '**/api/**'
+      'src/tests/e2e/**',
+      'src/tests/integration/**',
+      'src/tests/security/**',
+      'src/tests/api/**',
+      'src/**/*.spec.{ts,tsx}',
     ],
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './'),
+      '@': path.resolve(__dirname, './src'),
     },
   },
 })
