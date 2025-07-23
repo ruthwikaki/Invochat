@@ -1,0 +1,41 @@
+# This GitHub Actions workflow runs the test suite on every push and pull request.
+# https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Invochat Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Test Suite
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run unit and component tests
+        run: npm run test:unit # Assumes a 'test:unit' script is added to package.json for vitest
+
+      - name: Run Playwright E2E tests
+        run: npm run test:e2e
