@@ -7,10 +7,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     // Only include unit tests for Vitest
-    include: [
-      'src/tests/unit/**/*.test.ts',
-      'src/tests/unit/**/*.test.tsx'
-    ],
+    include: ['src/tests/unit/**/*.test.ts', 'src/tests/unit/**/*.test.tsx'],
     // Exclude Playwright tests and other non-unit tests
     exclude: [
       'src/tests/e2e/**/*',
@@ -19,7 +16,7 @@ export default defineConfig({
       'src/tests/performance/**/*',
       'src/tests/security/**/*',
       'src/tests/*.spec.ts',
-      'node_modules/**/*'
+      'node_modules/**/*',
     ],
     environment: 'jsdom',
     setupFiles: ['src/tests/setup.ts'],
@@ -32,13 +29,13 @@ export default defineConfig({
         'src/tests/',
         '**/*.d.ts',
         '**/*.config.{js,ts}',
-        '**/dist/**'
-      ]
-    }
+        '**/dist/**',
+      ],
+    },
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './')
-    }
+      '@': path.resolve(__dirname, './'),
+    },
   },
 })
