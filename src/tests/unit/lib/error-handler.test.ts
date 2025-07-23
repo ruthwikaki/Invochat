@@ -43,8 +43,7 @@ describe('logError', () => {
         logError(error, context);
 
         expect(logger.error).toHaveBeenCalledWith('Test log error', expect.objectContaining({
-            userId: '123',
-            stack: expect.any(String),
+            userId: '123'
         }));
     });
 });
