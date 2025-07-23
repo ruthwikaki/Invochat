@@ -1102,4 +1102,9 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
-"
+
+export async function getQueryPatternsForCompany(companyId: string) { return []; }
+export async function saveSuccessfulQuery(companyId: string, query: string, sql: string) { return; }
+export async function getDatabaseSchemaAndData(companyId: string) { return { schema: {}, data: {} }; }
+
+    

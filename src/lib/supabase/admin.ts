@@ -8,29 +8,34 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 
 let supabaseAdmin: SupabaseClient<Database> | null = null;
+let supabaseAdminError: string | null = null;
+
+if (envValidation.success) {
+    if (envValidation.data.SUPABASE_URL && envValidation.data.SUPABASE_SERVICE_ROLE_KEY) {
+        supabaseAdmin = createClient<Database>(
+            envValidation.data.SUPABASE_URL,
+            envValidation.data.SUPABASE_SERVICE_ROLE_KEY,
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false
+                }
+            }
+        );
+    } else {
+        supabaseAdminError = 'Supabase URL or Service Role Key is missing from environment variables.';
+        console.warn(`[Supabase Admin] ${supabaseAdminError}`);
+    }
+} else {
+    supabaseAdminError = `Supabase admin client cannot be initialized due to missing environment variables: ${JSON.stringify(envValidation.error.flatten().fieldErrors)}`;
+    console.warn(`[Supabase Admin] ${supabaseAdminError}`);
+}
+
 
 export function getServiceRoleClient(): SupabaseClient<Database> {
-  if (supabaseAdmin) {
-    return supabaseAdmin;
+  if (!supabaseAdmin) {
+    throw new Error(supabaseAdminError || 'Supabase admin client not initialized');
   }
-
-  if (!envValidation.success) {
-     const errorDetails = envValidation.error.flatten().fieldErrors;
-     const errorMessage = `Supabase admin client cannot be initialized due to missing environment variables: ${JSON.stringify(errorDetails)}`;
-     throw new Error(errorMessage);
-  }
-  
-  supabaseAdmin = createClient<Database>(
-      envValidation.data.SUPABASE_URL, 
-      envValidation.data.SUPABASE_SERVICE_ROLE_KEY, 
-      {
-          auth: {
-              autoRefreshToken: false,
-              persistSession: false
-          }
-      }
-  );
-
   return supabaseAdmin;
 }
 
@@ -69,3 +74,5 @@ export function createServerClient() {
     }
   )
 }
+
+    
