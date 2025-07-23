@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -8,17 +9,19 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    // Ensure Vitest only runs unit tests
+    include: ['**/*.test.ts', '**/*.test.tsx'],
+    // Exclude all other test types
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/*.spec.ts', // Exclude Playwright tests
+      '**/*.spec.ts',
       '**/e2e/**',
-      '**/integration/**'
+      '**/integration/**',
+      '**/security/**',
+      '**/performance/**',
+      '**/api/**'
     ],
-    include: [
-      '**/tests/unit/**/*.test.ts',
-      '**/tests/unit/**/*.test.tsx'
-    ]
   },
   resolve: {
     alias: {
