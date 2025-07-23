@@ -47,6 +47,7 @@ import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation, ReorderSuggestion } from '@/types';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
+import { z } from 'zod';
 
 export async function getProducts() {
   const { companyId } = await getAuthContext();
@@ -460,11 +461,18 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
     return (data as Message[]) || [];
 }
 
-export async function handleUserMessage(params: { content: string, conversationId: string | null }): Promise<{ newMessage?: Message, conversationId?: string, error?: string }> {
-  const { companyId, userId } = await getAuthContext();
-  const { content, conversationId } = params;
+const chatInputSchema = z.object({
+  content: z.string().min(1, "Message cannot be empty.").max(2000, "Message cannot exceed 2000 characters."),
+  conversationId: z.string().uuid("Invalid conversation ID.").nullable(),
+});
 
+
+export async function handleUserMessage(params: { content: string, conversationId: string | null }): Promise<{ newMessage?: Message, conversationId?: string, error?: string }> {
   try {
+    const { companyId, userId } = await getAuthContext();
+    const validatedInput = chatInputSchema.parse(params);
+    const { content, conversationId } = validatedInput;
+
     const supabase = getServiceRoleClient();
     let currentConversationId = conversationId;
 
