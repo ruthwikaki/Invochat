@@ -27,7 +27,7 @@ import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMargin
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
-import type { MessageData } from 'genkit';
+import type { GenerateRequest, GenerateResponse, MessageData } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator = [
@@ -91,6 +91,41 @@ const finalResponsePrompt = ai.definePrompt({
 });
 
 
+/**
+ * A wrapper for the ai.generate call that includes retry logic with exponential backoff.
+ * @param request The generation request object.
+ * @returns A promise that resolves to the GenerateResponse.
+ * @throws An error if the request fails after all retry attempts.
+ */
+async function generateWithRetry(request: GenerateRequest): Promise<GenerateResponse> {
+    const MAX_RETRIES = 3;
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            return await ai.generate(request);
+        } catch (e: unknown) {
+            lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
+            logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
+            
+            // If it's the last attempt, don't wait, just break and throw
+            if (attempt === MAX_RETRIES) {
+                break;
+            }
+
+            // Exponential backoff: 1s, 2s, 4s...
+            const delay = Math.pow(2, attempt - 1) * 1000;
+            logger.info(`[AI Generate] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    
+    // If the loop completes without returning, it means all retries failed.
+    logError(lastError, { context: 'AI generation failed after all retries.' });
+    throw lastError;
+}
+
+
 export const universalChatFlow = ai.defineFlow(
   {
     name: 'universalChatFlow',
@@ -134,16 +169,16 @@ export const universalChatFlow = ai.defineFlow(
         })) as MessageData[];
 
         const messages: MessageData[] = [systemPrompt, ...genkitHistory];
-
-        const response = await ai.generate({
-          model: config.ai.model,
-          tools: safeToolsForOrchestrator,
-          toolChoice: 'auto',
-          messages,
-          config: {
-            temperature: 0.2, // Slightly more creative for better synthesis
-            maxOutputTokens: config.ai.maxOutputTokens,
-          }
+        
+        const response = await generateWithRetry({
+            model: config.ai.model,
+            tools: safeToolsForOrchestrator,
+            toolChoice: 'auto',
+            messages,
+            config: {
+                temperature: 0.2, // Slightly more creative for better synthesis
+                maxOutputTokens: config.ai.maxOutputTokens,
+            }
         });
         
         let finalResponse: UniversalChatOutput;
