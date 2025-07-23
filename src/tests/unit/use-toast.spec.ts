@@ -35,6 +35,7 @@ describe('useToast hook', () => {
       result.current.dismiss(result.current.toasts[0].id);
     });
 
+    // The toast is marked for dismissal, but not removed immediately
     expect(result.current.toasts[0].open).toBe(false);
   });
 });
