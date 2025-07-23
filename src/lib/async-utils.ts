@@ -2,7 +2,7 @@
 export async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
-  timeoutMessage = 'Operation timed out'
+  timeoutMessage = 'Operation timed out.'
 ): Promise<T> {
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
@@ -20,7 +20,7 @@ export async function retry<T>(
   maxAttempts: number = 3,
   delayMs: number = 1000
 ): Promise<T> {
-  let lastError: Error
+  let lastError: Error | undefined;
   
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {

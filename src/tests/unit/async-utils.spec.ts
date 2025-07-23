@@ -10,7 +10,7 @@ describe('withTimeout', () => {
 
   it('should reject with a timeout error if the promise takes too long', async () => {
     const slowPromise = new Promise(resolve => setTimeout(() => resolve('should not happen'), 30));
-    await expect(withTimeout(slowPromise, 20)).rejects.toThrow('Operation timed out');
+    await expect(withTimeout(slowPromise, 20)).rejects.toThrow('Operation timed out.');
   });
 
   it('should use the custom error message when provided', async () => {
