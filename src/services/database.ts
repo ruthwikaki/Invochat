@@ -1000,8 +1000,9 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
     return data || [];
 }
 
-export async function getDbSchemaAndData() { return { schema: {}, data: {} }; }
-
+export async function getQueryPatternsForCompany(companyId: string) { return []; }
+export async function saveSuccessfulQuery(companyId: string, query: string, sql: string) { return; }
+export async function getDatabaseSchemaAndData(companyId: string) { return { schema: {}, data: {} }; }
 export async function logWebhookEvent(integrationId: string, webhookId: string) {
     if (!z.string().uuid().safeParse(integrationId).success) throw new Error('Invalid Integration ID');
     const supabase = getServiceRoleClient();
@@ -1102,9 +1103,5 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
-
-export async function getQueryPatternsForCompany(companyId: string) { return []; }
-export async function saveSuccessfulQuery(companyId: string, query: string, sql: string) { return; }
-export async function getDatabaseSchemaAndData(companyId: string) { return { schema: {}, data: {} }; }
 
     
