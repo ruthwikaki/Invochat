@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
