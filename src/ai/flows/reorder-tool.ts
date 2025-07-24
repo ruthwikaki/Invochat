@@ -54,7 +54,7 @@ export const reorderRefinementPrompt = ai.definePrompt({
         2.  **Identify Trends:** Is the product trending up or down in sales over the last few months?
         3.  **Adjust Quantity:**
             - If you detect a strong upcoming seasonal peak or an upward trend, **increase** the 'suggested_reorder_quantity'.
-            - If the product is entering its off-season or sales are declining, you may **decrease** it, but never go below a 30-day supply based on recent sales.
+            - If the product is entering its off-season or sales are declining, you may **decrease** it.
         4.  **Provide Reasoning:** For each item, you must provide a concise 'adjustment_reason'. Example: "Increased quantity by 30% for expected summer demand." or "Slight reduction due to post-holiday sales dip."
         5.  **Set Confidence:** Provide a 'confidence' score (0.0 to 1.0) for your adjustment. High confidence for clear patterns (holidays), medium for general trends, low if data is sparse.
         
@@ -80,7 +80,6 @@ export const getReorderSuggestions = ai.defineTool(
   async (input): Promise<z.infer<typeof EnhancedReorderSuggestionSchema>[]> => {
     logger.info(`[Reorder Tool] Getting suggestions for company: ${input.companyId}`);
     try {
-        // Step 1: Get baseline suggestions from the database
         const baseSuggestions = await getReorderSuggestionsFromDB(input.companyId);
 
         if (baseSuggestions.length === 0) {
@@ -88,14 +87,28 @@ export const getReorderSuggestions = ai.defineTool(
             return [];
         }
 
-        // Step 2: Get historical sales data and company settings (for timezone)
         const skus = baseSuggestions.map(s => s.sku);
         const [historicalSales, settings] = await Promise.all([
-            getHistoricalSalesForSkus(input.companyId, skus),
+            getHistoricalSalesForSkus(input.companyId, skus.slice(0, 100)), // Cap SKUs to prevent excessive token usage
             getSettings(input.companyId),
         ]);
         
-        // Step 3: Call the AI to refine the suggestions
+        // If no historical sales data, return base suggestions
+        if (!historicalSales || historicalSales.length === 0) {
+             logger.warn(`[Reorder Tool] No historical sales data for SKUs. Returning base suggestions.`);
+             return baseSuggestions.map(s => ({
+                ...s,
+                base_quantity: s.suggested_reorder_quantity,
+                adjustment_reason: 'No historical data available for AI refinement.',
+                seasonality_factor: 1.0,
+                confidence: 0.1,
+            }));
+        }
+        
+        if (!settings.timezone) {
+            logger.warn(`[Reorder Tool] Company timezone not set. Defaulting to UTC for AI analysis.`);
+        }
+
         logger.info(`[Reorder Tool] Refining ${baseSuggestions.length} suggestions with AI.`);
         
         const { output } = await reorderRefinementPrompt({
@@ -107,7 +120,6 @@ export const getReorderSuggestions = ai.defineTool(
 
         if (!output) {
             logger.warn('[Reorder Tool] AI refinement did not return an output. Falling back to base suggestions.');
-            // Fallback: Add required fields to base suggestions
             return baseSuggestions.map(s => ({
                 ...s,
                 base_quantity: s.suggested_reorder_quantity,
@@ -117,12 +129,25 @@ export const getReorderSuggestions = ai.defineTool(
             }));
         }
 
-        logger.info(`[Reorder Tool] AI refinement complete. Returning ${output.length} suggestions.`);
-        return output;
+        logger.info(`[Reorder Tool] AI refinement complete. Applying post-processing guards.`);
+        // Post-processing guardrail: ensure we don't suggest ordering less than a 30-day supply.
+        const finalSuggestions = output.map(suggestion => {
+            const salesRecord = (historicalSales as any[]).find(s => s.sku === suggestion.sku);
+            if (salesRecord && salesRecord.monthly_sales && salesRecord.monthly_sales.length > 0) {
+                // Approximate 30-day supply from the most recent month's sales
+                const lastMonthSales = salesRecord.monthly_sales[salesRecord.monthly_sales.length - 1].total_quantity || 0;
+                if (suggestion.suggested_reorder_quantity < lastMonthSales) {
+                    suggestion.suggested_reorder_quantity = lastMonthSales;
+                    suggestion.adjustment_reason = `[CORRECTED] Increased to meet minimum 30-day supply based on recent sales.`;
+                }
+            }
+            return suggestion;
+        });
+
+        return finalSuggestions;
 
     } catch (e: unknown) {
         logError(e, { context: `[Reorder Tool] Failed to get suggestions for ${input.companyId}` });
-        // Throw an error to notify the calling agent of failure
         throw new Error('An error occurred while trying to generate reorder suggestions.');
     }
   }
