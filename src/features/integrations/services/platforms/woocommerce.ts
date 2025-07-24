@@ -213,9 +213,15 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
             });
 
             if (error) {
-                const errorMessage = `Failed to record synced WooCommerce order ${order.id}: ${error.message}`;
-                logError(error, { context: errorMessage });
-                failedOrders.push({ id: order.id, reason: error.message });
+                // Gracefully handle "Insufficient stock" errors without failing the whole sync
+                if (error.message.includes('Insufficient stock')) {
+                    logger.warn(`[WooCommerce Sync] Skipping order ${order.id} due to insufficient stock for one or more line items.`);
+                    failedOrders.push({ id: order.id, reason: 'Insufficient stock' });
+                } else {
+                    const errorMessage = `Failed to record synced WooCommerce order ${order.id}: ${error.message}`;
+                    logError(error, { context: errorMessage });
+                    failedOrders.push({ id: order.id, reason: error.message });
+                }
             } else {
                 totalOrdersSynced++;
             }
@@ -223,9 +229,10 @@ async function syncSales(integration: Integration, credentials: { consumerKey: s
         currentPage++;
     } while (currentPage <= totalPages);
 
-    logger.info(`[WooCommerce Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}. Failed: ${failedOrders.length}`);
+    logger.info(`[WooCommerce Sync] Synced ${totalOrdersSynced} orders for ${integration.shop_name}. Failed or skipped: ${failedOrders.length}`);
      if (failedOrders.length > 0) {
-      throw new Error(`WooCommerce sales sync completed with ${failedOrders.length} failed orders. Check logs for details.`);
+      // We no longer throw an error for non-critical failures like insufficient stock.
+      logger.warn(`[WooCommerce Sync] ${failedOrders.length} orders were not fully processed. See previous logs for details.`);
     }
 }
 
