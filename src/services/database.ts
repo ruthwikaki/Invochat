@@ -886,8 +886,19 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb() {
-    // Placeholder function
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('feedback').insert({
+        user_id: userId,
+        company_id: companyId,
+        subject_id: subjectId,
+        subject_type: subjectType,
+        feedback: feedback,
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to log user feedback' });
+    }
 }
 export async function createExportJobInDb(companyId: string, userId: string) { 
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) throw new Error('Invalid ID format');
@@ -1090,4 +1101,18 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
         return null;
     }
     return data?.company_id || null;
+}
+export async function logUserFeedback(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('feedback').insert({
+        user_id: userId,
+        company_id: companyId,
+        subject_id: subjectId,
+        subject_type: subjectType,
+        feedback: feedback,
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to log user feedback' });
+    }
 }
