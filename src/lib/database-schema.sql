@@ -1,36 +1,45 @@
--- Add version column for optimistic locking
+
+-- Drop the dependent trigger first to allow the function to be replaced.
+DROP TRIGGER IF EXISTS on_inventory_ledger_insert ON public.inventory_ledger;
+
+-- Drop the function
+DROP FUNCTION IF EXISTS public.update_inventory_from_ledger();
+
+-- Add a version column for optimistic locking to the product_variants table.
+-- This helps prevent race conditions when multiple users edit the same product.
 ALTER TABLE public.product_variants
 ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
 
-
--- Drop the existing function to redefine it
-DROP FUNCTION IF EXISTS public.update_inventory_from_ledger();
-
--- Recreate the function with optimistic locking logic
+-- Function to be called by a trigger on the inventory_ledger table
 CREATE OR REPLACE FUNCTION public.update_inventory_from_ledger()
 RETURNS TRIGGER AS $$
+DECLARE
+    current_version int;
 BEGIN
-    -- Check for negative inventory before applying the change
-    IF (SELECT inventory_quantity FROM public.product_variants WHERE id = NEW.variant_id) + NEW.quantity_change < 0 THEN
-        RAISE EXCEPTION 'Negative inventory violation: Cannot complete operation for SKU %', (SELECT sku FROM public.product_variants WHERE id = NEW.variant_id);
+    -- Get the current version of the variant
+    SELECT version INTO current_version FROM public.product_variants WHERE id = NEW.variant_id;
+
+    -- Update the product_variants table
+    UPDATE public.product_variants
+    SET
+        inventory_quantity = NEW.new_quantity,
+        updated_at = NOW(),
+        version = version + 1
+    WHERE
+        id = NEW.variant_id AND version = current_version;
+
+    -- If no rows were updated, it means the version was stale (race condition)
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Conflict: This record was updated by another process. Please try again.';
     END IF;
 
-    UPDATE public.product_variants
-    SET 
-        inventory_quantity = inventory_quantity + NEW.quantity_change,
-        version = version + 1, -- Increment the version on each update
-        updated_at = now()
-    WHERE id = NEW.variant_id;
-    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- The trigger definition remains the same, but the function it calls is now updated.
--- This ensures the trigger exists if it was somehow missed before.
-CREATE TRIGGER trg_update_inventory_from_ledger
+-- Recreate the trigger to call the updated function
+CREATE TRIGGER on_inventory_ledger_insert
 AFTER INSERT ON public.inventory_ledger
 FOR EACH ROW
 EXECUTE FUNCTION public.update_inventory_from_ledger();
 
-COMMENT ON FUNCTION public.update_inventory_from_ledger() IS 'Updates the inventory_quantity and version in product_variants whenever a new entry is added to inventory_ledger, preventing negative stock and providing optimistic locking.';
