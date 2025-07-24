@@ -232,6 +232,10 @@ export const universalChatFlow = genkit.ai.defineFlow(
                 assumptions: ['I was unable to answer this from your business data and answered from general knowledge.'],
             };
         }
+        
+        if (finalResponse.confidence && finalResponse.confidence < 0.6) {
+            finalResponse.response = `I'm not very confident in this result, but here is what I found:\n\n${finalResponse.response}\n\nMy assumptions were: ${finalResponse.assumptions?.join(', ') || 'none'}. You may want to try rephrasing your question for a more accurate answer.`;
+        }
        
         if (redis.isRedisEnabled) {
             await redis.redisClient.set(cacheKey, JSON.stringify(finalResponse), 'EX', config.redis.ttl.aiQuery);

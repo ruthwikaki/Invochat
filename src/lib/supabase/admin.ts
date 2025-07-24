@@ -2,7 +2,7 @@
 
 import { createServerClient as createServerClientOriginal, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { envValidation } from '@/config/app-config';
+import { envValidation, config } from '@/config/app-config';
 import type { Database } from '@/types/database.types';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -19,6 +19,12 @@ if (envValidation.success) {
                 auth: {
                     autoRefreshToken: false,
                     persistSession: false
+                },
+                global: {
+                    fetch: (url, options = {}) => {
+                        const signal = AbortSignal.timeout(config.database.queryTimeout);
+                        return fetch(url, { ...options, signal });
+                    }
                 }
             }
         );
@@ -74,5 +80,3 @@ export function createServerClient() {
     }
   )
 }
-
-    

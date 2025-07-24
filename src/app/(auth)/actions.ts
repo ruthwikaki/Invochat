@@ -1,17 +1,27 @@
 
+
 'use server';
 
 import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { redirect } from 'next/navigation';
 import { validateCSRF } from '@/lib/csrf';
+import { rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
 
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const cookieStore = cookies();
+  const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+
+  const { limited } = await rateLimit(ip, 'login_attempt', config.ratelimit.auth, 3600);
+  if (limited) {
+      redirect(`/login?error=${encodeURIComponent('Too many login attempts. Please try again in an hour.')}`);
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
