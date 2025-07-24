@@ -125,4 +125,3 @@ export function IntegrationCard({ integration, onSync, onDisconnect }: Integrati
         </Card>
     );
 }
-    
