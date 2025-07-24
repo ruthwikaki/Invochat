@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
@@ -371,4 +370,3 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     </>
   );
 }
-    
