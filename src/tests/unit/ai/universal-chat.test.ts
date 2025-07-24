@@ -8,9 +8,6 @@ import type { MessageData, GenerateResponse } from 'genkit';
 vi.mock('@/ai/genkit');
 vi.mock('@/lib/redis');
 
-// DO NOT mock the flow itself, only its dependencies
-// vi.mock('@/ai/flows/universal-chat'); 
-
 const mockUserQuery = 'What should I reorder?';
 const mockCompanyId = 'test-company-id';
 
@@ -33,7 +30,9 @@ const mockToolResponse: GenerateResponse = {
     }],
     usage: {},
     custom: {},
-    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' }
+    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' },
+    toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
+    text: () => ''
 };
 
 const mockTextResponse: GenerateResponse = {
@@ -47,13 +46,15 @@ const mockTextResponse: GenerateResponse = {
     }],
     usage: {},
     custom: {},
-    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' }
+    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' },
+    toolRequests: [],
+    text: () => 'I cannot help with that.'
 };
 
 const mockFinalResponse = {
     response: "You should reorder these items.",
     data: [{ sku: 'SKU001', quantity: 50 }],
-    visualization: { type: 'table', title: 'Reorder Suggestions' },
+    visualization: { type: 'table', title: 'Reorder Suggestions', data: [] },
     confidence: 0.9,
     assumptions: [],
     toolName: 'getReorderSuggestions'
@@ -69,7 +70,6 @@ describe('Universal Chat Flow', () => {
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
         vi.spyOn(genkit.ai, 'generate').mockImplementation(generateMock);
-        // Correctly mock defineFlow to just return the implementation function
         vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((config, func) => func as any);
         vi.spyOn(genkit.ai, 'definePrompt').mockImplementation(() => finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
