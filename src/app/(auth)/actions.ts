@@ -56,7 +56,7 @@ export async function login(formData: FormData) {
         logError(error, { context: 'Login failed' });
         
         if (isRedisEnabled) {
-            const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${ip}`;
+            const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`;
             const failedAttempts = await redisClient.incr(failedAttemptsKey);
             await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
 
@@ -69,7 +69,7 @@ export async function login(formData: FormData) {
                        p_lockout_duration: `${LOCKOUT_DURATION_SECONDS} seconds`,
                    });
                 }
-                logError(new Error(`Account locked for user ${email} from IP ${ip}`), { context: 'Account Lockout Triggered'});
+                logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered', ip});
             }
         }
         
@@ -77,7 +77,7 @@ export async function login(formData: FormData) {
     }
 
     if (isRedisEnabled) {
-      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${ip}`);
+      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`);
     }
 
   } catch (e) {

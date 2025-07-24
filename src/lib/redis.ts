@@ -1,4 +1,5 @@
 
+
 import Redis, { Pipeline } from 'ioredis';
 import { logger } from './logger';
 import { getErrorMessage } from './error-handler';
@@ -26,6 +27,7 @@ const mockRedisClient = {
     },
     ping: async () => 'PONG' as const,
     incr: async (_key: string) => 1,
+    expire: async (_key: string, _seconds: number) => 1,
     incrbyfloat: async (_key: string, inc: number) => String(inc),
     zcard: async (_key: string) => 0,
 };
@@ -211,10 +213,8 @@ export async function rateLimit(
 
         return { limited: isLimited, remaining };
     } catch (error) {
-        logger.error(`[Redis] Rate limiting failed for action "${action}". Failing ${failClosed ? 'open' : 'open'}.`, error);
+        logger.error(`[Redis] Rate limiting failed for action "${action}". Failing ${failClosed ? 'closed' : 'open'}.`, error);
         // If Redis fails, fail open or closed based on the flag. This is a critical design choice.
         return { limited: failClosed, remaining: failClosed ? 0 : limit };
     }
 }
-
-    
