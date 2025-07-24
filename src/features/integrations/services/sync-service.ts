@@ -70,6 +70,8 @@ export async function runSync(integrationId: string, companyId: string) {
                 logger.warn(`[Sync Service] Sync attempt ${attempt} failed for integration ${integrationId}: ${error.message}. Retrying...`);
             },
         });
+        // After successful sync, refresh materialized views
+        await refreshMaterializedViews(companyId);
     } catch (e: unknown) {
         logError(e, { context: `Sync failed permanently for integration ${integrationId}` });
         await supabase.from('integrations').update({ sync_status: 'failed' }).eq('id', integrationId);
