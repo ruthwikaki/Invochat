@@ -16,10 +16,13 @@ const CompanyIdInputSchema = z.object({
   companyId: z.string().uuid().describe("The ID of the company to get the report for."),
 });
 
+const MAX_DAYS_LOOKBACK = 365;
+const MAX_LIMIT = 100;
+
 export const getSalesVelocity = ai.defineTool(
     {
         name: 'getSalesVelocity',
-        description: "Identifies the fastest and slowest-selling products over a specified period (default 90 days) based on total units sold. Use this for 'best sellers', 'worst sellers', 'fast movers', or 'slow movers' queries.",
+        description: "Identifies the fastest and slowest-selling products over a specified period (default 90 days, max 365) based on total units sold. Use this for 'best sellers', 'worst sellers', 'fast movers', or 'slow movers' queries.",
         inputSchema: z.object({
             companyId: z.string().uuid(),
             days: z.number().int().positive().default(90),
@@ -29,8 +32,10 @@ export const getSalesVelocity = ai.defineTool(
     },
     async ({ companyId, days, limit }) => {
         try {
-            logger.info(`[Analytics Tool] Getting sales velocity for company: ${companyId}`);
-            return await db.getSalesVelocityFromDB(companyId, days, limit);
+            const safeDays = Math.min(days, MAX_DAYS_LOOKBACK);
+            const safeLimit = Math.min(limit, MAX_LIMIT);
+            logger.info(`[Analytics Tool] Getting sales velocity for company: ${companyId} (days: ${safeDays}, limit: ${safeLimit})`);
+            return await db.getSalesVelocityFromDB(companyId, safeDays, safeLimit);
         } catch (e) {
             logError(e, { context: `[Analytics Tool] Sales velocity failed for company ${companyId}` });
             throw new Error('An error occurred while trying to generate the sales velocity report.');
@@ -145,8 +150,10 @@ export const getPromotionalImpactAnalysis = ai.defineTool(
   },
   async ({ companyId, skus, discountPercentage, durationDays }) => {
     try {
+        const safeSkus = skus.slice(0, 50); // Limit to 50 SKUs
+        const safeDuration = Math.min(durationDays, 90); // Limit to 90 days
         logger.info(`[Analytics Tool] Running promotional impact analysis for company: ${companyId}`);
-        return await db.getFinancialImpactOfPromotionFromDB(companyId, skus, discountPercentage, durationDays);
+        return await db.getFinancialImpactOfPromotionFromDB(companyId, safeSkus, discountPercentage, safeDuration);
     } catch (e) {
         logError(e, { context: `[Analytics Tool] Promotional impact analysis failed for company ${companyId}`});
         throw new Error('An error occurred while trying to run the promotional impact analysis.');
