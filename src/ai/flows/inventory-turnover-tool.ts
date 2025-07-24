@@ -16,11 +16,13 @@ const InventoryTurnoverReportSchema = z.object({
     period_days: z.number().int().describe("The number of days in the analysis period.")
 });
 
+const MAX_DAYS_LOOKBACK = 730; // 2 years
+
 export const getInventoryTurnoverReport = ai.defineTool(
   {
     name: 'getInventoryTurnoverReport',
     description:
-      "Calculates the inventory turnover rate. Use this when the user asks about 'inventory turnover', 'how fast inventory is selling', or 'stock turn'. This report shows how many times a company has sold and replaced its inventory over a given period.",
+      "Calculates the inventory turnover rate for a given period (max 730 days). Use this when the user asks about 'inventory turnover', 'how fast inventory is selling', or 'stock turn'. This report shows how many times a company has sold and replaced its inventory over a given period.",
     inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get the report for."),
       days: z.number().int().positive().default(90).describe("The number of days to look back for the calculation period."),
@@ -30,7 +32,8 @@ export const getInventoryTurnoverReport = ai.defineTool(
   async (input) => {
     logger.info(`[Inventory Turnover Tool] Getting report for company: ${input.companyId}`);
     try {
-        const result = await getInventoryTurnoverFromDB(input.companyId, input.days);
+        const safeDays = Math.min(input.days, MAX_DAYS_LOOKBACK);
+        const result = await getInventoryTurnoverFromDB(input.companyId, safeDays);
 
         // Prevent division by zero errors
         if (result.average_inventory_value === 0) {
