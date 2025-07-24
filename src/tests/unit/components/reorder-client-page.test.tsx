@@ -97,7 +97,7 @@ describe('Component: ReorderClientPage', () => {
     it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
         const mockToast = vi.fn();
         (useToast as vi.Mock).mockReturnValue({ toast: mockToast });
-        vi.spyOn(dataActions, 'createPurchaseOrdersFromSuggestions').mockResolvedValue({ 
+        (dataActions.createPurchaseOrdersFromSuggestions as vi.Mock).mockResolvedValue({ 
             success: true, 
             createdPoCount: 1 
         });
