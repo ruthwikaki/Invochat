@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
@@ -7,7 +8,8 @@
  * context-aware answers.
  */
 
-import { ai } from '@/ai/genkit';
+import * as genkit from '@/ai/genkit';
+import * as redis from '@/lib/redis';
 import { z } from 'zod';
 import type { UniversalChatOutput } from '@/types/ai-schemas';
 import { UniversalChatInputSchema, UniversalChatOutputSchema } from '@/types/ai-schemas';
@@ -25,7 +27,6 @@ import { findHiddenMoney } from './hidden-money-finder-flow';
 import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
-import { isRedisEnabled, redisClient } from '@/lib/redis';
 import crypto from 'crypto';
 import type { GenerateRequest, GenerateResponse, MessageData } from 'genkit';
 
@@ -52,7 +53,7 @@ const safeToolsForOrchestrator = [
 
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
-const finalResponsePrompt = ai.definePrompt({
+const finalResponsePrompt = genkit.ai.definePrompt({
   name: 'finalResponsePrompt',
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
   output: { schema: FinalResponseObjectSchema },
@@ -92,7 +93,7 @@ const finalResponsePrompt = ai.definePrompt({
 
 
 /**
- * A wrapper for the ai.generate call that includes retry logic with exponential backoff.
+ * A wrapper for the genkit.ai.generate call that includes retry logic with exponential backoff.
  * @param request The generation request object.
  * @returns A promise that resolves to the GenerateResponse.
  * @throws An error if the request fails after all retry attempts.
@@ -103,7 +104,7 @@ async function generateWithRetry(request: GenerateRequest): Promise<GenerateResp
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            return await ai.generate(request);
+            return await genkit.ai.generate(request);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
@@ -126,7 +127,7 @@ async function generateWithRetry(request: GenerateRequest): Promise<GenerateResp
 }
 
 
-export const universalChatFlow = ai.defineFlow(
+export const universalChatFlow = genkit.ai.defineFlow(
   {
     name: 'universalChatFlow',
     inputSchema: UniversalChatInputSchema,
@@ -143,9 +144,9 @@ export const universalChatFlow = ai.defineFlow(
     // --- Redis Caching Logic ---
     const queryHash = crypto.createHash('sha256').update(userQuery.toLowerCase().trim()).digest('hex');
     const cacheKey = `aichat:${companyId}:${queryHash}`;
-    if (isRedisEnabled) {
+    if (redis.isRedisEnabled) {
       try {
-        const cachedResponse = await redisClient.get(cacheKey);
+        const cachedResponse = await redis.redisClient.get(cacheKey);
         if (cachedResponse) {
           logger.info(`[AI Cache] HIT for query: "${userQuery}"`);
           return JSON.parse(cachedResponse);
@@ -233,8 +234,8 @@ export const universalChatFlow = ai.defineFlow(
             };
         }
        
-        if (isRedisEnabled) {
-            await redisClient.set(cacheKey, JSON.stringify(finalResponse), 'EX', config.redis.ttl.aiQuery);
+        if (redis.isRedisEnabled) {
+            await redis.redisClient.set(cacheKey, JSON.stringify(finalResponse), 'EX', config.redis.ttl.aiQuery);
         }
         return finalResponse;
 
@@ -264,3 +265,5 @@ export const universalChatFlow = ai.defineFlow(
     }
   }
 );
+
+    

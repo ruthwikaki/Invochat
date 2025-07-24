@@ -409,63 +409,44 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
     }
 }
 
-export async function getDashboardMetrics(companyId: string, dateRange: string): Promise<DashboardMetrics> {
-    // Validate inputs
-    if (!z.string().uuid().safeParse(companyId).success) {
-        throw new Error('Invalid company ID format');
-    }
-    
-    const days = parseInt(dateRange.replace('d', ''));
-    if (isNaN(days) || days < 1 || days > 365) {
-        throw new Error('Invalid date range format provided. Must be between 1d and 365d.');
-    }
+export async function getDashboardMetrics(
+  companyId: string,
+  period: string | number
+): Promise<DashboardMetrics> {
+  // 1. Normalize period → number of days
+  const days =
+    typeof period === 'number'
+      ? period
+      : parseInt(String(period).replace(/\D/g, ''), 10);
 
-    const cacheKey = `cache:dashboard:${companyId}:${dateRange}`;
-    
-    // Try cache first
-    if (isRedisEnabled) {
-        try {
-            const cachedData = await redisClient.get(cacheKey);
-            if (cachedData) {
-                logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
-                return DashboardMetricsSchema.parse(JSON.parse(cachedData));
-            }
-            logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
-        } catch (e) {
-            logError(e, { context: 'Redis cache get failed for dashboard metrics' });
-        }
-    }
+  const supabase = getServiceRoleClient();
+  // 2. Call the RPC
+  const response = await supabase.rpc('get_dashboard_metrics', {
+    p_company_id: companyId,
+    p_days: days,
+  });
 
-    try {
-        const supabase = getServiceRoleClient();
-        const response = await supabase.rpc('get_dashboard_metrics', { 
-            p_company_id: companyId, 
-            p_days: days 
-        });
+  // 3. Handle null response
+  if (!response) {
+    throw new Error('No response from get_dashboard_metrics RPC call.');
+  }
 
-        if (!response) {
-            throw new Error('No response from get_dashboard_metrics RPC call.');
-        }
+  const { data, error } = response;
 
-        const { data, error } = response;
-        
-        if (error) {
-            logError(error, { context: 'getDashboardMetrics RPC failed', companyId, days });
-            throw new Error('Could not retrieve dashboard metrics from the database.');
-        }
-        
-        const metrics = data ? DashboardMetricsSchema.parse(data) : null;
+  // 4. RPC-level error
+  if (error) {
+    logError(error, { context: 'getDashboardMetrics failed', companyId, period });
+    throw new Error(
+      'Could not retrieve dashboard metrics from the database.'
+    );
+  }
 
-        // Cache the result
-        if (isRedisEnabled) {
-            await redisClient.set(cacheKey, JSON.stringify(metrics), 'EX', config.redis.ttl.dashboard);
-        }
+  // 5. No data returned
+  if (data == null) {
+    throw new Error('No response from get_dashboard_metrics RPC call.');
+  }
 
-        return metrics;
-    } catch (error) {
-        logError(error, { context: 'getDashboardMetrics failed', companyId, dateRange });
-        throw error;
-    }
+  return DashboardMetricsSchema.parse(data);
 }
 
 // Continue with all other functions following the same pattern...
@@ -1111,3 +1092,5 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
+
+    
