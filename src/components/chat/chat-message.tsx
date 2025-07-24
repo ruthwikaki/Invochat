@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
 import { DataVisualization } from './data-visualization';
-import { BrainCircuit, AlertTriangle, Bot } from 'lucide-react';
+import { BrainCircuit, AlertTriangle, Bot, ThumbsUp, ThumbsDown } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -17,7 +17,10 @@ import { motion } from 'framer-motion';
 import { DeadStockTable } from '@/components/ai-response/dead-stock-table';
 import { ReorderList } from '@/components/ai-response/reorder-list';
 import { SupplierPerformanceTable } from '@/components/ai-response/supplier-performance-table';
-import React from 'react';
+import React, { useState } from 'react';
+import { Button } from '../ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { logUserFeedbackInDb } from '@/app/data-actions';
 
 // New futuristic loading indicator
 function LoadingIndicator() {
@@ -87,6 +90,39 @@ function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | 
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
+    );
+}
+
+function FeedbackActions({ messageId }: { messageId: string }) {
+    const [feedbackSent, setFeedbackSent] = useState(false);
+    const { toast } = useToast();
+
+    const handleFeedback = async (feedbackType: 'helpful' | 'unhelpful') => {
+        setFeedbackSent(true);
+        const result = await logUserFeedbackInDb({
+            subjectId: messageId,
+            subjectType: 'message',
+            feedback: feedbackType
+        });
+        if (result.success) {
+            toast({ description: "Thank you for your feedback!" });
+        }
+    };
+    
+    if (feedbackSent) {
+      return <p className="text-xs text-muted-foreground">Thank you for your feedback!</p>;
+    }
+
+    return (
+        <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Was this response helpful?</span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFeedback('helpful')}>
+                <ThumbsUp className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFeedback('unhelpful')}>
+                <ThumbsDown className="h-4 w-4" />
+            </Button>
+        </div>
     );
 }
 
@@ -180,6 +216,12 @@ export function ChatMessage({
           />
         </div>
       )}
+      
+       {!isUserMessage && !isLoading && !message.isError && (
+            <div className={cn("max-w-xl w-full flex justify-start", !isUserMessage && "ml-12")}>
+                <FeedbackActions messageId={message.id} />
+            </div>
+        )}
     </motion.div>
   );
 }

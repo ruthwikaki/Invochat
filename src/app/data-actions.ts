@@ -45,6 +45,7 @@ import {
     getDatabaseSchemaAndData,
     refreshMaterializedViews,
     createAuditLogInDb,
+    logUserFeedbackInDb as logUserFeedback,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData } from '@/types';
@@ -331,6 +332,14 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData) {
         await validateCSRF(formData);
         const suggestions = JSON.parse(formData.get('suggestions') as string) as ReorderSuggestion[];
         const result = await createPurchaseOrdersInDb(companyId, userId, suggestions);
+        
+        await createAuditLogInDb(companyId, userId, 'ai_purchase_order_created', {
+            createdPoCount: result,
+            totalSuggestions: suggestions.length,
+            // Log a sample of SKUs for auditability without logging everything
+            sampleSkus: suggestions.slice(0, 5).map(s => s.sku),
+        });
+
         revalidatePath('/purchase-orders');
         revalidatePath('/analytics/reordering');
         return { success: true, createdPoCount: result };
@@ -530,4 +539,14 @@ export async function handleUserMessage(params: { content: string, conversationI
     logError(e, {context: 'handleUserMessage failed'});
     return { error: errorMessage };
   }
+}
+
+export async function logUserFeedbackInDb(params: { subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful' }): Promise<{ success: boolean, error?: string}> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await logUserFeedback(userId, companyId, params.subjectId, params.subjectType, params.feedback);
+        return { success: true };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
 }
