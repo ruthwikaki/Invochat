@@ -230,6 +230,9 @@ export async function updatePassword(formData: FormData) {
         if (error) {
             logError(error, { context: 'Password update failed' });
             redirect(`/update-password?error=${encodeURIComponent(error.message)}`);
+        } else {
+            // After successful password update, sign out to invalidate all sessions and the recovery token.
+            await supabase.auth.signOut();
         }
     } catch (e) {
         const message = getErrorMessage(e);
@@ -237,5 +240,5 @@ export async function updatePassword(formData: FormData) {
         redirect(`/update-password?error=${encodeURIComponent(message)}`);
     }
 
-    redirect('/login?message=Your password has been updated successfully.');
+    redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
