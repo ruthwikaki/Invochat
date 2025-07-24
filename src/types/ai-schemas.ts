@@ -57,7 +57,6 @@ export const AnomalyExplanationInputSchema = z.object({
     title: z.string(),
     message: z.string(),
     severity: z.string(),
-    timestamp: z.string(),
     metadata: z.record(z.unknown()),
 });
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
