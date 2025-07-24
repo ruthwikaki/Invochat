@@ -63,7 +63,7 @@ export async function POST(request: Request) {
                     const { success } = await logWebhookEvent(integration.id, webhookId);
                     if (!success) {
                         logError(new Error(`WooCommerce webhook replay attempt detected: ${webhookId}`), { status: 409 });
-                        return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                        return NextResponse.json({ message: 'Duplicate webhook event received and ignored.' }, { status: 200 });
                     }
                 }
             }
