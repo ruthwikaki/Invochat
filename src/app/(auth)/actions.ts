@@ -8,8 +8,13 @@ import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { redirect } from 'next/navigation';
 import { validateCSRF } from '@/lib/csrf';
-import { rateLimit } from '@/lib/redis';
+import { rateLimit, redisClient, isRedisEnabled } from '@/lib/redis';
 import { config } from '@/config/app-config';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
+
+const FAILED_LOGIN_ATTEMPTS_KEY_PREFIX = 'failed_login_attempts:';
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_SECONDS = 900; // 15 minutes
 
 export async function login(formData: FormData) {
   const email = formData.get('email') as string;
@@ -42,14 +47,39 @@ export async function login(formData: FormData) {
 
   try {
     await validateCSRF(formData);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
     });
+    
     if (error) {
         logError(error, { context: 'Login failed' });
+        
+        if (isRedisEnabled) {
+            const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`;
+            const failedAttempts = await redisClient.incr(failedAttemptsKey);
+            await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
+
+            if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
+                const serviceSupabase = getServiceRoleClient();
+                const { data: { user } } = await serviceSupabase.auth.admin.getUserByEmail(email);
+                if (user) {
+                   await serviceSupabase.rpc('lock_user_account', {
+                       p_user_id: user.id,
+                       p_lockout_duration: `${LOCKOUT_DURATION_SECONDS} seconds`,
+                   });
+                }
+                logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered'});
+            }
+        }
+        
         redirect(`/login?error=${encodeURIComponent('Invalid login credentials.')}`);
     }
+
+    if (isRedisEnabled) {
+      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`);
+    }
+
   } catch (e) {
     const message = getErrorMessage(e);
     logError(e, { context: 'Login exception' });
