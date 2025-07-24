@@ -1,18 +1,15 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
-import path from 'path';
 
-// This configuration is now simplified to let Vitest handle environment variables automatically.
-// Vitest will automatically load `.env.test` when `NODE_ENV` is 'test'.
+// This configuration is now simplified.
+// Vitest will automatically load `.env.test` when `NODE_ENV` is 'test'
+// and handle tsconfig paths without an extra plugin.
 export default defineConfig({
-  plugins: [react(), tsconfigPaths()],
+  plugins: [react()],
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
-    // By default, process.env.NODE_ENV is 'test' when running vitest.
-    // This will cause it to automatically look for and load `.env.test`
     include: ['src/tests/unit/**/*.test.{ts,tsx}'],
     exclude: [
       'node_modules/**',
@@ -31,9 +28,4 @@ export default defineConfig({
       ],
     },
   },
-  resolve: {
-      alias: {
-          '@': path.resolve(__dirname, './src')
-      }
-  }
 })
