@@ -11,8 +11,8 @@ import { logError } from '@/lib/error-handler';
 
 const InventoryTurnoverReportSchema = z.object({
     turnover_rate: z.number().describe("The number of times inventory is sold and replaced over the period."),
-    total_cogs: z.number().describe("The total cost of goods sold during the period."),
-    average_inventory_value: z.number().describe("The average value of the inventory during the period."),
+    total_cogs: z.number().nonnegative().describe("The total cost of goods sold during the period."),
+    average_inventory_value: z.number().nonnegative().describe("The average value of the inventory during the period."),
     period_days: z.number().int().describe("The number of days in the analysis period.")
 });
 
@@ -31,6 +31,15 @@ export const getInventoryTurnoverReport = ai.defineTool(
     logger.info(`[Inventory Turnover Tool] Getting report for company: ${input.companyId}`);
     try {
         const result = await getInventoryTurnoverFromDB(input.companyId, input.days);
+
+        // Prevent division by zero errors
+        if (result.average_inventory_value === 0) {
+            return {
+                ...result,
+                turnover_rate: 0, // Set turnover to 0 if there's no inventory value
+            };
+        }
+        
         return InventoryTurnoverReportSchema.parse(result);
 
     } catch (e) {

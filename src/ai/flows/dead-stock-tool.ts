@@ -14,7 +14,7 @@ export const getDeadStockReport = ai.defineTool(
   {
     name: 'getDeadStockReport',
     description:
-      "Use this tool to get a report of dead stock items. Dead stock are items that haven't sold in a long time (e.g., over 90 days). Use this when the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products'.",
+      "Use this tool to get a report of dead stock items. Dead stock are items that haven't sold in a long time. The definition of 'a long time' is based on the company's settings (default 90 days). Use this when the user asks about 'dead stock', 'unsold items', 'stale inventory', or 'slow-moving products'.",
     inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get the report for."),
     }),
@@ -25,6 +25,10 @@ export const getDeadStockReport = ai.defineTool(
     try {
         const deadStockData = await getDeadStockReportFromDB(input.companyId);
         // The tool should return just the items, not the totals.
+        if (deadStockData.deadStockItems.length === 0) {
+            logger.info(`[Dead Stock Tool] No dead stock found for company ${input.companyId}`);
+            // Return an empty array, but the final response synthesizer should handle this case gracefully.
+        }
         return deadStockData.deadStockItems;
     } catch (e) {
         logError(e, { context: `[Dead Stock Tool] Failed to generate report for company ${input.companyId}` });
