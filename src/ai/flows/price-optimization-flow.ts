@@ -102,7 +102,7 @@ export const suggestPriceOptimizationsFlow = ai.defineFlow(
         name: p.product_title,
         cost: p.cost!,
         price: p.price!,
-        quantity: p.inventory_quantity,
+        inventory_quantity: p.inventory_quantity,
         sales_last_30_days: salesMap.get(p.sku) || 0,
       }));
 
