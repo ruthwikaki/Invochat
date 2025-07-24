@@ -89,7 +89,10 @@ describe('Component: ReorderClientPage', () => {
 
         // Unselect all items
         await fireEvent.click(selectAllCheckbox);
-        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
+        
+        await waitFor(() => {
+          expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
+        });
 
         // Check one item
         await fireEvent.click(checkboxes[1]);

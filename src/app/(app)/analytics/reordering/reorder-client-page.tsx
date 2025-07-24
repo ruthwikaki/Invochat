@@ -71,7 +71,11 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   };
 
   const handleSelectAll = (checked: boolean) => {
-    setSelectedSuggestions(checked ? initialSuggestions : []);
+    if (checked) {
+      setSelectedSuggestions(initialSuggestions);
+    } else {
+      setSelectedSuggestions([]); // Explicitly clear all selections
+    }
   };
   
   const handleCreatePOs = () => {
