@@ -1091,5 +1091,3 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
-
-i am asking about application not db
