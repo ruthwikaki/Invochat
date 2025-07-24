@@ -217,6 +217,7 @@ export async function getCompanySettings() {
 export async function updateCompanySettings(formData: FormData) {
     try {
         const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const settings = {
             dead_stock_days: Number(formData.get('dead_stock_days')),
@@ -224,6 +225,7 @@ export async function updateCompanySettings(formData: FormData) {
             overstock_multiplier: Number(formData.get('overstock_multiplier')),
             high_value_threshold: Number(formData.get('high_value_threshold')),
             currency: String(formData.get('currency')),
+            timezone: String(formData.get('timezone')),
         }
         await updateSettingsInDb(companyId, settings);
         await createAuditLogInDb(companyId, userId, 'company_settings_updated', settings);
