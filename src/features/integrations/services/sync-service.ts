@@ -9,6 +9,7 @@ import { runAmazonFbaFullSync } from './platforms/amazon_fba';
 import { logger } from '@/lib/logger';
 import type { Integration } from '@/types';
 import { retry } from '@/lib/async-utils';
+import { refreshMaterializedViews } from '@/services/database';
 
 /**
  * The main dispatcher for running an integration sync.
