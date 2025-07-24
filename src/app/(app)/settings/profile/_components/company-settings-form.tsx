@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useTransition } from 'react';
@@ -22,6 +22,7 @@ const SettingsFormSchema = CompanySettingsSchema.pick({
     overstock_multiplier: true,
     high_value_threshold: true,
     currency: true,
+    timezone: true,
 });
 
 export function CompanySettingsForm({ settings }: { settings: CompanySettings }) {
@@ -104,6 +105,30 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
                 )}
             />
             <p className="text-xs text-muted-foreground">Sets the currency symbol for all financial displays.</p>
+        </div>
+        <div className="space-y-1">
+            <Label htmlFor="timezone">Timezone</Label>
+            <Controller
+                control={form.control}
+                name="timezone"
+                render={({ field }) => (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a timezone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="UTC">UTC</SelectItem>
+                            <SelectItem value="America/New_York">America/New_York (EST)</SelectItem>
+                            <SelectItem value="America/Chicago">America/Chicago (CST)</SelectItem>
+                            <SelectItem value="America/Denver">America/Denver (MST)</SelectItem>
+                            <SelectItem value="America/Los_Angeles">America/Los_Angeles (PST)</SelectItem>
+                            <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
+                            <SelectItem value="Europe/Paris">Europe/Paris (CET)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
+            />
+            <p className="text-xs text-muted-foreground">Sets the local timezone for your business operations.</p>
         </div>
       </div>
       <Button type="submit" disabled={isPending}>
