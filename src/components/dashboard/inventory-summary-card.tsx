@@ -11,9 +11,10 @@ interface InventorySummaryCardProps {
         low_stock_value: number;
         dead_stock_value: number;
     };
+    currency: string;
 }
 
-const SummaryItem = ({ label, value, colorClass, link }: { label: string; value: number; colorClass: string; link?: string }) => (
+const SummaryItem = ({ label, value, colorClass, link, currency }: { label: string; value: number; colorClass: string; link?: string, currency: string }) => (
     <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${colorClass}`}></span>
@@ -25,11 +26,11 @@ const SummaryItem = ({ label, value, colorClass, link }: { label: string; value:
                 <span className="text-sm text-muted-foreground">{label}</span>
             )}
         </div>
-        <span className="font-medium text-sm">{formatCentsAsCurrency(value)}</span>
+        <span className="font-medium text-sm">{formatCentsAsCurrency(value, currency)}</span>
     </div>
 );
 
-export function InventorySummaryCard({ data }: InventorySummaryCardProps) {
+export function InventorySummaryCard({ data, currency }: InventorySummaryCardProps) {
     const totalValue = data.total_value;
     const inStockPercentage = totalValue > 0 ? (data.in_stock_value / totalValue) * 100 : 0;
     const lowStockPercentage = totalValue > 0 ? (data.low_stock_value / totalValue) * 100 : 0;
@@ -51,9 +52,9 @@ export function InventorySummaryCard({ data }: InventorySummaryCardProps) {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <SummaryItem label="Healthy Stock" value={data.in_stock_value} colorClass="bg-green-500" />
-                    <SummaryItem label="Low Stock" value={data.low_stock_value} colorClass="bg-amber-500" link="/analytics/reordering" />
-                    <SummaryItem label="Dead Stock" value={data.dead_stock_value} colorClass="bg-red-500" link="/analytics/dead-stock" />
+                    <SummaryItem label="Healthy Stock" value={data.in_stock_value} colorClass="bg-green-500" currency={currency} />
+                    <SummaryItem label="Low Stock" value={data.low_stock_value} colorClass="bg-amber-500" link="/analytics/reordering" currency={currency} />
+                    <SummaryItem label="Dead Stock" value={data.dead_stock_value} colorClass="bg-red-500" link="/analytics/dead-stock" currency={currency} />
                 </div>
             </CardContent>
         </Card>

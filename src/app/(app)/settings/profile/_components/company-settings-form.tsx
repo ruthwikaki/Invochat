@@ -14,12 +14,14 @@ import { useToast } from '@/hooks/use-toast';
 import { updateCompanySettings } from '@/app/data-actions';
 import { Loader2 } from 'lucide-react';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const SettingsFormSchema = CompanySettingsSchema.pick({
     dead_stock_days: true,
     fast_moving_days: true,
     overstock_multiplier: true,
-    high_value_threshold: true
+    high_value_threshold: true,
+    currency: true,
 });
 
 export function CompanySettingsForm({ settings }: { settings: CompanySettings }) {
@@ -80,6 +82,28 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
           <Label htmlFor="high_value_threshold">High-Value Threshold ($)</Label>
           <Input id="high_value_threshold" type="number" step="0.01" {...form.register('high_value_threshold', { valueAsNumber: true })} />
            <p className="text-xs text-muted-foreground">Cost-of-goods threshold to be considered a 'high-value' item.</p>
+        </div>
+        <div className="space-y-1">
+            <Label htmlFor="currency">Display Currency</Label>
+            <Controller
+                control={form.control}
+                name="currency"
+                render={({ field }) => (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Select a currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="USD">USD - United States Dollar</SelectItem>
+                            <SelectItem value="EUR">EUR - Euro</SelectItem>
+                            <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                            <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+                            <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
+            />
+            <p className="text-xs text-muted-foreground">Sets the currency symbol for all financial displays.</p>
         </div>
       </div>
       <Button type="submit" disabled={isPending}>

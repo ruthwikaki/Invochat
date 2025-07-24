@@ -4,7 +4,7 @@
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
-import type { Order, SalesAnalytics } from '@/types';
+import type { Order, SalesAnalytics, CompanySettings } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, DollarSign, ShoppingCart, Percent } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,6 +19,7 @@ interface SalesClientPageProps {
   totalCount: number;
   itemsPerPage: number;
   analyticsData: SalesAnalytics;
+  settings: CompanySettings;
   exportAction: (params: { query: string }) => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
@@ -77,7 +78,7 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
 };
 
 
-export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyticsData, exportAction }: SalesClientPageProps) {
+export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyticsData, settings, exportAction }: SalesClientPageProps) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -100,9 +101,9 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
     return (
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <AnalyticsCard title="Total Revenue" value={formatCentsAsCurrency(analyticsData.total_revenue)} icon={DollarSign} />
+            <AnalyticsCard title="Total Revenue" value={formatCentsAsCurrency(analyticsData.total_revenue, settings.currency)} icon={DollarSign} />
             <AnalyticsCard title="Total Orders" value={analyticsData.total_orders.toLocaleString()} icon={ShoppingCart} />
-            <AnalyticsCard title="Average Order Value" value={formatCentsAsCurrency(analyticsData.average_order_value)} icon={Percent} />
+            <AnalyticsCard title="Average Order Value" value={formatCentsAsCurrency(analyticsData.average_order_value, settings.currency)} icon={Percent} />
         </div>
         
         <Card>
@@ -147,7 +148,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                                 <TableCell>
                                     <Badge variant={order.financial_status === 'paid' ? 'secondary' : 'outline'}>{order.financial_status || 'N/A'}</Badge>
                                 </TableCell>
-                                <TableCell className="text-right font-medium">{formatCentsAsCurrency(order.total_amount)}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCentsAsCurrency(order.total_amount, settings.currency)}</TableCell>
                             </TableRow>
                         ))}
                         </TableBody>

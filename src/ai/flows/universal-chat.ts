@@ -104,24 +104,23 @@ async function generateWithRetry(request: GenerateRequest): Promise<GenerateResp
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            return await genkit.ai.generate(request);
+            // Use the primary model for the first attempt, then fallback for retries.
+            const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
+            const finalRequest = { ...request, model: modelToUse };
+
+            return await genkit.ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
             
-            // If it's the last attempt, don't wait, just break and throw
-            if (attempt === MAX_RETRIES) {
-                break;
-            }
+            if (attempt === MAX_RETRIES) break;
 
-            // Exponential backoff: 1s, 2s, 4s...
             const delay = Math.pow(2, attempt - 1) * 1000;
-            logger.info(`[AI Generate] Retrying in ${delay}ms...`);
+            logger.info(`[AI Generate] Retrying with fallback model in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
     
-    // If the loop completes without returning, it means all retries failed.
     logError(lastError, { context: 'AI generation failed after all retries.' });
     throw lastError;
 }
@@ -265,5 +264,3 @@ export const universalChatFlow = genkit.ai.defineFlow(
     }
   }
 );
-
-    

@@ -43,7 +43,8 @@ import {
     getQueryPatternsForCompany,
     saveSuccessfulQuery,
     getDatabaseSchemaAndData,
-    refreshMaterializedViews
+    refreshMaterializedViews,
+    createAuditLogInDb,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData } from '@/types';
@@ -214,15 +215,17 @@ export async function getCompanySettings() {
 
 export async function updateCompanySettings(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
         await validateCSRF(formData);
         const settings = {
             dead_stock_days: Number(formData.get('dead_stock_days')),
             fast_moving_days: Number(formData.get('fast_moving_days')),
             overstock_multiplier: Number(formData.get('overstock_multiplier')),
             high_value_threshold: Number(formData.get('high_value_threshold')),
+            currency: String(formData.get('currency')),
         }
         await updateSettingsInDb(companyId, settings);
+        await createAuditLogInDb(companyId, userId, 'company_settings_updated', settings);
         revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
@@ -528,5 +531,3 @@ export async function handleUserMessage(params: { content: string, conversationI
     return { error: errorMessage };
   }
 }
-
-    
