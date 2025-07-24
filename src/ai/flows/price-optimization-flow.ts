@@ -36,7 +36,7 @@ const suggestPricesPrompt = ai.definePrompt({
           name: z.string(),
           cost: z.number(), // cost is now mandatory
           price: z.number(), // price is now mandatory
-          quantity: z.number(),
+          inventory_quantity: z.number(),
           sales_last_30_days: z.number(), // Added for better context
       })),
     }),
