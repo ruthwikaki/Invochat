@@ -86,17 +86,49 @@ async function processCsv<T extends z.ZodType>(
     importType: string,
     importId?: string
 ): Promise<Omit<ImportResult, 'success' | 'isDryRun'>> {
+    const supabase = getServiceRoleClient();
+    if (!supabase && !isDryRun) {
+        throw new Error('Supabase admin client not initialized.');
+    }
+
+    const rpcMap = {
+        'product-costs': 'batch_upsert_costs',
+        'suppliers': 'batch_upsert_suppliers',
+        'historical-sales': 'batch_import_sales'
+    };
+    const rpcToCall = rpcMap[importType as keyof typeof rpcMap];
+    if (!rpcToCall && !isDryRun) {
+        throw new Error(`Unsupported import type for batch processing: ${importType}`);
+    }
+
+    let batch: z.infer<T>[] = [];
+    const validationErrors: { row: number; message: string; data: Record<string, unknown> }[] = [];
+    let rowCount = 0;
+    let processedCount = 0;
+
+    const processBatch = async (currentBatch: z.infer<T>[]) => {
+        if (currentBatch.length === 0) return;
+        if (isDryRun) {
+            processedCount += currentBatch.length;
+            return;
+        }
+
+        const { error: dbError } = await supabase.rpc(rpcToCall as any, { p_records: currentBatch, p_company_id: companyId, p_user_id: userId });
+        if (dbError) {
+            logError(dbError, { context: `Transactional database error for ${importType}` });
+            validationErrors.push({ row: rowCount, message: `Database error during batch import: ${dbError.message}`, data: {} });
+        } else {
+            processedCount += currentBatch.length;
+        }
+    };
     
     return new Promise((resolve, reject) => {
-        const validRows: z.infer<T>[] = [];
-        const validationErrors: { row: number; message: string; data: Record<string, unknown> }[] = [];
-        let rowCount = 0;
-        
         const parser = Papa.parse(Papa.NODE_STREAM_INPUT, {
             header: true,
             skipEmptyLines: true,
             transformHeader: header => header.trim().toLowerCase(),
             step: async (results, parser) => {
+                parser.pause(); // Pause stream to process the row
                 rowCount++;
                 if (rowCount > 10000) {
                     parser.abort();
@@ -122,50 +154,33 @@ async function processCsv<T extends z.ZodType>(
                 const result = schema.safeParse(row);
 
                 if (result.success) {
-                    validRows.push(result.data);
+                    batch.push(result.data);
+                    if (batch.length >= BATCH_SIZE) {
+                        await processBatch(batch);
+                        batch = []; // Clear the batch
+                    }
                 } else {
                     const errorMessage = result.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
                     validationErrors.push({ row: rowCount + 1, message: errorMessage, data: results.data });
                 }
+                parser.resume();
             },
             complete: async () => {
+                // Process any remaining items in the last batch
+                if (batch.length > 0) {
+                    await processBatch(batch);
+                }
+
                 if (isDryRun) {
                     resolve({
-                        processedCount: validRows.length,
+                        processedCount: processedCount,
                         errorCount: validationErrors.length,
                         errors: validationErrors,
                         summaryMessage: validationErrors.length > 0
                           ? `[Dry Run] Found ${validationErrors.length} errors in ${rowCount} rows. No data was written.`
-                          : `[Dry Run] This file is valid. Uncheck "Dry Run" to import ${validRows.length} rows.`
+                          : `[Dry Run] This file is valid. Uncheck "Dry Run" to import ${processedCount} rows.`
                     });
                     return;
-                }
-                
-                let processedCount = 0;
-                if (validRows.length > 0) {
-                    const supabase = getServiceRoleClient();
-                    if (!supabase) { 
-                        reject(new Error('Supabase admin client not initialized.')); 
-                        return; 
-                    }
-
-                    const rpcMap = { 'product-costs': 'batch_upsert_costs', 'suppliers': 'batch_upsert_suppliers', 'historical-sales': 'batch_import_sales' };
-                    const rpcToCall = rpcMap[importType as keyof typeof rpcMap];
-                    if (!rpcToCall) { 
-                        reject(new Error(`Unsupported import type for batch processing: ${importType}`)); 
-                        return; 
-                    }
-
-                    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
-                        const batch = validRows.slice(i, i + BATCH_SIZE);
-                        const { error: dbError } = await supabase.rpc(rpcToCall as any, { p_records: batch, p_company_id: companyId, p_user_id: userId });
-                        if (dbError) {
-                            logError(dbError, { context: `Transactional database error for ${importType}` });
-                            validationErrors.push({ row: 0, message: `Database error during batch import: ${dbError.message}`, data: {} });
-                        } else {
-                            processedCount += batch.length;
-                        }
-                    }
                 }
                 
                 const hadErrors = validationErrors.length > 0;
