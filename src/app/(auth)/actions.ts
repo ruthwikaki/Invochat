@@ -47,7 +47,7 @@ export async function login(formData: FormData) {
 
   try {
     await validateCSRF(formData);
-    const { error, data } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
     });
@@ -56,7 +56,7 @@ export async function login(formData: FormData) {
         logError(error, { context: 'Login failed' });
         
         if (isRedisEnabled) {
-            const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`;
+            const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${ip}`;
             const failedAttempts = await redisClient.incr(failedAttemptsKey);
             await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
 
@@ -69,7 +69,7 @@ export async function login(formData: FormData) {
                        p_lockout_duration: `${LOCKOUT_DURATION_SECONDS} seconds`,
                    });
                 }
-                logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered'});
+                logError(new Error(`Account locked for user ${email} from IP ${ip}`), { context: 'Account Lockout Triggered'});
             }
         }
         
@@ -77,7 +77,7 @@ export async function login(formData: FormData) {
     }
 
     if (isRedisEnabled) {
-      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`);
+      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${ip}`);
     }
 
   } catch (e) {
