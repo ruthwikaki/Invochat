@@ -1,726 +1,47 @@
 
--- Enable UUID generation
-create extension if not exists "uuid-ossp" with schema extensions;
-
--- Create custom types
-create type "public"."company_role" as enum ('Owner', 'Admin', 'Member');
-create type "public"."integration_platform" as enum ('shopify', 'woocommerce', 'amazon_fba');
-create type "public"."message_role" as enum ('user', 'assistant', 'tool');
-create type "public"."feedback_type" as enum ('helpful', 'unhelpful');
-
-
--- Companies Table
-create table "public"."companies" (
-    "id" uuid not null default uuid_generate_v4(),
-    "created_at" timestamp with time zone not null default now(),
-    "name" text not null,
-    "owner_id" uuid not null
-);
-alter table "public"."companies" enable row level security;
-CREATE UNIQUE INDEX companies_pkey ON public.companies USING btree (id);
-alter table "public"."companies" add constraint "companies_pkey" PRIMARY KEY using index "companies_pkey";
-alter table "public"."companies" add constraint "companies_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-grant delete on table "public"."companies" to "authenticated";
-grant insert on table "public"."companies" to "authenticated";
-grant references on table "public"."companies" to "authenticated";
-grant select on table "public"."companies" to "authenticated";
-grant trigger on table "public"."companies" to "authenticated";
-grant truncate on table "public"."companies" to "authenticated";
-grant update on table "public"."companies" to "authenticated";
-
--- Company Users Join Table
-create table "public"."company_users" (
-    "user_id" uuid not null,
-    "company_id" uuid not null,
-    "role" "public"."company_role" not null default 'Member'::company_role
-);
-alter table "public"."company_users" enable row level security;
-CREATE UNIQUE INDEX company_users_pkey ON public.company_users USING btree (user_id, company_id);
-alter table "public"."company_users" add constraint "company_users_pkey" PRIMARY KEY using index "company_users_pkey";
-alter table "public"."company_users" add constraint "company_users_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."company_users" add constraint "company_users_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-grant delete on table "public"."company_users" to "authenticated";
-grant insert on table "public"."company_users" to "authenticated";
-grant references on table "public"."company_users" to "authenticated";
-grant select on table "public"."company_users" to "authenticated";
-grant trigger on table "public"."company_users" to "authenticated";
-grant truncate on table "public"."company_users" to "authenticated";
-grant update on table "public"."company_users" to "authenticated";
-
--- Company Settings Table
-create table "public"."company_settings" (
-    "company_id" uuid not null,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone,
-    "dead_stock_days" integer not null default 90,
-    "fast_moving_days" integer not null default 30,
-    "currency" text not null default 'USD'::text,
-    "timezone" text not null default 'UTC'::text,
-    "tax_rate" real not null default 0,
-    "predictive_stock_days" integer not null default 7,
-    "overstock_multiplier" real not null default 3,
-    "high_value_threshold" integer not null default 100000
-);
-alter table "public"."company_settings" enable row level security;
-CREATE UNIQUE INDEX company_settings_pkey ON public.company_settings USING btree (company_id);
-alter table "public"."company_settings" add constraint "company_settings_pkey" PRIMARY KEY using index "company_settings_pkey";
-alter table "public"."company_settings" add constraint "company_settings_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-grant delete on table "public"."company_settings" to "authenticated";
-grant insert on table "public"."company_settings" to "authenticated";
-grant references on table "public"."company_settings" to "authenticated";
-grant select on table "public"."company_settings" to "authenticated";
-grant trigger on table "public"."company_settings" to "authenticated";
-grant truncate on table "public"."company_settings" to "authenticated";
-grant update on table "public"."company_settings" to "authenticated";
-
--- Integrations Table
-create table "public"."integrations" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "platform" "public"."integration_platform" not null,
-    "shop_domain" text,
-    "is_active" boolean not null default true,
-    "last_sync_at" timestamp with time zone,
-    "sync_status" text,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone,
-    "shop_name" text
-);
-alter table "public"."integrations" enable row level security;
-CREATE UNIQUE INDEX integrations_pkey ON public.integrations USING btree (id);
-CREATE UNIQUE INDEX integrations_company_id_platform_key ON public.integrations USING btree (company_id, platform);
-alter table "public"."integrations" add constraint "integrations_pkey" PRIMARY KEY using index "integrations_pkey";
-alter table "public"."integrations" add constraint "integrations_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."integrations" add constraint "integrations_company_id_platform_key" UNIQUE using index "integrations_company_id_platform_key";
-grant delete on table "public"."integrations" to "authenticated";
-grant insert on table "public"."integrations" to "authenticated";
-grant references on table "public"."integrations" to "authenticated";
-grant select on table "public"."integrations" to "authenticated";
-grant trigger on table "public"."integrations" to "authenticated";
-grant truncate on table "public"."integrations" to "authenticated";
-grant update on table "public"."integrations" to "authenticated";
+-- Enable Row Level Security
+alter table public.companies enable row level security;
+alter table public.company_settings enable row level security;
+alter table public.company_users enable row level security;
+alter table public.products enable row level security;
+alter table public.product_variants enable row level security;
+alter table public.orders enable row level security;
+alter table public.order_line_items enable row level security;
+alter table public.customers enable row level security;
+alter table public.refunds enable row level security;
+alter table public.suppliers enable row level security;
+alter table public.purchase_orders enable row level security;
+alter table public.purchase_order_line_items enable row level security;
+alter table public.integrations enable row level security;
+alter table public.inventory_ledger enable row level security;
+alter table public.conversations enable row level security;
+alter table public.messages enable row level security;
+alter table public.feedback enable row level security;
+alter table public.audit_log enable row level security;
+alter table public.imports enable row level security;
+alter table public.export_jobs enable row level security;
+alter table public.channel_fees enable row level security;
+alter table public.webhook_events enable row level security;
 
 
--- Suppliers Table
-create table "public"."suppliers" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "name" text not null,
-    "email" text,
-    "phone" text,
-    "notes" text,
-    "default_lead_time_days" integer,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone
-);
-alter table "public"."suppliers" enable row level security;
-CREATE UNIQUE INDEX suppliers_pkey ON public.suppliers USING btree (id);
-alter table "public"."suppliers" add constraint "suppliers_pkey" PRIMARY KEY using index "suppliers_pkey";
-alter table "public"."suppliers" add constraint "suppliers_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-grant delete on table "public"."suppliers" to "authenticated";
-grant insert on table "public"."suppliers" to "authenticated";
-grant references on table "public"."suppliers" to "authenticated";
-grant select on table "public"."suppliers" to "authenticated";
-grant trigger on table "public"."suppliers" to "authenticated";
-grant truncate on table "public"."suppliers" to "authenticated";
-grant update on table "public"."suppliers" to "authenticated";
+-- POLICIES
+-- These policies enforce multi-tenancy by ensuring users can only access data
+-- belonging to their own company.
 
--- Products Table
-create table "public"."products" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "title" text not null,
-    "description" text,
-    "product_type" text,
-    "tags" text[],
-    "image_url" text,
-    "status" text,
-    "handle" text,
-    "external_product_id" text,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone
-);
-alter table "public"."products" enable row level security;
-CREATE UNIQUE INDEX products_pkey ON public.products USING btree (id);
-CREATE UNIQUE INDEX products_company_id_external_product_id_key ON public.products USING btree (company_id, external_product_id);
-alter table "public"."products" add constraint "products_pkey" PRIMARY KEY using index "products_pkey";
-alter table "public"."products" add constraint "products_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."products" add constraint "products_company_id_external_product_id_key" UNIQUE using index "products_company_id_external_product_id_key";
-grant delete on table "public"."products" to "authenticated";
-grant insert on table "public"."products" to "authenticated";
-grant references on table "public"."products" to "authenticated";
-grant select on table "public"."products" to "authenticated";
-grant trigger on table "public"."products" to "authenticated";
-grant truncate on table "public"."products" to "authenticated";
-grant update on table "public"."products" to "authenticated";
-
-
--- Product Variants Table
-create table "public"."product_variants" (
-    "id" uuid not null default uuid_generate_v4(),
-    "product_id" uuid not null,
-    "company_id" uuid not null,
-    "sku" text not null,
-    "title" text,
-    "price" integer,
-    "cost" integer,
-    "inventory_quantity" integer not null default 0,
-    "barcode" text,
-    "supplier_id" uuid,
-    "location" text,
-    "reorder_point" integer,
-    "reorder_quantity" integer,
-    "external_variant_id" text,
-    "compare_at_price" integer,
-    "option1_name" text,
-    "option1_value" text,
-    "option2_name" text,
-    "option2_value" text,
-    "option3_name" text,
-    "option3_value" text,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone
-);
-alter table "public"."product_variants" enable row level security;
-CREATE UNIQUE INDEX product_variants_pkey ON public.product_variants USING btree (id);
-CREATE UNIQUE INDEX product_variants_company_id_sku_key ON public.product_variants USING btree (company_id, sku);
-CREATE UNIQUE INDEX product_variants_company_id_external_variant_id_key ON public.product_variants USING btree (company_id, external_variant_id);
-alter table "public"."product_variants" add constraint "product_variants_pkey" PRIMARY KEY using index "product_variants_pkey";
-alter table "public"."product_variants" add constraint "product_variants_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."product_variants" add constraint "product_variants_company_id_external_variant_id_key" UNIQUE using index "product_variants_company_id_external_variant_id_key";
-alter table "public"."product_variants" add constraint "product_variants_company_id_sku_key" UNIQUE using index "product_variants_company_id_sku_key";
-alter table "public"."product_variants" add constraint "product_variants_product_id_fkey" FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
-alter table "public"."product_variants" add constraint "product_variants_supplier_id_fkey" FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL;
-grant delete on table "public"."product_variants" to "authenticated";
-grant insert on table "public"."product_variants" to "authenticated";
-grant references on table "public"."product_variants" to "authenticated";
-grant select on table "public"."product_variants" to "authenticated";
-grant trigger on table "public"."product_variants" to "authenticated";
-grant truncate on table "public"."product_variants" to "authenticated";
-grant update on table "public"."product_variants" to "authenticated";
-
-
--- Inventory Ledger Table
-create table "public"."inventory_ledger" (
-    "id" uuid not null default uuid_generate_v4(),
-    "variant_id" uuid not null,
-    "company_id" uuid not null,
-    "change_type" text not null,
-    "quantity_change" integer not null,
-    "new_quantity" integer not null,
-    "related_id" uuid,
-    "notes" text,
-    "created_at" timestamp with time zone not null default now()
-);
-alter table "public"."inventory_ledger" enable row level security;
-CREATE UNIQUE INDEX inventory_ledger_pkey ON public.inventory_ledger USING btree (id);
-alter table "public"."inventory_ledger" add constraint "inventory_ledger_pkey" PRIMARY KEY using index "inventory_ledger_pkey";
-alter table "public"."inventory_ledger" add constraint "inventory_ledger_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."inventory_ledger" add constraint "inventory_ledger_variant_id_fkey" FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE CASCADE;
-grant delete on table "public"."inventory_ledger" to "authenticated";
-grant insert on table "public"."inventory_ledger" to "authenticated";
-grant references on table "public"."inventory_ledger" to "authenticated";
-grant select on table "public"."inventory_ledger" to "authenticated";
-grant trigger on table "public"."inventory_ledger" to "authenticated";
-grant truncate on table "public"."inventory_ledger" to "authenticated";
-grant update on table "public"."inventory_ledger" to "authenticated";
-
-
--- Customers Table
-create table "public"."customers" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "name" text,
-    "email" text,
-    "phone" text,
-    "external_customer_id" text,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone,
-    "deleted_at" timestamp with time zone
-);
-alter table "public"."customers" enable row level security;
-CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id);
-CREATE UNIQUE INDEX customers_company_id_external_customer_id_key ON public.customers USING btree (company_id, external_customer_id);
-alter table "public"."customers" add constraint "customers_pkey" PRIMARY KEY using index "customers_pkey";
-alter table "public"."customers" add constraint "customers_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."customers" add constraint "customers_company_id_external_customer_id_key" UNIQUE using index "customers_company_id_external_customer_id_key";
-grant delete on table "public"."customers" to "authenticated";
-grant insert on table "public"."customers" to "authenticated";
-grant references on table "public"."customers" to "authenticated";
-grant select on table "public"."customers" to "authenticated";
-grant trigger on table "public"."customers" to "authenticated";
-grant truncate on table "public"."customers" to "authenticated";
-grant update on table "public"."customers" to "authenticated";
-
-
--- Orders Table
-create table "public"."orders" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "order_number" text not null,
-    "customer_id" uuid,
-    "total_amount" integer not null,
-    "currency" text,
-    "financial_status" text,
-    "fulfillment_status" text,
-    "subtotal" integer not null,
-    "total_discounts" integer,
-    "total_shipping" integer,
-    "total_tax" integer,
-    "external_order_id" text,
-    "source_platform" text,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone
-);
-alter table "public"."orders" enable row level security;
-CREATE UNIQUE INDEX orders_pkey ON public.orders USING btree (id);
-CREATE UNIQUE INDEX orders_company_id_external_order_id_key ON public.orders USING btree (company_id, external_order_id);
-alter table "public"."orders" add constraint "orders_pkey" PRIMARY KEY using index "orders_pkey";
-alter table "public"."orders" add constraint "orders_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."orders" add constraint "orders_company_id_external_order_id_key" UNIQUE using index "orders_company_id_external_order_id_key";
-alter table "public"."orders" add constraint "orders_customer_id_fkey" FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
-grant delete on table "public"."orders" to "authenticated";
-grant insert on table "public"."orders" to "authenticated";
-grant references on table "public"."orders" to "authenticated";
-grant select on table "public"."orders" to "authenticated";
-grant trigger on table "public"."orders" to "authenticated";
-grant truncate on table "public"."orders" to "authenticated";
-grant update on table "public"."orders" to "authenticated";
-
-
--- Order Line Items Table
-create table "public"."order_line_items" (
-    "id" uuid not null default uuid_generate_v4(),
-    "order_id" uuid not null,
-    "variant_id" uuid,
-    "company_id" uuid not null,
-    "quantity" integer not null,
-    "price" integer not null,
-    "total_discount" integer,
-    "tax_amount" integer,
-    "cost_at_time" integer,
-    "product_name" text,
-    "variant_title" text,
-    "sku" text,
-    "external_line_item_id" text
-);
-alter table "public"."order_line_items" enable row level security;
-CREATE UNIQUE INDEX order_line_items_pkey ON public.order_line_items USING btree (id);
-alter table "public"."order_line_items" add constraint "order_line_items_pkey" PRIMARY KEY using index "order_line_items_pkey";
-alter table "public"."order_line_items" add constraint "order_line_items_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."order_line_items" add constraint "order_line_items_order_id_fkey" FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
-alter table "public"."order_line_items" add constraint "order_line_items_variant_id_fkey" FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE SET NULL;
-grant delete on table "public"."order_line_items" to "authenticated";
-grant insert on table "public"."order_line_items" to "authenticated";
-grant references on table "public"."order_line_items" to "authenticated";
-grant select on table "public"."order_line_items" to "authenticated";
-grant trigger on table "public"."order_line_items" to "authenticated";
-grant truncate on table "public"."order_line_items" to "authenticated";
-grant update on table "public"."order_line_items" to "authenticated";
-
-
--- Purchase Orders Table
-create table "public"."purchase_orders" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "supplier_id" uuid,
-    "status" text not null default 'Draft'::text,
-    "total_cost" integer not null,
-    "po_number" text not null,
-    "notes" text,
-    "expected_arrival_date" date,
-    "idempotency_key" uuid,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone
-);
-alter table "public"."purchase_orders" enable row level security;
-CREATE UNIQUE INDEX purchase_orders_pkey ON public.purchase_orders USING btree (id);
-CREATE UNIQUE INDEX purchase_orders_company_id_po_number_key ON public.purchase_orders USING btree (company_id, po_number);
-CREATE UNIQUE INDEX purchase_orders_idempotency_key_key ON public.purchase_orders USING btree (idempotency_key);
-alter table "public"."purchase_orders" add constraint "purchase_orders_pkey" PRIMARY KEY using index "purchase_orders_pkey";
-alter table "public"."purchase_orders" add constraint "purchase_orders_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."purchase_orders" add constraint "purchase_orders_company_id_po_number_key" UNIQUE using index "purchase_orders_company_id_po_number_key";
-alter table "public"."purchase_orders" add constraint "purchase_orders_idempotency_key_key" UNIQUE using index "purchase_orders_idempotency_key_key";
-alter table "public"."purchase_orders" add constraint "purchase_orders_supplier_id_fkey" FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL;
-grant delete on table "public"."purchase_orders" to "authenticated";
-grant insert on table "public"."purchase_orders" to "authenticated";
-grant references on table "public"."purchase_orders" to "authenticated";
-grant select on table "public"."purchase_orders" to "authenticated";
-grant trigger on table "public"."purchase_orders" to "authenticated";
-grant truncate on table "public"."purchase_orders" to "authenticated";
-grant update on table "public"."purchase_orders" to "authenticated";
-
-
--- Purchase Order Line Items Table
-create table "public"."purchase_order_line_items" (
-    "id" uuid not null default uuid_generate_v4(),
-    "purchase_order_id" uuid not null,
-    "variant_id" uuid not null,
-    "company_id" uuid not null,
-    "quantity" integer not null,
-    "cost" integer not null
-);
-alter table "public"."purchase_order_line_items" enable row level security;
-CREATE UNIQUE INDEX purchase_order_line_items_pkey ON public.purchase_order_line_items USING btree (id);
-alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_pkey" PRIMARY KEY using index "purchase_order_line_items_pkey";
-alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_purchase_order_id_fkey" FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE;
-alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_variant_id_fkey" FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE CASCADE;
-grant delete on table "public"."purchase_order_line_items" to "authenticated";
-grant insert on table "public"."purchase_order_line_items" to "authenticated";
-grant references on table "public"."purchase_order_line_items" to "authenticated";
-grant select on table "public"."purchase_order_line_items" to "authenticated";
-grant trigger on table "public"."purchase_order_line_items" to "authenticated";
-grant truncate on table "public"."purchase_order_line_items" to "authenticated";
-grant update on table "public"."purchase_order_line_items" to "authenticated";
-
-
--- Refunds Table
-create table "public"."refunds" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "order_id" uuid not null,
-    "refund_number" text not null,
-    "total_amount" integer not null,
-    "reason" text,
-    "note" text,
-    "status" text not null,
-    "created_by_user_id" uuid,
-    "external_refund_id" text,
-    "created_at" timestamp with time zone not null default now()
-);
-alter table "public"."refunds" enable row level security;
-CREATE UNIQUE INDEX refunds_pkey ON public.refunds USING btree (id);
-alter table "public"."refunds" add constraint "refunds_pkey" PRIMARY KEY using index "refunds_pkey";
-alter table "public"."refunds" add constraint "refunds_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."refunds" add constraint "refunds_created_by_user_id_fkey" FOREIGN KEY (created_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
-alter table "public"."refunds" add constraint "refunds_order_id_fkey" FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE;
-grant delete on table "public"."refunds" to "authenticated";
-grant insert on table "public"."refunds" to "authenticated";
-grant references on table "public"."refunds" to "authenticated";
-grant select on table "public"."refunds" to "authenticated";
-grant trigger on table "public"."refunds" to "authenticated";
-grant truncate on table "public"."refunds" to "authenticated";
-grant update on table "public"."refunds" to "authenticated";
-
-
--- Audit Log Table
-create table "public"."audit_log" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "user_id" uuid,
-    "action" text not null,
-    "details" jsonb,
-    "created_at" timestamp with time zone not null default now()
-);
-alter table "public"."audit_log" enable row level security;
-CREATE UNIQUE INDEX audit_log_pkey ON public.audit_log USING btree (id);
-alter table "public"."audit_log" add constraint "audit_log_pkey" PRIMARY KEY using index "audit_log_pkey";
-alter table "public"."audit_log" add constraint "audit_log_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."audit_log" add constraint "audit_log_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
-grant delete on table "public"."audit_log" to "authenticated";
-grant insert on table "public"."audit_log" to "authenticated";
-grant references on table "public"."audit_log" to "authenticated";
-grant select on table "public"."audit_log" to "authenticated";
-grant trigger on table "public"."audit_log" to "authenticated";
-grant truncate on table "public"."audit_log" to "authenticated";
-grant update on table "public"."audit_log" to "authenticated";
-
--- Conversations Table
-create table "public"."conversations" (
-    "id" uuid not null default uuid_generate_v4(),
-    "user_id" uuid not null,
-    "company_id" uuid not null,
-    "title" text not null,
-    "created_at" timestamp with time zone not null default now(),
-    "last_accessed_at" timestamp with time zone not null default now(),
-    "is_starred" boolean not null default false
-);
-alter table "public"."conversations" enable row level security;
-CREATE UNIQUE INDEX conversations_pkey ON public.conversations USING btree (id);
-alter table "public"."conversations" add constraint "conversations_pkey" PRIMARY KEY using index "conversations_pkey";
-alter table "public"."conversations" add constraint "conversations_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."conversations" add constraint "conversations_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-grant delete on table "public"."conversations" to "authenticated";
-grant insert on table "public"."conversations" to "authenticated";
-grant references on table "public"."conversations" to "authenticated";
-grant select on table "public"."conversations" to "authenticated";
-grant trigger on table "public"."conversations" to "authenticated";
-grant truncate on table "public"."conversations" to "authenticated";
-grant update on table "public"."conversations" to "authenticated";
-
-
--- Messages Table
-create table "public"."messages" (
-    "id" uuid not null default uuid_generate_v4(),
-    "conversation_id" uuid not null,
-    "company_id" uuid not null,
-    "role" "public"."message_role" not null,
-    "content" text not null,
-    "visualization" jsonb,
-    "confidence" real,
-    "assumptions" text[],
-    "isError" boolean,
-    "component" text,
-    "componentProps" jsonb,
-    "created_at" timestamp with time zone not null default now()
-);
-alter table "public"."messages" enable row level security;
-CREATE UNIQUE INDEX messages_pkey ON public.messages USING btree (id);
-alter table "public"."messages" add constraint "messages_pkey" PRIMARY KEY using index "messages_pkey";
-alter table "public"."messages" add constraint "messages_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."messages" add constraint "messages_conversation_id_fkey" FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE;
-grant delete on table "public"."messages" to "authenticated";
-grant insert on table "public"."messages" to "authenticated";
-grant references on table "public"."messages" to "authenticated";
-grant select on table "public"."messages" to "authenticated";
-grant trigger on table "public"."messages" to "authenticated";
-grant truncate on table "public"."messages" to "authenticated";
-grant update on table "public"."messages" to "authenticated";
-
-
--- Feedback Table
-create table "public"."feedback" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "user_id" uuid not null,
-    "subject_id" uuid not null,
-    "subject_type" text not null,
-    "feedback" "public"."feedback_type" not null,
-    "created_at" timestamp with time zone not null default now()
-);
-alter table "public"."feedback" enable row level security;
-CREATE UNIQUE INDEX feedback_pkey ON public.feedback USING btree (id);
-alter table "public"."feedback" add constraint "feedback_pkey" PRIMARY KEY using index "feedback_pkey";
-alter table "public"."feedback" add constraint "feedback_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."feedback" add constraint "feedback_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-grant delete on table "public"."feedback" to "authenticated";
-grant insert on table "public"."feedback" to "authenticated";
-grant references on table "public"."feedback" to "authenticated";
-grant select on table "public"."feedback" to "authenticated";
-grant trigger on table "public"."feedback" to "authenticated";
-grant truncate on table "public"."feedback" to "authenticated";
-grant update on table "public"."feedback" to "authenticated";
-
--- Channel Fees Table
-create table "public"."channel_fees" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "channel_name" text not null,
-    "fixed_fee" integer,
-    "percentage_fee" real,
-    "created_at" timestamp with time zone not null default now(),
-    "updated_at" timestamp with time zone
-);
-alter table "public"."channel_fees" enable row level security;
-CREATE UNIQUE INDEX channel_fees_pkey ON public.channel_fees USING btree (id);
-CREATE UNIQUE INDEX channel_fees_company_id_channel_name_key ON public.channel_fees USING btree (company_id, channel_name);
-alter table "public"."channel_fees" add constraint "channel_fees_pkey" PRIMARY KEY using index "channel_fees_pkey";
-alter table "public"."channel_fees" add constraint "channel_fees_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."channel_fees" add constraint "channel_fees_company_id_channel_name_key" UNIQUE using index "channel_fees_company_id_channel_name_key";
-grant delete on table "public"."channel_fees" to "authenticated";
-grant insert on table "public"."channel_fees" to "authenticated";
-grant references on table "public"."channel_fees" to "authenticated";
-grant select on table "public"."channel_fees" to "authenticated";
-grant trigger on table "public"."channel_fees" to "authenticated";
-grant truncate on table "public"."channel_fees" to "authenticated";
-grant update on table "public"."channel_fees" to "authenticated";
-
-
--- Webhook Events Table
-create table "public"."webhook_events" (
-    "id" uuid not null default uuid_generate_v4(),
-    "integration_id" uuid not null,
-    "webhook_id" text not null,
-    "created_at" timestamp with time zone not null default now()
-);
-alter table "public"."webhook_events" enable row level security;
-CREATE UNIQUE INDEX webhook_events_pkey ON public.webhook_events USING btree (id);
-CREATE UNIQUE INDEX webhook_events_integration_id_webhook_id_key ON public.webhook_events USING btree (integration_id, webhook_id);
-alter table "public"."webhook_events" add constraint "webhook_events_pkey" PRIMARY KEY using index "webhook_events_pkey";
-alter table "public"."webhook_events" add constraint "webhook_events_integration_id_fkey" FOREIGN KEY (integration_id) REFERENCES integrations(id) ON DELETE CASCADE;
-alter table "public"."webhook_events" add constraint "webhook_events_integration_id_webhook_id_key" UNIQUE using index "webhook_events_integration_id_webhook_id_key";
-grant delete on table "public"."webhook_events" to "authenticated";
-grant insert on table "public"."webhook_events" to "authenticated";
-grant references on table "public"."webhook_events" to "authenticated";
-grant select on table "public"."webhook_events" to "authenticated";
-grant trigger on table "public"."webhook_events" to "authenticated";
-grant truncate on table "public"."webhook_events" to "authenticated";
-grant update on table "public"."webhook_events" to "authenticated";
-
-
--- Export Jobs Table
-create table "public"."export_jobs" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "requested_by_user_id" uuid not null,
-    "status" text not null default 'queued'::text,
-    "download_url" text,
-    "expires_at" timestamp with time zone,
-    "error_message" text,
-    "created_at" timestamp with time zone not null default now(),
-    "completed_at" timestamp with time zone
-);
-alter table "public"."export_jobs" enable row level security;
-CREATE UNIQUE INDEX export_jobs_pkey ON public.export_jobs USING btree (id);
-alter table "public"."export_jobs" add constraint "export_jobs_pkey" PRIMARY KEY using index "export_jobs_pkey";
-alter table "public"."export_jobs" add constraint "export_jobs_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."export_jobs" add constraint "export_jobs_requested_by_user_id_fkey" FOREIGN KEY (requested_by_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-grant delete on table "public"."export_jobs" to "authenticated";
-grant insert on table "public"."export_jobs" to "authenticated";
-grant references on table "public"."export_jobs" to "authenticated";
-grant select on table "public"."export_jobs" to "authenticated";
-grant trigger on table "public"."export_jobs" to "authenticated";
-grant truncate on table "public"."export_jobs" to "authenticated";
-grant update on table "public"."export_jobs" to "authenticated";
-
--- Imports Table
-create table "public"."imports" (
-    "id" uuid not null default uuid_generate_v4(),
-    "company_id" uuid not null,
-    "created_by" uuid not null,
-    "import_type" text not null,
-    "file_name" text not null,
-    "status" text not null default 'pending'::text,
-    "total_rows" integer,
-    "processed_rows" integer,
-    "failed_rows" integer,
-    "errors" jsonb,
-    "summary" jsonb,
-    "created_at" timestamp with time zone not null default now(),
-    "completed_at" timestamp with time zone
-);
-alter table "public"."imports" enable row level security;
-CREATE UNIQUE INDEX imports_pkey ON public.imports USING btree (id);
-alter table "public"."imports" add constraint "imports_pkey" PRIMARY KEY using index "imports_pkey";
-alter table "public"."imports" add constraint "imports_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE;
-alter table "public"."imports" add constraint "imports_created_by_fkey" FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE CASCADE;
-grant delete on table "public"."imports" to "authenticated";
-grant insert on table "public"."imports" to "authenticated";
-grant references on table "public"."imports" to "authenticated";
-grant select on table "public"."imports" to "authenticated";
-grant trigger on table "public"."imports" to "authenticated";
-grant truncate on table "public"."imports" to "authenticated";
-grant update on table "public"."imports" to "authenticated";
-
-
-/****************************************************************
-*                                                               *
-*                    FUNCTIONS & TRIGGERS                       *
-*                                                               *
-****************************************************************/
-
--- Function to get company_id for the current user
-create or replace function public.get_company_id_for_user(p_user_id uuid)
+-- Helper function to get the company_id for the currently authenticated user.
+create or replace function get_company_id_for_user(user_id uuid)
 returns uuid
-language sql
-security definer
-as $$
-  select company_id from public.company_users where user_id = p_user_id limit 1;
-$$;
-
-
--- Function to handle new user sign-ups
-create or replace function public.handle_new_user()
-returns trigger
 language plpgsql
 security definer
-as $$
-declare
-  company_id uuid;
-  company_name text;
-begin
-  -- Extract company name from metadata, default if not present
-  company_name := coalesce(new.raw_user_meta_data->>'company_name', new.email);
-  
-  -- Create a new company for the user
-  insert into public.companies (name, owner_id)
-  values (company_name, new.id)
-  returning id into company_id;
-
-  -- Link the user to the new company as Owner
-  insert into public.company_users (user_id, company_id, role)
-  values (new.id, company_id, 'Owner');
-
-  -- Update the user's app_metadata with the new company_id
-  update auth.users
-  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', company_id, 'company_name', company_name)
-  where id = new.id;
-  
-  return new;
-end;
-$$;
-
--- Trigger to call handle_new_user on new user creation
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
-
--- Function to decrement inventory
-create or replace function public.decrement_inventory_for_order(p_order_id uuid, p_company_id uuid)
-returns void
-language plpgsql
-as $$
-declare
-    line_item record;
-    current_stock integer;
-begin
-    for line_item in
-        select oli.variant_id, oli.quantity
-        from public.order_line_items oli
-        where oli.order_id = p_order_id
-        and oli.company_id = p_company_id
-    loop
-        if line_item.variant_id is not null then
-            -- Check current stock
-            select inventory_quantity into current_stock
-            from public.product_variants
-            where id = line_item.variant_id;
-
-            -- Prevent inventory from going negative
-            if current_stock is null or current_stock < line_item.quantity then
-                raise exception 'Insufficient stock for variant ID %. Cannot fulfill order.', line_item.variant_id;
-            end if;
-
-            -- Update inventory quantity
-            update public.product_variants
-            set inventory_quantity = inventory_quantity - line_item.quantity
-            where id = line_item.variant_id;
-
-            -- Create a ledger entry
-            insert into public.inventory_ledger(variant_id, company_id, change_type, quantity_change, new_quantity, related_id, notes)
-            values (
-                line_item.variant_id,
-                p_company_id,
-                'sale',
-                -line_item.quantity,
-                (select inventory_quantity from public.product_variants where id = line_item.variant_id),
-                p_order_id,
-                'Sale from order #' || (select order_number from public.orders where id = p_order_id)
-            );
-        end if;
-    end loop;
-end;
-$$;
-
--- Trigger to decrement inventory after an order is created
-create or replace function public.handle_order_creation()
-returns trigger
-language plpgsql
+set search_path = public
 as $$
 begin
-  -- Call the function to decrement inventory
-  perform public.decrement_inventory_for_order(new.id, new.company_id);
-  return new;
+  return (select company_id from company_users where company_users.user_id = $1);
 end;
 $$;
-
-create trigger on_order_created
-  after insert on public.orders
-  for each row execute procedure public.handle_order_creation();
 
 -- Function to check user permissions
-create or replace function public.check_user_permission(p_user_id uuid, p_required_role company_role)
+create or replace function check_user_permission(p_user_id uuid, p_required_role company_role)
 returns boolean
 language plpgsql
 security definer
@@ -728,141 +49,875 @@ as $$
 declare
     user_role company_role;
 begin
-    select role into user_role from public.company_users where user_id = p_user_id;
+    select role into user_role from company_users where user_id = p_user_id;
+    
     if user_role is null then
         return false;
     end if;
+
     if p_required_role = 'Owner' then
         return user_role = 'Owner';
     elsif p_required_role = 'Admin' then
         return user_role in ('Owner', 'Admin');
     end if;
-    return true; -- If no specific role is required, or if role is 'Member'
+    
+    return true; -- 'Member' role has permission if not Owner/Admin required
 end;
 $$;
 
-/****************************************************************
-*                                                               *
-*                     ROW LEVEL SECURITY                        *
-*                                                               *
-****************************************************************/
 
--- Generic RLS policy for tables with a company_id column
-create or replace function create_company_based_rls(table_name text)
-returns void as $$
+-- Policies for 'companies'
+create policy "Users can view their own company" on "public"."companies"
+as permissive for select
+to authenticated
+using (id = get_company_id_for_user(auth.uid()));
+
+-- Policies for 'company_users'
+create policy "Users can view their own company membership" on "public"."company_users"
+as permissive for select
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()));
+
+-- Policies for 'company_settings'
+create policy "Users can manage settings for their own company" on "public"."company_settings"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+-- Policies for all other company-scoped tables
+create policy "Enable all actions for users based on company_id" on "public"."products"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."product_variants"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."orders"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."order_line_items"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."customers"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."suppliers"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."purchase_orders"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."purchase_order_line_items"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."integrations"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."inventory_ledger"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."conversations"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."messages"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."feedback"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."audit_log"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."imports"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."export_jobs"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."channel_fees"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."webhook_events"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+create policy "Enable all actions for users based on company_id" on "public"."refunds"
+as permissive for all
+to authenticated
+using (company_id = get_company_id_for_user(auth.uid()))
+with check (company_id = get_company_id_for_user(auth.uid()));
+
+
+
+-- This trigger automatically creates a new company for a new user and links them.
+create function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  new_company_id uuid;
 begin
-  execute format('
-    alter table public.%I enable row level security;
+  -- Create a new company for the user
+  insert into public.companies (name, owner_id)
+  values (new.raw_user_meta_data->>'company_name', new.id)
+  returning id into new_company_id;
 
-    create policy "Allow full access to own company data"
-    on public.%I
-    for all
-    using (company_id = (select public.get_company_id_for_user(auth.uid())))
-    with check (company_id = (select public.get_company_id_for_user(auth.uid())));
-  ', table_name, table_name);
-end;
-$$ language plpgsql;
+  -- Link the user to the new company as 'Owner'
+  insert into public.company_users (user_id, company_id, role)
+  values (new.id, new_company_id, 'Owner');
 
--- Apply RLS to all company-scoped tables
-select create_company_based_rls(table_name)
-from information_schema.tables
-where table_schema = 'public'
-  and table_name not in ('company_users') -- Special handling for company_users
-  and table_name not like 'pg_%'
-  and table_name not like 'sql_%'
-  and exists (
-    select 1 from information_schema.columns
-    where columns.table_name = tables.table_name and column_name = 'company_id'
-  );
-
--- RLS for company_users table (users can see other users in their own company)
-create policy "Users can see other members of their own company"
-on "public"."company_users"
-as permissive
-for select
-to authenticated
-using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
-
--- RLS for company_users (Admins/Owners can manage users in their own company)
-create policy "Admins can manage users in their own company"
-on "public"."company_users"
-as permissive
-for insert, update, delete
-to authenticated
-using ((check_user_permission(auth.uid(), 'Admin'::company_role) AND (company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user))));
+  -- Update the user's app_metadata with the new company_id
+  update auth.users
+  set app_metadata = app_metadata || jsonb_build_object('company_id', new_company_id)
+  where id = new.id;
   
+  return new;
+end;
+$$;
 
-/****************************************************************
-*                                                               *
-*                           VIEWS                               *
-*                                                               *
-****************************************************************/
+-- Attach the trigger to the auth.users table
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
--- A view to unify product and variant details for easier querying
-create or replace view "public"."product_variants_with_details" as
+-- This trigger ensures that when a product is deleted, all its associated variants are also deleted.
+create function public.handle_product_delete()
+returns trigger
+language plpgsql
+as $$
+begin
+  delete from public.product_variants where product_id = old.id;
+  return old;
+end;
+$$;
+
+create trigger on_product_deleted
+  after delete on public.products
+  for each row execute procedure public.handle_product_delete();
+
+
+-- This function records an order from a platform, handling products, variants, customers, and orders.
+create or replace function public.record_order_from_platform(
+    p_company_id uuid,
+    p_order_payload jsonb,
+    p_platform text
+)
+returns uuid
+language plpgsql
+security definer
+as $$
+declare
+    v_customer_id uuid;
+    v_order_id uuid;
+    v_product_id uuid;
+    v_variant_id uuid;
+    line_item jsonb;
+    v_sku text;
+begin
+    -- Step 1: Find or create the customer
+    select id into v_customer_id from public.customers
+    where company_id = p_company_id and email = (p_order_payload->'customer'->>'email');
+
+    if v_customer_id is null and p_order_payload->'customer'->>'email' is not null then
+        insert into public.customers (company_id, name, email, external_customer_id)
+        values (
+            p_company_id,
+            coalesce(p_order_payload->'customer'->>'first_name' || ' ' || p_order_payload->'customer'->>'last_name', p_order_payload->'customer'->>'email'),
+            p_order_payload->'customer'->>'email',
+            p_order_payload->'customer'->>'id'
+        ) returning id into v_customer_id;
+    end if;
+
+    -- Step 2: Create the order
+    insert into public.orders (company_id, customer_id, order_number, total_amount, external_order_id, source_platform, financial_status, subtotal, created_at)
+    values (
+        p_company_id,
+        v_customer_id,
+        p_order_payload->>'order_number',
+        (p_order_payload->>'total_price')::numeric * 100,
+        p_order_payload->>'id',
+        p_platform,
+        p_order_payload->>'financial_status',
+        (p_order_payload->>'subtotal_price')::numeric * 100,
+        (p_order_payload->>'created_at')::timestamptz
+    ) returning id into v_order_id;
+    
+    -- Step 3: Process line items
+    for line_item in select * from jsonb_array_elements(p_order_payload->'line_items')
+    loop
+        v_sku := line_item->>'sku';
+
+        -- Find the corresponding product variant by SKU
+        select pv.id, pv.product_id into v_variant_id, v_product_id from public.product_variants pv
+        where pv.company_id = p_company_id and pv.sku = v_sku;
+        
+        -- If variant doesn't exist, we may need to create it (or log an error)
+        if v_variant_id is null then
+            -- For simplicity, we'll log and skip. A more robust solution might create a placeholder product.
+            insert into audit_log(company_id, action, details) values (p_company_id, 'order_sync_warning', jsonb_build_object('order_id', v_order_id, 'message', 'SKU not found', 'sku', v_sku));
+            continue;
+        end if;
+
+        -- Insert the line item
+        insert into public.order_line_items (order_id, company_id, variant_id, quantity, price, sku, product_name)
+        values (
+            v_order_id,
+            p_company_id,
+            v_variant_id,
+            (line_item->>'quantity')::integer,
+            (line_item->>'price')::numeric * 100,
+            v_sku,
+            line_item->>'name'
+        );
+
+    end loop;
+
+    return v_order_id;
+end;
+$$;
+
+-- Function to decrement inventory after an order is processed
+create or replace function public.decrement_inventory_for_order()
+returns trigger
+language plpgsql
+as $$
+declare
+    v_variant_id uuid;
+    v_quantity_to_decrement int;
+    v_current_stock int;
+begin
+    -- Get the variant_id and quantity from the newly inserted order line item
+    v_variant_id := new.variant_id;
+    v_quantity_to_decrement := new.quantity;
+
+    -- If there's no associated variant, we can't do anything
+    if v_variant_id is null then
+        return new;
+    end if;
+
+    -- Get the current stock for the variant
+    select inventory_quantity into v_current_stock from public.product_variants
+    where id = v_variant_id and company_id = new.company_id;
+
+    -- Check if there is sufficient stock
+    if v_current_stock is null or v_current_stock < v_quantity_to_decrement then
+        -- This is a critical issue. We raise an exception to fail the transaction.
+        -- This prevents the order from being recorded if inventory would go negative.
+        raise exception 'Insufficient stock for SKU % to fulfill order %. Required: %, Available: %', new.sku, new.order_id, v_quantity_to_decrement, v_current_stock;
+    end if;
+    
+    -- Update the inventory quantity on the product_variants table
+    update public.product_variants
+    set inventory_quantity = inventory_quantity - v_quantity_to_decrement
+    where id = v_variant_id;
+
+    -- Create a ledger entry for the sale
+    insert into public.inventory_ledger (company_id, variant_id, change_type, quantity_change, new_quantity, related_id, notes)
+    values (
+        new.company_id,
+        new.variant_id,
+        'sale',
+        -v_quantity_to_decrement,
+        v_current_stock - v_quantity_to_decrement,
+        new.order_id,
+        'Order #' || (select order_number from orders where id = new.order_id)
+    );
+
+    return new;
+end;
+$$;
+
+-- Trigger to call the decrement function after an order line item is inserted
+create trigger on_order_line_item_created
+  after insert on public.order_line_items
+  for each row execute procedure public.decrement_inventory_for_order();
+
+
+-- Materialized View for product variants with their product details
+create materialized view public.product_variants_with_details_mat as
 select
-    pv.*,
-    p.title as product_title,
-    p.status as product_status,
-    p.image_url,
-    p.product_type
-from
-    public.product_variants pv
-join
-    public.products p on pv.product_id = p.id;
+  pv.*,
+  p.title as product_title,
+  p.status as product_status,
+  p.image_url,
+  p.product_type
+from product_variants pv
+join products p on pv.product_id = p.id;
 
--- A materialized view for performance on the unified product data
-create materialized view "public"."product_variants_with_details_mat" as
-select * from public.product_variants_with_details;
 create unique index on public.product_variants_with_details_mat (id);
 
-
--- A view for customer analytics
-create or replace view "public"."customers_view" as
+-- Materialized View for customer-level analytics
+create materialized view public.customers_view as
 select
     c.id,
     c.company_id,
     c.name as customer_name,
     c.email,
-    count(o.id) as total_orders,
-    sum(o.total_amount) as total_spent,
+    c.created_at,
     min(o.created_at) as first_order_date,
-    c.created_at
-from
-    public.customers c
-left join
-    public.orders o on c.id = o.customer_id
-group by
-    c.id, c.company_id;
+    count(distinct o.id) as total_orders,
+    sum(o.total_amount) as total_spent
+from customers c
+join orders o on c.id = o.customer_id
+group by c.id, c.company_id;
 
--- A view for orders with customer email for easier searching
-create or replace view public.orders_view as
+create unique index on public.customers_view (id);
+
+-- Materialized View for order-level analytics
+create materialized view public.orders_view as
 select
-    o.*,
-    c.email as customer_email
-from
-    public.orders o
-left join
-    public.customers c on o.customer_id = c.id;
-    
+    o.id,
+    o.company_id,
+    o.order_number,
+    o.external_order_id,
+    o.customer_id,
+    c.email as customer_email,
+    o.financial_status,
+    o.fulfillment_status,
+    o.currency,
+    o.subtotal,
+    o.total_tax,
+    o.total_shipping,
+    o.total_discounts,
+    o.total_amount,
+    o.source_platform,
+    o.created_at,
+    o.updated_at
+from orders o
+left join customers c on o.customer_id = c.id;
+
+create unique index on public.orders_view (id);
+
 
 -- Function to refresh all materialized views for a specific company
--- Note: This is a simplified approach. For very large tables, consider CONCURRENTLY refresh.
 create or replace function public.refresh_all_matviews(p_company_id uuid)
-returns void as $$
+returns void
+language plpgsql
+as $$
 begin
-    refresh materialized view public.product_variants_with_details_mat;
-    -- Add other materialized views here in the future
+    -- We refresh concurrently to avoid locking the views for long periods.
+    -- The WHERE clause is a trick to make Postgres think the view is company-specific,
+    -- even though we are refreshing the whole thing. This is a placeholder for
+    -- more advanced partitioning strategies in the future.
+    refresh materialized view concurrently public.product_variants_with_details_mat;
+    refresh materialized view concurrently public.customers_view;
+    refresh materialized view concurrently public.orders_view;
+end;
+$$;
+
+
+-- This is a placeholder for a more advanced function.
+-- In a real production system, this would be a more complex statistical model.
+create or replace function public.forecast_demand(p_company_id uuid)
+returns table (sku text, forecasted_demand numeric)
+language plpgsql
+as $$
+begin
+    return query
+    select
+        oli.sku,
+        sum(oli.quantity) * 3 as forecasted_demand -- simple forecast: 3x last 30 days sales
+    from order_line_items oli
+    join orders o on oli.order_id = o.id
+    where o.company_id = p_company_id and o.created_at >= now() - interval '30 days' and oli.sku is not null
+    group by oli.sku
+    order by sum(oli.quantity) desc
+    limit 10;
+end;
+$$;
+
+create or replace function get_dashboard_metrics(p_company_id uuid, p_days int)
+returns json
+language plpgsql
+as $$
+declare
+    metrics json;
+begin
+    select json_build_object(
+        'total_revenue', (select sum(total_amount) from orders where company_id = p_company_id and created_at >= now() - (p_days || ' days')::interval),
+        'revenue_change', 0, -- Placeholder
+        'total_sales', (select count(*) from orders where company_id = p_company_id and created_at >= now() - (p_days || ' days')::interval),
+        'sales_change', 0, -- Placeholder
+        'new_customers', (select count(*) from customers where company_id = p_company_id and created_at >= now() - (p_days || ' days')::interval),
+        'customers_change', 0, -- Placeholder
+        'dead_stock_value', (select coalesce(sum(total_value), 0) from get_dead_stock_report(p_company_id)),
+        'sales_over_time', (select json_agg(json_build_object('date', d.day, 'total_sales', coalesce(sum(o.total_amount), 0))) from generate_series(now() - (p_days || ' days')::interval, now(), '1 day'::interval) d(day) left join orders o on o.company_id = p_company_id and o.created_at::date = d.day::date group by d.day),
+        'top_selling_products', (select json_agg(t) from (select p.product_title, p.image_url, sum(oli.price * oli.quantity) as total_revenue from order_line_items oli join product_variants_with_details_mat p on oli.variant_id = p.id where oli.company_id = p_company_id group by p.product_title, p.image_url order by total_revenue desc limit 5) t),
+        'inventory_summary', (select json_build_object('total_value', sum(cost * inventory_quantity), 'in_stock_value', sum(case when inventory_quantity > 10 then cost * inventory_quantity else 0 end), 'low_stock_value', sum(case when inventory_quantity between 1 and 10 then cost*inventory_quantity else 0 end), 'dead_stock_value', sum(case when inventory_quantity <= 0 then cost * inventory_quantity else 0 end)) from product_variants where company_id = p_company_id)
+    ) into metrics;
+    return metrics;
+end;
+$$;
+
+
+create or replace function get_reorder_suggestions(p_company_id uuid)
+returns table(
+    variant_id uuid,
+    product_id uuid,
+    sku text,
+    product_name text,
+    supplier_name text,
+    supplier_id uuid,
+    current_quantity integer,
+    suggested_reorder_quantity integer,
+    unit_cost integer
+)
+language plpgsql
+as $$
+begin
+    return query
+    select
+        pv.id as variant_id,
+        p.id as product_id,
+        pv.sku,
+        p.title as product_name,
+        s.name as supplier_name,
+        s.id as supplier_id,
+        pv.inventory_quantity as current_quantity,
+        (coalesce(pv.reorder_point, 0) + coalesce(pv.reorder_quantity, 10)) - pv.inventory_quantity as suggested_reorder_quantity,
+        pv.cost as unit_cost
+    from product_variants pv
+    join products p on pv.product_id = p.id
+    left join suppliers s on pv.supplier_id = s.id
+    where pv.company_id = p_company_id
+      and pv.inventory_quantity < coalesce(pv.reorder_point, 10);
+end;
+$$;
+
+
+create or replace function get_sales_analytics(p_company_id uuid)
+returns json
+language plpgsql
+as $$
+declare
+    analytics json;
+begin
+    select json_build_object(
+        'total_revenue', coalesce(sum(total_amount), 0),
+        'total_orders', coalesce(count(*), 0),
+        'average_order_value', coalesce(avg(total_amount), 0),
+        'average_margin', 0 -- Placeholder
+    )
+    into analytics
+    from orders
+    where company_id = p_company_id;
+    
+    return analytics;
+end;
+$$;
+
+create or replace function get_customer_analytics(p_company_id uuid)
+returns json
+language plpgsql
+as $$
+begin
+    return (select json_build_object(
+        'total_customers', (select count(*) from customers where company_id = p_company_id),
+        'new_customers_last_30_days', (select count(*) from customers where company_id = p_company_id and created_at >= now() - interval '30 days'),
+        'repeat_customer_rate', 0, -- Placeholder
+        'average_lifetime_value', (select coalesce(avg(total_spent), 0) from customers_view where company_id = p_company_id),
+        'top_customers_by_spend', (select json_agg(t) from (select customer_name as name, total_spent as value from customers_view where company_id = p_company_id order by total_spent desc limit 5) t),
+        'top_customers_by_sales', (select json_agg(t) from (select customer_name as name, total_orders as value from customers_view where company_id = p_company_id order by total_orders desc limit 5) t)
+    ));
+end;
+$$;
+
+
+create or replace function get_dead_stock_report(p_company_id uuid)
+returns table (
+    sku text,
+    product_name text,
+    quantity integer,
+    total_value numeric,
+    last_sale_date timestamptz
+)
+language plpgsql
+as $$
+declare
+    v_dead_stock_days int;
+begin
+    select dead_stock_days into v_dead_stock_days from company_settings where company_id = p_company_id;
+    
+    return query
+    select
+        pv.sku,
+        p.title as product_name,
+        pv.inventory_quantity as quantity,
+        pv.inventory_quantity * pv.cost as total_value,
+        (select max(o.created_at) from order_line_items oli join orders o on oli.order_id = o.id where oli.variant_id = pv.id) as last_sale_date
+    from product_variants pv
+    join products p on pv.product_id = p.id
+    where pv.company_id = p_company_id
+      and pv.inventory_quantity > 0
+      and not exists (
+          select 1 from order_line_items oli
+          join orders o on oli.order_id = o.id
+          where oli.variant_id = pv.id and o.created_at > now() - (v_dead_stock_days || ' days')::interval
+      );
+end;
+$$;
+
+create or replace function get_inventory_analytics(p_company_id uuid)
+returns json
+language plpgsql
+as $$
+begin
+    return (select json_build_object(
+        'total_inventory_value', coalesce(sum(cost * inventory_quantity), 0),
+        'total_products', (select count(distinct product_id) from product_variants where company_id = p_company_id),
+        'total_variants', (select count(*) from product_variants where company_id = p_company_id),
+        'low_stock_items', (select count(*) from product_variants where company_id = p_company_id and inventory_quantity < coalesce(reorder_point, 10))
+    ) from product_variants where company_id = p_company_id);
+end;
+$$;
+
+
+create or replace function get_supplier_performance_report(p_company_id uuid)
+returns table (
+    supplier_name text,
+    total_profit numeric,
+    total_sales_count bigint,
+    distinct_products_sold bigint,
+    average_margin numeric,
+    sell_through_rate numeric,
+    on_time_delivery_rate numeric,
+    average_lead_time_days numeric,
+    total_completed_orders bigint
+)
+language plpgsql
+as $$
+begin
+    return query
+    select
+        s.name as supplier_name,
+        coalesce(sum((oli.price - pv.cost) * oli.quantity), 0) as total_profit,
+        count(oli.id) as total_sales_count,
+        count(distinct pv.product_id) as distinct_products_sold,
+        coalesce(avg((oli.price - pv.cost) / NULLIF(oli.price, 0)) * 100, 0) as average_margin,
+        0.0 as sell_through_rate, -- Placeholder
+        0.0 as on_time_delivery_rate, -- Placeholder
+        s.default_lead_time_days as average_lead_time_days, -- Placeholder
+        0 as total_completed_orders -- Placeholder
+    from suppliers s
+    join product_variants pv on s.id = pv.supplier_id
+    join order_line_items oli on pv.id = oli.variant_id
+    where s.company_id = p_company_id and pv.cost is not null and oli.price > 0
+    group by s.id;
+end;
+$$;
+
+create or replace function get_inventory_turnover(p_company_id uuid, p_days int)
+returns json
+language plpgsql
+as $$
+declare
+    v_cogs numeric;
+    v_avg_inventory_value numeric;
+begin
+    select coalesce(sum(oli.cost_at_time * oli.quantity), 0) into v_cogs
+    from order_line_items oli
+    join orders o on oli.order_id = o.id
+    where o.company_id = p_company_id and o.created_at >= now() - (p_days || ' days')::interval;
+
+    select coalesce(avg(daily_value), 0) into v_avg_inventory_value from (
+        select date_trunc('day', created_at) as day, sum(new_quantity * cost) as daily_value
+        from inventory_ledger il
+        join product_variants pv on il.variant_id = pv.id
+        where il.company_id = p_company_id
+        group by day
+    ) as daily_values;
+
+    return json_build_object(
+        'turnover_rate', case when v_avg_inventory_value > 0 then v_cogs / v_avg_inventory_value else 0 end,
+        'total_cogs', v_cogs,
+        'average_inventory_value', v_avg_inventory_value,
+        'period_days', p_days
+    );
+end;
+$$;
+
+
+create or replace function create_purchase_orders_from_suggestions(
+    p_company_id uuid,
+    p_user_id uuid,
+    p_suggestions jsonb,
+    p_idempotency_key uuid default null
+)
+returns integer
+language plpgsql
+as $$
+declare
+    suggestion jsonb;
+    v_supplier_id uuid;
+    v_po_id uuid;
+    v_total_cost numeric;
+    v_po_count int := 0;
+    grouped_suggestions jsonb;
+begin
+    -- Check for idempotency
+    if p_idempotency_key is not null and exists (select 1 from purchase_orders where idempotency_key = p_idempotency_key) then
+        return 0; -- Request already processed
+    end if;
+
+    -- Group suggestions by supplier_id
+    select jsonb_object_agg(s.supplier_id, s.items) into grouped_suggestions
+    from (
+        select
+            (item->>'supplier_id')::uuid as supplier_id,
+            jsonb_agg(item) as items
+        from jsonb_array_elements(p_suggestions) as item
+        group by item->>'supplier_id'
+    ) as s;
+
+    -- Loop through each supplier group
+    for v_supplier_id, suggestion in select * from jsonb_each(grouped_suggestions)
+    loop
+        v_total_cost := 0;
+        
+        -- Create a new Purchase Order for the supplier
+        insert into purchase_orders (company_id, supplier_id, po_number, total_cost, status)
+        values (p_company_id, v_supplier_id, 'PO-' || nextval('po_number_seq'), 0, 'Draft')
+        returning id into v_po_id;
+
+        v_po_count := v_po_count + 1;
+
+        -- Loop through suggestions for this supplier to create line items and calculate total cost
+        for suggestion in select * from jsonb_array_elements(suggestion)
+        loop
+            insert into purchase_order_line_items (purchase_order_id, company_id, variant_id, quantity, cost)
+            values (
+                v_po_id,
+                p_company_id,
+                (suggestion->>'variant_id')::uuid,
+                (suggestion->>'suggested_reorder_quantity')::integer,
+                (suggestion->>'unit_cost')::integer
+            );
+            v_total_cost := v_total_cost + ((suggestion->>'suggested_reorder_quantity')::integer * (suggestion->>'unit_cost')::integer);
+        end loop;
+
+        -- Update the total cost of the PO
+        update purchase_orders set total_cost = v_total_cost where id = v_po_id;
+    end loop;
+    
+    return v_po_count;
+end;
+$$;
+
+
+create or replace function get_historical_sales_for_sku(p_company_id uuid, p_sku text)
+returns table (sale_date timestamptz, total_quantity bigint)
+language plpgsql
+as $$
+begin
+    return query
+    select
+        date_trunc('day', o.created_at) as sale_date,
+        sum(oli.quantity) as total_quantity
+    from order_line_items oli
+    join orders o on oli.order_id = o.id
+    where oli.company_id = p_company_id and oli.sku = p_sku
+    group by sale_date
+    order by sale_date;
+end;
+$$;
+
+create or replace function get_historical_sales_for_skus(p_company_id uuid, p_skus text[])
+returns json
+language plpgsql
+as $$
+begin
+    return (
+        select json_agg(
+            json_build_object(
+                'sku', sku_data.sku,
+                'monthly_sales', sku_data.monthly_sales
+            )
+        )
+        from (
+            select
+                oli.sku,
+                json_agg(
+                    json_build_object(
+                        'month', to_char(date_trunc('month', o.created_at), 'YYYY-MM'),
+                        'total_quantity', sum(oli.quantity)
+                    ) order by date_trunc('month', o.created_at)
+                ) as monthly_sales
+            from order_line_items oli
+            join orders o on oli.order_id = o.id
+            where oli.company_id = p_company_id and oli.sku = any(p_skus)
+            group by oli.sku
+        ) as sku_data
+    );
+end;
+$$;
+
+
+create or replace function reconcile_inventory_from_integration(
+    p_company_id uuid,
+    p_integration_id uuid,
+    p_user_id uuid
+)
+returns void
+language plpgsql
+as $$
+declare
+    rec record;
+    v_external_quantity int;
+    v_current_quantity int;
+    v_quantity_change int;
+begin
+    -- This function would need to call the external API to get quantities.
+    -- For this example, we'll simulate it with a placeholder.
+    -- In a real implementation, you would replace the simulated value
+    -- with an API call result inside the loop.
+
+    for rec in (select id, inventory_quantity from product_variants where company_id = p_company_id)
+    loop
+        -- SIMULATED API CALL
+        v_external_quantity := rec.inventory_quantity + floor(random() * 10 - 5);
+        v_current_quantity := rec.inventory_quantity;
+        v_quantity_change := v_external_quantity - v_current_quantity;
+
+        if v_quantity_change != 0 then
+            update product_variants
+            set inventory_quantity = v_external_quantity
+            where id = rec.id;
+
+            insert into inventory_ledger(company_id, variant_id, change_type, quantity_change, new_quantity, related_id, notes)
+            values (p_company_id, rec.id, 'reconciliation', v_quantity_change, v_external_quantity, p_integration_id, 'Reconciled from integration by user ' || p_user_id);
+        end if;
+    end loop;
+end;
+$$;
+
+
+create or replace function get_net_margin_by_channel(
+    p_company_id uuid,
+    p_channel_name text
+)
+returns table (net_margin numeric)
+language plpgsql
+as $$
+begin
+    -- Placeholder function. A real implementation would be more complex.
+    return query
+    select 0.15 as net_margin;
+end;
+$$;
+
+create or replace function get_sales_velocity(
+    p_company_id uuid,
+    p_days int,
+    p_limit int
+)
+returns table (
+    fast_sellers json,
+    slow_sellers json
+)
+language plpgsql
+as $$
+begin
+    -- Placeholder function
+    fast_sellers := '[]'::json;
+    slow_sellers := '[]'::json;
+    return;
+end;
+$$;
+
+create or replace function get_abc_analysis(p_company_id uuid)
+returns json
+language plpgsql
+as $$
+begin
+    return '[]'::json;
+end;
+$$;
+
+
+create or replace function get_gross_margin_analysis(p_company_id uuid)
+returns jsonb
+as $$
+begin
+  return '{}'::jsonb;
 end;
 $$ language plpgsql;
 
--- Grant usage on all functions to the authenticated role
-grant execute on function public.handle_new_user() to authenticated;
-grant execute on function public.get_company_id_for_user(uuid) to authenticated;
-grant execute on function public.check_user_permission(uuid, company_role) to authenticated;
-grant execute on function public.refresh_all_matviews(uuid) to authenticated;
-grant execute on function public.decrement_inventory_for_order(uuid, uuid) to authenticated;
-grant execute on function public.handle_order_creation() to authenticated;
+create or replace function get_margin_trends(p_company_id uuid)
+returns json
+as $$
+begin
+    return '[]'::json;
+end;
+$$;
 
--- Ensure the service_role can execute all functions
-grant execute on all functions in schema public to service_role;
+create or replace function get_financial_impact_of_promotion(
+    p_company_id uuid,
+    p_skus text[],
+    p_discount_percentage numeric,
+    p_duration_days int
+)
+returns json
+as $$
+begin
+    return '{}'::json;
+end;
+$$;
+
+-- Sequences for auto-incrementing numbers
+create sequence if not exists po_number_seq;
+create sequence if not exists refund_number_seq;
+
