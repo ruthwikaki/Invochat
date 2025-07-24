@@ -1,11 +1,9 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import tsconfigPaths from 'vite-tsconfig-paths'
 
-// This configuration is now simplified.
-// Vitest will automatically load `.env.test` when `NODE_ENV` is 'test'
-// and handle tsconfig paths without an extra plugin.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tsconfigPaths()],
   test: {
     globals: true,
     environment: 'jsdom',
