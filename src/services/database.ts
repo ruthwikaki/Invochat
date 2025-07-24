@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -1092,3 +1091,5 @@ export async function getCompanyIdForUser(userId: string): Promise<string | null
     }
     return data?.company_id || null;
 }
+
+i am asking about application not db
