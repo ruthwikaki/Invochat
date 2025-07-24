@@ -80,19 +80,22 @@ describe('Component: ReorderClientPage', () => {
         const checkboxes = screen.getAllByRole('checkbox');
         const selectAllCheckbox = checkboxes[0];
 
-        // Action bar should be visible initially because items are pre-selected
-        expect(screen.getByText(/item\(s\) selected/)).toBeInTheDocument();
+        // Action bar should not be visible initially because items are not pre-selected
+        expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
-        // Uncheck all items using the header checkbox
+        // Select all items
         await fireEvent.click(selectAllCheckbox);
-        
-        // Action bar should now be hidden
+        expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
+
+        // Unselect all items
+        await fireEvent.click(selectAllCheckbox);
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
         // Check one item
         await fireEvent.click(checkboxes[1]);
         expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
     });
+
 
     it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
         const mockToast = vi.fn();
@@ -103,7 +106,10 @@ describe('Component: ReorderClientPage', () => {
         });
         
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
-        
+        // Select an item to enable the button
+        const firstCheckbox = screen.getAllByRole('checkbox')[1];
+        await fireEvent.click(firstCheckbox);
+
         const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
         await fireEvent.click(createPoButton);
 
