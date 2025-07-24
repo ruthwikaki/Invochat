@@ -247,6 +247,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
             placeholder="Ask anything about your inventory..."
             className="h-12 flex-1 rounded-full pr-24 text-base"
             disabled={isPending}
+            aria-label="Chat input"
           />
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
             <Button
@@ -264,9 +265,9 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
                 size="icon"
                 className="rounded-full bg-primary text-white shadow-lg hover:scale-105 transition-transform"
                 disabled={isPending || !input.trim()}
+                aria-label="Send message"
             >
                 <ArrowRight className="h-5 w-5" />
-                <span className="sr-only">Send</span>
             </Button>
           </div>
         </form>

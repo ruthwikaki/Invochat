@@ -59,6 +59,9 @@ export const config = {
     maxOutputTokens: parseIntWithDefault(process.env.AI_MAX_OUTPUT_TOKENS, 2048),
     timeoutMs: parseIntWithDefault(process.env.AI_TIMEOUT_MS, 30000), // 30 second timeout for AI calls
   },
+  database: {
+    queryTimeout: parseIntWithDefault(process.env.DB_QUERY_TIMEOUT_MS, 15000), // 15 seconds
+  },
   ratelimit: {
     auth: parseIntWithDefault(process.env.RATELIMIT_AUTH, 5),
     ai: parseIntWithDefault(process.env.RATELIMIT_AI, 20),

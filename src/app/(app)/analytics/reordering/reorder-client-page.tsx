@@ -171,6 +171,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                     <Checkbox
                         checked={isAllSelected ? true : (isSomeSelected ? 'indeterminate' : false)}
                         onCheckedChange={handleSelectAll}
+                        aria-label="Select all rows"
                     />
                   </TableHead>
                   <TableHead>Product</TableHead>
@@ -188,6 +189,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                       <Checkbox
                         checked={selectedSuggestions.some(s => s.sku === suggestion.sku)}
                         onCheckedChange={(checked) => { handleSelect(suggestion, !!checked); }}
+                        aria-label={`Select row for ${suggestion.product_name}`}
                       />
                     </TableCell>
                     <TableCell>
