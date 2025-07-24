@@ -428,4 +428,3 @@ CREATE POLICY "User can access their own company data" ON public.messages FOR AL
 CREATE POLICY "User can access their own company data" ON public.audit_log FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
 CREATE POLICY "User can access their own company settings" ON public.company_settings FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
 CREATE POLICY "User can see other users in their company" ON public.users FOR SELECT USING (company_id = public.get_company_id_for_user(auth.uid()));
-
