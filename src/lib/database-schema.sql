@@ -1,3 +1,4 @@
+
 -- Enable UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -27,8 +28,7 @@ END$$;
 CREATE TABLE IF NOT EXISTS public.companies (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    owner_id uuid NOT NULL REFERENCES auth.users (id)
+    created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- Users Table (public schema)
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     email text,
-    role public.company_role DEFAULT 'Member',
+    role text DEFAULT 'member'::text,
     deleted_at timestamptz,
     created_at timestamptz DEFAULT now()
 );
@@ -50,8 +50,7 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
     phone text,
     default_lead_time_days integer,
     notes text,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz
+    created_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- Products Table
@@ -92,17 +91,14 @@ CREATE TABLE IF NOT EXISTS public.product_variants (
     price integer,
     compare_at_price integer,
     cost integer,
-    inventory_quantity integer NOT NULL DEFAULT 0,
+    inventory_quantity integer NOT NULL DEFAULT 0 CHECK (inventory_quantity >= 0),
     location text,
-    reorder_point integer,
-    reorder_quantity integer,
     external_variant_id text,
     version integer NOT NULL DEFAULT 1,
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now(),
     deleted_at timestamptz,
-    CONSTRAINT product_variants_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id) ON DELETE SET NULL,
-    CONSTRAINT check_inventory_quantity_non_negative CHECK (inventory_quantity >= 0)
+    CONSTRAINT product_variants_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS variants_product_id_idx ON public.product_variants(product_id);
 CREATE UNIQUE INDEX IF NOT EXISTS variants_sku_company_id_unique ON public.product_variants(sku, company_id);
@@ -112,12 +108,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS variants_ext_id_company_id_unique ON public.pr
 CREATE TABLE IF NOT EXISTS public.customers (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    name text,
+    customer_name text NOT NULL,
     email text,
-    external_customer_id text,
-    phone text,
+    total_orders integer DEFAULT 0,
+    total_spent integer DEFAULT 0,
+    first_order_date date,
     created_at timestamptz DEFAULT now(),
-    updated_at timestamptz,
     deleted_at timestamptz
 );
 
@@ -137,19 +133,23 @@ CREATE TABLE IF NOT EXISTS public.orders (
     total_discounts integer DEFAULT 0,
     total_amount integer NOT NULL,
     source_platform text,
+    source_name text,
+    tags text[],
+    notes text,
+    cancelled_at timestamptz,
     created_at timestamptz DEFAULT now(),
-    updated_at timestamptz
+    updated_at timestamptz DEFAULT now()
 );
 
 -- Order Line Items Table
 CREATE TABLE IF NOT EXISTS public.order_line_items (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    variant_id uuid REFERENCES public.product_variants(id) ON DELETE RESTRICT,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE RESTRICT,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_name text,
+    product_name text NOT NULL,
     variant_title text,
-    sku text,
+    sku text NOT NULL,
     quantity integer NOT NULL,
     price integer NOT NULL,
     total_discount integer DEFAULT 0,
@@ -188,7 +188,7 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_line_items (
 CREATE TABLE IF NOT EXISTS public.integrations (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    platform public.integration_platform NOT NULL,
+    platform text NOT NULL,
     shop_domain text,
     shop_name text,
     is_active boolean DEFAULT false,
@@ -203,7 +203,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS integrations_platform_company_id_unique ON pub
 CREATE TABLE IF NOT EXISTS public.webhook_events (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     integration_id uuid NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
-    webhook_id text NOT NULL
+    webhook_id text NOT NULL,
+    created_at timestamptz DEFAULT now(),
+    processed_at timestamptz DEFAULT now()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS webhook_events_unique_id ON public.webhook_events(integration_id, webhook_id);
 
@@ -237,7 +239,7 @@ CREATE TABLE IF NOT EXISTS public.messages (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
     company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    role public.message_role NOT NULL,
+    role text NOT NULL,
     content text,
     component text,
     component_props jsonb,
@@ -253,12 +255,13 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
     dead_stock_days integer NOT NULL DEFAULT 90,
     fast_moving_days integer NOT NULL DEFAULT 30,
-    overstock_multiplier numeric NOT NULL DEFAULT 3,
-    high_value_threshold integer NOT NULL DEFAULT 100000,
+    overstock_multiplier integer NOT NULL DEFAULT 3,
+    high_value_threshold integer NOT NULL DEFAULT 1000,
     predictive_stock_days integer NOT NULL DEFAULT 7,
     currency text DEFAULT 'USD',
     timezone text DEFAULT 'UTC',
     tax_rate numeric DEFAULT 0,
+    promo_sales_lift_multiplier real NOT NULL DEFAULT 2.5,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz
 );
@@ -273,27 +276,27 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
   created_at timestamptz DEFAULT now()
 );
 
--- Channel Fees Table
-CREATE TABLE IF NOT EXISTS public.channel_fees (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    channel_name text NOT NULL,
-    percentage_fee numeric,
-    fixed_fee integer, -- in cents
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz,
-    UNIQUE(company_id, channel_name)
-);
+-- #################################################################
+-- ### Row-Level Security (RLS)
+-- #################################################################
 
-
--- Company Users join table
-CREATE TABLE IF NOT EXISTS public.company_users (
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role public.company_role NOT NULL DEFAULT 'Member',
-  PRIMARY KEY (company_id, user_id)
-);
-
+-- Drop existing policies first to ensure idempotency, in correct dependency order
+DROP POLICY IF EXISTS "User can access their own company data" ON public.products;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.product_variants;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.orders;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.order_line_items;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.customers;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.suppliers;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.purchase_orders;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.purchase_order_line_items;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.integrations;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.webhook_events;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.inventory_ledger;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.conversations;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.messages;
+DROP POLICY IF EXISTS "User can access their own company data" ON public.audit_log;
+DROP POLICY IF EXISTS "User can access their own company settings" ON public.company_settings;
+DROP POLICY IF EXISTS "User can see other users in their company" ON public.users;
 
 -- #################################################################
 -- ### Functions & Triggers
@@ -301,30 +304,53 @@ CREATE TABLE IF NOT EXISTS public.company_users (
 
 -- Drop the trigger first to avoid dependency errors
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
--- Drop the function
+
+-- Drop functions in reverse order of dependency
+DROP FUNCTION IF EXISTS public.check_user_permission(p_user_id uuid, p_required_role text);
+DROP FUNCTION IF EXISTS public.lock_user_account(p_user_id uuid, p_lockout_duration text);
+DROP FUNCTION IF EXISTS public.get_company_id_for_user(p_user_id uuid);
 DROP FUNCTION IF EXISTS public.handle_new_user();
 
+
+-- Function to get company ID for a user
+CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
+RETURNS uuid AS $$
+BEGIN
+  RETURN (
+    SELECT company_id
+    FROM public.users
+    WHERE id = p_user_id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 -- Function to create a new company for a new user and link them.
-CREATE FUNCTION public.handle_new_user()
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER SET search_path = public
 AS $$
-DECLARE
-  new_company_id uuid;
 BEGIN
-  -- Create a new company and get its ID
-  INSERT INTO public.companies (name, owner_id)
-  VALUES (new.raw_user_meta_data->>'company_name', new.id)
-  RETURNING id INTO new_company_id;
+  -- Create a new company for the new user, using the company_name from metadata
+  INSERT INTO public.companies (name)
+  VALUES (new.raw_user_meta_data->>'company_name');
 
-  -- Add the new user to the company_users table
-  INSERT INTO public.company_users (user_id, company_id, role)
-  VALUES (new.id, new_company_id, 'Owner');
+  -- Add the new user to the public users table, linking them to the newly created company
+  INSERT INTO public.users (id, company_id, email, role)
+  SELECT new.id, c.id, new.email, 'Owner'
+  FROM public.companies c
+  WHERE c.name = new.raw_user_meta_data->>'company_name'
+  ORDER BY c.created_at DESC
+  LIMIT 1;
   
-  -- Update the user's app_metadata with the company_id
+  -- Update the user's app_metadata with the company_id for easy access in RLS policies
   UPDATE auth.users
-  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id)
+  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', (
+      SELECT company_id
+      FROM public.users
+      WHERE id = new.id
+  ))
   WHERE id = new.id;
   
   RETURN new;
@@ -336,28 +362,14 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
--- Drop and Create get_company_id_for_user function
-DROP FUNCTION IF EXISTS public.get_company_id_for_user(uuid);
-CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
-RETURNS uuid AS $$
-BEGIN
-  RETURN (
-    SELECT company_id
-    FROM public.company_users
-    WHERE user_id = p_user_id
-    LIMIT 1
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Drop and Create check_user_permission function
-DROP FUNCTION IF EXISTS public.check_user_permission(uuid, text);
+-- Function to check user permissions
 CREATE OR REPLACE FUNCTION public.check_user_permission(p_user_id uuid, p_required_role text)
 RETURNS boolean AS $$
 DECLARE
-    user_role public.company_role;
+    user_role text;
 BEGIN
-    SELECT role INTO user_role FROM public.company_users WHERE user_id = p_user_id;
+    SELECT role INTO user_role FROM public.users WHERE id = p_user_id;
 
     IF user_role IS NULL THEN
         RETURN FALSE;
@@ -374,8 +386,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- Drop and Create lock_user_account function
-DROP FUNCTION IF EXISTS public.lock_user_account(uuid, text);
+-- Function to lock a user account
 CREATE OR REPLACE FUNCTION public.lock_user_account(p_user_id uuid, p_lockout_duration text)
 RETURNS void AS $$
 BEGIN
@@ -387,7 +398,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- #################################################################
--- ### Row-Level Security (RLS)
+-- ### Recreate RLS Policies
 -- #################################################################
 
 -- Enable RLS on all relevant tables
@@ -407,29 +418,6 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
-
--- Drop existing policies before creating them to ensure idempotency
-DROP POLICY IF EXISTS "User can access their own company data" ON public.products;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.product_variants;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.orders;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.order_line_items;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.customers;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.suppliers;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.purchase_orders;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.purchase_order_line_items;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.integrations;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.webhook_events;
-DROP POLICY IF EXISTS "User can access their own company data" ON public.inventory_ledger;
-DROP POLICY IF EXISTS "User can access their own conversations" ON public.conversations;
-DROP POLICY IF EXISTS "User can access messages in their conversations" ON public.messages;
-DROP POLICY IF EXISTS "User can access their own company audit log" ON public.audit_log;
-DROP POLICY IF EXISTS "User can access their own company settings" ON public.company_settings;
-DROP POLICY IF EXISTS "User can see other users in their company" ON public.users;
-DROP POLICY IF EXISTS "User can see their own company user associations" ON public.company_users;
-DROP POLICY IF EXISTS "User can access their own channel fees" ON public.channel_fees;
-
 
 -- Create policies
 CREATE POLICY "User can access their own company data" ON public.products FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
@@ -443,10 +431,8 @@ CREATE POLICY "User can access their own company data" ON public.purchase_order_
 CREATE POLICY "User can access their own company data" ON public.integrations FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
 CREATE POLICY "User can access their own company data" ON public.webhook_events FOR ALL USING (integration_id IN (SELECT id FROM public.integrations WHERE company_id = public.get_company_id_for_user(auth.uid())));
 CREATE POLICY "User can access their own company data" ON public.inventory_ledger FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
-CREATE POLICY "User can access their own conversations" ON public.conversations FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "User can access messages in their conversations" ON public.messages FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
-CREATE POLICY "User can access their own company audit log" ON public.audit_log FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
+CREATE POLICY "User can access their own company data" ON public.conversations FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "User can access their own company data" ON public.messages FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
+CREATE POLICY "User can access their own company data" ON public.audit_log FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
 CREATE POLICY "User can access their own company settings" ON public.company_settings FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
 CREATE POLICY "User can see other users in their company" ON public.users FOR SELECT USING (company_id = public.get_company_id_for_user(auth.uid()));
-CREATE POLICY "User can see their own company user associations" ON public.company_users FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
-CREATE POLICY "User can access their own channel fees" ON public.channel_fees FOR ALL USING (company_id = public.get_company_id_for_user(auth.uid()));
