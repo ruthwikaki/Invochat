@@ -80,7 +80,7 @@ describe('Component: ReorderClientPage', () => {
         const checkboxes = screen.getAllByRole('checkbox');
         const selectAllCheckbox = checkboxes[0];
 
-        // Action bar should not be visible initially
+        // Action bar should not be visible initially because selections start empty
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
         // Select all items
