@@ -65,7 +65,7 @@
     --chart-4: 350 91% 70%;
     --chart-5: 215 19% 45%;
   }
-  
+
   * {
     @apply border-border;
   }
