@@ -1,923 +1,788 @@
 
--- Enable Row Level Security
-alter table public.companies enable row level security;
-alter table public.company_settings enable row level security;
-alter table public.company_users enable row level security;
-alter table public.products enable row level security;
-alter table public.product_variants enable row level security;
-alter table public.orders enable row level security;
-alter table public.order_line_items enable row level security;
-alter table public.customers enable row level security;
-alter table public.refunds enable row level security;
-alter table public.suppliers enable row level security;
-alter table public.purchase_orders enable row level security;
-alter table public.purchase_order_line_items enable row level security;
-alter table public.integrations enable row level security;
-alter table public.inventory_ledger enable row level security;
-alter table public.conversations enable row level security;
-alter table public.messages enable row level security;
-alter table public.feedback enable row level security;
-alter table public.audit_log enable row level security;
-alter table public.imports enable row level security;
-alter table public.export_jobs enable row level security;
-alter table public.channel_fees enable row level security;
-alter table public.webhook_events enable row level security;
+-- ### Crunched: Squeezing your SQL into a single file.
+-- ### For more info, see https://github.com/elibosley/crunched
 
 
--- POLICIES
--- These policies enforce multi-tenancy by ensuring users can only access data
--- belonging to their own company.
+-- public.company_role
+drop type if exists public.company_role;
+create type public.company_role as enum ('Owner', 'Admin', 'Member');
 
--- Helper function to get the company_id for the currently authenticated user.
-create or replace function get_company_id_for_user(user_id uuid)
-returns uuid
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  return (select company_id from company_users where company_users.user_id = $1);
-end;
-$$;
+-- public.feedback_type
+drop type if exists public.feedback_type;
+create type public.feedback_type as enum ('helpful', 'unhelpful');
 
--- Function to check user permissions
-create or replace function check_user_permission(p_user_id uuid, p_required_role company_role)
-returns boolean
-language plpgsql
-security definer
-as $$
-declare
-    user_role company_role;
-begin
-    select role into user_role from company_users where user_id = p_user_id;
-    
-    if user_role is null then
-        return false;
-    end if;
+-- public.integration_platform
+drop type if exists public.integration_platform;
+create type public.integration_platform as enum ('shopify', 'woocommerce', 'amazon_fba');
 
-    if p_required_role = 'Owner' then
-        return user_role = 'Owner';
-    elsif p_required_role = 'Admin' then
-        return user_role in ('Owner', 'Admin');
-    end if;
-    
-    return true; -- 'Member' role has permission if not Owner/Admin required
-end;
-$$;
+-- public.message_role
+drop type if exists public.message_role;
+create type public.message_role as enum ('user', 'assistant', 'tool');
 
+-- public.companies
+drop table if exists public.companies;
+create table public.companies (
+  id uuid default gen_random_uuid() not null,
+  created_at timestamp with time zone default now() not null,
+  name text not null,
+  owner_id uuid not null
+);
+alter table public.companies add constraint companies_name_check check ((length(name) > 0));
 
--- Policies for 'companies'
-create policy "Users can view their own company" on "public"."companies"
-as permissive for select
-to authenticated
-using (id = get_company_id_for_user(auth.uid()));
+-- public.company_settings
+drop table if exists public.company_settings;
+create table public.company_settings (
+  company_id uuid not null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null,
+  dead_stock_days integer default 90 not null,
+  fast_moving_days integer default 30 not null,
+  predictive_stock_days integer default 7 not null,
+  currency text default 'USD'::text not null,
+  timezone text default 'UTC'::text not null,
+  overstock_multiplier real default 3 not null,
+  high_value_threshold integer default 100000 not null,
+  tax_rate real default 0 not null
+);
 
--- Policies for 'company_users'
-create policy "Users can view their own company membership" on "public"."company_users"
-as permissive for select
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()));
+-- public.company_users
+drop table if exists public.company_users;
+create table public.company_users (
+  user_id uuid not null,
+  company_id uuid not null,
+  role public.company_role default 'Member'::public.company_role not null
+);
 
--- Policies for 'company_settings'
-create policy "Users can manage settings for their own company" on "public"."company_settings"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.customers
+drop table if exists public.customers;
+create table public.customers (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  external_customer_id text null,
+  name text null,
+  email text null,
+  phone text null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null,
+  deleted_at timestamp with time zone null
+);
 
--- Policies for all other company-scoped tables
-create policy "Enable all actions for users based on company_id" on "public"."products"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.integrations
+drop table if exists public.integrations;
+create table public.integrations (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  platform public.integration_platform not null,
+  shop_domain text null,
+  is_active boolean default true not null,
+  last_sync_at timestamp with time zone null,
+  sync_status text null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null,
+  shop_name text null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."product_variants"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.products
+drop table if exists public.products;
+create table public.products (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  external_product_id text null,
+  title text not null,
+  description text null,
+  handle text null,
+  product_type text null,
+  tags text[] null,
+  image_url text null,
+  status text null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null
+);
+alter table public.products add constraint products_title_check check ((length(title) > 0));
 
-create policy "Enable all actions for users based on company_id" on "public"."orders"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.product_variants
+drop table if exists public.product_variants;
+create table public.product_variants (
+  id uuid default gen_random_uuid() not null,
+  product_id uuid not null,
+  company_id uuid not null,
+  external_variant_id text null,
+  sku text not null,
+  title text null,
+  option1_name text null,
+  option1_value text null,
+  option2_name text null,
+  option2_value text null,
+  option3_name text null,
+  option3_value text null,
+  barcode text null,
+  price integer null,
+  compare_at_price integer null,
+  cost integer null,
+  inventory_quantity integer default 0 not null,
+  location text null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null,
+  supplier_id uuid null,
+  reorder_point integer null,
+  reorder_quantity integer null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."order_line_items"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.suppliers
+drop table if exists public.suppliers;
+create table public.suppliers (
+  id uuid default gen_random_uuid() not null,
+  name text not null,
+  email text null,
+  phone text null,
+  default_lead_time_days integer null,
+  notes text null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null,
+  company_id uuid not null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."customers"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- vault.secrets
+-- not supported
 
-create policy "Enable all actions for users based on company_id" on "public"."suppliers"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.audit_log
+drop table if exists public.audit_log;
+create table public.audit_log (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  user_id uuid null,
+  action text not null,
+  details jsonb null,
+  created_at timestamp with time zone default now() not null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."purchase_orders"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.channel_fees
+drop table if exists public.channel_fees;
+create table public.channel_fees (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  channel_name text not null,
+  percentage_fee real null,
+  fixed_fee integer null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."purchase_order_line_items"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.conversations
+drop table if exists public.conversations;
+create table public.conversations (
+  id uuid default gen_random_uuid() not null,
+  user_id uuid not null,
+  company_id uuid not null,
+  title text not null,
+  created_at timestamp with time zone default now() not null,
+  last_accessed_at timestamp with time zone default now() not null,
+  is_starred boolean default false not null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."integrations"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.export_jobs
+drop table if exists public.export_jobs;
+create table public.export_jobs (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  requested_by_user_id uuid not null,
+  status text default 'pending'::text not null,
+  download_url text null,
+  expires_at timestamp with time zone null,
+  created_at timestamp with time zone default now() not null,
+  completed_at timestamp with time zone null,
+  error_message text null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."inventory_ledger"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.feedback
+drop table if exists public.feedback;
+create table public.feedback (
+  id uuid default gen_random_uuid() not null,
+  user_id uuid not null,
+  company_id uuid not null,
+  subject_id text not null,
+  subject_type text not null,
+  feedback public.feedback_type not null,
+  created_at timestamp with time zone default now() not null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."conversations"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.imports
+drop table if exists public.imports;
+create table public.imports (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  created_by uuid not null,
+  import_type text not null,
+  file_name text not null,
+  status text default 'processing'::text not null,
+  total_rows integer null,
+  processed_rows integer null,
+  error_count integer null,
+  errors jsonb null,
+  summary jsonb null,
+  created_at timestamp with time zone default now() not null,
+  completed_at timestamp with time zone null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."messages"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.inventory_ledger
+drop table if exists public.inventory_ledger;
+create table public.inventory_ledger (
+  id uuid default gen_random_uuid() not null,
+  variant_id uuid not null,
+  company_id uuid not null,
+  quantity_change integer not null,
+  new_quantity integer not null,
+  change_type text not null,
+  related_id text null,
+  notes text null,
+  created_at timestamp with time zone default now() not null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."feedback"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.messages
+drop table if exists public.messages;
+create table public.messages (
+  id uuid default gen_random_uuid() not null,
+  conversation_id uuid not null,
+  company_id uuid not null,
+  role public.message_role not null,
+  content text not null,
+  visualization jsonb null,
+  created_at timestamp with time zone default now() not null,
+  confidence real null,
+  assumptions text[] null,
+  "isError" boolean null,
+  "componentProps" jsonb null,
+  component text null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."audit_log"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.order_line_items
+drop table if exists public.order_line_items;
+create table public.order_line_items (
+  id uuid default gen_random_uuid() not null,
+  order_id uuid not null,
+  variant_id uuid null,
+  company_id uuid not null,
+  product_name text null,
+  variant_title text null,
+  sku text null,
+  quantity integer not null,
+  price integer not null,
+  total_discount integer null,
+  tax_amount integer null,
+  cost_at_time integer null,
+  external_line_item_id text null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."imports"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.orders
+drop table if exists public.orders;
+create table public.orders (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  external_order_id text null,
+  order_number text not null,
+  customer_id uuid null,
+  financial_status text null,
+  fulfillment_status text null,
+  currency text null,
+  subtotal integer not null,
+  total_tax integer null,
+  total_shipping integer null,
+  total_discounts integer null,
+  total_amount integer not null,
+  source_platform text null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."export_jobs"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.purchase_order_line_items
+drop table if exists public.purchase_order_line_items;
+create table public.purchase_order_line_items (
+  id uuid default gen_random_uuid() not null,
+  purchase_order_id uuid not null,
+  variant_id uuid not null,
+  company_id uuid not null,
+  quantity integer not null,
+  cost integer not null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."channel_fees"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.purchase_orders
+drop table if exists public.purchase_orders;
+create table public.purchase_orders (
+  id uuid default gen_random_uuid() not null,
+  company_id uuid not null,
+  supplier_id uuid null,
+  status text default 'Draft'::text not null,
+  po_number text not null,
+  total_cost integer not null,
+  expected_arrival_date date null,
+  notes text null,
+  created_at timestamp with time zone default now() not null,
+  updated_at timestamp with time zone null,
+  idempotency_key uuid null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."webhook_events"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.refunds
+drop table if exists public.refunds;
+create table public.refunds (
+  id uuid default gen_random_uuid() not null,
+  order_id uuid not null,
+  company_id uuid not null,
+  refund_number text not null,
+  status text not null,
+  reason text null,
+  note text null,
+  total_amount integer not null,
+  created_by_user_id uuid null,
+  external_refund_id text null,
+  created_at timestamp with time zone default now() not null
+);
 
-create policy "Enable all actions for users based on company_id" on "public"."refunds"
-as permissive for all
-to authenticated
-using (company_id = get_company_id_for_user(auth.uid()))
-with check (company_id = get_company_id_for_user(auth.uid()));
+-- public.webhook_events
+drop table if exists public.webhook_events;
+create table public.webhook_events (
+  id uuid default gen_random_uuid() not null,
+  integration_id uuid not null,
+  webhook_id text not null,
+  created_at timestamp with time zone default now() not null
+);
 
+-- data
+alter table public.companies add constraint companies_pkey primary key (id);
+alter table public.companies add constraint companies_owner_id_fkey foreign key (owner_id) references auth.users (id);
+alter table public.company_settings add constraint company_settings_pkey primary key (company_id);
+alter table public.company_settings add constraint company_settings_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.company_users add constraint company_users_pkey primary key (user_id, company_id);
+alter table public.company_users add constraint company_users_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.company_users add constraint company_users_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade;
+alter table public.customers add constraint customers_pkey primary key (id);
+alter table public.customers add constraint customers_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.integrations add constraint integrations_pkey primary key (id);
+alter table public.integrations add constraint integrations_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.integrations add constraint integrations_company_id_platform_key unique (company_id, platform);
+alter table public.products add constraint products_pkey primary key (id);
+alter table public.products add constraint products_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.products add constraint products_company_id_external_product_id_key unique (company_id, external_product_id);
+alter table public.product_variants add constraint product_variants_pkey primary key (id);
+alter table public.product_variants add constraint product_variants_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.product_variants add constraint product_variants_company_id_sku_key unique (company_id, sku);
+alter table public.product_variants add constraint product_variants_product_id_fkey foreign key (product_id) references public.products (id) on delete cascade;
+alter table public.product_variants add constraint product_variants_supplier_id_fkey foreign key (supplier_id) references public.suppliers (id) on delete set null;
+alter table public.suppliers add constraint suppliers_pkey primary key (id);
+alter table public.suppliers add constraint suppliers_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.audit_log add constraint audit_log_pkey primary key (id);
+alter table public.audit_log add constraint audit_log_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.audit_log add constraint audit_log_user_id_fkey foreign key (user_id) references auth.users (id) on delete set null;
+alter table public.channel_fees add constraint channel_fees_pkey primary key (id);
+alter table public.channel_fees add constraint channel_fees_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.channel_fees add constraint channel_fees_company_id_channel_name_key unique (company_id, channel_name);
+alter table public.conversations add constraint conversations_pkey primary key (id);
+alter table public.conversations add constraint conversations_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.conversations add constraint conversations_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade;
+alter table public.export_jobs add constraint export_jobs_pkey primary key (id);
+alter table public.export_jobs add constraint export_jobs_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.export_jobs add constraint export_jobs_requested_by_user_id_fkey foreign key (requested_by_user_id) references auth.users (id) on delete cascade;
+alter table public.feedback add constraint feedback_pkey primary key (id);
+alter table public.feedback add constraint feedback_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.feedback add constraint feedback_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade;
+alter table public.imports add constraint imports_pkey primary key (id);
+alter table public.imports add constraint imports_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.imports add constraint imports_created_by_fkey foreign key (created_by) references auth.users (id) on delete cascade;
+alter table public.inventory_ledger add constraint inventory_ledger_pkey primary key (id);
+alter table public.inventory_ledger add constraint inventory_ledger_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.inventory_ledger add constraint inventory_ledger_variant_id_fkey foreign key (variant_id) references public.product_variants (id) on delete cascade;
+alter table public.messages add constraint messages_pkey primary key (id);
+alter table public.messages add constraint messages_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.messages add constraint messages_conversation_id_fkey foreign key (conversation_id) references public.conversations (id) on delete cascade;
+alter table public.order_line_items add constraint order_line_items_pkey primary key (id);
+alter table public.order_line_items add constraint order_line_items_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.order_line_items add constraint order_line_items_order_id_fkey foreign key (order_id) references public.orders (id) on delete cascade;
+alter table public.order_line_items add constraint order_line_items_variant_id_fkey foreign key (variant_id) references public.product_variants (id) on delete set null;
+alter table public.orders add constraint orders_pkey primary key (id);
+alter table public.orders add constraint orders_company_id_external_order_id_key unique (company_id, external_order_id);
+alter table public.orders add constraint orders_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.orders add constraint orders_customer_id_fkey foreign key (customer_id) references public.customers (id) on delete set null;
+alter table public.purchase_order_line_items add constraint purchase_order_line_items_pkey primary key (id);
+alter table public.purchase_order_line_items add constraint purchase_order_line_items_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.purchase_order_line_items add constraint purchase_order_line_items_purchase_order_id_fkey foreign key (purchase_order_id) references public.purchase_orders (id) on delete cascade;
+alter table public.purchase_order_line_items add constraint purchase_order_line_items_variant_id_fkey foreign key (variant_id) references public.product_variants (id) on delete cascade;
+alter table public.purchase_orders add constraint purchase_orders_pkey primary key (id);
+alter table public.purchase_orders add constraint purchase_orders_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.purchase_orders add constraint purchase_orders_idempotency_key_key unique (idempotency_key);
+alter table public.purchase_orders add constraint purchase_orders_supplier_id_fkey foreign key (supplier_id) references public.suppliers (id) on delete set null;
+alter table public.refunds add constraint refunds_pkey primary key (id);
+alter table public.refunds add constraint refunds_company_id_fkey foreign key (company_id) references public.companies (id) on delete cascade;
+alter table public.refunds add constraint refunds_created_by_user_id_fkey foreign key (created_by_user_id) references auth.users (id) on delete set null;
+alter table public.refunds add constraint refunds_order_id_fkey foreign key (order_id) references public.orders (id) on delete cascade;
+alter table public.webhook_events add constraint webhook_events_pkey primary key (id);
+alter table public.webhook_events add constraint webhook_events_integration_id_fkey foreign key (integration_id) references public.integrations (id) on delete cascade;
+alter table public.webhook_events add constraint webhook_events_integration_id_webhook_id_key unique (integration_id, webhook_id);
 
+create policy "Allow all for service role" on public.companies for all to service_role;
+create policy "Allow all for service role" on public.company_settings for all to service_role;
+create policy "Allow all for service role" on public.company_users for all to service_role;
+create policy "Allow all for service role" on public.customers for all to service_role;
+create policy "Allow all for service role" on public.integrations for all to service_role;
+create policy "Allow all for service role" on public.products for all to service_role;
+create policy "Allow all for service role" on public.product_variants for all to service_role;
+create policy "Allow all for service role" on public.suppliers for all to service_role;
+create policy "Allow full access based on company_id" on public.audit_log for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.channel_fees for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.conversations for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.export_jobs for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.feedback for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.imports for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.inventory_ledger for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.messages for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.order_line_items for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.orders for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.purchase_order_line_items for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.purchase_orders for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.refunds for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.companies for select using ((id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.company_settings for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.company_users for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.customers for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.integrations for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.products for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.product_variants for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow read access based on company_id" on public.suppliers for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow users to create companies" on public.companies for insert with check (true);
+create policy "Allow users to manage their own company data" on public.companies for update using ((id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow users to manage their own settings" on public.company_settings for all using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow users to view their own company users" on public.company_users for select using ((company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)));
+create policy "Allow full access based on company_id" on public.webhook_events for all using ((integration_id IN ( SELECT i.id
+   FROM public.integrations i
+  WHERE (i.company_id IN ( SELECT get_company_id_for_user(auth.uid()) AS get_company_id_for_user)))));
 
--- This trigger automatically creates a new company for a new user and links them.
-create function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-declare
-  new_company_id uuid;
-begin
-  -- Create a new company for the user
-  insert into public.companies (name, owner_id)
-  values (new.raw_user_meta_data->>'company_name', new.id)
-  returning id into new_company_id;
+drop view if exists public.product_variants_with_details;
+CREATE OR REPLACE VIEW public.product_variants_with_details AS
+SELECT
+    pv.*,
+    p.title AS product_title,
+    p.status AS product_status,
+    p.image_url,
+    p.product_type
+FROM
+    product_variants pv
+JOIN
+    products p ON pv.product_id = p.id;
 
-  -- Link the user to the new company as 'Owner'
-  insert into public.company_users (user_id, company_id, role)
-  values (new.id, new_company_id, 'Owner');
+drop view if exists public.orders_view;
+CREATE OR REPLACE VIEW public.orders_view AS
+SELECT
+    o.*,
+    c.email as customer_email
+FROM
+    orders o
+LEFT JOIN
+    customers c ON o.customer_id = c.id;
 
-  -- Update the user's app_metadata with the new company_id
-  update auth.users
-  set app_metadata = app_metadata || jsonb_build_object('company_id', new_company_id)
-  where id = new.id;
-  
-  return new;
-end;
-$$;
-
--- Attach the trigger to the auth.users table
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
-
--- This trigger ensures that when a product is deleted, all its associated variants are also deleted.
-create function public.handle_product_delete()
-returns trigger
-language plpgsql
-as $$
-begin
-  delete from public.product_variants where product_id = old.id;
-  return old;
-end;
-$$;
-
-create trigger on_product_deleted
-  after delete on public.products
-  for each row execute procedure public.handle_product_delete();
-
-
--- This function records an order from a platform, handling products, variants, customers, and orders.
-create or replace function public.record_order_from_platform(
-    p_company_id uuid,
-    p_order_payload jsonb,
-    p_platform text
-)
-returns uuid
-language plpgsql
-security definer
-as $$
-declare
-    v_customer_id uuid;
-    v_order_id uuid;
-    v_product_id uuid;
-    v_variant_id uuid;
-    line_item jsonb;
-    v_sku text;
-begin
-    -- Step 1: Find or create the customer
-    select id into v_customer_id from public.customers
-    where company_id = p_company_id and email = (p_order_payload->'customer'->>'email');
-
-    if v_customer_id is null and p_order_payload->'customer'->>'email' is not null then
-        insert into public.customers (company_id, name, email, external_customer_id)
-        values (
-            p_company_id,
-            coalesce(p_order_payload->'customer'->>'first_name' || ' ' || p_order_payload->'customer'->>'last_name', p_order_payload->'customer'->>'email'),
-            p_order_payload->'customer'->>'email',
-            p_order_payload->'customer'->>'id'
-        ) returning id into v_customer_id;
-    end if;
-
-    -- Step 2: Create the order
-    insert into public.orders (company_id, customer_id, order_number, total_amount, external_order_id, source_platform, financial_status, subtotal, created_at)
-    values (
-        p_company_id,
-        v_customer_id,
-        p_order_payload->>'order_number',
-        (p_order_payload->>'total_price')::numeric * 100,
-        p_order_payload->>'id',
-        p_platform,
-        p_order_payload->>'financial_status',
-        (p_order_payload->>'subtotal_price')::numeric * 100,
-        (p_order_payload->>'created_at')::timestamptz
-    ) returning id into v_order_id;
-    
-    -- Step 3: Process line items
-    for line_item in select * from jsonb_array_elements(p_order_payload->'line_items')
-    loop
-        v_sku := line_item->>'sku';
-
-        -- Find the corresponding product variant by SKU
-        select pv.id, pv.product_id into v_variant_id, v_product_id from public.product_variants pv
-        where pv.company_id = p_company_id and pv.sku = v_sku;
-        
-        -- If variant doesn't exist, we may need to create it (or log an error)
-        if v_variant_id is null then
-            -- For simplicity, we'll log and skip. A more robust solution might create a placeholder product.
-            insert into audit_log(company_id, action, details) values (p_company_id, 'order_sync_warning', jsonb_build_object('order_id', v_order_id, 'message', 'SKU not found', 'sku', v_sku));
-            continue;
-        end if;
-
-        -- Insert the line item
-        insert into public.order_line_items (order_id, company_id, variant_id, quantity, price, sku, product_name)
-        values (
-            v_order_id,
-            p_company_id,
-            v_variant_id,
-            (line_item->>'quantity')::integer,
-            (line_item->>'price')::numeric * 100,
-            v_sku,
-            line_item->>'name'
-        );
-
-    end loop;
-
-    return v_order_id;
-end;
-$$;
-
--- Function to decrement inventory after an order is processed
-create or replace function public.decrement_inventory_for_order()
-returns trigger
-language plpgsql
-as $$
-declare
-    v_variant_id uuid;
-    v_quantity_to_decrement int;
-    v_current_stock int;
-begin
-    -- Get the variant_id and quantity from the newly inserted order line item
-    v_variant_id := new.variant_id;
-    v_quantity_to_decrement := new.quantity;
-
-    -- If there's no associated variant, we can't do anything
-    if v_variant_id is null then
-        return new;
-    end if;
-
-    -- Get the current stock for the variant
-    select inventory_quantity into v_current_stock from public.product_variants
-    where id = v_variant_id and company_id = new.company_id;
-
-    -- Check if there is sufficient stock
-    if v_current_stock is null or v_current_stock < v_quantity_to_decrement then
-        -- This is a critical issue. We raise an exception to fail the transaction.
-        -- This prevents the order from being recorded if inventory would go negative.
-        raise exception 'Insufficient stock for SKU % to fulfill order %. Required: %, Available: %', new.sku, new.order_id, v_quantity_to_decrement, v_current_stock;
-    end if;
-    
-    -- Update the inventory quantity on the product_variants table
-    update public.product_variants
-    set inventory_quantity = inventory_quantity - v_quantity_to_decrement
-    where id = v_variant_id;
-
-    -- Create a ledger entry for the sale
-    insert into public.inventory_ledger (company_id, variant_id, change_type, quantity_change, new_quantity, related_id, notes)
-    values (
-        new.company_id,
-        new.variant_id,
-        'sale',
-        -v_quantity_to_decrement,
-        v_current_stock - v_quantity_to_decrement,
-        new.order_id,
-        'Order #' || (select order_number from orders where id = new.order_id)
-    );
-
-    return new;
-end;
-$$;
-
--- Trigger to call the decrement function after an order line item is inserted
-create trigger on_order_line_item_created
-  after insert on public.order_line_items
-  for each row execute procedure public.decrement_inventory_for_order();
-
-
--- Materialized View for product variants with their product details
-create materialized view public.product_variants_with_details_mat as
-select
-  pv.*,
-  p.title as product_title,
-  p.status as product_status,
-  p.image_url,
-  p.product_type
-from product_variants pv
-join products p on pv.product_id = p.id;
-
-create unique index on public.product_variants_with_details_mat (id);
-
--- Materialized View for customer-level analytics
-create materialized view public.customers_view as
-select
+drop view if exists public.customers_view;
+CREATE OR REPLACE VIEW public.customers_view AS
+SELECT 
     c.id,
     c.company_id,
     c.name as customer_name,
     c.email,
     c.created_at,
-    min(o.created_at) as first_order_date,
-    count(distinct o.id) as total_orders,
-    sum(o.total_amount) as total_spent
-from customers c
-join orders o on c.id = o.customer_id
-group by c.id, c.company_id;
+    COUNT(o.id) as total_orders,
+    COALESCE(SUM(o.total_amount), 0) as total_spent,
+    MIN(o.created_at) as first_order_date
+FROM 
+    customers c
+LEFT JOIN 
+    orders o ON c.id = o.customer_id
+GROUP BY 
+    c.id;
 
-create unique index on public.customers_view (id);
-
--- Materialized View for order-level analytics
-create materialized view public.orders_view as
-select
-    o.id,
-    o.company_id,
-    o.order_number,
-    o.external_order_id,
-    o.customer_id,
-    c.email as customer_email,
-    o.financial_status,
-    o.fulfillment_status,
-    o.currency,
-    o.subtotal,
-    o.total_tax,
-    o.total_shipping,
-    o.total_discounts,
-    o.total_amount,
-    o.source_platform,
-    o.created_at,
-    o.updated_at
-from orders o
-left join customers c on o.customer_id = c.id;
-
-create unique index on public.orders_view (id);
-
-
--- Function to refresh all materialized views for a specific company
-create or replace function public.refresh_all_matviews(p_company_id uuid)
-returns void
+-- public.get_company_id_for_user(p_user_id)
+drop function if exists public.get_company_id_for_user;
+create function public.get_company_id_for_user(p_user_id uuid)
+returns uuid
 language plpgsql
+security definer
 as $$
-begin
-    -- We refresh concurrently to avoid locking the views for long periods.
-    -- The WHERE clause is a trick to make Postgres think the view is company-specific,
-    -- even though we are refreshing the whole thing. This is a placeholder for
-    -- more advanced partitioning strategies in the future.
-    refresh materialized view concurrently public.product_variants_with_details_mat;
-    refresh materialized view concurrently public.customers_view;
-    refresh materialized view concurrently public.orders_view;
-end;
-$$;
-
-
--- This is a placeholder for a more advanced function.
--- In a real production system, this would be a more complex statistical model.
-create or replace function public.forecast_demand(p_company_id uuid)
-returns table (sku text, forecasted_demand numeric)
-language plpgsql
-as $$
-begin
-    return query
-    select
-        oli.sku,
-        sum(oli.quantity) * 3 as forecasted_demand -- simple forecast: 3x last 30 days sales
-    from order_line_items oli
-    join orders o on oli.order_id = o.id
-    where o.company_id = p_company_id and o.created_at >= now() - interval '30 days' and oli.sku is not null
-    group by oli.sku
-    order by sum(oli.quantity) desc
-    limit 10;
-end;
-$$;
-
-create or replace function get_dashboard_metrics(p_company_id uuid, p_days int)
-returns json
-language plpgsql
-as $$
-declare
-    metrics json;
-begin
-    select json_build_object(
-        'total_revenue', (select sum(total_amount) from orders where company_id = p_company_id and created_at >= now() - (p_days || ' days')::interval),
-        'revenue_change', 0, -- Placeholder
-        'total_sales', (select count(*) from orders where company_id = p_company_id and created_at >= now() - (p_days || ' days')::interval),
-        'sales_change', 0, -- Placeholder
-        'new_customers', (select count(*) from customers where company_id = p_company_id and created_at >= now() - (p_days || ' days')::interval),
-        'customers_change', 0, -- Placeholder
-        'dead_stock_value', (select coalesce(sum(total_value), 0) from get_dead_stock_report(p_company_id)),
-        'sales_over_time', (select json_agg(json_build_object('date', d.day, 'total_sales', coalesce(sum(o.total_amount), 0))) from generate_series(now() - (p_days || ' days')::interval, now(), '1 day'::interval) d(day) left join orders o on o.company_id = p_company_id and o.created_at::date = d.day::date group by d.day),
-        'top_selling_products', (select json_agg(t) from (select p.product_title, p.image_url, sum(oli.price * oli.quantity) as total_revenue from order_line_items oli join product_variants_with_details_mat p on oli.variant_id = p.id where oli.company_id = p_company_id group by p.product_title, p.image_url order by total_revenue desc limit 5) t),
-        'inventory_summary', (select json_build_object('total_value', sum(cost * inventory_quantity), 'in_stock_value', sum(case when inventory_quantity > 10 then cost * inventory_quantity else 0 end), 'low_stock_value', sum(case when inventory_quantity between 1 and 10 then cost*inventory_quantity else 0 end), 'dead_stock_value', sum(case when inventory_quantity <= 0 then cost * inventory_quantity else 0 end)) from product_variants where company_id = p_company_id)
-    ) into metrics;
-    return metrics;
-end;
-$$;
-
-
-create or replace function get_reorder_suggestions(p_company_id uuid)
-returns table(
-    variant_id uuid,
-    product_id uuid,
-    sku text,
-    product_name text,
-    supplier_name text,
-    supplier_id uuid,
-    current_quantity integer,
-    suggested_reorder_quantity integer,
-    unit_cost integer
-)
-language plpgsql
-as $$
-begin
-    return query
-    select
-        pv.id as variant_id,
-        p.id as product_id,
-        pv.sku,
-        p.title as product_name,
-        s.name as supplier_name,
-        s.id as supplier_id,
-        pv.inventory_quantity as current_quantity,
-        (coalesce(pv.reorder_point, 0) + coalesce(pv.reorder_quantity, 10)) - pv.inventory_quantity as suggested_reorder_quantity,
-        pv.cost as unit_cost
-    from product_variants pv
-    join products p on pv.product_id = p.id
-    left join suppliers s on pv.supplier_id = s.id
-    where pv.company_id = p_company_id
-      and pv.inventory_quantity < coalesce(pv.reorder_point, 10);
-end;
-$$;
-
-
-create or replace function get_sales_analytics(p_company_id uuid)
-returns json
-language plpgsql
-as $$
-declare
-    analytics json;
-begin
-    select json_build_object(
-        'total_revenue', coalesce(sum(total_amount), 0),
-        'total_orders', coalesce(count(*), 0),
-        'average_order_value', coalesce(avg(total_amount), 0),
-        'average_margin', 0 -- Placeholder
-    )
-    into analytics
-    from orders
-    where company_id = p_company_id;
-    
-    return analytics;
-end;
-$$;
-
-create or replace function get_customer_analytics(p_company_id uuid)
-returns json
-language plpgsql
-as $$
-begin
-    return (select json_build_object(
-        'total_customers', (select count(*) from customers where company_id = p_company_id),
-        'new_customers_last_30_days', (select count(*) from customers where company_id = p_company_id and created_at >= now() - interval '30 days'),
-        'repeat_customer_rate', 0, -- Placeholder
-        'average_lifetime_value', (select coalesce(avg(total_spent), 0) from customers_view where company_id = p_company_id),
-        'top_customers_by_spend', (select json_agg(t) from (select customer_name as name, total_spent as value from customers_view where company_id = p_company_id order by total_spent desc limit 5) t),
-        'top_customers_by_sales', (select json_agg(t) from (select customer_name as name, total_orders as value from customers_view where company_id = p_company_id order by total_orders desc limit 5) t)
-    ));
-end;
-$$;
-
-
-create or replace function get_dead_stock_report(p_company_id uuid)
-returns table (
-    sku text,
-    product_name text,
-    quantity integer,
-    total_value numeric,
-    last_sale_date timestamptz
-)
-language plpgsql
-as $$
-declare
-    v_dead_stock_days int;
-begin
-    select dead_stock_days into v_dead_stock_days from company_settings where company_id = p_company_id;
-    
-    return query
-    select
-        pv.sku,
-        p.title as product_name,
-        pv.inventory_quantity as quantity,
-        pv.inventory_quantity * pv.cost as total_value,
-        (select max(o.created_at) from order_line_items oli join orders o on oli.order_id = o.id where oli.variant_id = pv.id) as last_sale_date
-    from product_variants pv
-    join products p on pv.product_id = p.id
-    where pv.company_id = p_company_id
-      and pv.inventory_quantity > 0
-      and not exists (
-          select 1 from order_line_items oli
-          join orders o on oli.order_id = o.id
-          where oli.variant_id = pv.id and o.created_at > now() - (v_dead_stock_days || ' days')::interval
-      );
-end;
-$$;
-
-create or replace function get_inventory_analytics(p_company_id uuid)
-returns json
-language plpgsql
-as $$
-begin
-    return (select json_build_object(
-        'total_inventory_value', coalesce(sum(cost * inventory_quantity), 0),
-        'total_products', (select count(distinct product_id) from product_variants where company_id = p_company_id),
-        'total_variants', (select count(*) from product_variants where company_id = p_company_id),
-        'low_stock_items', (select count(*) from product_variants where company_id = p_company_id and inventory_quantity < coalesce(reorder_point, 10))
-    ) from product_variants where company_id = p_company_id);
-end;
-$$;
-
-
-create or replace function get_supplier_performance_report(p_company_id uuid)
-returns table (
-    supplier_name text,
-    total_profit numeric,
-    total_sales_count bigint,
-    distinct_products_sold bigint,
-    average_margin numeric,
-    sell_through_rate numeric,
-    on_time_delivery_rate numeric,
-    average_lead_time_days numeric,
-    total_completed_orders bigint
-)
-language plpgsql
-as $$
-begin
-    return query
-    select
-        s.name as supplier_name,
-        coalesce(sum((oli.price - pv.cost) * oli.quantity), 0) as total_profit,
-        count(oli.id) as total_sales_count,
-        count(distinct pv.product_id) as distinct_products_sold,
-        coalesce(avg((oli.price - pv.cost) / NULLIF(oli.price, 0)) * 100, 0) as average_margin,
-        0.0 as sell_through_rate, -- Placeholder
-        0.0 as on_time_delivery_rate, -- Placeholder
-        s.default_lead_time_days as average_lead_time_days, -- Placeholder
-        0 as total_completed_orders -- Placeholder
-    from suppliers s
-    join product_variants pv on s.id = pv.supplier_id
-    join order_line_items oli on pv.id = oli.variant_id
-    where s.company_id = p_company_id and pv.cost is not null and oli.price > 0
-    group by s.id;
-end;
-$$;
-
-create or replace function get_inventory_turnover(p_company_id uuid, p_days int)
-returns json
-language plpgsql
-as $$
-declare
-    v_cogs numeric;
-    v_avg_inventory_value numeric;
-begin
-    select coalesce(sum(oli.cost_at_time * oli.quantity), 0) into v_cogs
-    from order_line_items oli
-    join orders o on oli.order_id = o.id
-    where o.company_id = p_company_id and o.created_at >= now() - (p_days || ' days')::interval;
-
-    select coalesce(avg(daily_value), 0) into v_avg_inventory_value from (
-        select date_trunc('day', created_at) as day, sum(new_quantity * cost) as daily_value
-        from inventory_ledger il
-        join product_variants pv on il.variant_id = pv.id
-        where il.company_id = p_company_id
-        group by day
-    ) as daily_values;
-
-    return json_build_object(
-        'turnover_rate', case when v_avg_inventory_value > 0 then v_cogs / v_avg_inventory_value else 0 end,
-        'total_cogs', v_cogs,
-        'average_inventory_value', v_avg_inventory_value,
-        'period_days', p_days
+BEGIN
+    RETURN (
+        SELECT company_id
+        FROM public.company_users
+        WHERE user_id = p_user_id
     );
-end;
+END;
 $$;
 
+-- public.handle_new_user()
+drop function if exists public.handle_new_user;
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    new_company_id UUID;
+BEGIN
+    -- Create a new company for the new user
+    INSERT INTO public.companies (name, owner_id)
+    VALUES (new.raw_user_meta_data->>'company_name', new.id)
+    RETURNING id INTO new_company_id;
 
-create or replace function create_purchase_orders_from_suggestions(
-    p_company_id uuid,
-    p_user_id uuid,
-    p_suggestions jsonb,
-    p_idempotency_key uuid default null
+    -- Link the user to the new company as 'Owner'
+    INSERT INTO public.company_users (user_id, company_id, role)
+    VALUES (new.id, new_company_id, 'Owner');
+
+    -- Create default settings for the new company
+    INSERT INTO public.company_settings (company_id)
+    VALUES (new_company_id);
+
+    -- Update the user's app_metadata with the new company_id
+    -- This is critical for RLS policies
+    UPDATE auth.users
+    SET app_metadata = app_metadata || jsonb_build_object('company_id', new_company_id)
+    WHERE id = new.id;
+    
+    RETURN new;
+END;
+$$;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_user();
+
+
+-- public.record_order_from_platform(p_company_id, p_order_payload, p_platform)
+drop function if exists public.record_order_from_platform;
+CREATE OR REPLACE FUNCTION public.record_order_from_platform(
+    p_company_id UUID,
+    p_order_payload JSONB,
+    p_platform TEXT
 )
-returns integer
-language plpgsql
-as $$
-declare
-    suggestion jsonb;
-    v_supplier_id uuid;
-    v_po_id uuid;
-    v_total_cost numeric;
-    v_po_count int := 0;
-    grouped_suggestions jsonb;
-begin
-    -- Check for idempotency
-    if p_idempotency_key is not null and exists (select 1 from purchase_orders where idempotency_key = p_idempotency_key) then
-        return 0; -- Request already processed
-    end if;
+RETURNS UUID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_customer_id UUID;
+    v_order_id UUID;
+    v_line_item JSONB;
+    v_variant_id UUID;
+BEGIN
+    -- Find or create the customer
+    IF p_order_payload->'customer'->>'email' IS NOT NULL THEN
+        SELECT id INTO v_customer_id
+        FROM public.customers
+        WHERE company_id = p_company_id AND email = p_order_payload->'customer'->>'email';
 
-    -- Group suggestions by supplier_id
-    select jsonb_object_agg(s.supplier_id, s.items) into grouped_suggestions
-    from (
-        select
-            (item->>'supplier_id')::uuid as supplier_id,
-            jsonb_agg(item) as items
-        from jsonb_array_elements(p_suggestions) as item
-        group by item->>'supplier_id'
-    ) as s;
-
-    -- Loop through each supplier group
-    for v_supplier_id, suggestion in select * from jsonb_each(grouped_suggestions)
-    loop
-        v_total_cost := 0;
-        
-        -- Create a new Purchase Order for the supplier
-        insert into purchase_orders (company_id, supplier_id, po_number, total_cost, status)
-        values (p_company_id, v_supplier_id, 'PO-' || nextval('po_number_seq'), 0, 'Draft')
-        returning id into v_po_id;
-
-        v_po_count := v_po_count + 1;
-
-        -- Loop through suggestions for this supplier to create line items and calculate total cost
-        for suggestion in select * from jsonb_array_elements(suggestion)
-        loop
-            insert into purchase_order_line_items (purchase_order_id, company_id, variant_id, quantity, cost)
-            values (
-                v_po_id,
+        IF v_customer_id IS NULL THEN
+            INSERT INTO public.customers (company_id, external_customer_id, name, email, phone)
+            VALUES (
                 p_company_id,
-                (suggestion->>'variant_id')::uuid,
-                (suggestion->>'suggested_reorder_quantity')::integer,
-                (suggestion->>'unit_cost')::integer
-            );
-            v_total_cost := v_total_cost + ((suggestion->>'suggested_reorder_quantity')::integer * (suggestion->>'unit_cost')::integer);
-        end loop;
-
-        -- Update the total cost of the PO
-        update purchase_orders set total_cost = v_total_cost where id = v_po_id;
-    end loop;
-    
-    return v_po_count;
-end;
-$$;
-
-
-create or replace function get_historical_sales_for_sku(p_company_id uuid, p_sku text)
-returns table (sale_date timestamptz, total_quantity bigint)
-language plpgsql
-as $$
-begin
-    return query
-    select
-        date_trunc('day', o.created_at) as sale_date,
-        sum(oli.quantity) as total_quantity
-    from order_line_items oli
-    join orders o on oli.order_id = o.id
-    where oli.company_id = p_company_id and oli.sku = p_sku
-    group by sale_date
-    order by sale_date;
-end;
-$$;
-
-create or replace function get_historical_sales_for_skus(p_company_id uuid, p_skus text[])
-returns json
-language plpgsql
-as $$
-begin
-    return (
-        select json_agg(
-            json_build_object(
-                'sku', sku_data.sku,
-                'monthly_sales', sku_data.monthly_sales
+                p_order_payload->'customer'->>'id',
+                p_order_payload->'customer'->>'first_name' || ' ' || p_order_payload->'customer'->>'last_name',
+                p_order_payload->'customer'->>'email',
+                p_order_payload->'customer'->>'phone'
             )
-        )
-        from (
-            select
-                oli.sku,
-                json_agg(
-                    json_build_object(
-                        'month', to_char(date_trunc('month', o.created_at), 'YYYY-MM'),
-                        'total_quantity', sum(oli.quantity)
-                    ) order by date_trunc('month', o.created_at)
-                ) as monthly_sales
-            from order_line_items oli
-            join orders o on oli.order_id = o.id
-            where oli.company_id = p_company_id and oli.sku = any(p_skus)
-            group by oli.sku
-        ) as sku_data
+            RETURNING id INTO v_customer_id;
+        END IF;
+    END IF;
+
+    -- Upsert the order
+    INSERT INTO public.orders (
+        company_id, external_order_id, order_number, customer_id,
+        financial_status, fulfillment_status, currency, subtotal,
+        total_tax, total_shipping, total_discounts, total_amount,
+        source_platform, created_at
+    )
+    VALUES (
+        p_company_id,
+        p_order_payload->>'id',
+        p_order_payload->>'name',
+        v_customer_id,
+        p_order_payload->>'financial_status',
+        p_order_payload->>'fulfillment_status',
+        p_order_payload->>'currency',
+        (p_order_payload->>'subtotal_price')::numeric * 100,
+        (p_order_payload->>'total_tax')::numeric * 100,
+        (p_order_payload->>'total_shipping_price')::numeric * 100,
+        (p_order_payload->>'total_discounts')::numeric * 100,
+        (p_order_payload->>'total_price')::numeric * 100,
+        p_platform,
+        (p_order_payload->>'created_at')::timestamptz
+    )
+    ON CONFLICT (company_id, external_order_id) DO UPDATE SET
+        financial_status = EXCLUDED.financial_status,
+        fulfillment_status = EXCLUDED.fulfillment_status,
+        total_amount = EXCLUDED.total_amount,
+        updated_at = NOW()
+    RETURNING id INTO v_order_id;
+
+    -- Process line items
+    FOR v_line_item IN SELECT * FROM jsonb_array_elements(p_order_payload->'line_items')
+    LOOP
+        -- Find the corresponding product variant
+        SELECT id INTO v_variant_id
+        FROM public.product_variants
+        WHERE company_id = p_company_id AND sku = v_line_item->>'sku';
+        
+        -- If variant exists, insert line item and decrement inventory
+        IF v_variant_id IS NOT NULL THEN
+            INSERT INTO public.order_line_items (
+                order_id, variant_id, company_id, product_name, variant_title,
+                sku, quantity, price, total_discount, tax_amount, external_line_item_id
+            )
+            VALUES (
+                v_order_id,
+                v_variant_id,
+                p_company_id,
+                v_line_item->>'name',
+                v_line_item->>'title',
+                v_line_item->>'sku',
+                (v_line_item->>'quantity')::int,
+                (v_line_item->>'price')::numeric * 100,
+                (v_line_item->'discount_allocations'->0->>'amount')::numeric * 100,
+                (v_line_item->'tax_lines'->0->>'price')::numeric * 100,
+                v_line_item->>'id'
+            );
+            
+            -- Decrement inventory
+            PERFORM public.decrement_inventory_for_order(
+                p_company_id,
+                v_variant_id,
+                (v_line_item->>'quantity')::int,
+                v_order_id
+            );
+
+        END IF;
+    END LOOP;
+
+    RETURN v_order_id;
+END;
+$$;
+
+
+-- public.decrement_inventory_for_order(p_company_id, p_variant_id, p_quantity, p_order_id)
+drop function if exists public.decrement_inventory_for_order;
+CREATE OR REPLACE FUNCTION public.decrement_inventory_for_order(
+    p_company_id UUID,
+    p_variant_id UUID,
+    p_quantity INT,
+    p_order_id UUID
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    current_stock INT;
+BEGIN
+    -- Check for sufficient stock before decrementing
+    SELECT inventory_quantity INTO current_stock
+    FROM public.product_variants
+    WHERE id = p_variant_id AND company_id = p_company_id;
+
+    IF current_stock IS NULL THEN
+        -- Variant not found, do nothing or raise a notice
+        RETURN;
+    END IF;
+
+    IF current_stock < p_quantity THEN
+        -- Not enough stock. Log an error but do not decrement.
+        -- In a real system, this might raise an exception or create a backorder.
+        INSERT INTO public.audit_log (company_id, action, details)
+        VALUES (p_company_id, 'insufficient_stock_for_sale', jsonb_build_object(
+            'variant_id', p_variant_id,
+            'order_id', p_order_id,
+            'requested_quantity', p_quantity,
+            'available_quantity', current_stock
+        ));
+        RETURN;
+    END IF;
+
+    -- Proceed with decrementing inventory
+    UPDATE public.product_variants
+    SET inventory_quantity = inventory_quantity - p_quantity
+    WHERE id = p_variant_id AND company_id = p_company_id;
+
+    -- Create a ledger entry for the sale
+    INSERT INTO public.inventory_ledger (
+        variant_id, company_id, quantity_change, new_quantity, change_type, related_id, notes
+    )
+    VALUES (
+        p_variant_id,
+        p_company_id,
+        -p_quantity,
+        current_stock - p_quantity,
+        'sale',
+        p_order_id,
+        'Sale transaction'
     );
-end;
+END;
 $$;
 
-
-create or replace function reconcile_inventory_from_integration(
-    p_company_id uuid,
-    p_integration_id uuid,
-    p_user_id uuid
+-- public.check_user_permission(p_user_id, p_required_role)
+drop function if exists public.check_user_permission;
+CREATE OR REPLACE FUNCTION public.check_user_permission(
+    p_user_id UUID,
+    p_required_role public.company_role
 )
-returns void
-language plpgsql
-as $$
-declare
-    rec record;
-    v_external_quantity int;
-    v_current_quantity int;
-    v_quantity_change int;
-begin
-    -- This function would need to call the external API to get quantities.
-    -- For this example, we'll simulate it with a placeholder.
-    -- In a real implementation, you would replace the simulated value
-    -- with an API call result inside the loop.
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    user_role public.company_role;
+BEGIN
+    SELECT role INTO user_role
+    FROM public.company_users cu
+    WHERE cu.user_id = p_user_id;
 
-    for rec in (select id, inventory_quantity from product_variants where company_id = p_company_id)
-    loop
-        -- SIMULATED API CALL
-        v_external_quantity := rec.inventory_quantity + floor(random() * 10 - 5);
-        v_current_quantity := rec.inventory_quantity;
-        v_quantity_change := v_external_quantity - v_current_quantity;
+    IF user_role IS NULL THEN
+        RETURN FALSE;
+    END IF;
 
-        if v_quantity_change != 0 then
-            update product_variants
-            set inventory_quantity = v_external_quantity
-            where id = rec.id;
-
-            insert into inventory_ledger(company_id, variant_id, change_type, quantity_change, new_quantity, related_id, notes)
-            values (p_company_id, rec.id, 'reconciliation', v_quantity_change, v_external_quantity, p_integration_id, 'Reconciled from integration by user ' || p_user_id);
-        end if;
-    end loop;
-end;
+    IF p_required_role = 'Admin' THEN
+        RETURN user_role IN ('Admin', 'Owner');
+    ELSIF p_required_role = 'Owner' THEN
+        RETURN user_role = 'Owner';
+    END IF;
+    
+    RETURN FALSE;
+END;
 $$;
 
+-- Finally, enable RLS on all tables where it's needed
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.company_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.imports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_order_line_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.refunds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
 
-create or replace function get_net_margin_by_channel(
-    p_company_id uuid,
-    p_channel_name text
-)
-returns table (net_margin numeric)
-language plpgsql
-as $$
-begin
-    -- Placeholder function. A real implementation would be more complex.
-    return query
-    select 0.15 as net_margin;
-end;
-$$;
+-- Grant usage on the schema to the authenticated role
+GRANT USAGE ON SCHEMA public TO authenticated;
 
-create or replace function get_sales_velocity(
-    p_company_id uuid,
-    p_days int,
-    p_limit int
-)
-returns table (
-    fast_sellers json,
-    slow_sellers json
-)
-language plpgsql
-as $$
-begin
-    -- Placeholder function
-    fast_sellers := '[]'::json;
-    slow_sellers := '[]'::json;
-    return;
-end;
-$$;
+-- Grant select on all tables to the authenticated role
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT INSERT ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT UPDATE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
 
-create or replace function get_abc_analysis(p_company_id uuid)
-returns json
-language plpgsql
-as $$
-begin
-    return '[]'::json;
-end;
-$$;
+-- Grant usage on all sequences to the authenticated role
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
-
-create or replace function get_gross_margin_analysis(p_company_id uuid)
-returns jsonb
-as $$
-begin
-  return '{}'::jsonb;
-end;
-$$ language plpgsql;
-
-create or replace function get_margin_trends(p_company_id uuid)
-returns json
-as $$
-begin
-    return '[]'::json;
-end;
-$$;
-
-create or replace function get_financial_impact_of_promotion(
-    p_company_id uuid,
-    p_skus text[],
-    p_discount_percentage numeric,
-    p_duration_days int
-)
-returns json
-as $$
-begin
-    return '{}'::json;
-end;
-$$;
-
--- Sequences for auto-incrementing numbers
-create sequence if not exists po_number_seq;
-create sequence if not exists refund_number_seq;
-
+-- Grant execute on all functions to the authenticated role
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
