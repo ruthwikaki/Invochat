@@ -79,14 +79,14 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
 
     Details:
     - Product: ${metadata.productName || 'N/A'}
-    - SKU: ${metadata.productId ? `(ID: ${metadata.productId})` : 'N/A'}
+    - SKU: ${metadata.sku || 'N/A'}
     - Current Stock: ${metadata.currentStock ?? 'N/A'}
     - Reorder Point: ${metadata.reorderPoint ?? 'N/A'}
     - Last Sold Date: ${metadata.lastSoldDate ? new Date(String(metadata.lastSoldDate)).toLocaleDateString() : 'N/A'}
-    - Current Value: $${(metadata.value ?? 0).toLocaleString()}
+    - Current Value: $${((metadata.value as number) / 100).toLocaleString()}
 
     You can view this alert in your InvoChat dashboard.
-  `.trim();
+  `.trim().replace(/^ */gm, '');
 
   // In a real app, this would fetch the user's actual email address.
   await sendEmail('user@example.com', subject, body, `Alert: ${alert.type}`);
