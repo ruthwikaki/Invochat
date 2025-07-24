@@ -80,23 +80,30 @@ describe('Component: ReorderClientPage', () => {
         const checkboxes = screen.getAllByRole('checkbox');
         const selectAllCheckbox = checkboxes[0];
 
-        // Action bar should not be visible initially because items are not pre-selected
+        // Action bar should not be visible initially
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
         // Select all items
-        await fireEvent.click(selectAllCheckbox);
-        expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
+        fireEvent.click(selectAllCheckbox);
+        
+        // Wait for state update and action bar to appear
+        await waitFor(() => {
+          expect(screen.getByText('2 item(s) selected')).toBeInTheDocument();
+        });
 
         // Unselect all items
-        await fireEvent.click(selectAllCheckbox);
+        fireEvent.click(selectAllCheckbox);
         
+        // Wait for state update and action bar to disappear
         await waitFor(() => {
           expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
         });
 
-        // Check one item
-        await fireEvent.click(checkboxes[1]);
-        expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+        // Check one item to ensure individual selection still works
+        fireEvent.click(checkboxes[1]);
+        await waitFor(() => {
+          expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+        });
     });
 
 
@@ -112,6 +119,10 @@ describe('Component: ReorderClientPage', () => {
         // Select an item to enable the button
         const firstCheckbox = screen.getAllByRole('checkbox')[1];
         await fireEvent.click(firstCheckbox);
+
+        await waitFor(() => {
+            expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
+        });
 
         const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
         await fireEvent.click(createPoButton);
