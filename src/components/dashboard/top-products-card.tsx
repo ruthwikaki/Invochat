@@ -12,9 +12,10 @@ interface TopProductsCardProps {
     total_revenue: number;
     image_url: string | null;
   }[];
+  currency: string;
 }
 
-export function TopProductsCard({ data }: TopProductsCardProps) {
+export function TopProductsCard({ data, currency }: TopProductsCardProps) {
   return (
     <Card>
       <CardHeader>
@@ -43,7 +44,7 @@ export function TopProductsCard({ data }: TopProductsCardProps) {
                 <div className="flex-1 truncate">
                   <p className="font-medium">{product.product_name}</p>
                 </div>
-                <div className="font-semibold font-tabular">{formatCentsAsCurrency(product.total_revenue)}</div>
+                <div className="font-semibold font-tabular">{formatCentsAsCurrency(product.total_revenue, currency)}</div>
               </motion.li>
             ))}
           </ul>

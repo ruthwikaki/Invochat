@@ -19,7 +19,7 @@ import { SalesChart } from '@/components/dashboard/sales-chart';
 import { TopProductsCard } from '@/components/dashboard/top-products-card';
 import { InventorySummaryCard } from '@/components/dashboard/inventory-summary-card';
 import { MorningBriefingCard } from '@/components/dashboard/morning-briefing-card';
-import type { DashboardMetrics } from '@/types';
+import type { DashboardMetrics, CompanySettings } from '@/types';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
@@ -28,6 +28,7 @@ import { useRouter } from 'next/navigation';
 
 interface DashboardClientPageProps {
     initialMetrics: DashboardMetrics;
+    settings: CompanySettings;
     initialBriefing: {
         greeting: string;
         summary: string;
@@ -57,7 +58,7 @@ const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { 
     );
 };
 
-export function DashboardClientPage({ initialMetrics, initialBriefing }: DashboardClientPageProps) {
+export function DashboardClientPage({ initialMetrics, settings, initialBriefing }: DashboardClientPageProps) {
     const router = useRouter();
 
     const handleDateChange = (value: string) => {
@@ -92,18 +93,18 @@ export function DashboardClientPage({ initialMetrics, initialBriefing }: Dashboa
             <MorningBriefingCard briefing={initialBriefing} />
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
+                <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue, settings.currency)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
                 <StatCard title="Total Sales" value={initialMetrics.total_sales.toLocaleString()} change={`${initialMetrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
                 <StatCard title="New Customers" value={initialMetrics.new_customers.toLocaleString()} change={`${initialMetrics.customers_change.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
-                <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value)} icon={TrendingDown} gradient="bg-rose-500" />
+                <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value, settings.currency)} icon={TrendingDown} gradient="bg-rose-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SalesChart data={initialMetrics.sales_over_time} />
-                <TopProductsCard data={initialMetrics.top_selling_products} />
+                <SalesChart data={initialMetrics.sales_over_time} currency={settings.currency} />
+                <TopProductsCard data={initialMetrics.top_selling_products} currency={settings.currency} />
             </div>
             
-            <InventorySummaryCard data={initialMetrics.inventory_summary} />
+            <InventorySummaryCard data={initialMetrics.inventory_summary} currency={settings.currency} />
         </motion.div>
     );
 }

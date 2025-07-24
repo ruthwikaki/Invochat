@@ -30,13 +30,16 @@ export function linearRegression(data: { x: number; y: number }[]): { slope: num
 }
 
 // Format currency from cents to a string like $1,234.56
-export function formatCentsAsCurrency(cents: number | null | undefined): string {
+export function formatCentsAsCurrency(cents: number | null | undefined, currency: string = 'USD'): string {
     if (cents === null || cents === undefined) {
-        return '$0.00';
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency,
+        }).format(0);
     }
     const dollars = cents / 100;
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'USD',
+        currency,
     }).format(dollars);
 }

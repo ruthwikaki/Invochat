@@ -1,5 +1,6 @@
 
-import { getDashboardData, getMorningBriefing } from '@/app/data-actions';
+
+import { getDashboardData, getMorningBriefing, getCompanySettings } from '@/app/data-actions';
 import { DashboardClientPage } from '@/components/dashboard/dashboard-client-page';
 import { AppPageHeader } from '@/components/ui/page';
 
@@ -11,9 +12,10 @@ export default async function DashboardPage({
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
     const dateRange = typeof searchParams?.range === 'string' ? searchParams.range : '90d';
-    const [metrics, briefing] = await Promise.all([
+    const [metrics, briefing, settings] = await Promise.all([
         getDashboardData(dateRange),
         getMorningBriefing(dateRange),
+        getCompanySettings(),
     ]);
     
     return (
@@ -24,6 +26,7 @@ export default async function DashboardPage({
             />
             <DashboardClientPage 
                 initialMetrics={metrics} 
+                settings={settings}
                 initialBriefing={briefing}
             />
         </>

@@ -1,14 +1,17 @@
+
 'use client';
 
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { format } from 'date-fns';
+import { formatCentsAsCurrency } from '@/lib/utils';
 
 interface SalesChartProps {
   data: { date: string; total_sales: number }[];
+  currency: string;
 }
 
-export function SalesChart({ data }: SalesChartProps) {
+export function SalesChart({ data, currency }: SalesChartProps) {
   return (
     <Card>
       <CardHeader>
@@ -40,7 +43,7 @@ export function SalesChart({ data }: SalesChartProps) {
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(value) => `$${value / 1000}k`}
+              tickFormatter={(value) => formatCentsAsCurrency(value, currency).replace(/\.00$/, '').replace(/(\d)000$/, '$1k')}
               className="font-tabular"
             />
             <Tooltip
@@ -51,7 +54,7 @@ export function SalesChart({ data }: SalesChartProps) {
                 borderColor: 'hsl(var(--border))',
                 borderRadius: 'var(--radius)',
               }}
-              formatter={(value: number) => [new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value), 'Sales']}
+              formatter={(value: number) => [formatCentsAsCurrency(value, currency), 'Sales']}
             />
             <Bar dataKey="total_sales" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
           </BarChart>
