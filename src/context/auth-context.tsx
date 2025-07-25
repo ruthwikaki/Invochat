@@ -79,17 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase,
   };
 
-  if (loading) {
-    return (
-        <div className="flex h-screen w-screen items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-                <Skeleton className="h-16 w-16 rounded-full" />
-                <Skeleton className="h-8 w-48" />
-            </div>
-        </div>
-    )
-  }
-
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
