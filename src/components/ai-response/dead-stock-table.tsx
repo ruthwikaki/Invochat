@@ -14,13 +14,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import type { DeadStockItem } from '@/types';
 import { TrendingDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { formatCentsAsCurrency } from '@/lib/utils';
 
 type DeadStockTableProps = {
   data: DeadStockItem[];
 };
 
 export function DeadStockTable({ data }: DeadStockTableProps) {
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <Card>
         <CardContent className="p-4 text-center text-muted-foreground">
@@ -60,7 +61,7 @@ export function DeadStockTable({ data }: DeadStockTableProps) {
                             <div className="text-xs text-muted-foreground">{item.sku}</div>
                         </TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right font-medium">${item.total_value.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCentsAsCurrency(item.total_value)}</TableCell>
                         <TableCell>
                             {item.last_sale_date 
                                 ? formatDistanceToNow(new Date(item.last_sale_date), { addSuffix: true }) 

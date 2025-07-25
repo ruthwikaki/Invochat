@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -149,9 +150,9 @@ function BotAvatar({ isError }: { isError?: boolean }) {
 
 // Map component names to actual components
 const componentMap: { [key: string]: React.ElementType } = {
-    deadStockTable: DeadStockTable,
-    reorderList: ReorderList,
-    supplierPerformanceTable: SupplierPerformanceTable,
+    getDeadStockReport: DeadStockTable,
+    getReorderSuggestions: ReorderList,
+    getSupplierPerformanceAnalysis: SupplierPerformanceTable,
 };
 
 export function ChatMessage({
@@ -202,9 +203,9 @@ export function ChatMessage({
         )}
       </div>
       
-      {CustomComponent && (
+      {CustomComponent && message.componentProps?.data && (
           <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
-            <CustomComponent {...message.componentProps} />
+            <CustomComponent data={message.componentProps.data} />
           </div>
       )}
 
@@ -212,7 +213,7 @@ export function ChatMessage({
         <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
           <DataVisualization
             visualization={message.visualization}
-            title={message.visualization.config?.title}
+            title={message.visualization.config?.title as string}
           />
         </div>
       )}
