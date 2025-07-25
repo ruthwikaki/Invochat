@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { runSync } from '@/features/integrations/services/sync-service';
-import { logError } from '@/lib/error-handler';
+import { logError, getErrorMessage } from '@/lib/error-handler';
 import { createServerClient } from '@supabase/ssr';
 import { cookies, headers } from 'next/headers';
 import crypto from 'crypto';
@@ -12,7 +12,6 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logWebhookEvent } from '@/services/database';
 import { rateLimit } from '@/lib/redis';
 import { config } from '@/config/app-config';
-import { getErrorMessage } from '@/lib/error-handler';
 
 const syncSchema = z.object({
   integrationId: z.string().uuid(),
@@ -40,7 +39,7 @@ async function validateWooCommerceWebhook(request: Request): Promise<boolean> {
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'api_call', 100, 3600);
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.sync, 3600);
         if (limited) {
             return new Response('Rate limit exceeded', { status: 429 });
         }
@@ -63,7 +62,7 @@ export async function POST(request: Request) {
                     const { success } = await logWebhookEvent(integration.id, webhookId);
                     if (!success) {
                         logError(new Error(`WooCommerce webhook replay attempt detected: ${webhookId}`), { status: 409 });
-                        return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                        return NextResponse.json({ message: 'Duplicate webhook event received and ignored.' }, { status: 200 });
                     }
                 }
             }

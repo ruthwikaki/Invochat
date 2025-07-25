@@ -21,7 +21,7 @@ type DataVisualizationProps = {
 export function DataVisualization({ visualization, title }: DataVisualizationProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  if (visualization.type === 'none') {
+  if (visualization.type === 'none' || !visualization.data) {
     return null;
   }
 

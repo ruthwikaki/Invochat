@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -213,7 +212,7 @@ export function ChatMessage({
         <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
           <DataVisualization
             visualization={message.visualization}
-            title={message.visualization.config?.title as string}
+            title={message.visualization.title}
           />
         </div>
       )}

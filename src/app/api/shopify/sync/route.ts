@@ -59,7 +59,7 @@ async function validateShopifyWebhook(request: Request): Promise<boolean> {
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'api_call', 100, 3600);
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.sync, 3600);
         if (limited) {
             return new Response('Rate limit exceeded', { status: 429 });
         }
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
                     const { success } = await logWebhookEvent(integration.id, webhookId);
                     if (!success) {
                         logError(new Error(`Shopify webhook replay attempt detected: ${webhookId}`), { status: 409 });
-                        return NextResponse.json({ error: 'Duplicate webhook event' }, { status: 409 });
+                        return NextResponse.json({ message: 'Duplicate webhook event received and ignored.' }, { status: 200 });
                     }
                 }
             }
