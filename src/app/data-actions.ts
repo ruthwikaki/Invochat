@@ -552,5 +552,3 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-    

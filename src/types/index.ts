@@ -214,37 +214,38 @@ export const IntegrationSchema = z.object({
 export type Integration = z.infer<typeof IntegrationSchema>;
 
 
-export type Conversation = {
-  id: string;
-  user_id: string;
-  company_id: string;
-  title: string;
-  created_at: string;
-  last_accessed_at: string;
-  is_starred: boolean;
-};
+export const ConversationSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  title: z.string(),
+  created_at: z.string().datetime({ offset: true }),
+  last_accessed_at: z.string().datetime({ offset: true }),
+  is_starred: z.boolean(),
+});
+export type Conversation = z.infer<typeof ConversationSchema>;
 
-export type Message = {
-  id: string;
-  conversation_id: string;
-  company_id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  visualization?: {
-    type: 'table' | 'chart' | 'alert' | 'none';
-    data: Record<string, unknown>[];
-    config?: {
-        title?: string;
-        [key: string]: unknown;
-    };
-  } | null;
-  component?: string | null;
-  componentProps?: Record<string, unknown> | null;
-  created_at: string;
-  confidence?: number | null;
-  assumptions?: string[] | null;
-  isError?: boolean;
-};
+export const MessageSchema = z.object({
+  id: z.string().uuid(),
+  conversation_id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  visualization: z.object({
+    type: z.enum(['table', 'chart', 'alert', 'none']),
+    data: z.array(z.record(z.string(), z.unknown())),
+    config: z.object({
+        title: z.string().optional(),
+    }).passthrough().optional(),
+  }).nullable().optional(),
+  component: z.string().nullable().optional(),
+  componentProps: z.record(z.string(), z.unknown()).nullable().optional(),
+  created_at: z.string().datetime({ offset: true }),
+  confidence: z.number().min(0).max(1).nullable().optional(),
+  assumptions: z.array(z.string()).nullable().optional(),
+  isError: z.boolean().optional(),
+});
+export type Message = z.infer<typeof MessageSchema>;
 
 
 export const SupplierFormSchema = z.object({
@@ -476,5 +477,3 @@ export const AlertSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 export type Alert = z.infer<typeof AlertSchema>;
-
-    

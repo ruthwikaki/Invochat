@@ -1,7 +1,7 @@
 
-import { getMessages } from '@/app/actions';
+import { getMessages, getConversations } from '@/app/data-actions';
 import { ChatInterface } from '@/components/chat/chat-interface';
-import type { Message } from '@/types';
+import type { Message, Conversation } from '@/types';
 
 export const dynamic = 'force-dynamic';
 

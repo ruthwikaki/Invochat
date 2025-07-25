@@ -22,8 +22,8 @@ const ContentPartSchema = z.object({
 
 // A message in the conversation history, aligned with Genkit's history message structure.
 const HistoryMessageSchema = z.object({
-  role: z.enum(['user', 'assistant', 'tool', 'model']),
-  content: z.array(ContentPartSchema),
+  role: z.enum(['user', 'model']),
+  content: z.array(z.object({text: z.string()})),
 });
 
 // Input schema for the universal chat flow
