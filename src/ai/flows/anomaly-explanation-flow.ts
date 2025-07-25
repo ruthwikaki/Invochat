@@ -7,6 +7,7 @@
 import { ai } from '@/ai/genkit';
 import type { AnomalyExplanationInput, AnomalyExplanationOutput } from '@/types';
 import { AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema } from '@/types';
+import { config } from '@/config/app-config';
 
 
 const anomalyExplanationPrompt = ai.definePrompt({
@@ -47,7 +48,7 @@ const anomalyExplanationPrompt = ai.definePrompt({
 
 
 export async function generateAnomalyExplanation(input: AnomalyExplanationInput): Promise<AnomalyExplanationOutput> {
-    const { output } = await anomalyExplanationPrompt(input);
+    const { output } = await anomalyExplanationPrompt(input, { model: config.ai.model });
     if (!output) {
         return {
             explanation: "Could not determine a cause for this anomaly.",

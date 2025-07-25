@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow to generate product descriptions.
@@ -5,6 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { config } from '@/config/app-config';
 
 const GenerateDescriptionInputSchema = z.object({
   productName: z.string(),
@@ -43,7 +45,7 @@ export const generateProductDescription = ai.defineTool({
     inputSchema: GenerateDescriptionInputSchema,
     outputSchema: GenerateDescriptionOutputSchema,
 }, async (input) => {
-    const { output } = await generateDescriptionPrompt(input);
+    const { output } = await generateDescriptionPrompt(input, { model: config.ai.model });
     if (!output) {
         throw new Error("AI failed to generate a product description.");
     }

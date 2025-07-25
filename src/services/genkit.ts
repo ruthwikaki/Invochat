@@ -10,6 +10,7 @@ import { ai } from '@/ai/genkit';
 import { envValidation } from '@/config/app-config';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { withTimeout } from '@/lib/async-utils';
+import { config } from '@/config/app-config';
 
 const GENKIT_TEST_TIMEOUT = 10000; // 10 seconds
 
@@ -31,7 +32,7 @@ export async function testGenkitConnection(): Promise<{ isConfigured: boolean; s
   try {
     const testPromise = ai.generate({
         prompt: "Say 'hello'",
-        model: 'googleai/gemini-1.5-flash',
+        model: config.ai.model,
         config: {
           temperature: 0,
         },
