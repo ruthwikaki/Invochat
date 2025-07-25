@@ -16,10 +16,42 @@ const nextConfig = defineNextConfig({
   // Production optimizations
   compress: true,
   poweredByHeader: false,
-  webpack: (config, { dev }) => {
+  webpack: (config, { isServer, webpack }) => {
     // This setting can help resolve strange build issues on Windows,
     // especially when the project is in a cloud-synced directory like OneDrive.
     config.resolve.symlinks = false;
+
+    if (!isServer) {
+        config.plugins.push(
+            new webpack.ContextReplacementPlugin(
+                /@opentelemetry\/instrumentation/,
+                (data) => {
+                    for (const dependency of data.dependencies) {
+                        if (dependency.request === './platform/node') {
+                            dependency.request = './platform/browser';
+                        }
+                    }
+                    return data;
+                }
+            )
+        )
+    }
+
+    // This is the correct way to suppress the specific, known warnings from Sentry/Supabase.
+    // It prevents the build log from being cluttered with non-actionable "Critical dependency" messages.
+    config.externals.push({
+        '@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation',
+    });
+
+    config.module.rules.push({
+      test: /realtime-js/,
+      loader: 'string-replace-loader',
+      options: {
+        search: 'Ably from "ably"',
+        replace: 'Ably from "ably/browser/core"',
+      }
+    });
+
     return config;
   },
   images: {
@@ -45,7 +77,7 @@ const nextConfig = defineNextConfig({
   async headers() {
     const cspHeader = `
       default-src 'self';
-      script-src 'self';
+      script-src 'self' 'unsafe-inline';
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https://placehold.co;
       font-src 'self';
