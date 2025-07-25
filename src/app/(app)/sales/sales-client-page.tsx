@@ -1,18 +1,17 @@
 
 'use client';
 
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useDebouncedCallback } from 'use-debounce';
 import { Input } from '@/components/ui/input';
-import type { Order, SalesAnalytics, CompanySettings } from '@/types';
+import type { Order, SalesAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, DollarSign, ShoppingCart, Percent } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { formatCentsAsCurrency } from '@/lib/utils';
-import { ExportButton } from '../ui/export-button';
-import { Button } from '../ui/button';
+import { ExportButton } from '@/components/ui/export-button';
+import { Button } from '@/components/ui/button';
+import { useTableState } from '@/hooks/use-table-state';
 
 interface SalesClientPageProps {
   initialSales: Order[];
@@ -34,18 +33,8 @@ const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: str
     </Card>
 );
 
-const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
-    const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-    const currentPage = Number(searchParams.get('page')) || 1;
+const PaginationControls = ({ totalCount, itemsPerPage, currentPage, onPageChange }: { totalCount: number; itemsPerPage: number; currentPage: number, onPageChange: (page: number) => void }) => {
     const totalPages = Math.ceil(totalCount / itemsPerPage);
-
-    const createPageURL = (pageNumber: number | string) => {
-        const params = new URLSearchParams(searchParams);
-        params.set('page', pageNumber.toString());
-        return `${pathname}?${params.toString()}`;
-    };
 
     if (totalPages <= 1) {
         return null;
@@ -59,14 +48,14 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
             <div className="flex items-center gap-2">
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage - 1)); }}
+                    onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage <= 1}
                 >
                     Previous
                 </Button>
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage + 1)); }}
+                    onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage >= totalPages}
                 >
                     Next
@@ -78,23 +67,15 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
 
 
 export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyticsData, exportAction }: SalesClientPageProps) {
-    const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-    
-    const handleSearch = useDebouncedCallback((term: string) => {
-        const params = new URLSearchParams(searchParams);
-        params.set('page', '1');
-        if (term) {
-            params.set('query', term);
-        } else {
-            params.delete('query');
-        }
-        router.replace(`${pathname}?${params.toString()}`);
-    }, 300);
+    const {
+        searchQuery,
+        page,
+        handleSearch,
+        handlePageChange
+    } = useTableState({ defaultSortColumn: 'created_at' });
 
     const handleExport = () => {
-        return exportAction({ query: searchParams.get('query') || '' });
+        return exportAction({ query: searchQuery });
     }
 
     return (
@@ -113,7 +94,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                         <Input
                             placeholder="Search by order number or customer email..."
                             onChange={(e) => handleSearch(e.target.value)}
-                            defaultValue={searchParams.get('query')?.toString()}
+                            defaultValue={searchQuery}
                             className="pl-10"
                         />
                     </div>
@@ -153,7 +134,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                         </TableBody>
                     </Table>
                 </div>
-                 <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
+                 <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
             </CardContent>
         </Card>
     </div>
