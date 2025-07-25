@@ -1,10 +1,8 @@
 
-
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useDebouncedCallback } from 'use-debounce';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import type { Customer, CustomerAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -28,13 +26,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 import { ExportButton } from '@/components/ui/export-button';
+import { useTableState } from '@/hooks/use-table-state';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
   totalCount: number;
   itemsPerPage: number;
   analyticsData: CustomerAnalytics;
-  exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
+  exportAction: (params: {query: string}) => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
 const formatCurrency = (value: number) => {
@@ -79,19 +78,8 @@ const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: strin
     </Card>
 );
 
-
-const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
-    const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-    const currentPage = Number(searchParams.get('page')) || 1;
+const PaginationControls = ({ totalCount, itemsPerPage, currentPage, onPageChange }: { totalCount: number; itemsPerPage: number; currentPage: number, onPageChange: (page: number) => void }) => {
     const totalPages = Math.ceil(totalCount / itemsPerPage);
-
-    const createPageURL = (pageNumber: number | string) => {
-        const params = new URLSearchParams(searchParams);
-        params.set('page', pageNumber.toString());
-        return `${pathname}?${params.toString()}`;
-    };
 
     if (totalPages <= 1) {
         return null;
@@ -105,14 +93,14 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
             <div className="flex items-center gap-2">
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage - 1)); }}
+                    onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage <= 1}
                 >
                     Previous
                 </Button>
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage + 1)); }}
+                    onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage >= totalPages}
                 >
                     Next
@@ -145,23 +133,17 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   const [isDeleting, startDeleteTransition] = useTransition();
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
 
-  const handleSearch = useDebouncedCallback((term: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('page', '1');
-    if (term) {
-      params.set('query', term);
-    } else {
-      params.delete('query');
-    }
-    router.replace(`${pathname}?${params.toString()}`);
-  }, 300);
+  const {
+    searchQuery,
+    page,
+    handleSearch,
+    handlePageChange
+  } = useTableState({ defaultSortColumn: 'created_at' });
   
-  const showEmptyState = totalCount === 0 && !searchParams.get('query');
-  const showNoResultsState = totalCount === 0 && searchParams.get('query');
+  const showEmptyState = totalCount === 0 && !searchQuery;
+  const showNoResultsState = totalCount === 0 && searchQuery;
 
   const handleDelete = () => {
     if (!customerToDelete) return;
@@ -205,14 +187,14 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                     <CardTitle>All Customers</CardTitle>
                     <CardDescription>Search and manage your complete customer list.</CardDescription>
                   </div>
-                  <ExportButton exportAction={exportAction} filename="customers.csv" />
+                  <ExportButton exportAction={() => exportAction({query: searchQuery})} filename="customers.csv" />
                 </div>
                 <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Search by customer name or email..."
                         onChange={(e) => handleSearch(e.target.value)}
-                        defaultValue={searchParams.get('query')?.toString()}
+                        defaultValue={searchQuery}
                         className="pl-10"
                     />
                 </div>
@@ -269,7 +251,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                         </TableBody>
                     </Table>
                     </div>
-                    <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
+                    <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
                 </>
                 )}
             </CardContent>
