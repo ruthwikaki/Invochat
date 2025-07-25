@@ -23,7 +23,7 @@ export default async function InventoryPage({
   const sortBy = searchParams?.sortBy || 'product_title';
   const sortDirection = searchParams?.sortDirection || 'asc';
 
-  // Fetch data in parallel
+  // Fetch data in parallel for better performance
   const [inventoryData, analytics] = await Promise.all([
     getUnifiedInventory({ query, page: currentPage, limit: ITEMS_PER_PAGE, status, sortBy, sortDirection }),
     getInventoryAnalytics(),
