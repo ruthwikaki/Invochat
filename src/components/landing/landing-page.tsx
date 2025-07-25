@@ -25,14 +25,11 @@ const features = [
 
 export function LandingPage() {
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-dvh flex-col bg-background">
       <LandingHeader />
       <main className="flex-1">
         <section className="relative w-full py-20 md:py-32 lg:py-40 overflow-hidden">
-           <div className="absolute inset-0 -z-10">
-            <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/5 to-background" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(107,70,193,0.1),rgba(255,255,255,0))]" />
-          </div>
+           <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(107,70,193,0.1),transparent)]"></div>
           <div className="container relative z-10 mx-auto px-4 md:px-6 text-center">
             <div className="max-w-3xl mx-auto space-y-6">
               <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
@@ -53,21 +50,17 @@ export function LandingPage() {
           </div>
         </section>
 
-        <section id="features" className="w-full py-20 md:py-32 bg-muted/40">
+        <section id="features" className="w-full py-20 md:py-32 bg-muted/40 border-t border-b">
           <div className="container mx-auto px-4 md:px-6">
-            <div className="mx-auto grid max-w-5xl items-center gap-6 lg:grid-cols-3 lg:gap-12">
+            <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3">
               {features.map((feature, index) => (
-                <Card key={index} className="h-full">
-                  <CardHeader className="items-center text-center">
-                    <div className="mb-4 rounded-full bg-primary/10 p-4">
+                <div key={index} className="grid gap-1 text-center">
+                    <div className="mx-auto mb-4 rounded-full bg-primary/10 p-4 w-fit">
                       {feature.icon}
                     </div>
-                    <CardTitle>{feature.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-center">
-                    <p className="text-muted-foreground">{feature.description}</p>
-                  </CardContent>
-                </Card>
+                  <h3 className="text-xl font-bold">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </div>
               ))}
             </div>
           </div>
