@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to suggest product price optimizations.
@@ -145,3 +146,6 @@ export const getPriceOptimizationSuggestions = ai.defineTool(
     },
     async (input) => suggestPriceOptimizationsFlow(input)
 );
+
+
+    

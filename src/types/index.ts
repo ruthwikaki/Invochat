@@ -1,4 +1,5 @@
 
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -287,7 +288,7 @@ export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
 export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),
   product_name: z.string(),
-  quantity: z.number(),
+  inventory_quantity: z.number(),
   total_value: z.number().int(),
   days_since_last_sale: z.number(),
 });
@@ -296,7 +297,7 @@ export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSc
 export const InventoryRiskItemSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
-    quantity: z.number(),
+    inventory_quantity: z.number(),
     total_value: z.number().int(),
     risk_score: z.number(),
 });
@@ -364,7 +365,6 @@ export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int(),
     total_orders: z.number().int(),
     average_order_value: z.number().int(),
-    average_margin: z.number(),
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
@@ -477,3 +477,6 @@ export const AlertSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 export type Alert = z.infer<typeof AlertSchema>;
+
+
+    
