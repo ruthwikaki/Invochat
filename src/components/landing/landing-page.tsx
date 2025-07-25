@@ -28,12 +28,12 @@ export function LandingPage() {
     <div className="flex min-h-full flex-col">
       <LandingHeader />
       <main className="flex-1">
-        <section className="relative w-full py-20 md:py-32 lg:py-40">
+        <section className="relative w-full py-20 md:py-32 lg:py-40 overflow-hidden">
            <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/5 to-background" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(107,70,193,0.1),rgba(255,255,255,0))]" />
           </div>
-          <div className="container mx-auto px-4 md:px-6 text-center">
+          <div className="container relative z-10 mx-auto px-4 md:px-6 text-center">
             <div className="max-w-3xl mx-auto space-y-6">
               <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
                 Turn Your Inventory Data into{' '}
