@@ -6,6 +6,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { logError } from '@/lib/error-handler';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface AuthContextType {
   user: User | null;
@@ -77,6 +78,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     supabase,
   };
+
+  if (loading) {
+    return (
+        <div className="flex h-screen w-screen items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <Skeleton className="h-16 w-16 rounded-full" />
+                <Skeleton className="h-8 w-48" />
+            </div>
+        </div>
+    )
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
