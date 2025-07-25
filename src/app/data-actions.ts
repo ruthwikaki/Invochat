@@ -45,11 +45,12 @@ import {
     logUserFeedbackInDb as logUserFeedbackInDbService
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
+import { DashboardMetricsSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, ReorderSuggestion } from '@/types';
+import type { Message, Conversation } from '@/types';
 import { z } from 'zod';
 
 export async function getProducts() {
@@ -422,9 +423,10 @@ export async function reconcileInventory(integrationId: string) {
     }
 }
 
-export async function getDashboardData(dateRange: string) {
+export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     const { companyId } = await getAuthContext();
-    return getDashboardMetrics(companyId, dateRange);
+    const data = await getDashboardMetrics(companyId, dateRange);
+    return DashboardMetricsSchema.parse(data);
 }
 
 export async function getMorningBriefing(dateRange: string) {
@@ -549,5 +551,3 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-    
