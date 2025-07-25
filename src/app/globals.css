@@ -31,11 +31,11 @@
     --input: 240 4% 16%;
     --ring: 257 58% 52%;
     --radius: 0.5rem;
-    --chart-1: 257 58% 52%;
-    --chart-2: 158 79% 44%;
-    --chart-3: 38 92% 51%;
-    --chart-4: 347 89% 61%;
-    --chart-5: 220 14% 35%;
+    --chart-1: hsl(var(--primary));
+    --chart-2: hsl(var(--secondary));
+    --chart-3: hsl(var(--destructive));
+    --chart-4: hsl(var(--warning));
+    --chart-5: hsl(var(--success));
   }
 
   .dark {
@@ -62,11 +62,6 @@
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 51%;
     --warning-foreground: 0 0% 98%;
-    --chart-1: 257 58% 52%;
-    --chart-2: 158 79% 44%;
-    --chart-3: 38 92% 51%;
-    --chart-4: 347 89% 61%;
-    --chart-5: 220 14% 35%;
   }
 }
 
