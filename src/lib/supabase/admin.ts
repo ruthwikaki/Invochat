@@ -50,7 +50,7 @@ export function createServerClient() {
   const cookieStore = cookies()
 
   if (!envValidation.success) {
-     const errorMessage = `Supabase admin client cannot be initialized due to missing environment variables.`;
+     const errorMessage = `Supabase client cannot be initialized due to missing environment variables.`;
      throw new Error(errorMessage);
   }
 

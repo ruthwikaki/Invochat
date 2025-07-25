@@ -54,7 +54,7 @@ export const config = {
     environment: process.env.NODE_ENV,
   },
   ai: {
-    model: process.env.AI_MODEL || 'googleai/gemini-1.5-flash',
+    model: 'googleai/gemini-1.5-flash',
     historyLimit: parseIntWithDefault(process.env.AI_HISTORY_LIMIT, 10),
     maxOutputTokens: parseIntWithDefault(process.env.AI_MAX_OUTPUT_TOKENS, 2048),
     timeoutMs: parseIntWithDefault(process.env.AI_TIMEOUT_MS, 30000), // 30 second timeout for AI calls
