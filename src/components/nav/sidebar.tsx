@@ -17,7 +17,7 @@ import {
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { Separator } from '@/components/ui/separator';
 import { UserAccountNav } from './user-account-nav';
-import { getConversations } from '@/app/actions';
+import { getConversations } from '@/app/data-actions';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart,
@@ -182,3 +182,5 @@ export function AppSidebar() {
     </>
   );
 }
+
+    

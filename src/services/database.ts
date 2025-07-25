@@ -1116,3 +1116,5 @@ export async function logUserFeedback(userId: string, companyId: string, subject
         logError(error, { context: 'Failed to log user feedback' });
     }
 }
+
+    
