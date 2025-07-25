@@ -40,7 +40,7 @@ import { useAuth } from '@/context/auth-context';
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
-  { href: '/sales', label: 'Sales', icon: Users },
+  { href: '/sales', label: 'Sales', icon: FileText },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/customers', label: 'Customers', icon: Users },
 ];
