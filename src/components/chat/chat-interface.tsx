@@ -274,3 +274,5 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
     </div>
   );
 }
+
+    
