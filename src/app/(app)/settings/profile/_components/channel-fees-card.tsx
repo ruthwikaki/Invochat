@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getErrorMessage } from '@/lib/error-handler';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 const ChannelFeeSchema = z.object({
   channel_name: z.string().min(1, 'Channel name is required'),
@@ -125,4 +125,3 @@ export function ChannelFeesCard() {
         </Card>
     )
 }
-
