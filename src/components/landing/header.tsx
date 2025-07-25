@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -18,9 +17,6 @@ export function LandingHeader() {
         <Button asChild variant="ghost">
             <Link href="#features">Features</Link>
         </Button>
-        <Button asChild variant="ghost">
-            <Link href="#demo">Demo</Link>
-        </Button>
          <Button asChild variant="ghost">
             <Link href="/login">Sign In</Link>
         </Button>
@@ -38,9 +34,6 @@ export function LandingHeader() {
             <nav className="flex flex-col items-center gap-4 p-4">
                  <Button asChild variant="ghost">
                     <Link href="#features" onClick={()=>setIsMenuOpen(false)}>Features</Link>
-                </Button>
-                <Button asChild variant="ghost">
-                    <Link href="#demo" onClick={()=>setIsMenuOpen(false)}>Demo</Link>
                 </Button>
                 <Button asChild variant="ghost">
                     <Link href="/login" onClick={()=>setIsMenuOpen(false)}>Sign In</Link>

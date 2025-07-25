@@ -18,7 +18,7 @@ function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
         <Button 
             type="submit" 
             disabled={disabled || pending} 
-            className="w-full h-12 text-base font-semibold bg-primary text-primary-foreground shadow-lg transition-all duration-300 ease-in-out hover:bg-primary/90 hover:shadow-xl disabled:opacity-50 rounded-lg"
+            className="w-full h-12 text-base font-semibold"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
         </Button>
@@ -61,20 +61,19 @@ export function LoginForm({ initialError }: LoginFormProps) {
     <form action={formAction} className="space-y-4" onChange={handleInteraction}>
         {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="space-y-2">
-            <Label htmlFor="email" className="text-slate-300">Email</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
                 id="email"
                 name="email"
                 type="email"
                 placeholder="you@company.com"
                 required
-                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
             />
         </div>
         
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-slate-300">Password</Label>
+            <Label htmlFor="password">Password</Label>
             <Link
                 href="/forgot-password"
                 className="text-sm text-primary/80 hover:text-primary transition-colors"
@@ -91,7 +90,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
         </div>
         
         {error && (
-            <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">
+            <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                 <AlertDescription>{error}</AlertDescription>
             </Alert>
