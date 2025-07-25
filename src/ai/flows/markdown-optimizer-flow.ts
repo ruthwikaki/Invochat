@@ -8,6 +8,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getDeadStockReportFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
+import { config } from '@/config/app-config';
 
 const MarkdownInputSchema = z.object({
   companyId: z.string().uuid().describe("The ID of the company to generate a markdown plan for."),
@@ -85,7 +86,7 @@ export const markdownOptimizerFlow = ai.defineFlow(
       }
 
       // Step 2: Pass the dead stock data to the AI for the markdown plan.
-      const { output } = await markdownOptimizerPrompt({ deadStockItems });
+      const { output } = await markdownOptimizerPrompt({ deadStockItems }, { model: config.ai.model });
 
       if (!output) {
         throw new Error("AI failed to generate markdown suggestions.");

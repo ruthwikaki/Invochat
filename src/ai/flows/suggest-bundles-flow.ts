@@ -8,6 +8,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getUnifiedInventoryFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
+import { config } from '@/config/app-config';
 
 const SuggestBundlesInputSchema = z.object({
   companyId: z.string().uuid().describe("The ID of the company to suggest bundles for."),
@@ -82,7 +83,7 @@ export const suggestBundlesFlow = ai.defineFlow(
         category: p.product_type,
       }));
 
-      const { output } = await suggestBundlesPrompt({ products: productSubset, count });
+      const { output } = await suggestBundlesPrompt({ products: productSubset, count }, { model: config.ai.model });
 
       if (!output) {
         throw new Error("AI failed to generate bundle suggestions.");

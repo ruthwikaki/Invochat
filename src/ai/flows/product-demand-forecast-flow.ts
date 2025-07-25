@@ -11,6 +11,7 @@ import { getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
 import { linearRegression } from '@/lib/utils';
 import { differenceInDays } from 'date-fns';
+import { config } from '@/config/app-config';
 
 const ForecastInputSchema = z.object({
   companyId: z.string().uuid(),
@@ -115,7 +116,7 @@ export const productDemandForecastFlow = ai.defineFlow(
         intercept,
         dataPointCount: salesData.length,
         forecastedDemand: roundedForecast,
-      });
+      }, { model: config.ai.model });
 
       if (!output) {
         throw new Error("AI failed to generate a forecast analysis.");

@@ -7,6 +7,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
+import { config } from '@/config/app-config';
 
 const EconomicIndicatorInputSchema = z.object({
   indicator: z
@@ -49,7 +50,7 @@ export const getEconomicIndicators = ai.defineTool(
   async (input) => {
     logger.info(`[Economic Tool] Looking up indicator: ${input.indicator}`);
     try {
-        const { output } = await economicIndicatorPrompt({ indicator: input.indicator });
+        const { output } = await economicIndicatorPrompt({ indicator: input.indicator }, { model: config.ai.model });
         
         return {
             indicator: input.indicator,

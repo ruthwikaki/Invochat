@@ -6,6 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { CsvMappingInputSchema, CsvMappingOutputSchema, type CsvMappingInput, type CsvMappingOutput } from '@/types';
+import { config } from '@/config/app-config';
 
 const csvMappingPrompt = ai.definePrompt({
   name: 'csvMappingPrompt',
@@ -47,7 +48,7 @@ export async function suggestCsvMappings(input: CsvMappingInput): Promise<CsvMap
     ),
   };
   
-  const { output } = await csvMappingPrompt(sanitizedInput);
+  const { output } = await csvMappingPrompt(sanitizedInput, { model: config.ai.model });
   if (!output) {
     return {
       mappings: [],
