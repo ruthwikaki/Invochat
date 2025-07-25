@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authListener.subscription.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, [supabase, router]);
 
   const logout = async () => {
     await supabase.auth.signOut();
