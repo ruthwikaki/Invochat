@@ -82,6 +82,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "@vitest/coverage-v8": "^1.6.0",
     "@vitest/ui": "^1.6.0",
+    "autoprefixer": "^10.4.19",
     "genkit-cli": "^1.8.0",
     "jsdom": "^24.1.0",
     "postcss": "^8.4.39",
