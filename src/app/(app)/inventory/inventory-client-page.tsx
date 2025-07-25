@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
@@ -129,25 +130,26 @@ function EmptyInventoryState() {
 
 // Group variants by their parent product
 const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
-  const productMap: Record<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[], total_quantity: number }> = {};
+  const productMap = new Map<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[], total_quantity: number }>();
   
   inventory.forEach(variant => {
     const productId = variant.product_id;
-    if (!Object.prototype.hasOwnProperty.call(productMap, productId)) {
-      productMap[productId] = {
+    if (!productMap.has(productId)) {
+      productMap.set(productId, {
         product_id: productId,
         product_title: variant.product_title || 'Unknown Product',
         product_status: variant.product_status || 'unknown',
         image_url: variant.image_url,
         variants: [],
         total_quantity: 0
-      };
+      });
     }
-    productMap[productId].variants.push(variant);
-    productMap[productId].total_quantity += variant.inventory_quantity;
+    const productGroup = productMap.get(productId)!;
+    productGroup.variants.push(variant);
+    productGroup.total_quantity += variant.inventory_quantity;
   });
   
-  return Object.values(productMap);
+  return Array.from(productMap.values());
 };
 
 const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }: { column: SortableColumn, label: string, currentSort: SortableColumn, currentDirection: 'asc' | 'desc', onSort: (column: SortableColumn) => void }) => {
