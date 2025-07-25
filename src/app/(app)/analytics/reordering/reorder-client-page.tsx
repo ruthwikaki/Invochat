@@ -14,7 +14,7 @@ import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/data-actions';
+import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/(app)/analytics/reordering/actions';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 import { getErrorMessage } from '@/lib/error-handler';
 

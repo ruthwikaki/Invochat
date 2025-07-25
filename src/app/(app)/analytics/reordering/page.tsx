@@ -1,4 +1,5 @@
-import { getReorderReport } from '@/app/data-actions';
+
+import { getReorderReport } from '@/app/(app)/analytics/reordering/actions';
 import { ReorderClientPage } from './reorder-client-page';
 import { AppPageHeader } from '@/components/ui/page';
 
