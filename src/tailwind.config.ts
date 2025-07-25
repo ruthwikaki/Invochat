@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss"
 
 const config = {
@@ -20,6 +19,7 @@ const config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-sans)", "system-ui"],
+        tabular: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
       },
       colors: {
         border: "hsl(var(--border))",
