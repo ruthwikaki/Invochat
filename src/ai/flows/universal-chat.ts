@@ -205,10 +205,10 @@ export const universalChatFlow = genkit.ai.defineFlow(
                 toolName: toolName,
             };
 
-        } else if(response.text) {
+        } else if(response.text()) {
              logger.info(`[UniversalChat:Flow] AI generated a text-only response. Synthesizing final response.`);
             const { output: finalOutput } = await finalResponsePrompt(
-                { userQuery, toolResult: response.text },
+                { userQuery, toolResult: response.text() },
                 { model: config.ai.model, config: { maxOutputTokens: config.ai.maxOutputTokens } }
             );
 
@@ -268,3 +268,5 @@ export const universalChatFlow = genkit.ai.defineFlow(
     }
   }
 );
+
+    
