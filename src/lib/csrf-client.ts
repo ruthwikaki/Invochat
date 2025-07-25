@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { logger } from './logger';
 
 export const CSRF_COOKIE_NAME = '__Host-csrf_token';
@@ -32,6 +32,8 @@ export async function generateAndSetCsrfToken(setCsrfToken: Dispatch<SetStateAct
     try {
         const response = await fetch('/api/auth/csrf', { method: 'POST' });
         if (response.ok) {
+            // After the API call, the cookie is set server-side.
+            // We read it from the document to update our component's state.
             const token = getCookie(CSRF_COOKIE_NAME);
             setCsrfToken(token);
         } else {
