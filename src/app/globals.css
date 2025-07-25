@@ -1,33 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 98%; /* #FAFAFA */
-    --foreground: 222 47% 11%; /* #111827 */
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 257 58% 52%; /* #6B46C1 */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 257 58% 52%; /* Deep Purple */
     --primary-foreground: 0 0% 98%;
-    --secondary: 220 14% 35%; /* #475569 */
+    --secondary: 220 14% 35%; /* Slate */
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 5% 96%;
+    --muted: 240 5% 12%;
     --muted-foreground: 240 4% 46%;
-    --accent: 240 5% 96%;
-    --accent-foreground: 240 6% 10%;
-    --destructive: 347 89% 61%; /* #F43F5E */
+    --accent: 240 5% 18%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 347 89% 61%; /* Rose */
     --destructive-foreground: 0 0% 98%;
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
+    --success: 158 79% 44%; /* Emerald */
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 51%; /* Amber */
+    --warning-foreground: 0 0% 98%;
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
     --ring: 257 58% 52%;
     --radius: 0.5rem;
-    --success: 158 79% 44%; /* #10B981 */
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 51%; /* #F59E0B */
-    --warning-foreground: 0 0% 98%;
     --chart-1: 257 58% 52%;
     --chart-2: 158 79% 44%;
     --chart-3: 38 92% 51%;
@@ -36,19 +38,19 @@
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
-    --card: 222 47% 11%;
+    --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
-    --popover: 222 47% 11%;
+    --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
     --primary: 257 58% 52%;
     --primary-foreground: 0 0% 98%;
     --secondary: 220 14% 35%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 4% 16%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 240 4% 16%;
+    --muted: 240 5% 12%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 18%;
     --accent-foreground: 0 0% 98%;
     --destructive: 347 89% 61%;
     --destructive-foreground: 0 0% 98%;
@@ -68,8 +70,10 @@
 }
 
 @layer base {
+  * {
+    @apply border-border;
+  }
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    @apply bg-background text-foreground font-sans;
   }
 }
