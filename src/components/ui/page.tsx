@@ -7,11 +7,12 @@ import type { ReactNode } from 'react';
 
 /**
  * A container for a full page view. Provides consistent padding and max-width.
+ * This is now largely handled by the main layout, but can be used for nested content.
  */
 export function AppPage({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('p-4 sm:p-6 lg:p-8', className)}>
-      <div className="mx-auto max-w-7xl space-y-6">{children}</div>
+    <div className={cn('w-full', className)}>
+        {children}
     </div>
   );
 }
@@ -33,7 +34,7 @@ export function AppPageHeader({
         <div className="flex items-center gap-2 flex-1">
             <SidebarTrigger className="md:hidden" />
             <div className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight lg:text-3xl">{title}</h1>
                 {description && <p className="text-sm text-muted-foreground">{description}</p>}
             </div>
         </div>

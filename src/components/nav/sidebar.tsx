@@ -31,8 +31,6 @@ import {
   RefreshCw,
   Truck,
   Import,
-  User as UserIcon,
-  ShoppingCart,
   History
 } from 'lucide-react';
 import type { Conversation } from '@/types';
@@ -42,30 +40,21 @@ import { useAuth } from '@/context/auth-context';
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: BarChart },
   { href: '/inventory', label: 'Inventory', icon: Package },
-  { href: '/sales', label: 'Sales', icon: ShoppingCart },
+  { href: '/sales', label: 'Sales', icon: Users },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/customers', label: 'Customers', icon: Users },
 ];
 
-const analyticsNav = [
+const reportsNav = [
     { href: '/analytics/reordering', label: 'Reorder Analysis', icon: RefreshCw },
     { href: '/analytics/dead-stock', label: 'Dead Stock', icon: TrendingDown },
-    { href: '/analytics/reports', label: 'Reports', icon: FileText },
-];
-
-const toolsNav = [
-    { href: '/import', label: 'Import Data', icon: Import },
-    { href: '/chat', label: 'AI Assistant', icon: MessageSquare },
-];
-
-const settingsNav = [
-    { href: '/settings/profile', label: 'Profile', icon: UserIcon },
-    { href: '/settings/integrations', label: 'Integrations', icon: PlusCircle },
+    { href: '/analytics/supplier-performance', label: 'Supplier Performance', icon: Truck },
+    { href: '/analytics/inventory-turnover', label: 'Inventory Turnover', icon: Package },
 ];
 
 function NavLink({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) {
   const pathname = usePathname();
-  const isActive = pathname.startsWith(href);
+  const isActive = pathname.startsWith(href) && (href !== '/dashboard' || pathname === '/dashboard');
 
   return (
     <SidebarMenuItem>
@@ -86,8 +75,8 @@ function ConversationLink({ conversation }: { conversation: Conversation }) {
     return (
         <SidebarMenuSubItem>
             <Link href={`/chat?id=${conversation.id}`} legacyBehavior passHref>
-                 <SidebarMenuSubButton isActive={isActive}>
-                    <span className="truncate">{conversation.title}</span>
+                 <SidebarMenuSubButton isActive={isActive} className="w-full">
+                    <span className="truncate">{conversation.title || 'Untitled Chat'}</span>
                 </SidebarMenuSubButton>
             </Link>
         </SidebarMenuSubItem>
@@ -118,65 +107,41 @@ export function AppSidebar() {
           <Separator className="my-2" />
           
            <SidebarMenuItem>
-                <SidebarMenuButton>
-                    <BarChart />
-                    <span>Analytics</span>
-                </SidebarMenuButton>
-                 <SidebarMenuSub>
-                    {analyticsNav.map((item) => (
-                        <SidebarMenuSubItem key={item.href}>
-                             <Link href={item.href} legacyBehavior passHref>
-                                <SidebarMenuSubButton isActive={pathname.startsWith(item.href)}>
-                                    <item.icon/>
-                                    <span>{item.label}</span>
-                                </SidebarMenuSubButton>
-                            </Link>
-                        </SidebarMenuSubItem>
-                    ))}
-                </SidebarMenuSub>
+                <Link href="/analytics/reports" legacyBehavior passHref>
+                    <SidebarMenuButton isActive={pathname.startsWith('/analytics')}>
+                        <BarChart />
+                        <span>Analytics</span>
+                    </SidebarMenuButton>
+                </Link>
+            </SidebarMenuItem>
+            
+           <SidebarMenuItem>
+                <Link href="/import" legacyBehavior passHref>
+                    <SidebarMenuButton isActive={pathname.startsWith('/import')}>
+                        <Import />
+                        <span>Import</span>
+                    </SidebarMenuButton>
+                </Link>
+           </SidebarMenuItem>
+
+            <SidebarMenuItem>
+                <Link href="/chat" legacyBehavior passHref>
+                    <SidebarMenuButton isActive={pathname.startsWith('/chat')}>
+                        <MessageSquare />
+                        <span>AI Chat</span>
+                    </SidebarMenuButton>
+                </Link>
+                {(conversations && conversations.length > 0) && (
+                    <SidebarMenuSub>
+                        {conversations.slice(0, 5).map((convo) => <ConversationLink key={convo.id} conversation={convo} />)}
+                    </SidebarMenuSub>
+                )}
             </SidebarMenuItem>
 
-           <Separator className="my-2" />
-           {toolsNav.map((item) => <NavLink key={item.href} {...item} />)}
-
-            {(conversations && conversations.length > 0) && (
-              <>
-                <Separator className="my-2" />
-                <SidebarMenuItem>
-                    <SidebarMenuButton>
-                        <History />
-                        <span>History</span>
-                    </SidebarMenuButton>
-                    <SidebarMenuSub>
-                        {conversations.map((convo) => <ConversationLink key={convo.id} conversation={convo} />)}
-                    </SidebarMenuSub>
-                </SidebarMenuItem>
-              </>
-            )}
         </SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarMenu>
-            <SidebarMenuItem>
-                <SidebarMenuButton>
-                    <Settings />
-                    <span>Settings</span>
-                </SidebarMenuButton>
-                <SidebarMenuSub>
-                    {settingsNav.map((item) => (
-                        <SidebarMenuSubItem key={item.href}>
-                             <Link href={item.href} legacyBehavior passHref>
-                                <SidebarMenuSubButton isActive={pathname.startsWith(item.href)}>
-                                    <item.icon/>
-                                    <span>{item.label}</span>
-                                </SidebarMenuSubButton>
-                            </Link>
-                        </SidebarMenuSubItem>
-                    ))}
-                </SidebarMenuSub>
-            </SidebarMenuItem>
-        </SidebarMenu>
         <Separator />
         <UserAccountNav user={user} />
       </SidebarFooter>
