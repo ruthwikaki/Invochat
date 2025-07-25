@@ -1,4 +1,5 @@
 
+
 import { getCustomersData, exportCustomers, getCustomerAnalytics } from '@/app/data-actions';
 import { CustomersClientPage } from './customers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -17,6 +18,7 @@ export default async function CustomersPage({
   const query = searchParams?.query || '';
   const page = Number(searchParams?.page) || 1;
 
+  // Fetch data in parallel for better performance
   const [customersData, analyticsData] = await Promise.all([
     getCustomersData({ query, page, limit: ITEMS_PER_PAGE }),
     getCustomerAnalytics(),
