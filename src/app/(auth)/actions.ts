@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { redirect } from 'next/navigation';
 import { validateCSRF } from '@/lib/csrf';
-import { rateLimit, redisClient, isRedisEnabled } from '@/lib/redis';
+import { redisClient, isRedisEnabled } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 

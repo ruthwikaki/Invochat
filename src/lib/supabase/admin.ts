@@ -1,5 +1,4 @@
 
-
 import { createServerClient as createServerClientOriginal, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { envValidation, config } from '@/config/app-config';
@@ -11,9 +10,9 @@ let supabaseAdmin: SupabaseClient<Database> | null = null;
 let supabaseAdminError: string | null = null;
 
 if (envValidation.success) {
-    if (envValidation.data.SUPABASE_URL && envValidation.data.SUPABASE_SERVICE_ROLE_KEY) {
+    if (envValidation.data.NEXT_PUBLIC_SUPABASE_URL && envValidation.data.SUPABASE_SERVICE_ROLE_KEY) {
         supabaseAdmin = createClient<Database>(
-            envValidation.data.SUPABASE_URL,
+            envValidation.data.NEXT_PUBLIC_SUPABASE_URL,
             envValidation.data.SUPABASE_SERVICE_ROLE_KEY,
             {
                 auth: {
