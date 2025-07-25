@@ -236,7 +236,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
 
     <div className="space-y-6">
        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <AnalyticsCard title="Total Inventory Value" value={formatCentsAsCurrency(analyticsData.total_inventory_value || 0)} icon={DollarSign} />
+            <AnalyticsCard title="Total Inventory Value" value={analyticsData.total_inventory_value || 0} icon={DollarSign} />
             <AnalyticsCard title="Total Products" value={analyticsData.total_products || 0} icon={PackageIcon} />
             <AnalyticsCard title="Total Variants (SKUs)" value={analyticsData.total_variants || 0} icon={PackageIcon} />
             <AnalyticsCard title="Items Low on Stock" value={analyticsData.low_stock_items || 0} icon={AlertTriangle} />
