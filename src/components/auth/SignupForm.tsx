@@ -56,29 +56,27 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
         <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
             {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
             <div className="grid gap-2">
-                <Label htmlFor="companyName" className="text-slate-300">Company Name</Label>
+                <Label htmlFor="companyName">Company Name</Label>
                 <Input
                     id="companyName"
                     name="companyName"
                     type="text"
                     placeholder="Your Company Inc."
                     required
-                    className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="email" className="text-slate-300">Email</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
                     id="email"
                     name="email"
                     type="email"
                     placeholder="you@company.com"
                     required
-                    className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
                 />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="password" className="text-slate-300">Password</Label>
+                <Label htmlFor="password">Password</Label>
                 <PasswordInput
                     id="password"
                     name="password"
@@ -86,12 +84,12 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                     required
                     minLength={8}
                 />
-                <p className="text-xs text-slate-400 px-1">
+                <p className="text-xs text-muted-foreground px-1">
                     Must be at least 8 characters.
                 </p>
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="confirmPassword" className="text-slate-300">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
                 <PasswordInput
                     id="confirmPassword"
                     name="confirmPassword"
@@ -101,7 +99,7 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                 />
             </div>
             {error && (
-              <Alert variant="destructive" className="bg-red-500/10 border-red-500/30 text-red-400">
+              <Alert variant="destructive">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
