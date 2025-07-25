@@ -1,5 +1,4 @@
 
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -477,6 +476,3 @@ export const AlertSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 export type Alert = z.infer<typeof AlertSchema>;
-
-
-    
