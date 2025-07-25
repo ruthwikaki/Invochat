@@ -7,6 +7,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { CustomerSegmentAnalysisItem } from '@/types';
+import { config } from '@/config/app-config';
 
 const CustomerInsightsInputSchema = z.object({
   segments: z.array(z.custom<CustomerSegmentAnalysisItem>()),
@@ -44,7 +45,7 @@ export const getCustomerInsights = ai.defineTool({
     inputSchema: CustomerInsightsInputSchema,
     outputSchema: CustomerInsightsOutputSchema,
 }, async (input) => {
-    const { output } = await customerInsightsPrompt(input);
+    const { output } = await customerInsightsPrompt(input, { model: config.ai.model });
     if (!output) {
         throw new Error("AI failed to generate customer insights.");
     }
