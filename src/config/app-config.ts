@@ -18,16 +18,15 @@ dotenvConfig();
 // This schema validates all critical environment variables on application startup.
 // If any variable is missing or invalid, the app will render an error page.
 const EnvSchema = z.object({
-  SITE_URL: z.string().url({ message: "Must be a valid URL." }),
   NEXT_PUBLIC_SITE_URL: z.string().url({ message: "Must be a valid URL." }),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, { message: "Is not set." }),
-  SUPABASE_URL: z.string().url({ message: "Must be a valid URL." }),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, { message: "Is not set. This is required for server-side database operations." }),
   GOOGLE_API_KEY: z.string().min(1, { message: "Is not set. This is required for AI features." }),
   REDIS_URL: z.string().optional(),
   ENCRYPTION_KEY: z.string().length(64, { message: "Must be a 64-character hex string (32 bytes)."}),
-  HEALTH_CHECK_API_KEY: z.string().min(1, { message: "Is not set. Required for health check endpoint security."}),
+  ENCRYPTION_IV: z.string().length(32, { message: "Must be a 32-character hex string (16 bytes)."}),
+  HEALTH_CHECK_API_KEY: z.string().min(1, { message: "Is not set. Required for health check endpoint security."}).optional(),
   SHOPIFY_WEBHOOK_SECRET: z.string().optional(),
   WOOCOMMERCE_WEBHOOK_SECRET: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
@@ -50,7 +49,7 @@ const parseIntWithDefault = (value: string | undefined, defaultValue: number): n
 export const config = {
   app: {
     name: process.env.APP_NAME || 'ARVO',
-    url: envValidation.success ? envValidation.data.SITE_URL : 'http://localhost:3000',
+    url: envValidation.success ? envValidation.data.NEXT_PUBLIC_SITE_URL : 'http://localhost:3000',
     environment: process.env.NODE_ENV,
   },
   ai: {
