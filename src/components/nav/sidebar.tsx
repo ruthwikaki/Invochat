@@ -26,12 +26,10 @@ import {
   FileText,
   Users,
   Settings,
-  PlusCircle,
   TrendingDown,
   RefreshCw,
   Truck,
   Import,
-  History
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 import { useAuth } from '@/context/auth-context';
@@ -43,13 +41,14 @@ const mainNav = [
   { href: '/sales', label: 'Sales', icon: FileText },
   { href: '/suppliers', label: 'Suppliers', icon: Truck },
   { href: '/customers', label: 'Customers', icon: Users },
+  { href: '/purchase-orders', label: 'Purchase Orders', icon: Package },
 ];
 
 const reportsNav = [
-    { href: '/analytics/reordering', label: 'Reorder Analysis', icon: RefreshCw },
+    { href: '/analytics/reordering', label: 'Reordering', icon: RefreshCw },
     { href: '/analytics/dead-stock', label: 'Dead Stock', icon: TrendingDown },
-    { href: '/analytics/supplier-performance', label: 'Supplier Performance', icon: Truck },
-    { href: '/analytics/inventory-turnover', label: 'Inventory Turnover', icon: Package },
+    { href: '/analytics/supplier-performance', label: 'Suppliers', icon: Truck },
+    { href: '/analytics/inventory-turnover', label: 'Turnover', icon: Package },
 ];
 
 function NavLink({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) {
@@ -104,16 +103,19 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarMenu>
           {mainNav.map((item) => <NavLink key={item.href} {...item} />)}
+          
           <Separator className="my-2" />
           
            <SidebarMenuItem>
-                <Link href="/analytics/reports" legacyBehavior passHref>
-                    <SidebarMenuButton isActive={pathname.startsWith('/analytics')}>
-                        <BarChart />
-                        <span>Analytics</span>
-                    </SidebarMenuButton>
-                </Link>
-            </SidebarMenuItem>
+              <SidebarMenuButton disabled className="font-semibold text-muted-foreground !bg-transparent h-auto p-2 text-xs">
+                  Reports
+              </SidebarMenuButton>
+               <SidebarMenuSub>
+                {reportsNav.map((item) => <NavLink key={item.href} {...item} />)}
+              </SidebarMenuSub>
+           </SidebarMenuItem>
+
+          <Separator className="my-2" />
             
            <SidebarMenuItem>
                 <Link href="/import" legacyBehavior passHref>
@@ -143,6 +145,14 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <Separator />
+         <SidebarMenuItem>
+            <Link href="/settings/profile" legacyBehavior passHref>
+                <SidebarMenuButton isActive={pathname.startsWith('/settings')}>
+                    <Settings />
+                    <span>Settings</span>
+                </SidebarMenuButton>
+            </Link>
+        </SidebarMenuItem>
         <UserAccountNav user={user} />
       </SidebarFooter>
     </>
