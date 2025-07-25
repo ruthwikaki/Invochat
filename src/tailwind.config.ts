@@ -18,7 +18,7 @@ const config = {
     },
     extend: {
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui"],
+        sans: ["var(--font-sans)", "system-ui", "-apple-system", "sans-serif"],
         tabular: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
       },
       colors: {
