@@ -1,8 +1,7 @@
 
-
 'use client';
 
-import { handleUserMessage } from '@/app/actions';
+import { handleUserMessage } from '@/app/data-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
