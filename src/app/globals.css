@@ -7,28 +7,28 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 257 58% 52%; /* Deep Purple */
+    --background: 240 5% 96.1%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 257 58% 52%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 220 14% 35%; /* Slate */
+    --secondary: 220 14% 35%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 5% 12%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 240 5% 18%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 347 89% 61%; /* Rose */
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 347 89% 61%;
     --destructive-foreground: 0 0% 98%;
-    --success: 158 79% 44%; /* Emerald */
+    --success: 158 79% 44%;
     --success-foreground: 0 0% 98%;
-    --warning: 38 92% 51%; /* Amber */
+    --warning: 38 92% 51%;
     --warning-foreground: 0 0% 98%;
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
     --ring: 257 58% 52%;
     --radius: 0.5rem;
     --chart-1: hsl(var(--primary));
@@ -49,19 +49,24 @@
     --primary-foreground: 0 0% 98%;
     --secondary: 220 14% 35%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 5% 12%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 240 5% 18%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
     --accent-foreground: 0 0% 98%;
     --destructive: 347 89% 61%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
-    --ring: 257 58% 52%;
     --success: 158 79% 44%;
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 51%;
     --warning-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 257 58% 52%;
+    --chart-1: hsl(var(--primary));
+    --chart-2: hsl(var(--secondary));
+    --chart-3: hsl(var(--destructive));
+    --chart-4: hsl(var(--warning));
+    --chart-5: hsl(var(--success));
   }
 }
 
