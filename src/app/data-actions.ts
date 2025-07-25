@@ -46,7 +46,7 @@ import {
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
-import { DashboardMetricsSchema } from '@/types';
+import { DashboardMetricsSchema, SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -102,9 +102,11 @@ export async function getSupplierById(id: string) {
     return getSupplierByIdFromDB(id, companyId);
 }
 
-export async function createSupplier(data: SupplierFormData) {
+export async function createSupplier(formData: FormData) {
     try {
         const { companyId } = await getAuthContext();
+        await validateCSRF(formData);
+        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
         await createSupplierInDb(companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -113,9 +115,11 @@ export async function createSupplier(data: SupplierFormData) {
     }
 }
 
-export async function updateSupplier(id: string, data: SupplierFormData) {
+export async function updateSupplier(id: string, formData: FormData) {
     try {
         const { companyId } = await getAuthContext();
+        await validateCSRF(formData);
+        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
         await updateSupplierInDb(id, companyId, data);
         revalidatePath('/suppliers');
         return { success: true };
@@ -144,7 +148,8 @@ export async function getIntegrations() {
 
 export async function disconnectIntegration(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const id = formData.get('integrationId') as string;
         await deleteIntegrationFromDb(id, companyId);
@@ -386,7 +391,8 @@ export async function getChannelFees() {
 
 export async function upsertChannelFee(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
         const data = {
             channel_name: formData.get('channel_name') as string,
