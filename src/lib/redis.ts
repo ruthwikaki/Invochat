@@ -106,8 +106,10 @@ if (process.env.NODE_ENV !== 'production') {
     }
     redis = globalForRedis.redis;
 } else {
-    // In production, the module is only evaluated once per process.
-    redis = initializeRedis();
+    // In production, this module is loaded once per instance. Initialize the client.
+    if (!redis) {
+        redis = initializeRedis();
+    }
 }
 
 if (!redis) {
