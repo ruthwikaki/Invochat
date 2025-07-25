@@ -42,6 +42,7 @@ import {
     getHistoricalSalesForSkus,
     refreshMaterializedViews,
     createAuditLogInDb,
+    logUserFeedbackInDb as logUserFeedbackInDbService
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData } from '@/types';
@@ -538,3 +539,15 @@ export async function handleUserMessage(params: { content: string, conversationI
     return { error: errorMessage };
   }
 }
+
+export async function logUserFeedbackInDb(params: { subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful' }) {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await logUserFeedbackInDbService(userId, companyId, params.subjectId, params.subjectType, params.feedback);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+    
