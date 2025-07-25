@@ -7,6 +7,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import type { DashboardMetrics } from '@/types';
+import { config } from '@/config/app-config';
 
 const MorningBriefingInputSchema = z.object({
   metrics: z.custom<DashboardMetrics>(),
@@ -53,7 +54,7 @@ export const morningBriefingPrompt = ai.definePrompt({
 });
 
 export async function generateMorningBriefing(input: { metrics: DashboardMetrics; companyName?: string }) {
-    const { output } = await morningBriefingPrompt(input);
+    const { output } = await morningBriefingPrompt(input, { model: config.ai.model });
     if (!output) {
       return {
         greeting: 'Hello!',

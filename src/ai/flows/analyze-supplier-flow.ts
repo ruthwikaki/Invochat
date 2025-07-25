@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { getSupplierPerformanceFromDB } from '@/services/database';
 import type { SupplierPerformanceReport } from '@/types';
 import { logError } from '@/lib/error-handler';
+import { config } from '@/config/app-config';
 
 const SupplierAnalysisInputSchema = z.object({
   companyId: z.string().uuid().describe("The ID of the company to analyze suppliers for."),
@@ -65,7 +66,7 @@ export const analyzeSuppliersFlow = ai.defineFlow(
       }
 
       // Step 2: Pass the data to the AI for analysis and recommendation.
-      const { output } = await supplierAnalysisPrompt({ performanceData });
+      const { output } = await supplierAnalysisPrompt({ performanceData }, { model: config.ai.model });
       if (!output) {
         throw new Error("AI analysis of supplier performance failed to return an output.");
       }

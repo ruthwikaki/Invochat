@@ -9,6 +9,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getSalesVelocityFromDB, getGrossMarginAnalysisFromDB } from '@/services/database';
 import { logError } from '@/lib/error-handler';
+import { config } from '@/config/app-config';
 
 const HiddenMoneyInputSchema = z.object({
   companyId: z.string().uuid(),
@@ -83,7 +84,7 @@ export const findHiddenMoneyFlow = ai.defineFlow(
       }
 
       // Step 2: Pass the data to the AI for analysis
-      const { output } = await findHiddenMoneyPrompt({ slowSellers, highMarginProducts });
+      const { output } = await findHiddenMoneyPrompt({ slowSellers, highMarginProducts }, { model: config.ai.model });
 
       if (!output) {
         throw new Error("AI failed to generate hidden money suggestions.");
@@ -107,8 +108,3 @@ export const findHiddenMoney = ai.defineTool(
     },
     async (input) => findHiddenMoneyFlow(input)
 );
-
-
-
-
-

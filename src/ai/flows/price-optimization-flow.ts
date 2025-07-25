@@ -8,6 +8,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getUnifiedInventoryFromDB, getHistoricalSalesForSkus } from '@/services/database';
 import { logError } from '@/lib/error-handler';
+import { config } from '@/config/app-config';
 
 const PriceOptimizationInputSchema = z.object({
   companyId: z.string().uuid().describe("The ID of the company to suggest prices for."),
@@ -106,7 +107,7 @@ export const suggestPriceOptimizationsFlow = ai.defineFlow(
         sales_last_30_days: salesMap.get(p.sku) || 0,
       }));
 
-      const { output } = await suggestPricesPrompt({ products: productSubsetForAI });
+      const { output } = await suggestPricesPrompt({ products: productSubsetForAI }, { model: config.ai.model });
 
       if (!output) {
         throw new Error("AI failed to generate price suggestions.");

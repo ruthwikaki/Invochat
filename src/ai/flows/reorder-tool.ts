@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
 import { ReorderSuggestionBaseSchema } from '@/types';
+import { config } from '@/config/app-config';
 
 // The input for the AI refinement prompt
 const ReorderRefinementInputSchema = z.object({
@@ -116,7 +117,7 @@ export const getReorderSuggestions = ai.defineTool(
             historicalSales: historicalSales as any,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
-        });
+        }, { model: config.ai.model });
 
         if (!output) {
             logger.warn('[Reorder Tool] AI refinement did not return an output. Falling back to base suggestions.');
