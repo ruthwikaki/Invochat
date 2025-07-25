@@ -1,7 +1,8 @@
 
 import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
+import {googleAI} from '@gen-kit/google-ai';
 import { logger } from '@/lib/logger';
+import { config } from '@/config/app-config';
 
 logger.info('[Genkit] Initializing Genkit with Google AI plugin...');
 
