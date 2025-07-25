@@ -99,7 +99,8 @@ export function AppSidebar() {
   const { user } = useAuth();
   const { data: conversations } = useQuery({
     queryKey: ['conversations'],
-    queryFn: () => getConversations(),
+    queryFn: getConversations,
+    enabled: !!user,
   });
 
   return (
@@ -182,5 +183,3 @@ export function AppSidebar() {
     </>
   );
 }
-
-    
