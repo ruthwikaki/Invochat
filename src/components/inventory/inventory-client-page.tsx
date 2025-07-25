@@ -2,12 +2,10 @@
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useDebouncedCallback } from 'use-debounce';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, ArrowDownUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -20,6 +18,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { useTableState } from '@/hooks/use-table-state';
+import { useRouter } from 'next/navigation';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
@@ -44,18 +44,8 @@ const AnalyticsCard = ({ title, value, icon: Icon, label }: { title: string, val
     </Card>
 );
 
-const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
-    const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-    const currentPage = Number(searchParams.get('page')) || 1;
+const PaginationControls = ({ totalCount, itemsPerPage, currentPage, onPageChange }: { totalCount: number; itemsPerPage: number; currentPage: number, onPageChange: (page: number) => void }) => {
     const totalPages = Math.ceil(totalCount / itemsPerPage);
-
-    const createPageURL = (pageNumber: number | string) => {
-        const params = new URLSearchParams(searchParams);
-        params.set('page', pageNumber.toString());
-        return `${pathname}?${params.toString()}`;
-    };
 
     if (totalPages <= 1) {
         return null;
@@ -69,14 +59,14 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
             <div className="flex items-center gap-2">
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage - 1)); }}
+                    onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage <= 1}
                 >
                     Previous
                 </Button>
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage + 1)); }}
+                    onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage >= totalPages}
                 >
                     Next
@@ -127,33 +117,33 @@ function EmptyInventoryState() {
   );
 }
 
-// Group variants by their parent product
 const groupVariantsByProduct = (inventory: UnifiedInventoryItem[]) => {
-  const productMap: Record<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[], total_quantity: number }> = {};
+  const productMap = new Map<string, { product_id: string; product_title: string; product_status: string, image_url: string | null, variants: UnifiedInventoryItem[], total_quantity: number }>();
   
   inventory.forEach(variant => {
     const productId = variant.product_id;
-    if (!Object.prototype.hasOwnProperty.call(productMap, productId)) {
-      productMap[productId] = {
+    if (!productMap.has(productId)) {
+      productMap.set(productId, {
         product_id: productId,
         product_title: variant.product_title || 'Unknown Product',
         product_status: variant.product_status || 'unknown',
         image_url: variant.image_url,
         variants: [],
         total_quantity: 0
-      };
+      });
     }
-    productMap[productId].variants.push(variant);
-    productMap[productId].total_quantity += variant.inventory_quantity;
+    const productGroup = productMap.get(productId)!;
+    productGroup.variants.push(variant);
+    productGroup.total_quantity += variant.inventory_quantity;
   });
   
-  return Object.values(productMap);
+  return Array.from(productMap.values());
 };
 
 const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }: { column: SortableColumn, label: string, currentSort: SortableColumn, currentDirection: 'asc' | 'desc', onSort: (column: SortableColumn) => void }) => {
     const isActive = column === currentSort;
     return (
-        <TableHead className="cursor-pointer" onClick={() => { onSort(column); }}>
+        <TableHead className="cursor-pointer" onClick={() => onSort(column)}>
             <div className="flex items-center gap-2">
                 {label}
                 {isActive ? (
@@ -168,45 +158,29 @@ const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }
 
 
 export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const replace = router.replace.bind(router);
-
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
 
-  const query = searchParams.get('query') || '';
-  const status = searchParams.get('status') || 'all';
-  const sortBy = (searchParams.get('sortBy') ?? 'product_title') as SortableColumn;
-  const sortDirection = searchParams.get('sortDirection') === 'desc' ? 'desc' : 'asc';
-  
-  const createUrlWithParams = (newParams: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams);
-    Object.entries(newParams).forEach(([key, value]) => {
-      if (value) {
-        params.set(key, value);
-      } else {
-        params.delete(key);
-      }
-    });
-    // Reset page on filter/sort change
-    params.set('page', '1');
-    return `${pathname}?${params.toString()}`;
-  }
+  const {
+      searchQuery,
+      page,
+      sortBy,
+      sortDirection,
+      handleSearch,
+      handleSort,
+      handlePageChange
+  } = useTableState<SortableColumn>({ defaultSortColumn: 'product_title' });
 
-  const handleSearch = useDebouncedCallback((term: string) => {
-    replace(createUrlWithParams({ query: term }));
-  }, 300);
+  const router = useRouter();
 
   const handleStatusChange = (newStatus: string) => {
-    replace(createUrlWithParams({ status: newStatus }));
+    const params = new URLSearchParams(window.location.search);
+    params.set('status', newStatus);
+    params.set('page', '1');
+    router.replace(`${window.location.pathname}?${params.toString()}`);
   };
-  
-  const handleSort = (column: SortableColumn) => {
-    const newDirection = sortBy === column && sortDirection === 'asc' ? 'desc' : 'asc';
-    replace(createUrlWithParams({ sortBy: column, sortDirection: newDirection }));
-  };
+
+  const status = new URLSearchParams(window.location.search).get('status') || 'all';
 
   const toggleExpandProduct = (productId: string) => {
     setExpandedProducts(prev => {
@@ -222,12 +196,12 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   
   const groupedInventory = useMemo(() => groupVariantsByProduct(initialInventory), [initialInventory]);
   
-  const isFiltered = !!query || status !== 'all';
+  const isFiltered = !!searchQuery || status !== 'all';
   const showEmptyState = totalCount === 0 && !isFiltered;
   const showNoResultsState = totalCount === 0 && isFiltered;
   
   const handleExport = () => {
-    return exportAction({ query, status, sortBy, sortDirection });
+    return exportAction({ query: searchQuery, status, sortBy, sortDirection });
   }
 
   return (
@@ -248,7 +222,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
             <Input
                 placeholder="Search by product title or SKU..."
                 onChange={(e) => handleSearch(e.target.value)}
-                defaultValue={query}
+                defaultValue={searchQuery}
                 className="pl-10"
             />
         </div>
@@ -310,7 +284,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                                 <TableCell className="text-right font-tabular">{product.variants.length}</TableCell>
                                 <TableCell className="text-right font-semibold font-tabular">{totalQty}</TableCell>
                                 <TableCell className="text-center">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { toggleExpandProduct(product.product_id); }}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleExpandProduct(product.product_id)}>
                                         <ChevronDown className={cn("h-4 w-4 transition-transform", expandedProducts.has(product.product_id) && "rotate-180")} />
                                     </Button>
                                 </TableCell>
@@ -362,7 +336,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                         </TableBody>
                     </Table>
                 </div>
-                <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
+                <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
                 </CardContent>
             </Card>
         )}

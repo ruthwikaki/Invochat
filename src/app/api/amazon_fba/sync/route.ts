@@ -17,7 +17,7 @@ const syncSchema = z.object({
 export async function POST(request: Request) {
     try {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'api_call', 100, 3600);
+        const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.sync, 3600);
         if (limited) {
             return new Response('Rate limit exceeded', { status: 429 });
         }
