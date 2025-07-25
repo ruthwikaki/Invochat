@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -85,7 +84,7 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
           </div>
         </CardContent>
         <CardFooter className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => { router.back(); }}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
             <Button type="submit" disabled={isPending}>
                 {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {initialData ? 'Save Changes' : 'Create Supplier'}
