@@ -1,7 +1,6 @@
 
-
 import { getSalesData, exportSales, getSalesAnalytics } from '@/app/data-actions';
-import { SalesClientPage } from '@/components/sales/sales-client-page';
+import { SalesClientPage } from './sales-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 const ITEMS_PER_PAGE = 25;
@@ -43,6 +42,3 @@ export default async function SalesPage({
     </AppPage>
   );
 }
-
-
-    
