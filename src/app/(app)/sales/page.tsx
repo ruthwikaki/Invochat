@@ -1,6 +1,6 @@
 
 
-import { getSalesData, exportSales, getSalesAnalytics, getCompanySettings } from '@/app/data-actions';
+import { getSalesData, exportSales, getSalesAnalytics } from '@/app/data-actions';
 import { SalesClientPage } from '@/components/sales/sales-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
@@ -17,10 +17,9 @@ export default async function SalesPage({
   const query = searchParams?.query || '';
   const page = Number(searchParams?.page) || 1;
 
-  const [salesData, analyticsData, settings] = await Promise.all([
+  const [salesData, analyticsData] = await Promise.all([
     getSalesData({ query, page, limit: ITEMS_PER_PAGE }),
     getSalesAnalytics(),
-    getCompanySettings(),
   ]);
 
   const handleExport = async (params: { query: string }) => {
@@ -39,9 +38,11 @@ export default async function SalesPage({
         totalCount={salesData.totalCount}
         itemsPerPage={ITEMS_PER_PAGE}
         analyticsData={analyticsData}
-        settings={settings}
         exportAction={handleExport}
       />
     </AppPage>
   );
 }
+
+
+    

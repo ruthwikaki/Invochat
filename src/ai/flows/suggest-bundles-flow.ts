@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview A Genkit flow to suggest product bundles based on sales data and product categories.
@@ -107,3 +108,6 @@ export const getBundleSuggestions = ai.defineTool(
     },
     async (input) => suggestBundlesFlow(input)
 );
+
+
+    

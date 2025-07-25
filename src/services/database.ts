@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -724,3 +725,5 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
     }
     return data; 
 }
+
+    
