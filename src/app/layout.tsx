@@ -6,9 +6,8 @@ import { cn } from '@/lib/utils';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
-import { envValidation } from '@/config/app-config';
-import { MissingEnvVarsPage } from '@/components/missing-env-vars-page';
 import { AppInitializer } from '@/components/app-initializer';
+import { envValidation } from '@/config/app-config';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -20,22 +19,11 @@ export const metadata: Metadata = {
   description: 'AI-powered inventory management for ARVO',
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  if (!envValidation.success) {
-    const errorDetails = envValidation.error.flatten().fieldErrors;
-    return (
-      <html lang="en" suppressHydrationWarning>
-        <body className={cn('font-sans antialiased', inter.variable)}>
-          <MissingEnvVarsPage errors={errorDetails} />
-        </body>
-      </html>
-    );
-  }
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn('font-sans antialiased', inter.variable)}>
@@ -46,7 +34,7 @@ export default async function RootLayout({
             disableTransitionOnChange
         >
           <AuthProvider>
-            <AppInitializer>
+            <AppInitializer validationResult={envValidation}>
               {children}
             </AppInitializer>
             <Toaster />
