@@ -11,14 +11,14 @@ export default async function DashboardPage({
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
     const dateRange = typeof searchParams?.range === 'string' ? searchParams.range : '90d';
-    
+
     // Fetch data in parallel for better performance
     const [metrics, briefing, settings] = await Promise.all([
         getDashboardData(dateRange),
         getMorningBriefing(dateRange),
         getCompanySettings(),
     ]);
-    
+
     return (
         <AppPage>
             <AppPageHeader
@@ -26,8 +26,8 @@ export default async function DashboardPage({
                 description="Here's a high-level overview of your business performance."
             />
             <div className="mt-6">
-                <DashboardClientPage 
-                    initialMetrics={metrics} 
+                <DashboardClientPage
+                    initialMetrics={metrics}
                     settings={settings}
                     initialBriefing={briefing}
                 />
