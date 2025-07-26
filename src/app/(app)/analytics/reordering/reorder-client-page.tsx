@@ -13,8 +13,7 @@ import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/(app)/analytics/reordering/actions';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { exportReorderSuggestions } from '@/app/(app)/analytics/reordering/actions';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -73,34 +72,23 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   };
   
   const handleCreatePOs = () => {
-    startTransition(async () => {
-        if (selectedSuggestions.length === 0) {
-            toast({ variant: 'destructive', title: 'No items selected', description: 'Please select items to create purchase orders for.' });
-            return;
-        }
+    if (selectedSuggestions.length === 0) {
+        toast({ variant: 'destructive', title: 'No items selected', description: 'Please select items to create a purchase order for.' });
+        return;
+    }
+    
+    // Instead of calling a server action directly, navigate to the new PO page with state.
+    const poItems = selectedSuggestions.map(s => ({
+        variant_id: s.variant_id,
+        quantity: s.suggested_reorder_quantity,
+        cost: s.unit_cost || 0
+    }));
 
-        const formData = new FormData();
-        const csrfToken = getCookie(CSRF_FORM_NAME);
-        if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
-        formData.append('suggestions', JSON.stringify(selectedSuggestions));
-
-        const result = await createPurchaseOrdersFromSuggestions(formData);
-
-        if (result.success) {
-            toast({
-              title: 'Purchase Orders Processed',
-              description: result.message,
-            });
-            router.push('/purchase-orders');
-            router.refresh();
-        } else {
-            toast({
-              variant: 'destructive',
-              title: 'Error Creating POs',
-              description: result.error,
-            });
-        }
+    const queryParams = new URLSearchParams({
+        items: JSON.stringify(poItems)
     });
+    
+    router.push(`/purchase-orders/new?${queryParams.toString()}`);
   };
   
   const handleExport = () => {
@@ -198,13 +186,13 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <span className="flex items-center gap-1 text-destructive cursor-help">
+                                        <span className="flex items-center gap-1 text-muted-foreground cursor-help">
                                             <Info className="h-4 w-4" />
                                             No Supplier
                                         </span>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>Assign a supplier to this product to include it in a PO.</p>
+                                        <p>Assign a supplier on the PO creation screen.</p>
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -240,7 +228,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                         </Button>
                         <Button onClick={handleCreatePOs} size="sm" disabled={isPending}>
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                             <ShoppingCart className="mr-2 h-4 w-4" /> Create PO(s)
+                             <ShoppingCart className="mr-2 h-4 w-4" /> Create PO
                         </Button>
                     </div>
                 </motion.div>
