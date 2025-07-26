@@ -1,5 +1,5 @@
 
-import { AppPageContainer } from "@/components/ui/page";
+import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { IntegrationsClientPage } from "@/features/integrations/components/IntegrationsPage";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,15 +41,18 @@ export default async function IntegrationsPage() {
     });
 
     return (
-        <AppPageContainer
-            title="Integrations"
-            description="Connect your e-commerce platforms and other services to sync data automatically."
-        >
-            <HydrationBoundary state={dehydrate(queryClient)}>
-                <Suspense fallback={<IntegrationsLoadingSkeleton />}>
-                    <IntegrationsClientPage />
-                </Suspense>
-            </HydrationBoundary>
-        </AppPageContainer>
+        <AppPage>
+            <AppPageHeader
+                title="Integrations"
+                description="Connect your e-commerce platforms and other services to sync data automatically."
+            />
+            <div className="mt-6">
+                <HydrationBoundary state={dehydrate(queryClient)}>
+                    <Suspense fallback={<IntegrationsLoadingSkeleton />}>
+                        <IntegrationsClientPage />
+                    </Suspense>
+                </HydrationBoundary>
+            </div>
+        </AppPage>
     )
 }

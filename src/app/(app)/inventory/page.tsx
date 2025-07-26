@@ -1,7 +1,7 @@
 
 import { getUnifiedInventory, getInventoryAnalytics, exportInventory } from '@/app/data-actions';
 import { InventoryClientPage } from './inventory-client-page';
-import { AppPageContainer } from '@/components/ui/page';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 const ITEMS_PER_PAGE = 25; 
 
@@ -34,17 +34,20 @@ export default async function InventoryPage({
   }
 
   return (
-    <AppPageContainer
-      title="Inventory Management"
-      description="Search, filter, and view your entire product catalog."
-    >
-      <InventoryClientPage 
-        initialInventory={inventoryData.items} 
-        totalCount={inventoryData.totalCount}
-        itemsPerPage={ITEMS_PER_PAGE}
-        analyticsData={analytics}
-        exportAction={handleExport}
-      />
-    </AppPageContainer>
+    <AppPage>
+        <AppPageHeader
+            title="Inventory Management"
+            description="Search, filter, and view your entire product catalog."
+        />
+        <div className="mt-6">
+            <InventoryClientPage 
+                initialInventory={inventoryData.items} 
+                totalCount={inventoryData.totalCount}
+                itemsPerPage={ITEMS_PER_PAGE}
+                analyticsData={analytics}
+                exportAction={handleExport}
+            />
+        </div>
+    </AppPage>
   );
 }

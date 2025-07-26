@@ -1,7 +1,7 @@
 
 import { getSupplierById } from '@/app/data-actions';
 import { SupplierForm } from '@/components/suppliers/supplier-form';
-import { AppPageContainer } from '@/components/ui/page';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { notFound } from 'next/navigation';
 
 export default async function EditSupplierPage({ params }: { params: { id: string } }) {
@@ -12,11 +12,14 @@ export default async function EditSupplierPage({ params }: { params: { id: strin
   }
 
   return (
-    <AppPageContainer
-      title={`Edit ${supplier.name}`}
-      description="Update the details for this supplier."
-    >
-      <SupplierForm initialData={supplier} />
-    </AppPageContainer>
+    <AppPage>
+        <AppPageHeader
+            title={`Edit ${supplier.name}`}
+            description="Update the details for this supplier."
+        />
+        <div className="mt-6">
+            <SupplierForm initialData={supplier} />
+        </div>
+    </AppPage>
   );
 }

@@ -41,31 +41,3 @@ export function AppPageHeader({
     </div>
   );
 }
-
-
-/**
- * A container that includes the page header and a content area.
- * This ensures consistent layout across all application pages.
- */
-export function AppPageContainer({
-    title,
-    description,
-    headerContent,
-    children
-}: {
-    title: string;
-    description?: string;
-    headerContent?: ReactNode;
-    children: ReactNode;
-}) {
-    return (
-        <AppPage>
-            <AppPageHeader title={title} description={description}>
-                {headerContent}
-            </AppPageHeader>
-            <div className="mt-6">
-                {children}
-            </div>
-        </AppPage>
-    )
-}
