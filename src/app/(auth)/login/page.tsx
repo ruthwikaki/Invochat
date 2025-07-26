@@ -3,7 +3,7 @@ import { LoginForm } from '@/components/auth/LoginForm';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
-import { generateCSRFToken, getCSRFToken } from '@/lib/csrf';
+import { generateCSRFToken } from '@/lib/csrf';
 
 export default async function LoginPage({
   searchParams,
@@ -14,8 +14,7 @@ export default async function LoginPage({
   const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
   
   // Generate token on the server and pass it to the client component.
-  await generateCSRFToken();
-  const csrfToken = await getCSRFToken();
+  const csrfToken = await generateCSRFToken();
     
   return (
      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-card/80 p-4 shadow-2xl backdrop-blur-lg">
@@ -45,3 +44,5 @@ export default async function LoginPage({
      </div>
   );
 }
+
+    

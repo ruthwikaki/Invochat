@@ -241,3 +241,5 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
+
+    
