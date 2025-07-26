@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-interface TurnoverReport {
+export interface TurnoverReport {
     turnover_rate: number;
     total_cogs: number;
     average_inventory_value: number;

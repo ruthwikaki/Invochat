@@ -8,12 +8,12 @@ import { createPurchaseOrdersInDb, createAuditLogInDb } from '@/services/databas
 import type { ReorderSuggestion } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
-import { getReorderSuggestions as getReorderSuggestionsTool } from '@/ai/flows/reorder-tool';
+import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 
 
 export async function getReorderReport() {
     const { companyId } = await getAuthContext();
-    return getReorderSuggestionsTool.func({ companyId });
+    return getReorderSuggestions({ companyId });
 }
 
 export async function createPurchaseOrdersFromSuggestions(formData: FormData) {
