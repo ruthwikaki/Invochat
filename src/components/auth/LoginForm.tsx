@@ -53,8 +53,8 @@ export function LoginForm({ initialError }: LoginFormProps) {
   };
   
   const formAction = (formData: FormData) => {
-      startTransition(() => {
-          login(formData);
+      startTransition(async () => {
+          await login(formData);
       });
   }
 
