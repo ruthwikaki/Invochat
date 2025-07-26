@@ -6,7 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getIntegrations } from "@/app/data-actions";
-import { generateCSRFToken } from "@/lib/csrf";
 
 function IntegrationsLoadingSkeleton() {
     return (
@@ -33,7 +32,6 @@ function IntegrationsLoadingSkeleton() {
 }
 
 export default async function IntegrationsPage() {
-    await generateCSRFToken();
     const queryClient = new QueryClient();
     await queryClient.prefetchQuery({
         queryKey: ['integrations'],
