@@ -30,15 +30,11 @@ export function getCookie(name: string): string | null {
  */
 export async function generateAndSetCsrfToken(setCsrfToken: Dispatch<SetStateAction<string | null>>) {
     try {
-        const response = await fetch('/api/auth/csrf', { method: 'POST' });
-        if (response.ok) {
-            // After the API call, the cookie is set server-side.
-            // We read it from the document to update our component's state.
-            const token = getCookie(CSRF_COOKIE_NAME);
-            setCsrfToken(token);
-        } else {
-            logger.error('Failed to fetch CSRF token from API.', { status: response.status });
-        }
+        await fetch('/api/auth/csrf', { method: 'POST' });
+        // After the API call, the cookie is set server-side.
+        // We read it from the document to update our component's state.
+        const token = getCookie(CSRF_COOKIE_NAME);
+        setCsrfToken(token);
     } catch (error) {
         logger.error('Error fetching CSRF token:', error);
     }
