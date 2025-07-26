@@ -1,5 +1,6 @@
 
 
+
 import { getSalesData, exportSales, getSalesAnalytics } from '@/app/data-actions';
 import { SalesClientPage } from './sales-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -29,7 +30,7 @@ export default async function SalesPage({
   }
 
   return (
-    <AppPage>
+    <div className="space-y-6">
       <AppPageHeader
         title="Sales History"
         description="View and manage all recorded sales orders."
@@ -41,6 +42,6 @@ export default async function SalesPage({
         analyticsData={analyticsData}
         exportAction={handleExport}
       />
-    </AppPage>
+    </div>
   );
 }

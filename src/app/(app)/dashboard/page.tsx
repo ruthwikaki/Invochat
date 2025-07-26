@@ -18,7 +18,7 @@ export default async function DashboardPage({
     ]);
     
     return (
-        <>
+        <div className="space-y-6">
             <AppPageHeader
                 title="Dashboard"
                 description="Here's a high-level overview of your business performance."
@@ -28,6 +28,6 @@ export default async function DashboardPage({
                 settings={settings}
                 initialBriefing={briefing}
             />
-        </>
+        </div>
     );
 }
