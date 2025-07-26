@@ -90,19 +90,20 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
         if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
         formData.append('suggestions', JSON.stringify(selectedSuggestions));
 
-        try {
-            const result = await createPurchaseOrdersFromSuggestions(formData);
+        const result = await createPurchaseOrdersFromSuggestions(formData);
+
+        if (result.success) {
             toast({
               title: 'Purchase Orders Created!',
               description: `${result.createdPoCount} new PO(s) have been generated.`,
             });
             router.push('/purchase-orders');
             router.refresh();
-        } catch (e) {
+        } else {
             toast({
               variant: 'destructive',
               title: 'Error Creating POs',
-              description: getErrorMessage(e),
+              description: result.error,
             });
         }
     });

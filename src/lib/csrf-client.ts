@@ -4,7 +4,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { logger } from './logger';
 
-export const CSRF_COOKIE_NAME = '__Host-csrf_token';
+export const CSRF_COOKIE_NAME = 'csrf_token';
 export const CSRF_FORM_NAME = 'csrf_token';
 
 /**
