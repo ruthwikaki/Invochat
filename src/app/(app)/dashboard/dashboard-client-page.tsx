@@ -6,7 +6,9 @@ import {
   Users,
   TrendingDown,
   Wallet,
-  ShoppingCart
+  ShoppingCart,
+  Package,
+  Sparkles,
 } from 'lucide-react';
 import {
   Select,
@@ -25,6 +27,8 @@ import { cn } from '@/lib/utils';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 interface DashboardClientPageProps {
     initialMetrics: DashboardMetrics;
@@ -35,6 +39,37 @@ interface DashboardClientPageProps {
         cta?: { text: string; link: string };
     };
 }
+
+function EmptyDashboardState() {
+  return (
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+        className="relative bg-primary/10 rounded-full p-6"
+      >
+        <Package className="h-16 w-16 text-primary" />
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="absolute -top-2 -right-2 text-primary"
+        >
+          <Sparkles className="h-8 w-8" />
+        </motion.div>
+      </motion.div>
+      <h3 className="mt-6 text-xl font-semibold">Welcome to ARVO!</h3>
+      <p className="mt-2 text-muted-foreground">
+        Your dashboard is ready. Import your data to see your metrics and get AI insights.
+      </p>
+      <Button asChild className="mt-6">
+        <Link href="/import">Import Your First Data Set</Link>
+      </Button>
+    </Card>
+  );
+}
+
 
 const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { title: string; value: string; change?: string; icon: React.ElementType; changeType?: 'increase' | 'decrease' | 'neutral', gradient: string }) => {
     const changeColor = changeType === 'increase' ? 'text-success' : changeType === 'decrease' ? 'text-destructive' : 'text-muted-foreground';
@@ -65,6 +100,17 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         router.push(`/dashboard?range=${value}`);
     };
     
+    const hasData = initialMetrics.total_revenue > 0 || initialMetrics.total_sales > 0;
+
+    if (!hasData) {
+        return (
+            <div className="space-y-6">
+                 <QuickActions />
+                 <EmptyDashboardState />
+            </div>
+        )
+    }
+
     return (
         <motion.div 
             initial={{ opacity: 0, y: 20 }}
