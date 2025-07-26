@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -23,17 +23,13 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface SignupFormProps {
     error: string | null;
+    csrfToken: string | null;
 }
 
-export function SignupForm({ error: initialError }: SignupFormProps) {
+export function SignupForm({ error: initialError, csrfToken }: SignupFormProps) {
     const [error, setError] = useState(initialError);
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
-    useEffect(() => {
-        generateAndSetCsrfToken(setCsrfToken);
-    }, []);
-    
     useEffect(() => {
         setError(initialError);
         if (initialError) {
