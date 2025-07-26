@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import type { Customer, CustomerAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy } from 'lucide-react';
+import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 import { ExportButton } from '@/components/ui/export-button';
 import { useTableState } from '@/hooks/use-table-state';
+import Link from 'next/link';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
@@ -120,11 +121,22 @@ function EmptyCustomerState() {
         className="relative bg-primary/10 rounded-full p-6"
       >
         <Users className="h-16 w-16 text-primary" />
+         <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="absolute -top-2 -right-2 text-primary"
+        >
+          <Sparkles className="h-8 w-8" />
+        </motion.div>
       </motion.div>
-      <h3 className="mt-6 text-xl font-semibold">No Customers Found</h3>
+      <h3 className="mt-6 text-xl font-semibold">No Customer Data Yet</h3>
       <p className="mt-2 text-muted-foreground">
-        Your customers will appear here as they make purchases through your integrations.
+        Your customers will appear here once you connect an integration and sync your sales data.
       </p>
+       <Button asChild className="mt-6">
+        <Link href="/settings/integrations">Connect an Integration</Link>
+      </Button>
     </Card>
   );
 }
@@ -166,6 +178,10 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     });
   };
 
+  if (showEmptyState) {
+    return <EmptyCustomerState />
+  }
+
   return (
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -200,7 +216,6 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                {showEmptyState ? <EmptyCustomerState /> : (
                     <>
                     <div className="max-h-[65vh] overflow-auto">
                     <Table>
@@ -253,7 +268,6 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                     </div>
                     <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
                 </>
-                )}
             </CardContent>
         </Card>
 

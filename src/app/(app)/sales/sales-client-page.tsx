@@ -4,7 +4,7 @@
 import { Input } from '@/components/ui/input';
 import type { Order, SalesAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, DollarSign, ShoppingCart, Percent } from 'lucide-react';
+import { Search, DollarSign, ShoppingCart, Percent, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -12,6 +12,8 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { ExportButton } from '@/components/ui/export-button';
 import { Button } from '@/components/ui/button';
 import { useTableState } from '@/hooks/use-table-state';
+import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 interface SalesClientPageProps {
   initialSales: Order[];
@@ -19,6 +21,36 @@ interface SalesClientPageProps {
   itemsPerPage: number;
   analyticsData: SalesAnalytics;
   exportAction: (params: { query: string }) => Promise<{ success: boolean; data?: string; error?: string }>;
+}
+
+function EmptySalesState() {
+  return (
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+        className="relative bg-primary/10 rounded-full p-6"
+      >
+        <ShoppingCart className="h-16 w-16 text-primary" />
+         <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="absolute -top-2 -right-2 text-primary"
+        >
+          <Sparkles className="h-8 w-8" />
+        </motion.div>
+      </motion.div>
+      <h3 className="mt-6 text-xl font-semibold">No Sales Data Yet</h3>
+      <p className="mt-2 text-muted-foreground">
+        Your sales will appear here once you connect an integration and sync your data.
+      </p>
+       <Button asChild className="mt-6">
+        <Link href="/settings/integrations">Connect an Integration</Link>
+      </Button>
+    </Card>
+  );
 }
 
 const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: string, icon: React.ElementType }) => (
@@ -76,6 +108,10 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
 
     const handleExport = () => {
         return exportAction({ query: searchQuery });
+    }
+
+    if(totalCount === 0 && !searchQuery) {
+        return <EmptySalesState />;
     }
 
     return (
