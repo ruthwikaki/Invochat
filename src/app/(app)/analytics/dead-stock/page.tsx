@@ -25,8 +25,8 @@ export default async function DeadStockPage() {
                 title="Dead Stock Analysis"
                 description="Identify money trapped in slow-moving inventory."
             />
-            <DeadStockClientPage 
-                initialData={deadStockData} 
+            <DeadStockClientPage
+                initialData={deadStockData}
                 generateMarkdownPlanAction={handleGeneratePlan}
             />
         </AppPage>

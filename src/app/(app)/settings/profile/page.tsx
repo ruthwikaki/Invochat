@@ -16,7 +16,7 @@ function SettingsLoading() {
     )
 }
 
-export default async function ProfilePage() {
+export default function ProfilePage() {
     return (
         <AppPage>
             <AppPageHeader
