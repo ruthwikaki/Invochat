@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
 import { CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -22,12 +23,16 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface ForgotPasswordFormProps {
     error: string | null;
-    csrfToken: string | null;
 }
 
-export function ForgotPasswordForm({ error: initialError, csrfToken }: ForgotPasswordFormProps) {
+export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormProps) {
   const [error, setError] = useState(initialError);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    generateAndSetCsrfToken(setCsrfToken);
+  }, []);
 
   useEffect(() => {
     setError(initialError);

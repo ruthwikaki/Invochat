@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm';
 import Link from 'next/link';
-import { generateCSRFToken } from '@/lib/csrf';
 
 export default async function UpdatePasswordPage({
   searchParams,
@@ -11,8 +10,6 @@ export default async function UpdatePasswordPage({
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
-  
-  const csrfToken = await generateCSRFToken();
     
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
@@ -32,15 +29,11 @@ export default async function UpdatePasswordPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <UpdatePasswordForm 
-              error={error}
-              csrfToken={csrfToken}
-            />
+            <UpdatePasswordForm error={error} />
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
     
