@@ -16,7 +16,7 @@ export default async function ForgotPasswordPage({
   const success = searchParams?.success === 'true';
   
   await generateCSRFToken();
-  const csrfToken = getCSRFToken();
+  const csrfToken = await getCSRFToken();
   
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

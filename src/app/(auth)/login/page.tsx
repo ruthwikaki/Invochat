@@ -15,7 +15,7 @@ export default async function LoginPage({
   
   // Generate token on the server and pass it to the client component.
   await generateCSRFToken();
-  const csrfToken = getCSRFToken();
+  const csrfToken = await getCSRFToken();
     
   return (
      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-card/80 p-4 shadow-2xl backdrop-blur-lg">
