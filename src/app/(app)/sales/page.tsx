@@ -1,9 +1,7 @@
 
-
-
 import { getSalesData, exportSales, getSalesAnalytics } from '@/app/data-actions';
 import { SalesClientPage } from './sales-client-page';
-import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { AppPageContainer } from '@/components/ui/page';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -30,11 +28,10 @@ export default async function SalesPage({
   }
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        title="Sales History"
-        description="View and manage all recorded sales orders."
-      />
+    <AppPageContainer
+      title="Sales History"
+      description="View and manage all recorded sales orders."
+    >
       <SalesClientPage
         initialSales={salesData.items}
         totalCount={salesData.totalCount}
@@ -42,6 +39,6 @@ export default async function SalesPage({
         analyticsData={analyticsData}
         exportAction={handleExport}
       />
-    </div>
+    </AppPageContainer>
   );
 }

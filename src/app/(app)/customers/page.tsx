@@ -1,9 +1,7 @@
 
-
-
 import { getCustomersData, exportCustomers, getCustomerAnalytics } from '@/app/data-actions';
 import { CustomersClientPage } from './customers-client-page';
-import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { AppPageContainer } from '@/components/ui/page';
 import type { Customer } from '@/types';
 
 const ITEMS_PER_PAGE = 25;
@@ -31,11 +29,10 @@ export default async function CustomersPage({
   }
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        title="Customers"
-        description="View and manage your customer list and analytics."
-      />
+    <AppPageContainer
+      title="Customers"
+      description="View and manage your customer list and analytics."
+    >
       <CustomersClientPage
         initialCustomers={customersData.items as Customer[]}
         totalCount={customersData.totalCount}
@@ -43,6 +40,6 @@ export default async function CustomersPage({
         analyticsData={analyticsData}
         exportAction={handleExport}
       />
-    </div>
+    </AppPageContainer>
   );
 }
