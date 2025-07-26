@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -22,12 +22,16 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface UpdatePasswordFormProps {
     error: string | null;
-    csrfToken: string | null;
 }
 
-export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePasswordFormProps) {
+export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormProps) {
     const [error, setError] = useState(initialError);
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+
+    useEffect(() => {
+      generateAndSetCsrfToken(setCsrfToken);
+    }, []);
 
     useEffect(() => {
         setError(initialError);
