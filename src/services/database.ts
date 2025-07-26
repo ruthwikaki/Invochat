@@ -202,7 +202,6 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
 
         const { data, error } = response;
         if (error) {
-            // This is a targeted workaround for a known issue where the database function references a non-existent 'sales' view.
             if (getErrorMessage(error).includes('relation "public.sales" does not exist')) {
                 logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
                 return DashboardMetricsSchema.parse({
@@ -223,7 +222,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
                     },
                 });
             }
-            throw error; // Re-throw other unexpected database errors
+            throw error;
         }
         if (data == null) throw new Error('No data returned from get_dashboard_metrics RPC call.');
         return DashboardMetricsSchema.parse(data);
