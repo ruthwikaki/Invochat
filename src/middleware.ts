@@ -58,7 +58,7 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Define public routes that do not require authentication
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const isLandingPage = pathname === '/';
   
@@ -77,7 +77,7 @@ export async function middleware(req: NextRequest) {
   } 
   // If the user is not logged in
   else {
-    // Allow access to the landing page, but protect all other non-public routes.
+    // Allow access to the landing page and other public routes, but protect all other non-public routes.
     if (!isPublicRoute && !isLandingPage) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
