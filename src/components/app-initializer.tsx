@@ -4,6 +4,8 @@
 import type { ReactNode } from "react";
 import { useAuth } from "@/context/auth-context";
 import { Skeleton } from "./ui/skeleton";
+import ErrorBoundary from "./error-boundary";
+import { Toaster } from "./ui/toaster";
 
 // This component now acts as a gatekeeper, showing a loading state until
 // the authentication status is resolved. This prevents flashes of unauthenticated content.
@@ -21,5 +23,10 @@ export function AppInitializer({ children }: { children: ReactNode }) {
         )
     }
     
-    return <>{children}</>;
+    return (
+        <ErrorBoundary onReset={() => window.location.reload()}>
+            {children}
+            <Toaster />
+        </ErrorBoundary>
+    );
 }

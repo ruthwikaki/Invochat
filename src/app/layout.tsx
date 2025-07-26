@@ -49,7 +49,6 @@ export default async function RootLayout({
             <AppInitializer>
               {children}
             </AppInitializer>
-            <Toaster />
           </AuthProvider>
         </ThemeProvider>
       </body>
