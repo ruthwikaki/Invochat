@@ -5,10 +5,9 @@
  * @param {T} config
  * @returns {T}
  */
-function defineNextConfig(config) {
-  return config;
+function defineNextConfig (config) {
+  return config
 }
-
 
 /** @type {import('next').NextConfig} */
 const nextConfig = defineNextConfig({
@@ -19,42 +18,42 @@ const nextConfig = defineNextConfig({
   webpack: (config, { isServer, webpack }) => {
     // This setting can help resolve strange build issues on Windows,
     // especially when the project is in a cloud-synced directory like OneDrive.
-    config.resolve.symlinks = false;
+    config.resolve.symlinks = false
 
     if (!isServer) {
-        // Exclude specific problematic server-side dependencies from the client-side bundle.
-        config.externals.push(
-            '@opentelemetry/sdk-node',
-            '@opentelemetry/exporter-jaeger',
-            'handlebars',
-            '@google-cloud/vertexai-preview'
-        );
+      // Exclude specific problematic server-side dependencies from the client-side bundle.
+      config.externals.push(
+        '@opentelemetry/sdk-node',
+        '@opentelemetry/exporter-jaeger',
+        'handlebars',
+        '@google-cloud/vertexai-preview'
+      )
     }
-    
+
     // This is the correct way to suppress the specific, known warnings from Sentry/Supabase.
     // It prevents the build log from being cluttered with non-actionable "Critical dependency" messages.
     config.externals.push({
-        '@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation',
-    });
+      '@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation'
+    })
 
     config.module.rules.push({
       test: /realtime-js/,
       loader: 'string-replace-loader',
       options: {
         search: 'Ably from "ably"',
-        replace: 'Ably from "ably/browser/core"',
+        replace: 'Ably from "ably/browser/core"'
       }
-    });
+    })
 
-    return config;
+    return config
   },
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'placehold.co',
-      },
-    ],
+        hostname: 'placehold.co'
+      }
+    ]
   },
   experimental: {
     // This is required to fix critical dependency warnings/errors with server-side packages.
@@ -65,13 +64,13 @@ const nextConfig = defineNextConfig({
       'handlebars',
       '@supabase/supabase-js',
       '@supabase/realtime-js',
-      'ioredis',
-    ],
-  },
-});
+      'ioredis'
+    ]
+  }
+})
 
 // The Sentry webpack plugin gets loaded here.
-const { withSentryConfig } = require("@sentry/nextjs");
+const { withSentryConfig } = require('@sentry/nextjs')
 
 module.exports = withSentryConfig(
   nextConfig,
@@ -82,7 +81,7 @@ module.exports = withSentryConfig(
     // Suppresses source map uploading logs during build
     silent: true,
     org: process.env.SENTRY_ORG,
-    project: process.env.SENTRY_PROJECT,
+    project: process.env.SENTRY_PROJECT
   },
   {
     // For all available options, see:
@@ -97,6 +96,6 @@ module.exports = withSentryConfig(
     // Enables automatic instrumentation of Vercel Cron Monitors.
     // See the following for more information:
     // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
-    automaticVercelMonitors: true,
+    automaticVercelMonitors: true
   }
-);
+)
