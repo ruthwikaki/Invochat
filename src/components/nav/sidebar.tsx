@@ -30,6 +30,7 @@ import {
   RefreshCw,
   Truck,
   Import,
+  Sparkles,
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 import { useAuth } from '@/context/auth-context';
@@ -49,6 +50,7 @@ const reportsNav = [
     { href: '/analytics/dead-stock', label: 'Dead Stock', icon: TrendingDown },
     { href: '/analytics/supplier-performance', label: 'Suppliers', icon: Truck },
     { href: '/analytics/inventory-turnover', label: 'Turnover', icon: Package },
+    { href: '/analytics/ai-insights', label: 'AI Insights', icon: Sparkles },
 ];
 
 function NavLink({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) {
@@ -108,7 +110,7 @@ export function AppSidebar() {
           
            <SidebarMenuItem>
               <SidebarMenuButton disabled className="font-semibold text-muted-foreground !bg-transparent h-auto p-2 text-xs">
-                  Reports
+                  Analytics
               </SidebarMenuButton>
                <SidebarMenuSub>
                 {reportsNav.map((item) => <NavLink key={item.href} {...item} />)}
