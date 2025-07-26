@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { ReactNode } from "react";
@@ -26,7 +25,6 @@ export function AppInitializer({ children }: { children: ReactNode }) {
     return (
         <ErrorBoundary onReset={() => window.location.reload()}>
             {children}
-            <Toaster />
         </ErrorBoundary>
     );
 }

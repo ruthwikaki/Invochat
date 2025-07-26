@@ -201,6 +201,27 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
   const { data, error } = response;
   if (error) {
     logError(error, { context: 'getDashboardMetrics failed', companyId, period });
+    // This is a temporary workaround to prevent the dashboard from crashing due to a bad DB function.
+    if (getErrorMessage(error).includes('relation "public.sales" does not exist')) {
+        logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
+        return DashboardMetricsSchema.parse({
+            total_revenue: 0,
+            revenue_change: 0,
+            total_sales: 0,
+            sales_change: 0,
+            new_customers: 0,
+            customers_change: 0,
+            dead_stock_value: 0,
+            sales_over_time: [],
+            top_selling_products: [],
+            inventory_summary: {
+                total_value: 0,
+                in_stock_value: 0,
+                low_stock_value: 0,
+                dead_stock_value: 0,
+            },
+        });
+    }
     throw new Error('Could not retrieve dashboard metrics from the database.');
   }
   if (data == null) throw new Error('No response from get_dashboard_metrics RPC call.');

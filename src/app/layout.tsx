@@ -1,4 +1,3 @@
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
@@ -49,6 +48,7 @@ export default async function RootLayout({
             <AppInitializer>
               {children}
             </AppInitializer>
+            <Toaster />
           </AuthProvider>
         </ThemeProvider>
       </body>
