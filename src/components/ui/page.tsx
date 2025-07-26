@@ -7,7 +7,6 @@ import type { ReactNode } from 'react';
 
 /**
  * A container for a full page view. Provides consistent padding and max-width.
- * This is now largely handled by the main layout, but can be used for nested content.
  */
 export function AppPage({ children, className }: { children: ReactNode; className?: string }) {
   return (
@@ -41,4 +40,32 @@ export function AppPageHeader({
         {children && <div className="shrink-0">{children}</div>}
     </div>
   );
+}
+
+
+/**
+ * A container that includes the page header and a content area.
+ * This ensures consistent layout across all application pages.
+ */
+export function AppPageContainer({
+    title,
+    description,
+    headerContent,
+    children
+}: {
+    title: string;
+    description?: string;
+    headerContent?: ReactNode;
+    children: ReactNode;
+}) {
+    return (
+        <AppPage>
+            <AppPageHeader title={title} description={description}>
+                {headerContent}
+            </AppPageHeader>
+            <div className="mt-6">
+                {children}
+            </div>
+        </AppPage>
+    )
 }
