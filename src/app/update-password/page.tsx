@@ -13,7 +13,7 @@ export default async function UpdatePasswordPage({
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   
   await generateCSRFToken();
-  const csrfToken = getCSRFToken();
+  const csrfToken = await getCSRFToken();
     
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">

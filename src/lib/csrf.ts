@@ -28,7 +28,7 @@ export async function generateCSRFToken(): Promise<string> {
  * Reads the CSRF token from the cookie.
  * This is useful for passing the token as a prop to a client component.
  */
-export function getCSRFToken(): string | null {
+export async function getCSRFToken(): Promise<string | null> {
     return cookies().get(CSRF_COOKIE_NAME)?.value || null;
 }
 
