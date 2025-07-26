@@ -55,8 +55,7 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user;
+  const { data: { user } } = await supabase.auth.getUser();
 
   // Define public routes that do not require authentication
   const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup'];
