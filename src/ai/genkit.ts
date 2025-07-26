@@ -1,6 +1,6 @@
 
 import {genkit} from 'genkit';
-import {googleAI} from '@gen-kit/google-ai';
+import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
 import { config } from '@/config/app-config';
 
