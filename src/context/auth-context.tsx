@@ -6,7 +6,6 @@ import { createBrowserClient } from '@supabase/ssr';
 import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { logError } from '@/lib/error-handler';
-import { Skeleton } from '@/components/ui/skeleton';
 
 interface AuthContextType {
   user: User | null;
@@ -24,7 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // Initialize the Supabase client once and store it in state
   const [supabase] = useState(() => 
     createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,38 +31,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    const getInitialSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        setUser(session?.user ?? null);
-      } catch (e) {
-        logError(e, { context: 'Failed to get initial Supabase session'});
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void getInitialSession();
-
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        if (_event === 'SIGNED_IN') {
-            router.replace('/dashboard');
-        }
-        if (_event === 'SIGNED_OUT') {
-            router.replace('/login');
-        }
+        // This logic was simplified to prevent complex re-rendering issues.
+        // The middleware is now the primary source of truth for redirects.
       }
     );
+
+    // Check the initial session state when the provider mounts
+    const getInitialSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+    };
+
+    getInitialSession();
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, router]);
 
   const logout = async () => {
