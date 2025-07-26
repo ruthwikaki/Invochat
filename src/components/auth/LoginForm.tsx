@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { AlertTriangle, Loader2 } from 'lucide-react';
@@ -11,14 +11,13 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
+function LoginSubmitButton() {
     const { pending } = useFormStatus();
     return (
         <Button 
             type="submit" 
-            disabled={disabled || pending} 
+            disabled={pending} 
             className="w-full h-12 text-base font-semibold"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
@@ -32,15 +31,10 @@ interface LoginFormProps {
 
 export function LoginForm({ initialError }: LoginFormProps) {
   const [error, setError] = useState(initialError);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    generateAndSetCsrfToken(setCsrfToken);
-  }, []);
 
   useEffect(() => {
     setError(initialError);
+    // Clear the error from the URL so it doesn't persist on refresh
     if (initialError) {
         const url = new URL(window.location.href);
         url.searchParams.delete('error');
@@ -48,19 +42,13 @@ export function LoginForm({ initialError }: LoginFormProps) {
     }
   }, [initialError]);
 
+  // Clear the error message when the user starts typing
   const handleInteraction = () => {
     if (error) setError(null);
   };
   
-  const formAction = (formData: FormData) => {
-      startTransition(async () => {
-          await login(formData);
-      });
-  }
-
   return (
-    <form action={formAction} className="space-y-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+    <form action={login} className="space-y-4" onChange={handleInteraction}>
         <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -98,7 +86,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
         )}
         
         <div className="pt-2">
-            <LoginSubmitButton disabled={!csrfToken || isPending} />
+            <LoginSubmitButton />
         </div>
     </form>
   );
