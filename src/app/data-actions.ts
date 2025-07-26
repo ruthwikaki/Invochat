@@ -27,7 +27,7 @@ import {
     getSalesFromDB,
     getSalesAnalyticsFromDB,
     getCustomerAnalyticsFromDB,
-    createPurchaseOrdersInDb,
+    createPurchaseOrderInDb,
     getPurchaseOrdersFromDB,
     updatePurchaseOrderInDb,
     getPurchaseOrderByIdFromDB,
@@ -44,7 +44,9 @@ import {
     getHistoricalSalesForSkus,
     refreshMaterializedViews,
     createAuditLogInDb,
-    logUserFeedbackInDb as logUserFeedbackInDbService
+    logUserFeedbackInDb as logUserFeedbackInDbService,
+    getAbcAnalysisFromDB,
+    getSalesVelocityFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData } from '@/types';
@@ -54,6 +56,8 @@ import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation } from '@/types';
 import { z } from 'zod';
+import { markdownOptimizerFlow } from '@/ai/flows/markdown-optimizer-flow';
+import { suggestBundlesFlow } from '@/ai/flows/suggest-bundles-flow';
 
 export async function getProducts() {
   const { companyId } = await getAuthContext();
@@ -87,16 +91,6 @@ export async function getInventoryAnalytics() {
 export async function getSuppliersData() {
     const { companyId } = await getAuthContext();
     return await getSuppliersDataFromDB(companyId);
-}
-
-export async function getDeadStockPageData() {
-    const { companyId } = await getAuthContext();
-    const settings = await getSettings(companyId);
-    const deadStockData = await getDeadStockReportFromDB(companyId);
-    return {
-        ...deadStockData,
-        deadStockDays: settings.dead_stock_days
-    };
 }
 
 export async function getSupplierById(id: string) {
@@ -343,7 +337,7 @@ export async function createPurchaseOrder(formData: FormData) {
         const { companyId, userId } = await getAuthContext();
         await validateCSRF(formData);
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
-        await createPurchaseOrdersInDb(companyId, userId, data);
+        await createPurchaseOrderInDb(companyId, userId, data);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch (e) {
@@ -353,7 +347,7 @@ export async function createPurchaseOrder(formData: FormData) {
 
 export async function updatePurchaseOrder(formData: FormData) {
     try {
-        const { companyId, userId } = await getAuthContext();
+        const { companyId } = await getAuthContext();
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
@@ -367,7 +361,7 @@ export async function updatePurchaseOrder(formData: FormData) {
 
 export async function deletePurchaseOrder(formData: FormData) {
     try {
-        const { companyId, userId } = await getAuthContext();
+        const { companyId } = await getAuthContext();
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         // await deletePurchaseOrderFromDb(id, companyId);
@@ -556,4 +550,26 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function generateMarkdownPlanAction() {
+    'use server';
+    const { companyId } = await getAuthContext();
+    return markdownOptimizerFlow({ companyId });
+};
+
+export async function generateBundleSuggestionsAction(count: number) {
+    'use server';
+    const { companyId } = await getAuthContext();
+    return suggestBundlesFlow({ companyId, count });
+};
+
+export async function getAdvancedAbcReport() {
+    const { companyId } = await getAuthContext();
+    return getAbcAnalysisFromDB(companyId);
+}
+
+export async function getAdvancedSalesVelocityReport() {
+    const { companyId } = await getAuthContext();
+    return getSalesVelocityFromDB(companyId, 90, 10);
 }
