@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, DragEvent, useEffect, ChangeEvent } from 'react';
@@ -14,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { CsvMappingOutput } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME, getCookie, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 const importOptions = {
     'product-costs': {
@@ -130,11 +131,8 @@ export function ImporterClientPage() {
     const [mappingSuggestions, setMappingSuggestions] = useState<CsvMappingOutput | null>(null);
 
     useEffect(() => {
-        const token = document.cookie
-          .split('; ')
-          .find(row => row.startsWith(`${CSRF_COOKIE_NAME}=`))
-          ?.split('=')[1];
-        setCsrfToken(token || null);
+        // Fetch the CSRF token when the component mounts.
+        generateAndSetCsrfToken(setCsrfToken);
     }, []);
 
     const handleFormSubmit = (mappings: Record<string, string> = {}) => {
@@ -299,11 +297,11 @@ export function ImporterClientPage() {
                                 </div>
                             </div>
                             <div className="flex flex-col sm:flex-row gap-2">
-                                <Button onClick={() => handleFormSubmit({})} disabled={isPending} className="flex-1">
+                                <Button onClick={() => handleFormSubmit({})} disabled={isPending || !csrfToken} className="flex-1">
                                     {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TableIcon className="mr-2 h-4 w-4" />}
                                     Start Import
                                 </Button>
-                                <Button onClick={handleGetMappingSuggestions} variant="outline" disabled={isPending} className="flex-1">
+                                <Button onClick={handleGetMappingSuggestions} variant="outline" disabled={isPending || !csrfToken} className="flex-1">
                                     {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     Suggest Mappings with AI
                                 </Button>
