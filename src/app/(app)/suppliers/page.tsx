@@ -1,25 +1,28 @@
 
-import { getSuppliersData } from '@/app/data-actions';
-import { SuppliersClientPage } from './suppliers-client-page';
+import { getSupplierPerformanceReportData } from '@/app/data-actions';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
+import { SupplierPerformanceClientPage } from './supplier-performance-client-page';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
+export const dynamic = 'force-dynamic';
+
 export default async function SuppliersPage() {
-    const suppliers = await getSuppliersData();
+    const reportData = await getSupplierPerformanceReportData();
+
     return (
         <AppPage>
             <AppPageHeader
-                title="Suppliers"
-                description="Manage your vendors and their contact information."
+                title="Supplier Performance"
+                description="Analyze which of your suppliers are the most reliable and profitable."
             >
-                <Button asChild>
+                 <Button asChild>
                     <Link href="/suppliers/new">Add Supplier</Link>
                 </Button>
             </AppPageHeader>
             <div className="mt-6">
-                <SuppliersClientPage initialSuppliers={suppliers} />
+                <SupplierPerformanceClientPage initialData={reportData} />
             </div>
         </AppPage>
-    )
+    );
 }
