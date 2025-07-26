@@ -22,21 +22,15 @@ const nextConfig = defineNextConfig({
     config.resolve.symlinks = false;
 
     if (!isServer) {
-        config.plugins.push(
-            new webpack.ContextReplacementPlugin(
-                /@opentelemetry\/instrumentation/,
-                (data) => {
-                    for (const dependency of data.dependencies) {
-                        if (dependency.request === './platform/node') {
-                            dependency.request = './platform/browser';
-                        }
-                    }
-                    return data;
-                }
-            )
-        )
+        // Exclude specific problematic server-side dependencies from the client-side bundle.
+        config.externals.push(
+            '@opentelemetry/sdk-node',
+            '@opentelemetry/exporter-jaeger',
+            'handlebars',
+            '@google-cloud/vertexai-preview'
+        );
     }
-
+    
     // This is the correct way to suppress the specific, known warnings from Sentry/Supabase.
     // It prevents the build log from being cluttered with non-actionable "Critical dependency" messages.
     config.externals.push({
