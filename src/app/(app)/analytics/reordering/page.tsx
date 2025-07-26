@@ -3,6 +3,8 @@ import { getReorderReport } from '@/app/(app)/analytics/reordering/actions';
 import { ReorderClientPage } from './reorder-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ReorderingPage() {
     const suggestions = await getReorderReport();
 
@@ -12,7 +14,7 @@ export default async function ReorderingPage() {
                 title="Reorder Suggestions"
                 description="Review AI-powered suggestions for products that need restocking."
             />
-            <ReorderClientPage initialSuggestions={suggestions} />
+            <ReorderClientPage initialSuggestions={suggestions || []} />
         </AppPage>
     )
 }

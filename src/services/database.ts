@@ -339,9 +339,9 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
-        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
@@ -438,7 +438,7 @@ export async function getSupplierPerformanceFromDB(companyId: string) {
 export async function getInventoryTurnoverFromDB(companyId: string, days: number) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_inventory_turnover', { p_company_id: companyId, p_days: days });
+    const { data, error } = await supabase.rpc('get_inventory_turnover_report', { p_company_id: companyId, p_days: days });
     if (error) throw error;
     return data;
 }
