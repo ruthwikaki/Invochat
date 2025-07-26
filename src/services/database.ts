@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
@@ -602,22 +602,50 @@ export async function reconcileInventoryInDb(companyId: string, integrationId: s
     if(error) throw error;
 }
 
-export async function createPurchaseOrdersInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[], idempotencyKey?: string) {
-    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) throw new Error('Invalid ID format');
+export async function createPurchaseOrderInDb(companyId: string, userId: string, poData: PurchaseOrderFormData) {
+    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
+        throw new Error('Invalid ID format');
+    }
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
+    const { data, error } = await supabase.rpc('create_full_purchase_order', {
         p_company_id: companyId,
         p_user_id: userId,
-        p_suggestions: suggestions as unknown as Json,
-        p_idempotency_key: idempotencyKey ?? null,
+        p_supplier_id: poData.supplier_id,
+        p_status: poData.status,
+        p_notes: poData.notes,
+        p_expected_arrival: poData.expected_arrival_date,
+        p_line_items: poData.line_items,
     });
 
     if (error) {
-        logError(error, { context: 'Failed to execute create_purchase_orders_from_suggestions RPC' });
-        throw new Error('Database error while creating purchase orders.');
+        logError(error, { context: 'Failed to execute create_full_purchase_order RPC' });
+        throw new Error('Database error while creating purchase order.');
     }
     
-    return data; // This should be the count of POs created
+    return data;
+}
+
+export async function updatePurchaseOrderInDb(poId: string, companyId: string, poData: PurchaseOrderFormData) {
+    if (!z.string().uuid().safeParse(poId).success || !z.string().uuid().safeParse(companyId).success) {
+        throw new Error('Invalid ID format');
+    }
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('update_full_purchase_order', {
+        p_po_id: poId,
+        p_company_id: companyId,
+        p_supplier_id: poData.supplier_id,
+        p_status: poData.status,
+        p_notes: poData.notes,
+        p_expected_arrival: poData.expected_arrival_date,
+        p_line_items: poData.line_items,
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to execute update_full_purchase_order RPC' });
+        throw new Error('Database error while updating purchase order.');
+    }
+    
+    return data;
 }
 
 export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithSupplier[]> {
@@ -647,6 +675,22 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
 
     return flattenedData as PurchaseOrderWithSupplier[];
 }
+
+export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
+    if (!z.string().uuid().safeParse(id).success || !z.string().uuid().safeParse(companyId).success) {
+        throw new Error('Invalid ID format');
+    }
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('purchase_orders_with_items_view').select('*').eq('id', id).eq('company_id', companyId).single();
+
+    if (error) {
+        if(error.code === 'PGRST116') return null;
+        logError(error, { context: 'getPurchaseOrderByIdFromDB failed' });
+        throw new Error('Failed to retrieve purchase order');
+    }
+    return data as PurchaseOrderWithItems;
+}
+
 
 export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sku: string): Promise<{ sale_date: string; total_quantity: number }[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');

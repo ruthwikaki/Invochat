@@ -5,7 +5,7 @@ import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { PurchaseOrderFormSchema, type PurchaseOrderFormData } from '@/types';
 import type { Supplier, UnifiedInventoryItem, PurchaseOrderWithItems } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
@@ -31,8 +31,21 @@ interface PurchaseOrderFormProps {
 
 export function PurchaseOrderForm({ initialData, suppliers, products }: PurchaseOrderFormProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
+
+    const itemsFromParams = useMemo(() => {
+        const itemsJson = searchParams.get('items');
+        if (itemsJson) {
+            try {
+                return JSON.parse(itemsJson);
+            } catch {
+                return [];
+            }
+        }
+        return [];
+    }, [searchParams]);
 
     const form = useForm<PurchaseOrderFormData>({
         resolver: zodResolver(PurchaseOrderFormSchema),
@@ -42,7 +55,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
         } : {
             supplier_id: '',
             status: 'Draft',
-            line_items: [],
+            line_items: itemsFromParams,
             notes: ''
         },
     });
@@ -51,6 +64,12 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
         control: form.control,
         name: "line_items"
     });
+
+    useEffect(() => {
+        if (itemsFromParams.length > 0 && !initialData) {
+            form.setValue('line_items', itemsFromParams);
+        }
+    }, [itemsFromParams, form, initialData]);
 
     const totalCost = useMemo(() => {
         return form.watch('line_items').reduce((sum, item) => {
@@ -66,7 +85,6 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
             const csrfToken = getCookie(CSRF_FORM_NAME);
             if(csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
 
-            // Serialize the data to send to the server action
             const serializedData = {
                 ...data,
                 total_cost: totalCost,
@@ -144,11 +162,11 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                                         </div>
                                         <div className="w-24">
                                             <Label>Quantity</Label>
-                                            <Input type="number" {...form.register(`line_items.${index}.quantity`, { valueAsNumber: true })} />
+                                            <Input type="number" {...form.register(`line_items.${index}.quantity`, { valueAsNumber: true, value: field.quantity || 1 })} />
                                         </div>
                                          <div className="w-24">
                                             <Label>Unit Cost</Label>
-                                            <Input type="number" {...form.register(`line_items.${index}.cost`, { valueAsNumber: true })} />
+                                            <Input type="number" {...form.register(`line_items.${index}.cost`, { valueAsNumber: true, value: field.cost || 0 })} />
                                         </div>
                                         <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
                                             <Trash2 className="h-4 w-4" />
@@ -174,7 +192,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                                     control={form.control}
                                     name="supplier_id"
                                     render={({ field }) => (
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value} required>
                                             <SelectTrigger><SelectValue placeholder="Select a supplier" /></SelectTrigger>
                                             <SelectContent>
                                                 {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -182,6 +200,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                                         </Select>
                                     )}
                                 />
+                                <Button variant="link" size="sm" className="p-0 h-auto" type="button" onClick={() => router.push('/suppliers/new')}>Create new supplier</Button>
                             </div>
                              <div className="space-y-2">
                                 <Label htmlFor="status">Status</Label>

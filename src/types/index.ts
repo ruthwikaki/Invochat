@@ -150,6 +150,22 @@ export const SupplierSchema = z.object({
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
 
+export const PurchaseOrderLineItemFormSchema = z.object({
+  variant_id: z.string().uuid(),
+  quantity: z.number().int().positive(),
+  cost: z.number().int().nonnegative(),
+});
+
+export const PurchaseOrderFormSchema = z.object({
+    supplier_id: z.string().uuid("Please select a supplier."),
+    status: z.string(),
+    expected_arrival_date: z.date().optional(),
+    notes: z.string().optional().nullable(),
+    line_items: z.array(PurchaseOrderLineItemFormSchema).min(1, "Purchase order must have at least one line item."),
+});
+export type PurchaseOrderFormData = z.infer<typeof PurchaseOrderFormSchema>;
+
+
 export const PurchaseOrderSchema = z.object({
     id: z.string().uuid(),
     company_id: z.string().uuid(),
@@ -163,20 +179,16 @@ export const PurchaseOrderSchema = z.object({
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
+export const PurchaseOrderWithItemsSchema = PurchaseOrderSchema.extend({
+  line_items: z.array(PurchaseOrderLineItemFormSchema),
+});
+export type PurchaseOrderWithItems = z.infer<typeof PurchaseOrderWithItemsSchema>;
+
+
 export const PurchaseOrderWithSupplierSchema = PurchaseOrderSchema.extend({
     supplier_name: z.string().nullable(),
 });
 export type PurchaseOrderWithSupplier = z.infer<typeof PurchaseOrderWithSupplier>;
-
-export const PurchaseOrderLineItemSchema = z.object({
-    id: z.string().uuid(),
-    purchase_order_id: z.string().uuid(),
-    variant_id: z.string().uuid(),
-    company_id: z.string().uuid(),
-    quantity: z.number().int(),
-    cost: z.number().int(),
-});
-export type PurchaseOrderLineItem = z.infer<typeof PurchaseOrderLineItemSchema>;
 
 
 export const CompanySettingsSchema = z.object({

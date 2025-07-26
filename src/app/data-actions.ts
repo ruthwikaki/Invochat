@@ -29,6 +29,8 @@ import {
     getCustomerAnalyticsFromDB,
     createPurchaseOrdersInDb,
     getPurchaseOrdersFromDB,
+    updatePurchaseOrderInDb,
+    getPurchaseOrderByIdFromDB,
     getInventoryLedgerFromDB,
     getChannelFeesFromDB,
     upsertChannelFeeInDb,
@@ -45,7 +47,7 @@ import {
     logUserFeedbackInDb as logUserFeedbackInDbService
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData } from '@/types';
 import { DashboardMetricsSchema, SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -326,58 +328,56 @@ export async function exportInventory(params: { query: string; status: string; s
     }
 }
 
-export async function getReorderReport() {
-    const { companyId } = await getAuthContext();
-    return getReorderSuggestionsFromDB(companyId);
-}
-
-export async function createPurchaseOrdersFromSuggestions(formData: FormData) {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        await validateCSRF(formData);
-        const suggestions = JSON.parse(formData.get('suggestions') as string) as ReorderSuggestion[];
-        const result = await createPurchaseOrdersInDb(companyId, userId, suggestions);
-        
-        await createAuditLogInDb(companyId, userId, 'ai_purchase_order_created', {
-            createdPoCount: result,
-            totalSuggestions: suggestions.length,
-            // Log a sample of SKUs for auditability without logging everything
-            sampleSkus: suggestions.slice(0, 5).map(s => s.sku),
-        });
-
-        revalidatePath('/purchase-orders');
-        revalidatePath('/analytics/reordering');
-        return { success: true, createdPoCount: result };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
-    try {
-        const dataToExport = suggestions.map(s => ({
-            sku: s.sku,
-            product_name: s.product_name,
-            supplier_name: s.supplier_name,
-            current_quantity: s.current_quantity,
-            suggested_reorder_quantity: s.suggested_reorder_quantity,
-            unit_cost: s.unit_cost !== null && s.unit_cost !== undefined ? (s.unit_cost / 100).toFixed(2) : '',
-            total_cost: s.unit_cost !== null && s.unit_cost !== undefined ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : '',
-            adjustment_reason: s.adjustment_reason,
-            confidence: s.confidence,
-        }));
-        const csv = Papa.unparse(dataToExport);
-        return { success: true, data: csv };
-    } catch (e) {
-        logError(e, { context: 'exportReorderSuggestions failed' });
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
 export async function getPurchaseOrders() {
     const { companyId } = await getAuthContext();
     return getPurchaseOrdersFromDB(companyId);
 }
+
+export async function getPurchaseOrderById(id: string) {
+    const { companyId } = await getAuthContext();
+    return getPurchaseOrderByIdFromDB(id, companyId);
+}
+
+export async function createPurchaseOrder(formData: FormData) {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await validateCSRF(formData);
+        const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
+        await createPurchaseOrdersInDb(companyId, userId, data);
+        revalidatePath('/purchase-orders');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function updatePurchaseOrder(formData: FormData) {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await validateCSRF(formData);
+        const id = formData.get('id') as string;
+        const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
+        await updatePurchaseOrderInDb(id, companyId, data);
+        revalidatePath('/purchase-orders');
+        return { success: true };
+    } catch(e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function deletePurchaseOrder(formData: FormData) {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await validateCSRF(formData);
+        const id = formData.get('id') as string;
+        // await deletePurchaseOrderFromDb(id, companyId);
+        revalidatePath('/purchase-orders');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
 
 export async function getInventoryLedger(variantId: string) {
     const { companyId } = await getAuthContext();
