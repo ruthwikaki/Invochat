@@ -1,7 +1,7 @@
 
 import { getDashboardData, getMorningBriefing, getCompanySettings } from '@/app/data-actions';
-import { DashboardClientPage } from '@/components/dashboard/dashboard-client-page';
-import { AppPageContainer } from '@/components/ui/page';
+import { DashboardClientPage } from './dashboard-client-page';
+import { AppPage, AppPageHeader } from '@/components/ui/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,15 +18,18 @@ export default async function DashboardPage({
     ]);
     
     return (
-        <AppPageContainer
-            title="Dashboard"
-            description="Here's a high-level overview of your business performance."
-        >
-            <DashboardClientPage 
-                initialMetrics={metrics} 
-                settings={settings}
-                initialBriefing={briefing}
+        <AppPage>
+            <AppPageHeader
+                title="Dashboard"
+                description="Here's a high-level overview of your business performance."
             />
-        </AppPageContainer>
+            <div className="mt-6">
+                <DashboardClientPage 
+                    initialMetrics={metrics} 
+                    settings={settings}
+                    initialBriefing={briefing}
+                />
+            </div>
+        </AppPage>
     );
 }
