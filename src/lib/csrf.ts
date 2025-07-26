@@ -9,8 +9,9 @@ import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from './csrf-client';
 /**
  * Generates a CSRF token using crypto.randomUUID() and sets it as a cookie.
  * This should be called from a Server Component or Route Handler that renders the form.
+ * @returns The generated CSRF token.
  */
-export async function generateCSRFToken(): Promise<void> {
+export async function generateCSRFToken(): Promise<string> {
   const token = crypto.randomUUID();
   cookies().set({
     name: CSRF_COOKIE_NAME,
@@ -20,6 +21,15 @@ export async function generateCSRFToken(): Promise<void> {
     path: '/',
     sameSite: 'strict',
   });
+  return token;
+}
+
+/**
+ * Reads the CSRF token from the cookie.
+ * This is useful for passing the token as a prop to a client component.
+ */
+export function getCSRFToken(): string | null {
+    return cookies().get(CSRF_COOKIE_NAME)?.value || null;
 }
 
 /**

@@ -1,15 +1,21 @@
+
 import { LoginForm } from '@/components/auth/LoginForm';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { generateCSRFToken, getCSRFToken } from '@/lib/csrf';
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const message = typeof searchParams?.message === 'string' ? searchParams.message : null;
+  
+  // Generate token on the server and pass it to the client component.
+  await generateCSRFToken();
+  const csrfToken = getCSRFToken();
     
   return (
      <div className="relative w-full max-w-md overflow-hidden rounded-2xl border bg-card/80 p-4 shadow-2xl backdrop-blur-lg">
@@ -27,7 +33,7 @@ export default function LoginPage({
         </CardHeader>
         <CardContent className="p-0">
             {message && <p className="text-center text-sm text-success mb-4">{message}</p>}
-            <LoginForm initialError={error} />
+            <LoginForm initialError={error} csrfToken={csrfToken} />
             <div className="mt-4 text-center text-sm text-muted-foreground">
               Don&apos;t have an account?{' '}
               <Link href="/signup" className="underline hover:text-primary">

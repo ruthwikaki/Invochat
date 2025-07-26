@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -22,16 +22,12 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface UpdatePasswordFormProps {
     error: string | null;
+    csrfToken: string | null;
 }
 
-export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormProps) {
+export function UpdatePasswordForm({ error: initialError, csrfToken }: UpdatePasswordFormProps) {
     const [error, setError] = useState(initialError);
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
-
-    useEffect(() => {
-        generateAndSetCsrfToken(setCsrfToken);
-    }, []);
 
     useEffect(() => {
         setError(initialError);
@@ -56,24 +52,24 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
     <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
         {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="grid gap-2">
-          <Label htmlFor="password" className="text-slate-300">New Password</Label>
+          <Label htmlFor="password">New Password</Label>
            <PasswordInput
                 id="password"
                 name="password"
                 required
                 placeholder="••••••••"
                 autoComplete="new-password"
-                className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
+                className="bg-muted/50"
            />
         </div>
          <div className="grid gap-2">
-          <Label htmlFor="confirmPassword" className="text-slate-300">Confirm New Password</Label>
+          <Label htmlFor="confirmPassword">Confirm New Password</Label>
           <PasswordInput
             id="confirmPassword"
             name="confirmPassword"
             placeholder="••••••••"
             required
-            className="bg-slate-800/50 border-slate-600 text-white placeholder:text-slate-400 focus:ring-primary focus:border-transparent"
+            className="bg-muted/50"
           />
         </div>
         {error && (
