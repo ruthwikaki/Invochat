@@ -1,5 +1,6 @@
 
 
+
 import { getCustomersData, exportCustomers, getCustomerAnalytics } from '@/app/data-actions';
 import { CustomersClientPage } from './customers-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
@@ -24,13 +25,13 @@ export default async function CustomersPage({
     getCustomerAnalytics(),
   ]);
 
-  const handleExport = async () => {
+  const handleExport = async (params: {query: string}) => {
     'use server';
-    return exportCustomers({ query });
+    return exportCustomers({ query: params.query });
   }
 
   return (
-    <AppPage>
+    <div className="space-y-6">
       <AppPageHeader
         title="Customers"
         description="View and manage your customer list and analytics."
@@ -42,6 +43,6 @@ export default async function CustomersPage({
         analyticsData={analyticsData}
         exportAction={handleExport}
       />
-    </AppPage>
+    </div>
   );
 }
