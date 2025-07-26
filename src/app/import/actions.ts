@@ -12,7 +12,7 @@ import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { CsvMappingOutput } from '@/types';
 import { revalidatePath } from 'next/cache';
 import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
-import { getAuthContext } from '@/app/data-actions';
+import { getAuthContext } from '@/lib/auth-helpers';
 import { checkUserPermission, refreshMaterializedViews } from '@/services/database';
 import type { Json } from '@/types/database.types';
 
