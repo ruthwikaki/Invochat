@@ -1,0 +1,144 @@
+
+'use client';
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { formatCentsAsCurrency } from '@/lib/utils';
+import { motion } from 'framer-motion';
+
+// Define types for the report data
+type AbcAnalysisItem = {
+    sku: string;
+    product_name: string;
+    revenue: number;
+    cumulative_revenue_percentage: number;
+    abc_category: 'A' | 'B' | 'C';
+};
+
+type SalesVelocityItem = {
+    sku: string;
+    product_name: string;
+    units_sold: number;
+    sales_velocity: number;
+};
+
+interface AdvancedReportsClientPageProps {
+  abcAnalysisData: AbcAnalysisItem[];
+  salesVelocityData: {
+    fast_sellers: SalesVelocityItem[];
+    slow_sellers: SalesVelocityItem[];
+  };
+}
+
+const getCategoryBadgeClass = (category: 'A' | 'B' | 'C') => {
+    switch (category) {
+        case 'A': return 'bg-success/10 text-success-foreground border-success/20';
+        case 'B': return 'bg-warning/10 text-amber-600 dark:text-amber-400 border-warning/20';
+        case 'C': return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+        default: return 'bg-muted';
+    }
+};
+
+function AbcAnalysisTab({ data }: { data: AbcAnalysisItem[] }) {
+    if (!data || data.length === 0) return <p className="text-center text-muted-foreground p-8">Not enough sales data to generate an ABC analysis.</p>;
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>ABC Analysis Report</CardTitle>
+                <CardDescription>
+                    Products are categorized into A, B, and C tiers based on their revenue contribution. 'A' items are your most valuable products.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="max-h-[60vh] overflow-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead className="text-right">Revenue</TableHead>
+                                <TableHead className="text-right">Cumulative %</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {data.map((item, index) => (
+                                <motion.tr key={item.sku} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
+                                    <TableCell>
+                                        <div className="font-medium">{item.product_name}</div>
+                                        <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge className={getCategoryBadgeClass(item.abc_category)}>{item.abc_category}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.revenue)}</TableCell>
+                                    <TableCell className="text-right font-tabular">{(item.cumulative_revenue_percentage * 100).toFixed(1)}%</TableCell>
+                                </motion.tr>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function SalesVelocityTab({ data }: { data: { fast_sellers: SalesVelocityItem[], slow_sellers: SalesVelocityItem[] } }) {
+    if (!data || (data.fast_sellers.length === 0 && data.slow_sellers.length === 0)) return <p className="text-center text-muted-foreground p-8">Not enough sales data to generate a sales velocity report.</p>;
+
+    const VelocityTable = ({ title, items }: { title: string, items: SalesVelocityItem[] }) => (
+        <Card className="flex-1">
+            <CardHeader>
+                <CardTitle>{title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+                 <div className="max-h-[45vh] overflow-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Units Sold/Day</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {items.map(item => (
+                                <TableRow key={item.sku}>
+                                    <TableCell>
+                                        <div className="font-medium">{item.product_name}</div>
+                                        <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-tabular">{item.sales_velocity.toFixed(2)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+    
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <VelocityTable title="Fastest-Selling Products" items={data.fast_sellers} />
+            <VelocityTable title="Slowest-Selling Products" items={data.slow_sellers} />
+        </div>
+    );
+}
+
+export function AdvancedReportsClientPage({ abcAnalysisData, salesVelocityData }: AdvancedReportsClientPageProps) {
+  return (
+    <Tabs defaultValue="abc-analysis" className="space-y-4">
+        <TabsList>
+            <TabsTrigger value="abc-analysis">ABC Analysis</TabsTrigger>
+            <TabsTrigger value="sales-velocity">Sales Velocity</TabsTrigger>
+        </TabsList>
+        <TabsContent value="abc-analysis">
+            <AbcAnalysisTab data={abcAnalysisData} />
+        </TabsContent>
+        <TabsContent value="sales-velocity">
+            <SalesVelocityTab data={salesVelocityData} />
+        </TabsContent>
+    </Tabs>
+  );
+}

@@ -31,6 +31,7 @@ import {
   Truck,
   Import,
   Sparkles,
+  TestTubeDiagonal,
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 import { useAuth } from '@/context/auth-context';
@@ -51,6 +52,7 @@ const reportsNav = [
     { href: '/analytics/supplier-performance', label: 'Suppliers', icon: Truck },
     { href: '/analytics/inventory-turnover', label: 'Turnover', icon: Package },
     { href: '/analytics/ai-insights', label: 'AI Insights', icon: Sparkles },
+    { href: '/analytics/advanced-reports', label: 'Advanced Reports', icon: TestTubeDiagonal },
 ];
 
 function NavLink({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) {
