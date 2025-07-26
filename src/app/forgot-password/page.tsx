@@ -9,7 +9,7 @@ import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
 export default async function ForgotPasswordPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
   const success = searchParams?.success === 'true';
@@ -66,5 +66,3 @@ export default async function ForgotPasswordPage({
     </div>
   );
 }
-
-    

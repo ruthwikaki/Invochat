@@ -194,38 +194,43 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
 }
 
 export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-  const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
-  const supabase = getServiceRoleClient();
-  const response = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
-  if (!response) throw new Error('No response from get_dashboard_metrics RPC call.');
-  const { data, error } = response;
-  if (error) {
-    logError(error, { context: 'getDashboardMetrics failed', companyId, period });
-    // This is a temporary workaround to prevent the dashboard from crashing due to a bad DB function.
-    if (getErrorMessage(error).includes('relation "public.sales" does not exist')) {
-        logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
-        return DashboardMetricsSchema.parse({
-            total_revenue: 0,
-            revenue_change: 0,
-            total_sales: 0,
-            sales_change: 0,
-            new_customers: 0,
-            customers_change: 0,
-            dead_stock_value: 0,
-            sales_over_time: [],
-            top_selling_products: [],
-            inventory_summary: {
-                total_value: 0,
-                in_stock_value: 0,
-                low_stock_value: 0,
-                dead_stock_value: 0,
-            },
-        });
+    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
+    const supabase = getServiceRoleClient();
+    try {
+        const response = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
+        if (!response) throw new Error('No response from get_dashboard_metrics RPC call.');
+
+        const { data, error } = response;
+        if (error) {
+            // This is a targeted workaround for a known issue where the database function references a non-existent 'sales' view.
+            if (getErrorMessage(error).includes('relation "public.sales" does not exist')) {
+                logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
+                return DashboardMetricsSchema.parse({
+                    total_revenue: 0,
+                    revenue_change: 0,
+                    total_sales: 0,
+                    sales_change: 0,
+                    new_customers: 0,
+                    customers_change: 0,
+                    dead_stock_value: 0,
+                    sales_over_time: [],
+                    top_selling_products: [],
+                    inventory_summary: {
+                        total_value: 0,
+                        in_stock_value: 0,
+                        low_stock_value: 0,
+                        dead_stock_value: 0,
+                    },
+                });
+            }
+            throw error; // Re-throw other unexpected database errors
+        }
+        if (data == null) throw new Error('No data returned from get_dashboard_metrics RPC call.');
+        return DashboardMetricsSchema.parse(data);
+    } catch (e) {
+        logError(e, { context: 'getDashboardMetrics failed', companyId, period });
+        throw new Error('Could not retrieve dashboard metrics from the database.');
     }
-    throw new Error('Could not retrieve dashboard metrics from the database.');
-  }
-  if (data == null) throw new Error('No response from get_dashboard_metrics RPC call.');
-  return DashboardMetricsSchema.parse(data);
 }
 
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {

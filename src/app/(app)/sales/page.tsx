@@ -8,12 +8,9 @@ const ITEMS_PER_PAGE = 25;
 export default async function SalesPage({
   searchParams,
 }: {
-  searchParams?: {
-    query?: string;
-    page?: string;
-  };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  const query = searchParams?.query || '';
+  const query = searchParams?.query?.toString() || '';
   const page = Number(searchParams?.page) || 1;
 
   // Fetch data in parallel for better performance

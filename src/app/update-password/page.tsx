@@ -7,7 +7,7 @@ import Link from 'next/link';
 export default async function UpdatePasswordPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const error = typeof searchParams?.error === 'string' ? searchParams.error : null;
     
@@ -36,4 +36,3 @@ export default async function UpdatePasswordPage({
     </div>
   );
 }
-    

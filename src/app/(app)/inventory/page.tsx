@@ -8,19 +8,13 @@ const ITEMS_PER_PAGE = 25;
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams?: {
-    query?: string;
-    page?: string;
-    status?: string;
-    sortBy?: string;
-    sortDirection?: string;
-  };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  const query = searchParams?.query || '';
-  const currentPage = parseInt(searchParams?.page || '1', 10);
-  const status = searchParams?.status || 'all';
-  const sortBy = searchParams?.sortBy || 'product_title';
-  const sortDirection = searchParams?.sortDirection || 'asc';
+  const query = searchParams?.query?.toString() || '';
+  const currentPage = parseInt(searchParams?.page?.toString() || '1', 10);
+  const status = searchParams?.status?.toString() || 'all';
+  const sortBy = searchParams?.sortBy?.toString() || 'product_title';
+  const sortDirection = searchParams?.sortDirection?.toString() || 'asc';
 
   // Fetch data in parallel for better performance
   const [inventoryData, analytics] = await Promise.all([

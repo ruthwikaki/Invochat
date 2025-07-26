@@ -8,9 +8,11 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
     const dateRange = typeof searchParams?.range === 'string' ? searchParams.range : '90d';
+    
+    // Fetch data in parallel for better performance
     const [metrics, briefing, settings] = await Promise.all([
         getDashboardData(dateRange),
         getMorningBriefing(dateRange),
