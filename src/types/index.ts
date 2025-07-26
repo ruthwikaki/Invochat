@@ -1,5 +1,4 @@
 
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -227,7 +226,7 @@ export const ConversationSchema = z.object({
 export type Conversation = z.infer<typeof ConversationSchema>;
 
 export const MessageSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   conversation_id: z.string().uuid(),
   company_id: z.string().uuid(),
   role: z.enum(['user', 'assistant']),
