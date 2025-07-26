@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -10,13 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download } from 'lucide-react';
+import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download, Info } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { createPurchaseOrdersFromSuggestions, exportReorderSuggestions } from '@/app/(app)/analytics/reordering/actions';
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
-import { getErrorMessage } from '@/lib/error-handler';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -71,11 +69,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   };
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedSuggestions(initialSuggestions);
-    } else {
-      setSelectedSuggestions([]); // Explicitly clear all selections
-    }
+    setSelectedSuggestions(checked ? initialSuggestions : []);
   };
   
   const handleCreatePOs = () => {
@@ -94,8 +88,8 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
 
         if (result.success) {
             toast({
-              title: 'Purchase Orders Created!',
-              description: `${result.createdPoCount} new PO(s) have been generated.`,
+              title: 'Purchase Orders Processed',
+              description: result.message,
             });
             router.push('/purchase-orders');
             router.refresh();
@@ -197,7 +191,25 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                         <div className="font-medium">{suggestion.product_name}</div>
                         <div className="text-xs text-muted-foreground">{suggestion.sku}</div>
                     </TableCell>
-                    <TableCell>{suggestion.supplier_name}</TableCell>
+                    <TableCell>
+                        {suggestion.supplier_name ? (
+                            <span>{suggestion.supplier_name}</span>
+                        ) : (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="flex items-center gap-1 text-destructive cursor-help">
+                                            <Info className="h-4 w-4" />
+                                            No Supplier
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Assign a supplier to this product to include it in a PO.</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                    </TableCell>
                     <TableCell className="text-right font-tabular">{suggestion.current_quantity}</TableCell>
                     <TableCell className="text-right text-muted-foreground font-tabular">{suggestion.base_quantity}</TableCell>
                     <TableCell className="text-right font-bold text-primary font-tabular">{suggestion.suggested_reorder_quantity}</TableCell>

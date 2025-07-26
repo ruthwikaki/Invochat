@@ -4,6 +4,7 @@
 // This file is temporarily unused due to a dependency conflict with jspdf.
 // The core logic is preserved here for future re-integration once the
 // underlying 'caniuse-lite' dependency issue is resolved in the ecosystem.
+// A more robust, server-side PDF generation library would be a better long-term solution.
 
 import { createAuditLogInDb } from '@/services/database';
 import type { ReorderSuggestion, CompanyInfo } from '@/types';
@@ -11,10 +12,9 @@ import type { ReorderSuggestion, CompanyInfo } from '@/types';
 interface GeneratePOPdfProps {
     supplierName: string;
     supplierInfo: {
-        email: string;
-        phone: string;
-        address: string;
-        notes: string;
+        email: string | null;
+        phone: string | null;
+        notes: string | null;
     };
     items: ReorderSuggestion[];
     companyId: string;

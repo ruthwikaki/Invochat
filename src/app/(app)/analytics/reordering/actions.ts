@@ -20,18 +20,33 @@ export async function createPurchaseOrdersFromSuggestions(formData: FormData) {
     try {
         const { companyId, userId } = await getAuthContext();
         await validateCSRF(formData);
-        const suggestions = JSON.parse(formData.get('suggestions') as string) as ReorderSuggestion[];
-        const result = await createPurchaseOrdersInDb(companyId, userId, suggestions);
+        const allSuggestions = JSON.parse(formData.get('suggestions') as string) as ReorderSuggestion[];
+        
+        // Separate suggestions based on whether they have a supplier
+        const suggestionsWithSupplier = allSuggestions.filter(s => s.supplier_id);
+        
+        if (suggestionsWithSupplier.length === 0) {
+            return { success: false, error: "No items with an assigned supplier were selected. Please assign suppliers to products before creating a purchase order." };
+        }
+
+        const result = await createPurchaseOrdersInDb(companyId, userId, suggestionsWithSupplier);
         
         await createAuditLogInDb(companyId, userId, 'ai_purchase_order_created', {
             createdPoCount: result,
-            totalSuggestions: suggestions.length,
-            sampleSkus: suggestions.slice(0, 5).map(s => s.sku),
+            totalSuggestions: suggestionsWithSupplier.length,
+            sampleSkus: suggestionsWithSupplier.slice(0, 5).map(s => s.sku),
         });
 
         revalidatePath('/purchase-orders');
         revalidatePath('/analytics/reordering');
-        return { success: true, createdPoCount: result };
+        
+        const itemsWithoutSupplierCount = allSuggestions.length - suggestionsWithSupplier.length;
+        let message = `${result} new PO(s) have been generated.`;
+        if (itemsWithoutSupplierCount > 0) {
+            message += ` ${itemsWithoutSupplierCount} item(s) were skipped because they are missing a supplier.`;
+        }
+
+        return { success: true, createdPoCount: result, message: message };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
