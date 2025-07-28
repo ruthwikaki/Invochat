@@ -68,6 +68,7 @@ const nextConfig = defineNextConfig({
     // to function correctly in server actions and server components.
     serverComponentsExternalPackages: [
       '@opentelemetry/instrumentation',
+      '@opentelemetry/exporter-jaeger',
       'handlebars',
       '@supabase/supabase-js',
       '@supabase/realtime-js',
