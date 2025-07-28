@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -36,9 +37,10 @@ export async function checkUserPermission(userId: string, requiredRole: 'Admin' 
     }
     
     const supabase = getServiceRoleClient();
+    // Explicitly cast the role to the 'company_role' enum to resolve ambiguity.
     const { data, error } = await supabase.rpc('check_user_permission', { 
         p_user_id: userId, 
-        p_required_role: requiredRole 
+        p_required_role: requiredRole as any
     });
     
     if (error) {
@@ -198,7 +200,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     const supabase = getServiceRoleClient();
     try {
         const response = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
-        if (!response) throw new Error('No response from get_dashboard_metrics RPC call.');
+        if (!response || !response.data) throw new Error('No response from get_dashboard_metrics RPC call.');
 
         const { data, error } = response;
         if (error) {
@@ -850,3 +852,4 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
