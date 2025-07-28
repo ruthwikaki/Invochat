@@ -406,13 +406,13 @@ export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSche
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
 export const ChannelFeeSchema = z.object({
-    id: z.string().uuid(),
-    company_id: z.string().uuid(),
+    id: z.string().uuid().optional(),
+    company_id: z.string().uuid().optional(),
     channel_name: z.string(),
     fixed_fee: z.number().int().nullable(),
     percentage_fee: z.number().nullable(),
-    created_at: z.string().datetime({ offset: true }),
-    updated_at: z.string().datetime({ offset: true }).nullable(),
+    created_at: z.string().datetime({ offset: true }).optional(),
+    updated_at: z.string().datetime({ offset: true }).nullable().optional(),
 });
 export type ChannelFee = z.infer<typeof ChannelFeeSchema>;
 
