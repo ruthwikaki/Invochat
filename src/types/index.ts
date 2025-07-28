@@ -488,3 +488,12 @@ export const AlertSchema = z.object({
   metadata: z.record(z.unknown()),
 });
 export type Alert = z.infer<typeof AlertSchema>;
+
+export const AuditLogEntrySchema = z.object({
+    id: z.string().uuid(),
+    created_at: z.string().datetime({ offset: true }),
+    user_email: z.string().email().nullable(),
+    action: z.string(),
+    details: z.record(z.string(), z.unknown()).nullable(),
+});
+export type AuditLogEntry = z.infer<typeof AuditLogEntrySchema>;
