@@ -14,6 +14,25 @@ interface SupplierPerformanceClientPageProps {
   initialData: SupplierPerformanceReport[];
 }
 
+function EmptyState() {
+  return (
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+        className="relative bg-primary/10 rounded-full p-6"
+      >
+        <Award className="h-16 w-16 text-primary" />
+      </motion.div>
+      <h3 className="mt-6 text-xl font-semibold">Not Enough Data</h3>
+      <p className="mt-2 text-muted-foreground">
+        Supplier performance can be analyzed after you have some sales and purchase order data recorded in the system.
+      </p>
+    </Card>
+  );
+}
+
 const StatCard = ({ title, value, icon: Icon, description }: { title: string; value: string; icon: React.ElementType, description?: string }) => (
     <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -35,22 +54,7 @@ const getOnTimeBadgeVariant = (rate: number) => {
 
 export function SupplierPerformanceClientPage({ initialData }: SupplierPerformanceClientPageProps) {
   if (initialData.length === 0) {
-    return (
-      <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
-          className="relative bg-primary/10 rounded-full p-6"
-        >
-          <Award className="h-16 w-16 text-primary" />
-        </motion.div>
-        <h3 className="mt-6 text-xl font-semibold">Not Enough Data</h3>
-        <p className="mt-2 text-muted-foreground">
-          Supplier performance can be analyzed after you have some sales and purchase order data recorded in the system.
-        </p>
-      </Card>
-    );
+    return <EmptyState />;
   }
   
   const topSupplierByProfit = [...initialData].sort((a,b) => b.total_profit - a.total_profit)[0];
