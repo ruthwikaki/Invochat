@@ -129,7 +129,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     
     try {
         let query = supabase
-            .from('product_variants_with_details') // This view should exist and be correct
+            .from('product_variants_with_details')
             .select('*', { count: 'exact' })
             .eq('company_id', companyId);
 
@@ -205,8 +205,6 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
         if (data == null) {
-            // This is a workaround for a PostgREST issue where RPCs can return null on certain errors
-            // without populating the error object.
             logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
             throw new Error('No response from get_dashboard_metrics RPC call.');
         }
@@ -324,9 +322,9 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers_view_workaround').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
-        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
@@ -351,7 +349,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders_view_workaround').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
@@ -620,14 +618,14 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_notes: poData.notes,
         p_expected_arrival: poData.expected_arrival_date,
         p_line_items: poData.line_items,
-    });
+    }).select('id').single();
 
     if (error) {
         logError(error, { context: 'Failed to execute create_full_purchase_order RPC' });
         throw new Error('Database error while creating purchase order.');
     }
     
-    return data;
+    return data.id;
 }
 
 export async function updatePurchaseOrderInDb(poId: string, companyId: string, userId: string, poData: PurchaseOrderFormData) {
