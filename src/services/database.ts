@@ -2,8 +2,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -339,7 +339,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
         query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
@@ -625,7 +625,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
     return data;
 }
 
-export async function updatePurchaseOrderInDb(poId: string, companyId: string, poData: PurchaseOrderFormData) {
+export async function updatePurchaseOrderInDb(poId: string, companyId: string, userId: string, poData: PurchaseOrderFormData) {
     if (!z.string().uuid().safeParse(poId).success || !z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid ID format');
     }
@@ -633,6 +633,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, p
     const { data, error } = await supabase.rpc('update_full_purchase_order', {
         p_po_id: poId,
         p_company_id: companyId,
+        p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
         p_notes: poData.notes,
@@ -652,11 +653,8 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
-        .from('purchase_orders')
-        .select(`
-            *,
-            suppliers(name)
-        `)
+        .from('purchase_orders_view')
+        .select('*')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
 
@@ -665,15 +663,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    const flattenedData = (data || []).map(po => {
-        const typedPo = po as any;
-        return {
-            ...po,
-            supplier_name: typedPo.suppliers?.name || 'N/A',
-        };
-    });
-
-    return flattenedData as PurchaseOrderWithSupplier[];
+    return (data || []) as PurchaseOrderWithSupplier[];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -792,4 +782,50 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
         throw error;
     }
     return data; 
+}
+
+export async function adjustInventoryQuantityInDb(companyId: string, userId: string, variantId: string, newQuantity: number, reason: string) {
+    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(variantId).success || !z.string().uuid().safeParse(userId).success) {
+        throw new Error('Invalid ID format');
+    }
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.rpc('adjust_inventory_quantity', {
+        p_company_id: companyId,
+        p_variant_id: variantId,
+        p_new_quantity: newQuantity,
+        p_change_reason: reason,
+        p_user_id: userId
+    });
+
+    if(error) {
+        logError(error, { context: `Failed to adjust inventory for variant ${variantId}`});
+        throw error;
+    }
+}
+
+export async function getAuditLogFromDB(companyId: string, params: { query?: string; offset: number; limit: number }): Promise<{ items: AuditLogEntry[], totalCount: number }> {
+    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
+    const validatedParams = DatabaseQueryParamsSchema.parse(params);
+    const supabase = getServiceRoleClient();
+    
+    try {
+        let query = supabase.from('audit_log_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        if (validatedParams.query) {
+            query = query.or(`action.ilike.%${validatedParams.query}%,user_email.ilike.%${validatedParams.query}%`);
+        }
+        const limit = Math.min(validatedParams.limit || 25, 100);
+        const { data, error, count } = await query
+            .order('created_at', { ascending: false })
+            .range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
+            
+        if (error) throw error;
+        
+        return {
+            items: z.array(AuditLogEntrySchema).parse(data || []),
+            totalCount: count || 0,
+        };
+    } catch(e) {
+        logError(e, { context: 'getAuditLogFromDB failed' });
+        throw new Error('Failed to retrieve audit log.');
+    }
 }

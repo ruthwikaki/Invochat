@@ -43,13 +43,15 @@ import {
     getReorderSuggestionsFromDB,
     getHistoricalSalesForSkus,
     refreshMaterializedViews,
-    createAuditLogInDb,
+    createAuditLogInDb as createAuditLogInDbService,
+    adjustInventoryQuantityInDb,
+    getAuditLogFromDB,
     logUserFeedbackInDb as logUserFeedbackInDbService,
     getAbcAnalysisFromDB,
     getSalesVelocityFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry } from '@/types';
 import { DashboardMetricsSchema, SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -58,6 +60,10 @@ import type { Message, Conversation } from '@/types';
 import { z } from 'zod';
 import { markdownOptimizerFlow } from '@/ai/flows/markdown-optimizer-flow';
 import { suggestBundlesFlow } from '@/ai/flows/suggest-bundles-flow';
+import { findHiddenMoneyFlow } from '@/ai/flows/hidden-money-finder-flow';
+import { getPromotionalImpactAnalysis } from '@/ai/flows/analytics-tools';
+import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
+
 
 export async function getProducts() {
   const { companyId } = await getAuthContext();
@@ -227,7 +233,7 @@ export async function updateCompanySettings(formData: FormData) {
             timezone: String(formData.get('timezone')),
         }
         await updateSettingsInDb(companyId, settings);
-        await createAuditLogInDb(companyId, userId, 'company_settings_updated', settings);
+        await createAuditLogInDbService(companyId, userId, 'company_settings_updated', settings);
         revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
@@ -347,11 +353,11 @@ export async function createPurchaseOrder(formData: FormData) {
 
 export async function updatePurchaseOrder(formData: FormData) {
     try {
-        const { companyId } = await getAuthContext();
+        const { companyId, userId } = await getAuthContext();
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
-        await updatePurchaseOrderInDb(id, companyId, data);
+        await updatePurchaseOrderInDb(id, companyId, userId, data);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch(e) {
@@ -572,4 +578,67 @@ export async function getAdvancedAbcReport() {
 export async function getAdvancedSalesVelocityReport() {
     const { companyId } = await getAuthContext();
     return getSalesVelocityFromDB(companyId, 90, 10);
+}
+
+export async function adjustInventoryQuantity(formData: FormData) {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
+        await validateCSRF(formData);
+
+        const variantId = formData.get('variantId') as string;
+        const newQuantity = Number(formData.get('newQuantity'));
+        const reason = formData.get('reason') as string;
+
+        await adjustInventoryQuantityInDb(companyId, userId, variantId, newQuantity, reason);
+
+        revalidatePath('/inventory');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function generateHiddenMoneyAction() {
+    'use server';
+    const { companyId } = await getAuthContext();
+    return findHiddenMoneyFlow({ companyId });
+}
+
+export async function generatePromotionalImpactAction(skus: string[], discount: number, duration: number) {
+    'use server';
+    const { companyId } = await getAuthContext();
+    return getPromotionalImpactAnalysis({ companyId, skus, discountPercentage: discount, durationDays: duration });
+}
+
+export async function generatePriceOptimizationAction() {
+    'use server';
+    const { companyId } = await getAuthContext();
+    return priceOptimizationFlow({ companyId });
+}
+
+export async function getImportHistory() {
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Admin');
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
+    if(error) throw error;
+    return data;
+}
+
+export async function getAuditLogData(params: {
+  page: number;
+  limit: number;
+  query?: string;
+}): Promise<{ items: AuditLogEntry[]; totalCount: number }> {
+  try {
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Admin');
+
+    const offset = (params.page - 1) * params.limit;
+    return getAuditLogFromDB(companyId, { ...params, offset });
+  } catch (error) {
+    logError(error, { context: 'getAuditLogData failed' });
+    throw new Error('Failed to retrieve audit log data.');
+  }
 }

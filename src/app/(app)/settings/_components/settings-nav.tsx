@@ -10,6 +10,7 @@ const navItems = [
   { href: '/settings/profile', label: 'Profile' },
   { href: '/settings/integrations', label: 'Integrations' },
   { href: '/settings/export', label: 'Export Data' },
+  { href: '/settings/audit-log', label: 'Audit Log' },
 ];
 
 export function SettingsNav() {
