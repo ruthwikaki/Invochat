@@ -49,6 +49,7 @@ import {
     logUserFeedbackInDb as logUserFeedbackInDbService,
     getAbcAnalysisFromDB,
     getSalesVelocityFromDB,
+    getGrossMarginAnalysisFromDB,
     getFeedbackFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
@@ -408,7 +409,7 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
     }
 }
 
-export async function requestCompanyDataExport() {
+export async function requestCompanyDataExport(): Promise<{ success: boolean, error?: string, jobId?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
@@ -579,6 +580,11 @@ export async function getAdvancedAbcReport() {
 export async function getAdvancedSalesVelocityReport() {
     const { companyId } = await getAuthContext();
     return getSalesVelocityFromDB(companyId, 90, 10);
+}
+
+export async function getAdvancedGrossMarginReport() {
+    const { companyId } = await getAuthContext();
+    return getGrossMarginAnalysisFromDB(companyId);
 }
 
 export async function adjustInventoryQuantity(formData: FormData) {
