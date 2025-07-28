@@ -185,7 +185,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   };
 
   if (showEmptyState) {
-    return <EmptyCustomerState />
+    return <EmptyCustomerState />;
   }
 
   return (

@@ -1,5 +1,4 @@
 
-
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
@@ -97,7 +96,12 @@ export async function getUnifiedInventory(params: { query: string, page: number,
 
 export async function getInventoryAnalytics() {
     const { companyId } = await getAuthContext();
-    return getInventoryAnalyticsFromDB(companyId);
+    try {
+        return await getInventoryAnalyticsFromDB(companyId);
+    } catch (e) {
+        logError(e, {context: 'getInventoryAnalytics action failed, returning default'});
+        return { total_inventory_value: 0, total_products: 0, total_variants: 0, low_stock_items: 0 };
+    }
 }
 
 export async function getSuppliersData() {
@@ -280,7 +284,12 @@ export async function exportSales(params: { query: string }) {
 
 export async function getSalesAnalytics() {
     const { companyId } = await getAuthContext();
-    return getSalesAnalyticsFromDB(companyId);
+    try {
+        return await getSalesAnalyticsFromDB(companyId);
+    } catch (e) {
+        logError(e, {context: 'getSalesAnalytics action failed, returning default'});
+        return { total_revenue: 0, total_orders: 0, average_order_value: 0 };
+    }
 }
 
 export async function getCustomersData(params: { query: string; page: number, limit: number }) {
@@ -317,7 +326,12 @@ export async function exportCustomers(params: { query: string }) {
 
 export async function getCustomerAnalytics() {
     const { companyId } = await getAuthContext();
-    return getCustomerAnalyticsFromDB(companyId);
+    try {
+        return await getCustomerAnalyticsFromDB(companyId);
+    } catch (e) {
+        logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
+        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
+    }
 }
 
 export async function exportInventory(params: { query: string; status: string; sortBy: string; sortDirection: string; }) {
@@ -461,24 +475,6 @@ export async function reconcileInventory(integrationId: string) {
     }
 }
 
-const emptyMetrics: DashboardMetrics = {
-    total_revenue: 0,
-    revenue_change: 0,
-    total_sales: 0,
-    sales_change: 0,
-    new_customers: 0,
-    customers_change: 0,
-    dead_stock_value: 0,
-    sales_over_time: [],
-    top_selling_products: [],
-    inventory_summary: {
-        total_value: 0,
-        in_stock_value: 0,
-        low_stock_value: 0,
-        dead_stock_value: 0,
-    },
-};
-
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
     try {
         const { companyId } = await getAuthContext();
@@ -486,6 +482,23 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
         const errorMessage = getErrorMessage(e);
+        const emptyMetrics: DashboardMetrics = {
+            total_revenue: 0,
+            revenue_change: 0,
+            total_sales: 0,
+            sales_change: 0,
+            new_customers: 0,
+            customers_change: 0,
+            dead_stock_value: 0,
+            sales_over_time: [],
+            top_selling_products: [],
+            inventory_summary: {
+                total_value: 0,
+                in_stock_value: 0,
+                low_stock_value: 0,
+                dead_stock_value: 0,
+            },
+        };
         // Special handling for the "relation does not exist" error, which is expected for new users.
         if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
             logger.warn('Dashboard metrics failed to load, likely due to no data. Showing empty state.', { error: errorMessage });

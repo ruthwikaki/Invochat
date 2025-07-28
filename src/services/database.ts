@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -206,7 +205,12 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
         }
         if (data == null) {
             logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
-            throw new Error('No response from get_dashboard_metrics RPC call.');
+            return {
+                total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0,
+                customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+                inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
+                error: 'No data returned from RPC'
+            } as any;
         }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
@@ -635,7 +639,6 @@ export async function createPurchaseOrdersFromSuggestions(companyId: string, use
         p_company_id: companyId,
         p_user_id: userId,
         p_suggestions: suggestions,
-        p_idempotency_key: crypto.randomUUID(),
     });
 
     if (error) {

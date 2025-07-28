@@ -44,7 +44,7 @@ interface AdvancedReportsClientPageProps {
 }
 
 const ReportEmptyState = ({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) => (
-    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed h-full">
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed h-full min-h-[400px]">
          <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
