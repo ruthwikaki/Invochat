@@ -78,7 +78,7 @@ function ReconciliationCard({ integrationId }: { integrationId: string | undefin
             <CardHeader>
                 <CardTitle>Inventory Reconciliation</CardTitle>
                 <CardDescription>
-                    Manually sync your inventory quantities from your e-commerce platform to InvoChat. This is useful if you suspect a discrepancy.
+                    Manually sync your inventory quantities from your e-commerce platform to ARVO. This is useful if you suspect a discrepancy.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -86,7 +86,7 @@ function ReconciliationCard({ integrationId }: { integrationId: string | undefin
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>How it works</AlertTitle>
                     <AlertDescription>
-                        This process will fetch the current stock levels from your store and update the "External Quantity" field in InvoChat. It will then create an inventory adjustment to match your local quantity to the platform's quantity.
+                        This process will fetch the current stock levels from your store and create an inventory adjustment in ARVO to match the platform's quantity.
                     </AlertDescription>
                 </Alert>
             </CardContent>
@@ -214,7 +214,7 @@ export function IntegrationsClientPage() {
 
              {integrations.length > 0 && (
                 <div>
-                     <h2 className="text-xl font-semibold mb-4">Advanced Tools</h2>
+                     <h2 className="text-xl font-semibold my-4">Advanced Tools</h2>
                     <ReconciliationCard integrationId={integrations[0]?.id} />
                 </div>
             )}
