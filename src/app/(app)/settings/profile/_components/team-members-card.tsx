@@ -161,20 +161,27 @@ export function TeamMembersCard() {
                                             formData.append('newRole', newRole);
                                             updateRole(formData);
                                         }}
-                                        disabled={!isOwner || member.id === currentUser?.id || member.role === 'Owner'}
+                                        disabled={!isOwner || member.id === currentUser?.id}
                                     >
                                         <SelectTrigger className="w-[120px] h-8">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {member.role === 'Owner' && <SelectItem value="Owner">Owner</SelectItem>}
+                                            <SelectItem value="Owner">Owner</SelectItem>
                                             <SelectItem value="Admin">Admin</SelectItem>
                                             <SelectItem value="Member">Member</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
                                 <TableCell>
-                                    {canManageTeam && member.role !== 'Owner' && member.id !== currentUser?.id && (
+                                    {isOwner && member.id !== currentUser?.id && (
+                                        <Button variant="ghost" size="sm" onClick={() => {
+                                            const formData = new FormData();
+                                            formData.append('memberId', member.id);
+                                            remove(formData);
+                                        }}>Remove</Button>
+                                    )}
+                                    {currentUserRole === 'Admin' && member.role === 'Member' && (
                                         <Button variant="ghost" size="sm" onClick={() => {
                                             const formData = new FormData();
                                             formData.append('memberId', member.id);
