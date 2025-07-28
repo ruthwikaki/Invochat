@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getDeadStockReportFromDB, getSettings } from '@/services/database';
@@ -15,5 +16,8 @@ export async function getDeadStockPageData() {
     };
 }
 
-// Re-exporting the flow to be used as a server action
-export { markdownOptimizerFlow };
+export async function generateMarkdownPlan() {
+    'use server';
+    const { companyId } = await getAuthContext();
+    return markdownOptimizerFlow({ companyId });
+}
