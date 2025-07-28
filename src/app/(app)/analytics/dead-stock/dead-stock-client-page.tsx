@@ -11,6 +11,7 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { markdownOptimizerFlow } from '@/app/(app)/analytics/dead-stock/actions';
 
 interface MarkdownPlan {
     suggestions: any[];
@@ -24,7 +25,6 @@ interface DeadStockClientPageProps {
     totalUnits: number;
     deadStockDays: number;
   };
-  generateMarkdownPlanAction: () => Promise<MarkdownPlan>;
 }
 
 const StatCard = ({ title, value, icon: Icon, description }: { title: string; value: string; icon: React.ElementType, description: string }) => (
@@ -99,14 +99,14 @@ function MarkdownPlanResults({ plan, onClear }: { plan: MarkdownPlan, onClear: (
     )
 }
 
-export function DeadStockClientPage({ initialData, generateMarkdownPlanAction }: DeadStockClientPageProps) {
+export function DeadStockClientPage({ initialData }: DeadStockClientPageProps) {
   const { deadStockItems, totalValue, totalUnits, deadStockDays } = initialData;
   const [markdownPlan, setMarkdownPlan] = useState<MarkdownPlan | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleGeneratePlan = () => {
     startTransition(async () => {
-        const plan = await generateMarkdownPlanAction();
+        const plan = await markdownOptimizerFlow();
         setMarkdownPlan(plan);
     });
   };

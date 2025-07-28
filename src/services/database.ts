@@ -205,7 +205,10 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
         if (data == null) {
-            throw new Error('No response from get_dashboard_metrics_workaround RPC call.');
+            // This is a workaround for a PostgREST issue where RPCs can return null on certain errors
+            // without populating the error object.
+            logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
+            throw new Error('No response from get_dashboard_metrics RPC call.');
         }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
@@ -872,6 +875,3 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
-
-
-
