@@ -37,6 +37,7 @@ export async function checkUserPermission(userId: string, requiredRole: 'Admin' 
     }
     
     const supabase = getServiceRoleClient();
+    // Explicitly cast p_required_role to the 'company_role' enum to resolve ambiguity
     const { data, error } = await supabase.rpc('check_user_permission', { 
         p_user_id: userId, 
         p_required_role: requiredRole as any
@@ -128,7 +129,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     
     try {
         let query = supabase
-            .from('product_variants_with_details_mat')
+            .from('product_variants_with_details') // CORRECTED VIEW
             .select('*', { count: 'exact' })
             .eq('company_id', companyId);
 
@@ -198,12 +199,13 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
     const supabase = getServiceRoleClient();
     try {
-        const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
+        const { data, error } = await supabase.rpc('get_dashboard_metrics_workaround', { p_company_id: companyId, p_days: days });
         if (error) {
-            throw error;
+            logError(error, { context: 'getDashboardMetrics_workaround failed', companyId, period });
+            throw new Error('Could not retrieve dashboard metrics from the database.');
         }
         if (data == null) {
-            throw new Error('No data returned from get_dashboard_metrics RPC call.');
+            throw new Error('No response from get_dashboard_metrics_workaround RPC call.');
         }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
@@ -218,7 +220,7 @@ export async function getInventoryAnalyticsFromDB(companyId: string): Promise<In
     }
     try {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
+        const { data, error } = await supabase.rpc('get_inventory_analytics_workaround', { p_company_id: companyId });
         if (error) {
             logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
             throw new Error('Failed to retrieve inventory analytics');
@@ -319,7 +321,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers_view_workaround').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
         query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
@@ -346,7 +348,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders_view_workaround').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
@@ -363,7 +365,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
 export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_sales_analytics_workaround', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
@@ -374,7 +376,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_customer_analytics_workaround', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
@@ -850,4 +852,5 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
 
