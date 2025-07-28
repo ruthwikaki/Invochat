@@ -2,7 +2,7 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, Package, DollarSign } from 'lucide-react';
+import { TrendingUp, Package, DollarSign, LineChart } from 'lucide-react';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import {
   BarChart,
@@ -13,6 +13,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { motion } from 'framer-motion';
 
 export interface TurnoverReport {
     turnover_rate: number;
@@ -38,6 +39,25 @@ const StatCard = ({ title, value, icon: Icon, description }: { title: string; va
     </Card>
 );
 
+function EmptyState() {
+    return (
+        <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed h-full">
+            <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+                className="relative bg-primary/10 rounded-full p-6"
+            >
+                <LineChart className="h-16 w-16 text-primary" />
+            </motion.div>
+            <h3 className="mt-6 text-xl font-semibold">Not Enough Data for Turnover Report</h3>
+            <p className="mt-2 text-muted-foreground max-w-sm">
+                Inventory turnover is calculated using sales and product cost data. Once you have imported both, this report will become available.
+            </p>
+        </Card>
+    );
+}
+
 export function InventoryTurnoverClientPage({ report }: InventoryTurnoverClientPageProps) {
   const { turnover_rate, total_cogs, average_inventory_value, period_days } = report;
 
@@ -45,6 +65,10 @@ export function InventoryTurnoverClientPage({ report }: InventoryTurnoverClientP
     { name: 'Cost of Goods Sold', value: total_cogs },
     { name: 'Avg. Inventory Value', value: average_inventory_value },
   ];
+
+  if (!total_cogs && !average_inventory_value) {
+    return <EmptyState />;
+  }
 
   return (
     <div className="space-y-6">

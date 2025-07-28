@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { BarChart3, LineChart, PackageSearch } from 'lucide-react';
 
 // Define types for the report data
 type AbcAnalysisItem = {
@@ -42,6 +43,22 @@ interface AdvancedReportsClientPageProps {
   grossMarginData: GrossMarginItem[];
 }
 
+const ReportEmptyState = ({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) => (
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed h-full">
+         <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+            className="relative bg-primary/10 rounded-full p-6"
+        >
+            <Icon className="h-16 w-16 text-primary" />
+        </motion.div>
+        <h3 className="mt-6 text-xl font-semibold">{title}</h3>
+        <p className="mt-2 text-muted-foreground">{description}</p>
+    </Card>
+);
+
+
 const getCategoryBadgeClass = (category: 'A' | 'B' | 'C') => {
     switch (category) {
         case 'A': return 'bg-success/10 text-success-foreground border-success/20';
@@ -52,7 +69,7 @@ const getCategoryBadgeClass = (category: 'A' | 'B' | 'C') => {
 };
 
 function AbcAnalysisTab({ data }: { data: AbcAnalysisItem[] }) {
-    if (!data || data.length === 0) return <p className="text-center text-muted-foreground p-8">Not enough sales data to generate an ABC analysis.</p>;
+    if (!data || data.length === 0) return <ReportEmptyState title="No ABC Analysis Data" description="This report requires sales data. Once you have sales, we can categorize your products." icon={BarChart3} />;
     return (
         <Card>
             <CardHeader>
@@ -95,7 +112,7 @@ function AbcAnalysisTab({ data }: { data: AbcAnalysisItem[] }) {
 }
 
 function SalesVelocityTab({ data }: { data: { fast_sellers: SalesVelocityItem[], slow_sellers: SalesVelocityItem[] } }) {
-    if (!data || (data.fast_sellers.length === 0 && data.slow_sellers.length === 0)) return <p className="text-center text-muted-foreground p-8">Not enough sales data to generate a sales velocity report.</p>;
+    if (!data || (data.fast_sellers.length === 0 && data.slow_sellers.length === 0)) return <ReportEmptyState title="No Sales Velocity Data" description="This report is generated from your sales history. Sync your sales to see which products move fastest and slowest." icon={LineChart} />;
 
     const VelocityTable = ({ title, items }: { title: string, items: SalesVelocityItem[] }) => (
         <Card className="flex-1">
@@ -112,7 +129,7 @@ function SalesVelocityTab({ data }: { data: { fast_sellers: SalesVelocityItem[],
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {items.map(item => (
+                            {items.length > 0 ? items.map(item => (
                                 <TableRow key={item.sku}>
                                     <TableCell>
                                         <div className="font-medium">{item.product_name}</div>
@@ -120,7 +137,11 @@ function SalesVelocityTab({ data }: { data: { fast_sellers: SalesVelocityItem[],
                                     </TableCell>
                                     <TableCell className="text-right font-tabular">{item.sales_velocity.toFixed(2)}</TableCell>
                                 </TableRow>
-                            ))}
+                            )) : (
+                                <TableRow>
+                                    <TableCell colSpan={2} className="text-center text-muted-foreground h-24">No data for this category.</TableCell>
+                                </TableRow>
+                            )}
                         </TableBody>
                     </Table>
                 </div>
@@ -137,7 +158,7 @@ function SalesVelocityTab({ data }: { data: { fast_sellers: SalesVelocityItem[],
 }
 
 function GrossMarginTab({ data }: { data: GrossMarginItem[] }) {
-    if (!data || data.length === 0) return <p className="text-center text-muted-foreground p-8">Not enough sales and cost data to generate a gross margin report.</p>;
+    if (!data || data.length === 0) return <ReportEmptyState title="No Gross Margin Data" description="Profitability analysis requires both sales prices and product costs. Ensure your products have cost data imported." icon={PackageSearch} />;
     return (
         <Card>
             <CardHeader>
