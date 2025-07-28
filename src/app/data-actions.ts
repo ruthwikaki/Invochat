@@ -49,7 +49,7 @@ import {
     getSalesVelocityFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee } from '@/types';
 import { DashboardMetricsSchema, SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -383,15 +383,15 @@ export async function getChannelFees() {
     return getChannelFeesFromDB(companyId);
 }
 
-export async function upsertChannelFee(formData: FormData) {
+export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
-        const data = {
+        const data: Partial<ChannelFee> = {
             channel_name: formData.get('channel_name') as string,
-            fixed_fee: Number(formData.get('fixed_fee')),
-            percentage_fee: Number(formData.get('percentage_fee'))
+            fixed_fee: Number(formData.get('fixed_fee')) || null,
+            percentage_fee: Number(formData.get('percentage_fee')) || null,
         }
         await upsertChannelFeeInDb(companyId, data);
         revalidatePath('/settings/profile');
