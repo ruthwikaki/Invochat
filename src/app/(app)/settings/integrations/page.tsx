@@ -5,7 +5,8 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query';
-import { getIntegrations } from "@/app/data-actions";
+import { getIntegrations, getImportHistory } from "@/app/data-actions";
+import { ImportHistoryCard } from "@/features/integrations/components/ImportHistoryCard";
 
 function IntegrationsLoadingSkeleton() {
     return (
@@ -38,18 +39,21 @@ export default async function IntegrationsPage() {
         queryFn: getIntegrations,
     });
 
+    const importHistory = await getImportHistory();
+
     return (
         <AppPage>
             <AppPageHeader
-                title="Integrations"
-                description="Connect your e-commerce platforms and other services to sync data automatically."
+                title="Integrations & Data"
+                description="Connect platforms, manage syncs, and view import history."
             />
-            <div className="mt-6">
+            <div className="mt-6 space-y-8">
                 <HydrationBoundary state={dehydrate(queryClient)}>
                     <Suspense fallback={<IntegrationsLoadingSkeleton />}>
                         <IntegrationsClientPage />
                     </Suspense>
                 </HydrationBoundary>
+                <ImportHistoryCard initialHistory={importHistory} />
             </div>
         </AppPage>
     )

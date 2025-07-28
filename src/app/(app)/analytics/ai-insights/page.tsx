@@ -5,6 +5,7 @@ import { getMarkdownSuggestions } from "@/ai/flows/markdown-optimizer-flow";
 import { getBundleSuggestions } from "@/ai/flows/suggest-bundles-flow";
 import { getPriceOptimizationSuggestions } from "@/ai/flows/price-optimization-flow";
 import { findHiddenMoney } from "@/ai/flows/hidden-money-finder-flow";
+import { getPromotionalImpactAnalysis } from '@/ai/flows/analytics-tools';
 import { getAuthContext } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,12 @@ export default function AiInsightsPage() {
         return findHiddenMoney({ companyId });
     }
 
+    const generatePromotionalImpact = async (skus: string[], discountPercentage: number, durationDays: number) => {
+        'use server';
+        const { companyId } = await getAuthContext();
+        return getPromotionalImpactAnalysis({ companyId, skus, discountPercentage, durationDays });
+    }
+
     return (
         <AppPage>
             <AppPageHeader
@@ -47,6 +54,7 @@ export default function AiInsightsPage() {
                     generateBundleSuggestionsAction={generateBundleSuggestions}
                     generatePriceOptimizationAction={generatePriceOptimization}
                     generateHiddenMoneyAction={generateHiddenMoney}
+                    generatePromotionalImpactAction={generatePromotionalImpact}
                 />
             </div>
         </AppPage>
