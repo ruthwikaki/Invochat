@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useTransition } from 'react';
@@ -19,7 +18,7 @@ export function ExportDataClientPage() {
             if (result.success) {
                 toast({
                     title: "Export Queued",
-                    description: `Your data export has been queued. Job ID: ${result.jobId}. You will be notified when it's ready.`,
+                    description: `Your data export has been queued. You will be notified when it's ready.`,
                 });
             } else {
                 toast({
