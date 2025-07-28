@@ -54,6 +54,7 @@ function generateSimulatedOrders(products: unknown[], count: number): unknown[] 
             customer: { first_name: 'Simulated', last_name: 'Customer', email: `fba.customer+${Date.now() + i}@example.com` },
             total_price: total_price.toFixed(2),
             line_items,
+            created_at: new Date(Date.now() - i * 3600000).toISOString()
         });
     }
     return orders;

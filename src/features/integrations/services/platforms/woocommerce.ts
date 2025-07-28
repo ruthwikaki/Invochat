@@ -115,7 +115,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 });
             }
             
-            for (const wooProduct of wooProducts as { id: number; type: string; sku: string; stock_quantity: number | null, name: string, description: string, slug: string, categories: {name: string}[], tags: {name: string}[], status: string, images: {src: string}[], price: string }[]) {
+            for (const wooProduct of wooProducts as { id: number; type: string; sku: string; stock_quantity: number | null, name: string, description: string, slug: string, categories: {name: string}[], tags: {name: string}[], status: string, images: {src: string}[], price: string, regular_price: string }[]) {
                 const internalProductId = productIdMap.get(String(wooProduct.id));
                 if (!internalProductId) continue;
 
@@ -131,7 +131,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                         external_variant_id: String(wooProduct.id),
                         location: null,
                         barcode: null,
-                        compare_at_price: null,
+                        compare_at_price: wooProduct.regular_price ? Math.round(parseFloat(wooProduct.regular_price) * 100) : null,
                         option1_name: null,
                         option1_value: null,
                         option2_name: null,
@@ -144,7 +144,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
             }
 
             for (const variantDetails of allVariations) {
-                const variant = variantDetails as { id: number; parent_id: number; sku: string; attributes: { name: string; option: string }[]; price: string; stock_quantity: number | null; };
+                const variant = variantDetails as { id: number; parent_id: number; sku: string; attributes: { name: string; option: string }[]; price: string; regular_price: string; stock_quantity: number | null; };
                 const internalProductId = productIdMap.get(String(variant.parent_id));
                 if (!internalProductId) continue;
 
@@ -162,7 +162,7 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                     price: Math.round(parseFloat(variant.price || '0') * 100),
                     cost: null,
                     barcode: null,
-                    compare_at_price: null,
+                    compare_at_price: variant.regular_price ? Math.round(parseFloat(variant.regular_price) * 100) : null,
                     inventory_quantity: variant.stock_quantity === null ? 0 : variant.stock_quantity,
                     external_variant_id: String(variant.id),
                     location: null,
