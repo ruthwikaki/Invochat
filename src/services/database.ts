@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -758,7 +759,7 @@ export async function getNetMarginByChannelFromDB(companyId: string, channelName
 export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_velocity', { p_company_id: companyId, p_days: days, p_limit: limit });
+    const { data, error } = await supabase.rpc('get_sales_velocity_report', { p_company_id: companyId, p_days: days, p_limit: limit });
     if(error) {
         logError(error, { context: 'getSalesVelocityFromDB failed' });
         throw error;
@@ -778,7 +779,7 @@ export async function getDemandForecastFromDB(companyId: string) {
 export async function getAbcAnalysisFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_abc_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_abc_analysis_report', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getAbcAnalysisFromDB failed' });
         throw error;
@@ -788,7 +789,7 @@ export async function getAbcAnalysisFromDB(companyId: string) {
 export async function getGrossMarginAnalysisFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_gross_margin_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_gross_margin_report', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getGrossMarginAnalysisFromDB failed' });
         throw error;
@@ -890,5 +891,3 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
-
-    

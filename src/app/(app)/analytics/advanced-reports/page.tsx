@@ -27,7 +27,7 @@ export default async function AdvancedReportsPage() {
                 <AdvancedReportsClientPage
                     abcAnalysisData={abcAnalysisData || []}
                     salesVelocityData={salesVelocityData || { fast_sellers: [], slow_sellers: [] }}
-                    grossMarginData={grossMarginData?.products || []}
+                    grossMarginData={grossMarginData || []}
                 />
             </div>
         </AppPage>
