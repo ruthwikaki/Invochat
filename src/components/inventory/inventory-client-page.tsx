@@ -5,7 +5,7 @@ import { useState, useMemo, Fragment } from 'react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, ArrowDownUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -204,6 +204,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     return exportAction({ query: searchQuery, status, sortBy, sortDirection });
   }
 
+  if (showEmptyState) {
+    return <EmptyInventoryState />;
+  }
+
   return (
     <>
     <InventoryHistoryDialog variant={historyVariant} onClose={() => { setHistoryVariant(null); }} />
@@ -242,105 +246,105 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
         </div>
       </div>
       
-        {showEmptyState ? <EmptyInventoryState /> : (
-            <Card>
-                <CardContent className="p-0">
-                <div className="max-h-[70vh] overflow-auto">
-                    <Table>
-                        <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
-                            <TableRow>
-                                <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Variants</TableHead>
-                                <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
-                                <TableHead className="w-16 text-center">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {showNoResultsState ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    No inventory found matching your criteria.
-                                </TableCell>
-                            </TableRow>
-                        ) : groupedInventory.map(product => {
-                            const totalQty = product.variants.reduce((sum, v) => sum + v.inventory_quantity, 0);
-                            return (
-                            <Fragment key={product.product_id}>
-                            <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
-                                <TableCell>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-10 w-10 rounded-md">
-                                            <AvatarImage src={product.image_url || undefined} alt={product.product_title} />
-                                            <AvatarFallback className="rounded-md bg-muted text-muted-foreground">{product.product_title.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="font-medium">{product.product_title}</div>
+        <Card>
+            <CardContent className="p-0">
+            <div className="max-h-[70vh] overflow-auto">
+                <Table>
+                    <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+                        <TableRow>
+                            <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Variants</TableHead>
+                            <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <TableHead className="w-16 text-center">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {showNoResultsState ? (
+                        <TableRow>
+                            <TableCell colSpan={5} className="h-24 text-center">
+                                No inventory found matching your criteria.
+                            </TableCell>
+                        </TableRow>
+                    ) : groupedInventory.map(product => {
+                        const totalQty = product.variants.reduce((sum, v) => sum + v.inventory_quantity, 0);
+                        return (
+                        <Fragment key={product.product_id}>
+                        <TableRow className="group transition-shadow data-[state=selected]:bg-muted hover:shadow-md">
+                            <TableCell>
+                                <div className="flex items-center gap-3">
+                                    <Avatar className="h-10 w-10 rounded-md">
+                                        <AvatarImage src={product.image_url || undefined} alt={product.product_title} />
+                                        <AvatarFallback className="rounded-md bg-muted text-muted-foreground">{product.product_title.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="font-medium">{product.product_title}</div>
+                                </div>
+                            </TableCell>
+                            <TableCell><Badge variant={product.product_status === 'active' ? 'secondary' : 'outline'} className={cn(
+                                product.product_status === 'active' ? 'bg-success/10 text-success-foreground' : 
+                                product.product_status === 'draft' ? 'bg-warning/10 text-amber-600 dark:text-amber-400' : 'bg-gray-500/10 text-gray-500'
+                                )}>{product.product_status}</Badge></TableCell>
+                            <TableCell className="text-right font-tabular">{product.variants.length}</TableCell>
+                            <TableCell className="text-right font-semibold font-tabular">{totalQty}</TableCell>
+                            <TableCell className="text-center">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleExpandProduct(product.product_id)}>
+                                    <ChevronDown className={cn("h-4 w-4 transition-transform", expandedProducts.has(product.product_id) && "rotate-180")} />
+                                </Button>
+                            </TableCell>
+                        </TableRow>
+                        {expandedProducts.has(product.product_id) && (
+                            <TableRow className="bg-muted/50 hover:bg-muted/80">
+                                <TableCell colSpan={5} className="p-0">
+                                    <div className="p-4">
+                                        <div className="rounded-md border bg-card">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Variant</TableHead>
+                                                        <TableHead>SKU</TableHead>
+                                                        <TableHead className="text-right">Price</TableHead>
+                                                        <TableHead className="text-right">Cost</TableHead>
+                                                        <TableHead className="text-right">Quantity</TableHead>
+                                                        <TableHead>Status</TableHead>
+                                                        <TableHead>Location</TableHead>
+                                                        <TableHead className="text-center">Actions</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {product.variants.map(variant => (
+                                                        <TableRow key={variant.id} className="hover:bg-background">
+                                                            <TableCell>{variant.title || 'Default'}</TableCell>
+                                                            <TableCell className="text-muted-foreground">{variant.sku}</TableCell>
+                                                            <TableCell className="text-right font-tabular">{formatCentsAsCurrency(variant.price)}</TableCell>
+                                                            <TableCell className="text-right font-tabular">{formatCentsAsCurrency(variant.cost)}</TableCell>
+                                                            <TableCell className="text-right font-medium font-tabular">{variant.inventory_quantity}</TableCell>
+                                                            <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
+                                                            <TableCell>{variant.location || 'N/A'}</TableCell>
+                                                            <TableCell className="text-center space-x-1">
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setHistoryVariant(variant); }}>
+                                                                    <History className="h-4 w-4" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
                                     </div>
                                 </TableCell>
-                                <TableCell><Badge variant={product.product_status === 'active' ? 'secondary' : 'outline'} className={cn(
-                                    product.product_status === 'active' ? 'bg-success/10 text-success-foreground' : 
-                                    product.product_status === 'draft' ? 'bg-warning/10 text-amber-600 dark:text-amber-400' : 'bg-gray-500/10 text-gray-500'
-                                    )}>{product.product_status}</Badge></TableCell>
-                                <TableCell className="text-right font-tabular">{product.variants.length}</TableCell>
-                                <TableCell className="text-right font-semibold font-tabular">{totalQty}</TableCell>
-                                <TableCell className="text-center">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleExpandProduct(product.product_id)}>
-                                        <ChevronDown className={cn("h-4 w-4 transition-transform", expandedProducts.has(product.product_id) && "rotate-180")} />
-                                    </Button>
-                                </TableCell>
                             </TableRow>
-                            {expandedProducts.has(product.product_id) && (
-                                <TableRow className="bg-muted/50 hover:bg-muted/80">
-                                    <TableCell colSpan={5} className="p-0">
-                                        <div className="p-4">
-                                            <div className="rounded-md border bg-card">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>Variant</TableHead>
-                                                            <TableHead>SKU</TableHead>
-                                                            <TableHead className="text-right">Price</TableHead>
-                                                            <TableHead className="text-right">Cost</TableHead>
-                                                            <TableHead className="text-right">Quantity</TableHead>
-                                                            <TableHead>Status</TableHead>
-                                                            <TableHead>Location</TableHead>
-                                                            <TableHead className="text-center">Actions</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {product.variants.map(variant => (
-                                                            <TableRow key={variant.id} className="hover:bg-background">
-                                                                <TableCell>{variant.title || 'Default'}</TableCell>
-                                                                <TableCell className="text-muted-foreground">{variant.sku}</TableCell>
-                                                                <TableCell className="text-right font-tabular">{formatCentsAsCurrency(variant.price)}</TableCell>
-                                                                <TableCell className="text-right font-tabular">{formatCentsAsCurrency(variant.cost)}</TableCell>
-                                                                <TableCell className="text-right font-medium font-tabular">{variant.inventory_quantity}</TableCell>
-                                                                <TableCell><StatusBadge quantity={variant.inventory_quantity} /></TableCell>
-                                                                <TableCell>{variant.location || 'N/A'}</TableCell>
-                                                                <TableCell className="text-center space-x-1">
-                                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setHistoryVariant(variant); }}>
-                                                                        <History className="h-4 w-4" />
-                                                                    </Button>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                            </Fragment>
-                        )})}
-                        </TableBody>
-                    </Table>
-                </div>
-                <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
-                </CardContent>
-            </Card>
-        )}
+                        )}
+                        </Fragment>
+                    )})}
+                    </TableBody>
+                </Table>
+            </div>
+            <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
+            </CardContent>
+        </Card>
     </div>
     </>
   );
 }
+
+    

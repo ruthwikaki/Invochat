@@ -102,7 +102,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
     });
   }
 
-  if (initialPurchaseOrders.length === 0) {
+  if (!initialPurchaseOrders || initialPurchaseOrders.length === 0) {
     return <EmptyPurchaseOrderState />;
   }
 
@@ -199,7 +199,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
       </CardContent>
     </Card>
 
-     <AlertDialog open={!!poToDelete} onOpenChange={setPoToDelete}>
+     <AlertDialog open={!!poToDelete} onOpenChange={(open) => { if (!open) setPoToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -218,3 +218,5 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
     </>
   );
 }
+
+    

@@ -124,6 +124,8 @@ export async function signup(formData: FormData) {
       options: {
         data: {
           company_name: companyName,
+          // This is the key change: passing company_name in the user metadata
+          // so the database trigger can correctly create the company and associate the user.
         },
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
       },
