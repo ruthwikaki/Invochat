@@ -60,11 +60,11 @@ import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation } from '@/types';
 import { z } from 'zod';
-import { markdownOptimizerFlow } from '@/ai/flows/markdown-optimizer-flow';
-import { suggestBundlesFlow } from '@/ai/flows/suggest-bundles-flow';
-import { findHiddenMoneyFlow } from '@/ai/flows/hidden-money-finder-flow';
+import { getMarkdownSuggestions } from '@/ai/flows/markdown-optimizer-flow';
+import { getBundleSuggestions } from '@/ai/flows/suggest-bundles-flow';
+import { findHiddenMoney } from '@/ai/flows/hidden-money-finder-flow';
 import { getPromotionalImpactAnalysis } from '@/ai/flows/analytics-tools';
-import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
+import { getPriceOptimizationSuggestions } from '@/ai/flows/price-optimization-flow';
 
 
 export async function getProducts() {
@@ -344,9 +344,9 @@ export async function createPurchaseOrder(formData: FormData) {
         const { companyId, userId } = await getAuthContext();
         await validateCSRF(formData);
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
-        await createPurchaseOrderInDb(companyId, userId, data);
+        const newPoId = await createPurchaseOrderInDb(companyId, userId, data);
         revalidatePath('/purchase-orders');
-        return { success: true };
+        return { success: true, newPoId };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -360,7 +360,7 @@ export async function updatePurchaseOrder(formData: FormData) {
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
         await updatePurchaseOrderInDb(id, companyId, userId, data);
         revalidatePath('/purchase-orders');
-        return { success: true };
+        return { success: true, updatedPoId: id };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
     }
@@ -582,17 +582,10 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
     }
 }
 
-export async function generateMarkdownPlanAction() {
-    'use server';
+export async function getReorderReport() {
     const { companyId } = await getAuthContext();
-    return markdownOptimizerFlow({ companyId });
-};
-
-export async function generateBundleSuggestionsAction(count: number) {
-    'use server';
-    const { companyId } = await getAuthContext();
-    return suggestBundlesFlow({ companyId, count });
-};
+    return getReorderSuggestions({ companyId });
+}
 
 export async function getAdvancedAbcReport() {
     const { companyId } = await getAuthContext();
@@ -626,24 +619,6 @@ export async function adjustInventoryQuantity(formData: FormData) {
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
-}
-
-export async function generateHiddenMoneyAction() {
-    'use server';
-    const { companyId } = await getAuthContext();
-    return findHiddenMoneyFlow({ companyId });
-}
-
-export async function generatePromotionalImpactAction(skus: string[], discount: number, duration: number) {
-    'use server';
-    const { companyId } = await getAuthContext();
-    return getPromotionalImpactAnalysis({ companyId, skus, discountPercentage: discount, durationDays: duration });
-}
-
-export async function generatePriceOptimizationAction() {
-    'use server';
-    const { companyId } = await getAuthContext();
-    return priceOptimizationFlow({ companyId });
 }
 
 export async function getImportHistory() {
@@ -688,4 +663,5 @@ export async function getFeedbackData(params: {
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
 

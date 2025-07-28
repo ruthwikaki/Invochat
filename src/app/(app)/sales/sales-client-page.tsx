@@ -124,17 +124,21 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
         
         <Card>
             <CardHeader>
-                <div className="flex flex-col md:flex-row items-center gap-2">
-                    <div className="relative flex-1 w-full">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search by order number or customer email..."
-                            onChange={(e) => handleSearch(e.target.value)}
-                            defaultValue={searchQuery}
-                            className="pl-10"
-                        />
+                <div className="flex items-start justify-between">
+                    <div>
+                        <CardTitle>Sales History</CardTitle>
+                        <CardDescription>A complete log of all recorded sales orders.</CardDescription>
                     </div>
-                    <ExportButton exportAction={handleExport} filename="sales_orders.csv" />
+                     <ExportButton exportAction={handleExport} filename="sales_orders.csv" />
+                </div>
+                <div className="relative pt-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Search by order number or customer email..."
+                        onChange={(e) => handleSearch(e.target.value)}
+                        defaultValue={searchQuery}
+                        className="pl-10"
+                    />
                 </div>
             </CardHeader>
             <CardContent className="p-0">

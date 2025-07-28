@@ -110,7 +110,11 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
 
             if (result.success) {
                 toast({ title: `Purchase Order ${initialData ? 'updated' : 'created'}.` });
-                router.push('/purchase-orders');
+                if (result.newPoId) {
+                    router.push(`/purchase-orders/${result.newPoId}/edit`);
+                } else {
+                    router.push('/purchase-orders');
+                }
                 router.refresh();
             } else {
                 toast({ variant: 'destructive', title: 'Error', description: result.error });
