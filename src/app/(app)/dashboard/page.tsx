@@ -49,16 +49,18 @@ export default async function DashboardPage({
         
         // The getDashboardData action now returns an error property if it fails internally
         if ((metrics as any).error) {
-            metricsError = (metrics as any).error;
-            metrics = emptyMetrics; // Ensure metrics are empty on error
+            // This case handles when a new user has no data, which causes the DB function to fail.
+            // We log the error but don't show it to the user, providing a clean empty state instead.
+            logger.warn('Dashboard metrics failed to load, likely due to no data. Showing empty state.', { error: (metrics as any).error });
+            metrics = emptyMetrics; 
         }
 
     } catch (error) {
         logger.error('Failed to fetch dashboard data', { error });
-        metricsError = 'Could not connect to the data service. This may be temporary or may require initial data import.';
-        // Provide default fallback data so the page can still render without crashing.
+        // This catch block handles more severe, unexpected errors.
+        metricsError = 'Could not connect to the data service. The service may be temporarily unavailable.';
         metrics = emptyMetrics;
-        briefing = { greeting: 'Welcome!', summary: 'Could not load insights. Please import your data to get started.' };
+        briefing = { greeting: 'Welcome!', summary: 'Could not load insights at this time.' };
         settings = { currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
     }
 
@@ -75,7 +77,7 @@ export default async function DashboardPage({
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Could Not Load Dashboard Metrics</AlertTitle>
                         <AlertDescription>
-                            We couldn't load all the metrics for your dashboard. This might be a temporary issue or because you haven't imported any sales data yet.
+                            {metricsError}
                         </AlertDescription>
                     </Alert>
                 )}
@@ -88,4 +90,3 @@ export default async function DashboardPage({
         </AppPage>
     );
 }
-
