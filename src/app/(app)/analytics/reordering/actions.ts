@@ -1,10 +1,11 @@
 
+
 'use server';
 
 import { getAuthContext } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
-import { getErrorMessage } from '@/lib/error-handler';
-import { createPurchaseOrdersInDb, createAuditLogInDb } from '@/services/database';
+import { getErrorMessage, logError } from '@/lib/error-handler';
+import { createPurchaseOrdersFromSuggestions as createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
 import type { ReorderSuggestion } from '@/types';
 import Papa from 'papaparse';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
@@ -13,6 +14,18 @@ import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 export async function getReorderReport() {
     const { companyId } = await getAuthContext();
     return getReorderSuggestions({ companyId });
+}
+
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
+        revalidatePath('/purchase-orders');
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
+        return { success: false, error: getErrorMessage(e) };
+    }
 }
 
 export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {

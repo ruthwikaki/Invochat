@@ -1,8 +1,9 @@
 
+
 'use client';
 
 import { useState, useTransition, Fragment, useEffect } from 'react';
-import type { PurchaseOrderWithItemsAndSupplier, Supplier } from '@/types';
+import type { PurchaseOrderWithItemsAndSupplier } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +31,6 @@ import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 interface PurchaseOrdersClientPageProps {
   initialPurchaseOrders: PurchaseOrderWithItemsAndSupplier[];
-  suppliers: Supplier[];
 }
 
 const statusColors: { [key: string]: string } = {

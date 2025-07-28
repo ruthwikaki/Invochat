@@ -350,7 +350,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('sales_orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
@@ -626,6 +626,27 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
     return data.id;
 }
 
+export async function createPurchaseOrdersFromSuggestions(companyId: string, userId: string, suggestions: ReorderSuggestion[]) {
+    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
+        throw new Error('Invalid ID format');
+    }
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_suggestions: suggestions,
+        p_idempotency_key: crypto.randomUUID(),
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to execute create_purchase_orders_from_suggestions RPC' });
+        throw new Error('Database error while creating purchase orders from suggestions.');
+    }
+    
+    return data;
+}
+
+
 export async function updatePurchaseOrderInDb(poId: string, companyId: string, userId: string, poData: PurchaseOrderFormData) {
     if (!z.string().uuid().safeParse(poId).success || !z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid ID format');
@@ -654,7 +675,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
-        .from('purchase_orders_view')
+        .from('purchase_orders_with_items_view')
         .select('*')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
@@ -672,7 +693,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         throw new Error('Invalid ID format');
     }
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('purchase_orders_view').select('*').eq('id', id).eq('company_id', companyId).single();
+    const { data, error } = await supabase.from('purchase_orders_with_items_view').select('*').eq('id', id).eq('company_id', companyId).single();
 
     if (error) {
         if(error.code === 'PGRST116') return null;
@@ -871,4 +892,3 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
-
