@@ -128,7 +128,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     
     try {
         let query = supabase
-            .from('product_variants_view')
+            .from('product_variants_with_details')
             .select('*', { count: 'exact' })
             .eq('company_id', companyId);
 
@@ -201,7 +201,11 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
         const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
         if (error) {
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
-            throw error;
+            throw new Error('Could not retrieve dashboard metrics from the database.');
+        }
+        if (data == null) {
+            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
+            throw new Error('No response from get_dashboard_metrics RPC call.');
         }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
@@ -318,9 +322,9 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers_view_mat').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
-        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
@@ -345,7 +349,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('sales_orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
@@ -837,7 +841,7 @@ export async function getAuditLogFromDB(companyId: string, params: { query?: str
     const supabase = getServiceRoleClient();
     
     try {
-        let query = supabase.from('audit_log_view_mat').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('audit_log_view').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`action.ilike.%${validatedParams.query}%,user_email.ilike.%${validatedParams.query}%`);
         }
@@ -886,5 +890,3 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
-
-    
