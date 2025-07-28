@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 
 interface MarkdownPlan {
     suggestions: any[];
@@ -33,11 +34,64 @@ interface HiddenMoney {
     analysis: string;
 }
 
+interface PromotionalImpact {
+    estimated_impact: {
+        total_revenue_increase: number;
+        total_profit_increase: number;
+        estimated_units_sold: number;
+        breakeven_unit_increase: number;
+    },
+    product_breakdown: any[];
+    summary: string;
+}
+
+
 interface AiInsightsClientPageProps {
   generateMarkdownPlanAction: () => Promise<MarkdownPlan>;
   generateBundleSuggestionsAction: (count: number) => Promise<BundleSuggestions>;
   generatePriceOptimizationAction: () => Promise<PriceOptimization>;
   generateHiddenMoneyAction: () => Promise<HiddenMoney>;
+  generatePromotionalImpactAction: (skus: string[], discount: number, duration: number) => Promise<PromotionalImpact>;
+}
+
+function PromotionalImpactResults({ data }: { data: PromotionalImpact }) {
+    if (!data) return <p className="text-muted-foreground">The AI did not generate a promotional impact analysis.</p>;
+
+    const { estimated_impact, product_breakdown, summary } = data;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+        >
+            <Alert className="mb-6 bg-primary/5 border-primary/20">
+                <Lightbulb className="h-4 w-4" />
+                <AlertTitle>AI Analyst's Summary</AlertTitle>
+                <AlertDescription>{summary}</AlertDescription>
+            </Alert>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                <Card>
+                    <CardHeader><CardTitle>{formatCentsAsCurrency(estimated_impact.total_revenue_increase)}</CardTitle></CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground">Est. Revenue Lift</p></CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle>{formatCentsAsCurrency(estimated_impact.total_profit_increase)}</CardTitle></CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground">Est. Profit Lift</p></CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle>{estimated_impact.estimated_units_sold}</CardTitle></CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground">Est. Units Sold</p></CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle>{estimated_impact.breakeven_unit_increase}%</CardTitle></CardHeader>
+                    <CardContent><p className="text-sm text-muted-foreground">Breakeven Sales Lift</p></CardContent>
+                </Card>
+            </div>
+        </motion.div>
+    );
 }
 
 function HiddenMoneyResults({ data }: { data: HiddenMoney }) {
@@ -225,7 +279,7 @@ function PriceOptimizationResults({ optimization }: { optimization: PriceOptimiz
     )
 }
 
-export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundleSuggestionsAction, generatePriceOptimizationAction, generateHiddenMoneyAction }: AiInsightsClientPageProps) {
+export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundleSuggestionsAction, generatePriceOptimizationAction, generateHiddenMoneyAction, generatePromotionalImpactAction }: AiInsightsClientPageProps) {
   const [markdownPlan, setMarkdownPlan] = useState<MarkdownPlan | null>(null);
   const [isMarkdownPending, startMarkdownTransition] = useTransition();
 
@@ -238,6 +292,12 @@ export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundl
 
   const [hiddenMoney, setHiddenMoney] = useState<HiddenMoney | null>(null);
   const [isHiddenMoneyPending, startHiddenMoneyTransition] = useTransition();
+
+  const [promotionalImpact, setPromotionalImpact] = useState<PromotionalImpact | null>(null);
+  const [isPromoPending, startPromoTransition] = useTransition();
+  const [promoSkus, setPromoSkus] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState(15);
+  const [promoDuration, setPromoDuration] = useState(14);
 
 
   const handleGenerateMarkdownPlan = () => {
@@ -267,6 +327,14 @@ export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundl
         setHiddenMoney(money);
     });
   };
+  
+  const handleGeneratePromoImpact = () => {
+    startPromoTransition(async () => {
+        const skusArray = promoSkus.split(',').map(s => s.trim()).filter(s => s);
+        const impact = await generatePromotionalImpactAction(skusArray, promoDiscount / 100, promoDuration);
+        setPromotionalImpact(impact);
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -289,6 +357,42 @@ export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundl
             {hiddenMoney && (
                 <CardContent>
                     <HiddenMoneyResults data={hiddenMoney} />
+                </CardContent>
+            )}
+            </AnimatePresence>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                 <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary"/> Promotional Impact Analysis</CardTitle>
+                <CardDescription>
+                    Let AI model the financial impact of a planned promotion or sale before you run it.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <Label htmlFor="promo-skus">Product SKUs (comma-separated)</Label>
+                        <Textarea id="promo-skus" placeholder="SKU001, SKU002, SKU005" value={promoSkus} onChange={e => setPromoSkus(e.target.value)} />
+                    </div>
+                     <div>
+                        <Label htmlFor="promo-discount">Discount (%)</Label>
+                        <Input id="promo-discount" type="number" value={promoDiscount} onChange={e => setPromoDiscount(Number(e.target.value))} />
+                    </div>
+                     <div>
+                        <Label htmlFor="promo-duration">Duration (days)</Label>
+                        <Input id="promo-duration" type="number" value={promoDuration} onChange={e => setPromoDuration(Number(e.target.value))} />
+                    </div>
+                </div>
+                 <Button onClick={handleGeneratePromoImpact} disabled={isPromoPending} className="mt-4">
+                    {isPromoPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                    Analyze Promotion
+                </Button>
+            </CardContent>
+            <AnimatePresence>
+            {promotionalImpact && (
+                <CardContent>
+                    <PromotionalImpactResults data={promotionalImpact} />
                 </CardContent>
             )}
             </AnimatePresence>
