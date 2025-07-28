@@ -39,31 +39,26 @@ export default async function DashboardPage({
     let metricsError = null;
 
     try {
-        // Fetch data in parallel for better performance
-        // If any of these fail, the catch block will handle it.
         [metrics, briefing, settings] = await Promise.all([
             getDashboardData(dateRange),
             getMorningBriefing(dateRange),
             getCompanySettings(),
         ]);
         
-        // The getDashboardData action now returns an error property if it fails internally
         if ((metrics as any).error) {
-            // This case handles when a new user has no data, which causes the DB function to fail.
-            // We log the error but don't show it to the user, providing a clean empty state instead.
             logger.warn('Dashboard metrics failed to load, likely due to no data. Showing empty state.', { error: (metrics as any).error });
+            // This is the expected path for a new user. We show the empty state, not an error.
             metrics = emptyMetrics; 
         }
 
     } catch (error) {
-        logger.error('Failed to fetch dashboard data', { error });
         // This catch block handles more severe, unexpected errors.
-        metricsError = 'Could not connect to the data service. The service may be temporarily unavailable.';
+        logger.error('Failed to fetch dashboard data', { error });
+        metricsError = 'Could not load your dashboard analytics. The data service may be temporarily unavailable. Please try again later.';
         metrics = emptyMetrics;
         briefing = { greeting: 'Welcome!', summary: 'Could not load insights at this time.' };
         settings = { currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
     }
-
 
     return (
         <AppPage>

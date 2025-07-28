@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition, Fragment, useEffect } from 'react';
@@ -102,7 +101,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
     });
   }
 
-  if (initialPurchaseOrders.length === 0) {
+  if (!initialPurchaseOrders || initialPurchaseOrders.length === 0) {
     return <EmptyPurchaseOrderState />;
   }
 

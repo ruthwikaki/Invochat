@@ -52,7 +52,7 @@ function EmptyState() {
             </motion.div>
             <h3 className="mt-6 text-xl font-semibold">Not Enough Data for Turnover Report</h3>
             <p className="mt-2 text-muted-foreground max-w-sm">
-                Inventory turnover is calculated using sales and product cost data. Once you have imported both, this report will become available.
+                Inventory turnover is calculated using your sales and product cost data. Import both to generate this report.
             </p>
         </Card>
     );
@@ -66,7 +66,7 @@ export function InventoryTurnoverClientPage({ report }: InventoryTurnoverClientP
     { name: 'Avg. Inventory Value', value: average_inventory_value },
   ];
 
-  if (!total_cogs && !average_inventory_value) {
+  if (!total_cogs || !average_inventory_value) {
     return <EmptyState />;
   }
 

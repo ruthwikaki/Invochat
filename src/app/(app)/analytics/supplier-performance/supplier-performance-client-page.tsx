@@ -53,7 +53,7 @@ const getOnTimeBadgeVariant = (rate: number) => {
 };
 
 export function SupplierPerformanceClientPage({ initialData }: SupplierPerformanceClientPageProps) {
-  if (initialData.length === 0) {
+  if (!initialData || initialData.length === 0) {
     return <EmptyState />;
   }
   

@@ -109,8 +109,11 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
     const handleExport = () => {
         return exportAction({ query: searchQuery });
     }
+    
+    const showEmptyState = totalCount === 0 && !searchQuery;
+    const showNoResultsState = totalCount === 0 && searchQuery;
 
-    if(totalCount === 0 && !searchQuery) {
+    if(showEmptyState) {
         return <EmptySalesState />;
     }
 
@@ -154,7 +157,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {initialSales.length === 0 ? (
+                        {showNoResultsState ? (
                             <TableRow>
                             <TableCell colSpan={5} className="h-24 text-center">
                                 No sales orders found matching your search.
