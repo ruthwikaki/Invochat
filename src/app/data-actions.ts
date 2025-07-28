@@ -52,7 +52,8 @@ import {
     getFeedbackFromDB,
     deletePurchaseOrderFromDb,
     getSupplierPerformanceFromDB,
-    getInventoryTurnoverFromDB
+    getInventoryTurnoverFromDB,
+    createPurchaseOrdersFromSuggestions as createPurchaseOrdersFromSuggestionsInDb
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
@@ -397,6 +398,18 @@ export async function deletePurchaseOrder(formData: FormData) {
     }
 }
 
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
+        revalidatePath('/purchase-orders');
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
 
 export async function getInventoryLedger(variantId: string) {
     const { companyId } = await getAuthContext();
@@ -472,8 +485,14 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         const data = await getDashboardMetrics(companyId, dateRange);
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
+        const errorMessage = getErrorMessage(e);
+        // Special handling for the "relation does not exist" error, which is expected for new users.
+        if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+            logger.warn('Dashboard metrics failed to load, likely due to no data. Showing empty state.', { error: errorMessage });
+            return { ...emptyMetrics, error: errorMessage } as DashboardMetrics;
+        }
         logError(e, { context: 'getDashboardData failed, returning empty metrics' });
-        return { ...emptyMetrics, error: getErrorMessage(e) } as DashboardMetrics;
+        return { ...emptyMetrics, error: errorMessage } as DashboardMetrics;
     }
 }
 

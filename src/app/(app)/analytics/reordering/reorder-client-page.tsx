@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -13,7 +14,7 @@ import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { exportReorderSuggestions } from '@/app/(app)/analytics/reordering/actions';
+import { exportReorderSuggestions, createPurchaseOrdersFromSuggestions } from '@/app/(app)/analytics/reordering/actions';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     if (!suggestion.adjustment_reason) {
@@ -28,7 +29,7 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
         : 'text-destructive';
 
     const confidenceIcon = confidence < 0.4 
-        ? <AlertTriangle className="h-4 w-4 mr-1 text-destructive" /> 
+        ? <AlertTriangle className="h-4 w-4 text-destructive" /> 
         : <BrainCircuit className="h-4 w-4 text-accent" />;
 
     return (
@@ -72,23 +73,30 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   };
   
   const handleCreatePOs = () => {
-    if (selectedSuggestions.length === 0) {
-        toast({ variant: 'destructive', title: 'No items selected', description: 'Please select items to create a purchase order for.' });
-        return;
-    }
-    
-    // Instead of calling a server action directly, navigate to the new PO page with state.
-    const poItems = selectedSuggestions.map(s => ({
-        variant_id: s.variant_id,
-        quantity: s.suggested_reorder_quantity,
-        cost: s.unit_cost || 0
-    }));
+    startTransition(async () => {
+        if (selectedSuggestions.length === 0) {
+            toast({ variant: 'destructive', title: 'No items selected', description: 'Please select items to create a purchase order for.' });
+            return;
+        }
 
-    const queryParams = new URLSearchParams({
-        items: JSON.stringify(poItems)
+        const result = await createPurchaseOrdersFromSuggestions(selectedSuggestions);
+        
+        if (result.success) {
+            toast({
+                title: 'Purchase Orders Created!',
+                description: `${result.createdPoCount || 0} purchase order(s) have been generated.`,
+            });
+            // Refresh data on both pages
+            router.push('/purchase-orders');
+            router.refresh();
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Error Creating Purchase Orders',
+                description: result.error || 'An unexpected error occurred.',
+            });
+        }
     });
-    
-    router.push(`/purchase-orders/new?${queryParams.toString()}`);
   };
   
   const handleExport = () => {
@@ -228,7 +236,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                         </Button>
                         <Button onClick={handleCreatePOs} size="sm" disabled={isPending}>
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                             <ShoppingCart className="mr-2 h-4 w-4" /> Create PO
+                             <ShoppingCart className="mr-2 h-4 w-4" /> Create PO(s)
                         </Button>
                     </div>
                 </motion.div>
