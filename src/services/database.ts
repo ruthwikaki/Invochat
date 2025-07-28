@@ -199,13 +199,13 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
     const supabase = getServiceRoleClient();
     try {
-        const { data, error } = await supabase.rpc('get_dashboard_metrics_workaround', { p_company_id: companyId, p_days: days });
+        const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
         if (error) {
-            logError(error, { context: 'get_dashboard_metrics_workaround failed', companyId, period });
+            logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
         if (data == null) {
-            logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
+            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
             throw new Error('No response from get_dashboard_metrics RPC call.');
         }
         return DashboardMetricsSchema.parse(data);
@@ -215,13 +215,14 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     }
 }
 
+
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid company ID format');
     }
     try {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_inventory_analytics_workaround', { p_company_id: companyId });
+        const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
         if (error) {
             logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
             throw new Error('Failed to retrieve inventory analytics');
@@ -366,7 +367,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
 export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_analytics_workaround', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
@@ -377,7 +378,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_customer_analytics_workaround', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
