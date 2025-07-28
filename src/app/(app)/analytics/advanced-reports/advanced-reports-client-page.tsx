@@ -24,12 +24,22 @@ type SalesVelocityItem = {
     sales_velocity: number;
 };
 
+type GrossMarginItem = {
+    sku: string;
+    product_name: string;
+    total_revenue: number;
+    total_cogs: number;
+    gross_margin_percentage: number;
+    gross_profit: number;
+}
+
 interface AdvancedReportsClientPageProps {
   abcAnalysisData: AbcAnalysisItem[];
   salesVelocityData: {
     fast_sellers: SalesVelocityItem[];
     slow_sellers: SalesVelocityItem[];
   };
+  grossMarginData: GrossMarginItem[];
 }
 
 const getCategoryBadgeClass = (category: 'A' | 'B' | 'C') => {
@@ -126,18 +136,65 @@ function SalesVelocityTab({ data }: { data: { fast_sellers: SalesVelocityItem[],
     );
 }
 
-export function AdvancedReportsClientPage({ abcAnalysisData, salesVelocityData }: AdvancedReportsClientPageProps) {
+function GrossMarginTab({ data }: { data: GrossMarginItem[] }) {
+    if (!data || data.length === 0) return <p className="text-center text-muted-foreground p-8">Not enough sales and cost data to generate a gross margin report.</p>;
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Gross Margin Report</CardTitle>
+                <CardDescription>
+                    Analyze the profitability of each product based on its revenue and cost of goods sold (COGS).
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="max-h-[60vh] overflow-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Gross Profit</TableHead>
+                                <TableHead className="text-right">Gross Margin</TableHead>
+                                <TableHead className="text-right">Total Revenue</TableHead>
+                                <TableHead className="text-right">Total COGS</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {data.map((item, index) => (
+                                <motion.tr key={item.sku} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
+                                    <TableCell>
+                                        <div className="font-medium">{item.product_name}</div>
+                                        <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-tabular font-semibold">{formatCentsAsCurrency(item.gross_profit)}</TableCell>
+                                    <TableCell className="text-right font-tabular">{item.gross_margin_percentage.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.total_revenue)}</TableCell>
+                                    <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.total_cogs)}</TableCell>
+                                </motion.tr>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+export function AdvancedReportsClientPage({ abcAnalysisData, salesVelocityData, grossMarginData }: AdvancedReportsClientPageProps) {
   return (
     <Tabs defaultValue="abc-analysis" className="space-y-4">
         <TabsList>
             <TabsTrigger value="abc-analysis">ABC Analysis</TabsTrigger>
             <TabsTrigger value="sales-velocity">Sales Velocity</TabsTrigger>
+            <TabsTrigger value="gross-margin">Gross Margin</TabsTrigger>
         </TabsList>
         <TabsContent value="abc-analysis">
             <AbcAnalysisTab data={abcAnalysisData} />
         </TabsContent>
         <TabsContent value="sales-velocity">
             <SalesVelocityTab data={salesVelocityData} />
+        </TabsContent>
+        <TabsContent value="gross-margin">
+            <GrossMarginTab data={grossMarginData} />
         </TabsContent>
     </Tabs>
   );

@@ -4,7 +4,7 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Wand2, Lightbulb, Package, ShoppingCart } from 'lucide-react';
+import { Loader2, Wand2, Lightbulb, Package, ShoppingCart, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,9 +22,15 @@ interface BundleSuggestions {
     analysis: string;
 }
 
+interface PriceOptimization {
+    suggestions: any[];
+    analysis: string;
+}
+
 interface AiInsightsClientPageProps {
   generateMarkdownPlanAction: () => Promise<MarkdownPlan>;
   generateBundleSuggestionsAction: (count: number) => Promise<BundleSuggestions>;
+  generatePriceOptimizationAction: () => Promise<PriceOptimization>;
 }
 
 function MarkdownPlanResults({ plan }: { plan: MarkdownPlan }) {
@@ -113,13 +119,60 @@ function BundleResults({ bundles }: { bundles: BundleSuggestions }) {
     )
 }
 
-export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundleSuggestionsAction }: AiInsightsClientPageProps) {
+function PriceOptimizationResults({ optimization }: { optimization: PriceOptimization }) {
+    if (!optimization || !optimization.suggestions || optimization.suggestions.length === 0) return <p className="text-muted-foreground">The AI could not generate price suggestions. Ensure products have cost and price data.</p>;
+    return (
+         <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+        >
+            <Alert className="mb-6 bg-primary/5 border-primary/20">
+                <Lightbulb className="h-4 w-4" />
+                <AlertTitle>AI Pricing Analyst's Summary</AlertTitle>
+                <AlertDescription>{optimization.analysis}</AlertDescription>
+            </Alert>
+            
+             <div className="max-h-[60vh] overflow-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Current Price</TableHead>
+                            <TableHead className="text-right">Suggested Price</TableHead>
+                            <TableHead>Reasoning</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {optimization.suggestions.map((item: any) => (
+                            <TableRow key={item.sku}>
+                                <TableCell>
+                                    <div className="font-medium">{item.productName}</div>
+                                    <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                </TableCell>
+                                <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.currentPrice)}</TableCell>
+                                <TableCell className="text-right font-tabular font-bold text-primary">{formatCentsAsCurrency(item.suggestedPrice)}</TableCell>
+                                <TableCell className="text-xs">{item.reasoning}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </motion.div>
+    )
+}
+
+export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundleSuggestionsAction, generatePriceOptimizationAction }: AiInsightsClientPageProps) {
   const [markdownPlan, setMarkdownPlan] = useState<MarkdownPlan | null>(null);
   const [isMarkdownPending, startMarkdownTransition] = useTransition();
 
   const [bundleSuggestions, setBundleSuggestions] = useState<BundleSuggestions | null>(null);
   const [isBundlePending, startBundleTransition] = useTransition();
   const [bundleCount, setBundleCount] = useState(3);
+
+  const [priceOptimization, setPriceOptimization] = useState<PriceOptimization | null>(null);
+  const [isPricePending, startPriceTransition] = useTransition();
 
 
   const handleGenerateMarkdownPlan = () => {
@@ -136,8 +189,39 @@ export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundl
     });
   };
 
+  const handleGeneratePrices = () => {
+    startPriceTransition(async () => {
+        const prices = await generatePriceOptimizationAction();
+        setPriceOptimization(prices);
+    });
+  };
+
   return (
     <div className="space-y-8">
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                    <div>
+                        <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5 text-primary"/> Price Optimizer</CardTitle>
+                        <CardDescription>
+                           Let AI analyze sales velocity and suggest price changes to maximize profit.
+                        </CardDescription>
+                    </div>
+                    <Button onClick={handleGeneratePrices} disabled={isPricePending}>
+                        {isPricePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                        Generate Price Suggestions
+                    </Button>
+                </div>
+            </CardHeader>
+            <AnimatePresence>
+            {priceOptimization && (
+                <CardContent>
+                    <PriceOptimizationResults optimization={priceOptimization} />
+                </CardContent>
+            )}
+            </AnimatePresence>
+        </Card>
+        
         <Card>
             <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4">
