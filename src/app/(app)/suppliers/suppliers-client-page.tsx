@@ -1,39 +1,28 @@
 
 'use client';
 
-import type { SupplierPerformanceReport } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Award, DollarSign, CheckCircle, Truck, Sparkles } from 'lucide-react';
-import { formatCentsAsCurrency } from '@/lib/utils';
-import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Supplier } from '@/types';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-
-interface SupplierPerformanceClientPageProps {
-  initialData: SupplierPerformanceReport[];
-}
-
-const StatCard = ({ title, value, icon: Icon, description }: { title: string; value: string; icon: React.ElementType, description?: string }) => (
-    <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{title}</CardTitle>
-            <Icon className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-            <div className="text-2xl font-bold">{value}</div>
-            {description && <p className="text-xs text-muted-foreground">{description}</p>}
-        </CardContent>
-    </Card>
-);
-
-const getOnTimeBadgeVariant = (rate: number) => {
-    if (rate >= 95) return 'bg-success/10 text-success-foreground border-success/20';
-    if (rate >= 85) return 'bg-warning/10 text-amber-600 dark:text-amber-400 border-warning/20';
-    return 'bg-destructive/10 text-destructive-foreground border-destructive/20';
-};
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreHorizontal, Edit, Trash2, Truck, Sparkles } from 'lucide-react';
+import { deleteSupplier } from '@/app/data-actions';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { motion } from 'framer-motion';
 
 function EmptySupplierState() {
   const router = useRouter();
@@ -55,9 +44,9 @@ function EmptySupplierState() {
           <Sparkles className="h-8 w-8" />
         </motion.div>
       </motion.div>
-      <h3 className="mt-6 text-xl font-semibold">No Supplier Data Found</h3>
+      <h3 className="mt-6 text-xl font-semibold">No Suppliers Found</h3>
       <p className="mt-2 text-muted-foreground">
-        Supplier performance can be analyzed after you add suppliers and have sales and purchase order data recorded.
+        Add your suppliers to begin tracking purchase orders and performance.
       </p>
        <Button className="mt-6" onClick={() => router.push('/suppliers/new')}>
         Add Your First Supplier
@@ -66,61 +55,98 @@ function EmptySupplierState() {
   );
 }
 
-export function SupplierPerformanceClientPage({ initialData }: SupplierPerformanceClientPageProps) {
-  if (!initialData || initialData.length === 0) {
+export function SuppliersClientPage({ initialSuppliers }: { initialSuppliers: Supplier[] }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+
+  const handleDelete = async () => {
+    if (!supplierToDelete) return;
+    const formData = new FormData();
+    formData.append('id', supplierToDelete.id);
+    const csrfToken = getCookie(CSRF_FORM_NAME);
+    if(csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
+
+    const result = await deleteSupplier(formData);
+
+    if (result.success) {
+      toast({ title: 'Supplier Deleted' });
+      router.refresh();
+    } else {
+      toast({ variant: 'destructive', title: 'Error', description: result.error });
+    }
+    setSupplierToDelete(null);
+  };
+  
+  if (initialSuppliers.length === 0) {
     return <EmptySupplierState />;
   }
-  
-  const topSupplierByProfit = [...initialData].sort((a,b) => b.total_profit - a.total_profit)[0];
-  const topSupplierByOnTime = [...initialData].sort((a,b) => b.on_time_delivery_rate - a.on_time_delivery_rate)[0];
 
   return (
-    <div className="space-y-6">
-       <div className="grid gap-4 md:grid-cols-2">
-          <StatCard title="Top Supplier (by Profit)" value={topSupplierByProfit?.supplier_name || 'N/A'} icon={DollarSign} description={`${formatCentsAsCurrency(topSupplierByProfit.total_profit)} total profit`} />
-          <StatCard title="Top Supplier (by Reliability)" value={topSupplierByOnTime?.supplier_name || 'N/A'} icon={CheckCircle} description={`${topSupplierByOnTime.on_time_delivery_rate.toFixed(1)}% on-time rate`} />
-      </div>
-
+    <>
       <Card>
-        <CardHeader>
-          <CardTitle>Supplier Performance Report</CardTitle>
-          <CardDescription>
-            A breakdown of which suppliers contribute most to your bottom line and deliver reliably.
-          </CardDescription>
-        </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead className="text-right">Total Profit</TableHead>
-                  <TableHead className="text-right">Avg. Margin</TableHead>
-                  <TableHead className="text-right">On-Time Rate</TableHead>
-                  <TableHead className="text-right">Avg. Lead Time</TableHead>
-                  <TableHead className="text-right">Completed POs</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {initialData.map((supplier) => (
-                  <TableRow key={supplier.supplier_name}>
-                    <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
-                    <TableCell className="text-right font-tabular">{formatCentsAsCurrency(supplier.total_profit)}</TableCell>
-                    <TableCell className="text-right font-tabular">{supplier.average_margin.toFixed(1)}%</TableCell>
-                    <TableCell className="text-right">
-                        <Badge variant="outline" className={cn("font-tabular", getOnTimeBadgeVariant(supplier.on_time_delivery_rate))}>
-                            {supplier.on_time_delivery_rate.toFixed(1)}%
-                        </Badge>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Lead Time</TableHead>
+                <TableHead className="w-16"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {initialSuppliers.map(supplier => (
+                  <TableRow key={supplier.id}>
+                    <TableCell className="font-medium">{supplier.name}</TableCell>
+                    <TableCell>{supplier.email || 'N/A'}</TableCell>
+                    <TableCell>{supplier.phone || 'N/A'}</TableCell>
+                    <TableCell>
+                      {supplier.default_lead_time_days !== null && supplier.default_lead_time_days !== undefined
+                        ? `${supplier.default_lead_time_days} days`
+                        : 'N/A'}
                     </TableCell>
-                    <TableCell className="text-right font-tabular">{supplier.average_lead_time_days ? `${supplier.average_lead_time_days.toFixed(1)} days` : 'N/A'}</TableCell>
-                    <TableCell className="text-right font-tabular">{supplier.total_completed_orders}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => { router.push(`/suppliers/${supplier.id}/edit`); }}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setSupplierToDelete(supplier); }} className="text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                ))
+              }
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
-    </div>
+      <AlertDialog open={!!supplierToDelete} onOpenChange={(open) => { if (!open) setSupplierToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the supplier {supplierToDelete?.name}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+              Yes, delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

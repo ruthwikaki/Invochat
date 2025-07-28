@@ -202,26 +202,6 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
 
         const { data, error } = response;
         if (error) {
-            if (getErrorMessage(error).includes('relation "public.sales" does not exist')) {
-                logger.warn('[WORKAROUND] get_dashboard_metrics RPC failed because of a known issue. Returning empty metrics.');
-                return DashboardMetricsSchema.parse({
-                    total_revenue: 0,
-                    revenue_change: 0,
-                    total_sales: 0,
-                    sales_change: 0,
-                    new_customers: 0,
-                    customers_change: 0,
-                    dead_stock_value: 0,
-                    sales_over_time: [],
-                    top_selling_products: [],
-                    inventory_summary: {
-                        total_value: 0,
-                        in_stock_value: 0,
-                        low_stock_value: 0,
-                        dead_stock_value: 0,
-                    },
-                });
-            }
             throw error;
         }
         if (data == null) throw new Error('No data returned from get_dashboard_metrics RPC call.');
@@ -438,7 +418,7 @@ export async function getSupplierPerformanceFromDB(companyId: string) {
 export async function getInventoryTurnoverFromDB(companyId: string, days: number) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_inventory_turnover_report', { p_company_id: companyId, p_days: days });
+    const { data, error } = await supabase.rpc('get_inventory_turnover', { p_company_id: companyId, p_days: days });
     if (error) throw error;
     return data;
 }

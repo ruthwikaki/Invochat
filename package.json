@@ -70,6 +70,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@opentelemetry/exporter-jaeger": "^1.25.1",
     "@playwright/test": "^1.46.0",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",
