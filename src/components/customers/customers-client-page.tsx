@@ -2,12 +2,11 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useDebouncedCallback } from 'use-debounce';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import type { Customer, CustomerAnalytics } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy } from 'lucide-react';
+import { Search, MoreHorizontal, Trash2, Loader2, Users, DollarSign, Repeat, UserPlus, ShoppingBag, Trophy, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -25,17 +24,17 @@ import {
 import { deleteCustomer } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 import { ExportButton } from '@/components/ui/export-button';
-import { TablePageSkeleton } from '../skeletons/table-page-skeleton';
-
+import { useTableState } from '@/hooks/use-table-state';
+import Link from 'next/link';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
   totalCount: number;
   itemsPerPage: number;
   analyticsData: CustomerAnalytics;
-  exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
+  exportAction: (params: {query: string}) => Promise<{ success: boolean; data?: string; error?: string }>;
 }
 
 const formatCurrency = (value: number) => {
@@ -80,19 +79,8 @@ const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: strin
     </Card>
 );
 
-
-const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, itemsPerPage: number }) => {
-    const router = useRouter();
-    const pathname = usePathname();
-    const searchParams = useSearchParams();
-    const currentPage = Number(searchParams.get('page')) || 1;
+const PaginationControls = ({ totalCount, itemsPerPage, currentPage, onPageChange }: { totalCount: number; itemsPerPage: number; currentPage: number, onPageChange: (page: number) => void }) => {
     const totalPages = Math.ceil(totalCount / itemsPerPage);
-
-    const createPageURL = (pageNumber: number | string) => {
-        const params = new URLSearchParams(searchParams);
-        params.set('page', pageNumber.toString());
-        return `${pathname}?${params.toString()}`;
-    };
 
     if (totalPages <= 1) {
         return null;
@@ -106,14 +94,14 @@ const PaginationControls = ({ totalCount, itemsPerPage }: { totalCount: number, 
             <div className="flex items-center gap-2">
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage - 1)); }}
+                    onClick={() => onPageChange(currentPage - 1)}
                     disabled={currentPage <= 1}
                 >
                     Previous
                 </Button>
                 <Button
                     variant="outline"
-                    onClick={() => { router.push(createPageURL(currentPage + 1)); }}
+                    onClick={() => onPageChange(currentPage + 1)}
                     disabled={currentPage >= totalPages}
                 >
                     Next
@@ -133,11 +121,22 @@ function EmptyCustomerState() {
         className="relative bg-primary/10 rounded-full p-6"
       >
         <Users className="h-16 w-16 text-primary" />
+         <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="absolute -top-2 -right-2 text-primary"
+        >
+          <Sparkles className="h-8 w-8" />
+        </motion.div>
       </motion.div>
-      <h3 className="mt-6 text-xl font-semibold">No Customers Found</h3>
+      <h3 className="mt-6 text-xl font-semibold">No Customer Data Yet</h3>
       <p className="mt-2 text-muted-foreground">
-        Your customers will appear here as they make purchases through your integrations.
+        Your customers will appear here once you connect an integration and sync your sales data.
       </p>
+       <Button asChild className="mt-6">
+        <Link href="/settings/integrations">Connect an Integration</Link>
+      </Button>
     </Card>
   );
 }
@@ -146,33 +145,33 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   const [isDeleting, startDeleteTransition] = useTransition();
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
-  const handleSearch = useDebouncedCallback((term: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('page', '1');
-    if (term) {
-      params.set('query', term);
-    } else {
-      params.delete('query');
-    }
-    router.replace(`${pathname}?${params.toString()}`);
-  }, 300);
+  useEffect(() => {
+    generateAndSetCsrfToken(setCsrfToken);
+  }, []);
+
+  const {
+    searchQuery,
+    page,
+    handleSearch,
+    handlePageChange
+  } = useTableState({ defaultSortColumn: 'created_at' });
   
-  const showEmptyState = totalCount === 0 && !searchParams.get('query');
-  const showNoResultsState = totalCount === 0 && searchParams.get('query');
+  const showEmptyState = totalCount === 0 && !searchQuery;
+  const showNoResultsState = totalCount === 0 && searchQuery;
 
   const handleDelete = () => {
-    if (!customerToDelete) return;
+    if (!customerToDelete || !csrfToken) {
+        toast({ variant: 'destructive', title: "Error", description: 'Could not perform action. Please refresh.' });
+        return;
+    };
+
     startDeleteTransition(async () => {
       const formData = new FormData();
       formData.append('id', customerToDelete.id);
-      const csrfToken = getCookie(CSRF_FORM_NAME);
-      if (csrfToken) {
-          formData.append(CSRF_FORM_NAME, csrfToken);
-      }
+      formData.append(CSRF_FORM_NAME, csrfToken);
 
       const result = await deleteCustomer(formData);
       if (result.success) {
@@ -184,6 +183,10 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
       setCustomerToDelete(null);
     });
   };
+
+  if (showEmptyState) {
+    return <EmptyCustomerState />
+  }
 
   return (
     <div className="space-y-6">
@@ -206,21 +209,19 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                     <CardTitle>All Customers</CardTitle>
                     <CardDescription>Search and manage your complete customer list.</CardDescription>
                   </div>
-                  <ExportButton exportAction={exportAction} filename="customers.csv" />
+                  <ExportButton exportAction={() => exportAction({query: searchQuery})} filename="customers.csv" />
                 </div>
                 <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Search by customer name or email..."
                         onChange={(e) => handleSearch(e.target.value)}
-                        defaultValue={searchParams.get('query')?.toString()}
+                        defaultValue={searchQuery}
                         className="pl-10"
                     />
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                {showEmptyState ? <EmptyCustomerState /> : (
-                    <>
                     <div className="max-h-[65vh] overflow-auto">
                     <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
@@ -270,9 +271,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                         </TableBody>
                     </Table>
                     </div>
-                    <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} />
-                </>
-                )}
+                    <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
             </CardContent>
         </Card>
 
@@ -286,7 +285,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                <AlertDialogAction onClick={handleDelete} disabled={isDeleting || !csrfToken} className="bg-destructive hover:bg-destructive/90">
                     {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Yes, delete
                 </AlertDialogAction>
@@ -296,5 +295,3 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
-
-    

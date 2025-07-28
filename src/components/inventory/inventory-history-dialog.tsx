@@ -3,7 +3,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getInventoryLedger, adjustInventoryQuantity } from '@/app/data-actions';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -18,9 +18,9 @@ import { z } from 'zod';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 interface InventoryHistoryDialogProps {
   variant: UnifiedInventoryItem | null;
@@ -38,6 +38,11 @@ function StockAdjustmentForm({ variant, onSuccessfulSubmit }: { variant: Unified
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        generateAndSetCsrfToken(setCsrfToken);
+    }, []);
 
     const form = useForm<AdjustmentFormData>({
         resolver: zodResolver(adjustmentSchema),
@@ -48,11 +53,14 @@ function StockAdjustmentForm({ variant, onSuccessfulSubmit }: { variant: Unified
     });
     
     const onSubmit = (data: AdjustmentFormData) => {
+        if (!csrfToken) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Missing required security token. Please refresh the page.' });
+            return;
+        }
+
         startTransition(async () => {
             const formData = new FormData();
-            const csrfToken = getCookie(CSRF_FORM_NAME);
-            if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
-
+            formData.append(CSRF_FORM_NAME, csrfToken);
             formData.append('variantId', variant.id);
             formData.append('newQuantity', String(data.newQuantity));
             formData.append('reason', data.reason);
@@ -84,7 +92,7 @@ function StockAdjustmentForm({ variant, onSuccessfulSubmit }: { variant: Unified
                     <Input id="reason" placeholder="e.g., Cycle count correction" {...form.register('reason')} />
                     {form.formState.errors.reason && <p className="text-xs text-destructive">{form.formState.errors.reason.message}</p>}
                 </div>
-                <Button type="submit" disabled={isPending}>
+                <Button type="submit" disabled={isPending || !csrfToken}>
                     {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Adjust Stock
                 </Button>
