@@ -1,4 +1,5 @@
 
+
 import { getSuppliersDataFromDB } from '@/services/database';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { SuppliersClientPage } from './suppliers-client-page';
@@ -28,3 +29,4 @@ export default async function SuppliersPage() {
         </AppPage>
     );
 }
+
