@@ -409,11 +409,8 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     }
     try {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase
-            .from('reorder_suggestions_view')
-            .select('*')
-            .eq('company_id', companyId);
-
+        const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
+        
         if (error) {
             throw error;
         }
@@ -443,7 +440,7 @@ export async function getInventoryTurnoverFromDB(companyId: string, days: number
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_turnover', { p_company_id: companyId, p_days: days });
     if (error) throw error;
-    return data;
+    return data; 
 }
 
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
