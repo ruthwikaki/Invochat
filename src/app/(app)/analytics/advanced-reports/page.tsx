@@ -1,7 +1,7 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { getAuthContext } from "@/lib/auth-helpers";
-import { getAbcAnalysisFromDB, getSalesVelocityFromDB } from "@/services/database";
+import { getAbcAnalysisFromDB, getSalesVelocityFromDB, getGrossMarginAnalysisFromDB } from "@/services/database";
 import { AdvancedReportsClientPage } from "./advanced-reports-client-page";
 
 export const dynamic = 'force-dynamic';
@@ -10,9 +10,10 @@ export default async function AdvancedReportsPage() {
 
     const { companyId } = await getAuthContext();
 
-    const [abcAnalysisData, salesVelocityData] = await Promise.all([
+    const [abcAnalysisData, salesVelocityData, grossMarginData] = await Promise.all([
         getAbcAnalysisFromDB(companyId),
         getSalesVelocityFromDB(companyId, 90, 10),
+        getGrossMarginAnalysisFromDB(companyId)
     ]);
 
     return (
@@ -25,6 +26,7 @@ export default async function AdvancedReportsPage() {
                 <AdvancedReportsClientPage
                     abcAnalysisData={abcAnalysisData || []}
                     salesVelocityData={salesVelocityData || { fast_sellers: [], slow_sellers: [] }}
+                    grossMarginData={grossMarginData?.products || []}
                 />
             </div>
         </AppPage>

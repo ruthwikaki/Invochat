@@ -3,6 +3,7 @@ import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { AiInsightsClientPage } from "./ai-insights-client-page";
 import { getMarkdownSuggestions } from "@/ai/flows/markdown-optimizer-flow";
 import { getBundleSuggestions } from "@/ai/flows/suggest-bundles-flow";
+import { getPriceOptimizationSuggestions } from "@/ai/flows/price-optimization-flow";
 import { getAuthContext } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,12 @@ export default function AiInsightsPage() {
         return getBundleSuggestions({ companyId, count });
     };
 
+    const generatePriceOptimization = async () => {
+        'use server';
+        const { companyId } = await getAuthContext();
+        return getPriceOptimizationSuggestions({ companyId });
+    };
+
     return (
         <AppPage>
             <AppPageHeader
@@ -31,6 +38,7 @@ export default function AiInsightsPage() {
                 <AiInsightsClientPage 
                     generateMarkdownPlanAction={generateMarkdownPlan}
                     generateBundleSuggestionsAction={generateBundleSuggestions}
+                    generatePriceOptimizationAction={generatePriceOptimization}
                 />
             </div>
         </AppPage>
