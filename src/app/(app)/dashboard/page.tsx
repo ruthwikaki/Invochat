@@ -39,24 +39,31 @@ export default async function DashboardPage({
     let metricsError = null;
 
     try {
-        [metrics, briefing, settings] = await Promise.all([
+        // Fetch all data in parallel
+        const [metricsData, briefingData, settingsData] = await Promise.all([
             getDashboardData(dateRange),
             getMorningBriefing(dateRange),
             getCompanySettings(),
         ]);
         
-        if ((metrics as any).error) {
-            logger.warn('Dashboard metrics failed to load, likely due to no data. Showing empty state.', { error: (metrics as any).error });
-            // This is the expected path for a new user. We show the empty state, not an error.
-            metrics = emptyMetrics; 
-        }
+        metrics = metricsData;
+        briefing = briefingData;
+        settings = settingsData;
 
-    } catch (error) {
-        // This catch block handles more severe, unexpected errors.
-        logger.error('Failed to fetch dashboard data', { error });
-        metricsError = 'Could not load your dashboard analytics. The data service may be temporarily unavailable. Please try again later.';
+    } catch (error: any) {
+        logger.error('Failed to fetch dashboard data', { error: error.message });
+        
+        // Check if this is the expected error for new users (relation does not exist)
+        const isNewUserError = error.message?.includes('relation') && error.message?.includes('does not exist');
+
+        if (!isNewUserError) {
+            // For unexpected errors, show the error banner
+            metricsError = 'Could not load your dashboard analytics. The data service may be temporarily unavailable. Please try again later.';
+        }
+        
+        // In either error case (new user or unexpected), fall back to safe, empty data to prevent crashes
         metrics = emptyMetrics;
-        briefing = { greeting: 'Welcome!', summary: 'Could not load insights at this time.' };
+        briefing = { greeting: 'Welcome!', summary: 'Import your data to get started with AI insights.' };
         settings = { currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
     }
 
@@ -85,3 +92,5 @@ export default async function DashboardPage({
         </AppPage>
     );
 }
+
+    

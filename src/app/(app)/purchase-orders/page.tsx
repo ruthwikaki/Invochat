@@ -1,15 +1,19 @@
 
-
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { PurchaseOrdersClientPage } from "./purchase-orders-client-page";
-import { getPurchaseOrdersFromDB } from "@/services/database";
+import { getPurchaseOrdersFromDB, getSuppliersDataFromDB } from "@/services/database";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
+import { getAuthContext } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
 export default async function PurchaseOrdersPage() {
-    const purchaseOrders = await getPurchaseOrdersFromDB();
+    const { companyId } = await getAuthContext();
+    const [purchaseOrders, suppliers] = await Promise.all([
+        getPurchaseOrdersFromDB(companyId),
+        getSuppliersDataFromDB(companyId)
+    ]);
 
     return (
         <AppPage>
@@ -23,9 +27,12 @@ export default async function PurchaseOrdersPage() {
             </AppPageHeader>
             <div className="mt-6">
                 <PurchaseOrdersClientPage 
-                    initialPurchaseOrders={purchaseOrders} 
+                    initialPurchaseOrders={purchaseOrders}
+                    suppliers={suppliers}
                 />
             </div>
         </AppPage>
     )
 }
+
+    

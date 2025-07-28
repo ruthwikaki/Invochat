@@ -95,8 +95,8 @@ export async function getUnifiedInventory(params: { query: string, page: number,
 }
 
 export async function getInventoryAnalytics() {
-    const { companyId } = await getAuthContext();
     try {
+        const { companyId } = await getAuthContext();
         return await getInventoryAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getInventoryAnalytics action failed, returning default'});
@@ -283,8 +283,8 @@ export async function exportSales(params: { query: string }) {
 }
 
 export async function getSalesAnalytics() {
-    const { companyId } = await getAuthContext();
     try {
+        const { companyId } = await getAuthContext();
         return await getSalesAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
@@ -325,8 +325,8 @@ export async function exportCustomers(params: { query: string }) {
 }
 
 export async function getCustomerAnalytics() {
-    const { companyId } = await getAuthContext();
     try {
+        const { companyId } = await getAuthContext();
         return await getCustomerAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
@@ -417,6 +417,7 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
         const { companyId, userId } = await getAuthContext();
         const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
         revalidatePath('/purchase-orders');
+        revalidatePath('/analytics/reordering');
         return { success: true, createdPoCount };
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
@@ -481,7 +482,8 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         const data = await getDashboardMetrics(companyId, dateRange);
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
-        const errorMessage = getErrorMessage(e);
+        logError(e, { context: 'getDashboardData failed, returning empty metrics' });
+        // This is a safe fallback for new users or if the DB functions aren't ready
         const emptyMetrics: DashboardMetrics = {
             total_revenue: 0,
             revenue_change: 0,
@@ -499,20 +501,14 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
                 dead_stock_value: 0,
             },
         };
-        // Special handling for the "relation does not exist" error, which is expected for new users.
-        if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
-            logger.warn('Dashboard metrics failed to load, likely due to no data. Showing empty state.', { error: errorMessage });
-            return { ...emptyMetrics, error: errorMessage } as DashboardMetrics;
-        }
-        logError(e, { context: 'getDashboardData failed, returning empty metrics' });
-        return { ...emptyMetrics, error: errorMessage } as DashboardMetrics;
+        return emptyMetrics;
     }
 }
 
 export async function getMorningBriefing(dateRange: string) {
     const { companyId } = await getAuthContext();
     const user = await getCurrentUser();
-    const metrics = await getDashboardData(dateRange); // Use the safe version
+    const metrics = await getDashboardData(dateRange);
     return generateMorningBriefing({ metrics, companyName: user?.user_metadata?.company_name });
 }
 
@@ -718,3 +714,5 @@ export async function getFeedbackData(params: {
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
+    
