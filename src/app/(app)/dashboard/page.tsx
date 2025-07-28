@@ -33,31 +33,33 @@ export default async function DashboardPage({
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
     const dateRange = typeof searchParams?.range === 'string' ? searchParams.range : '90d';
-    let metrics: DashboardMetrics;
+    let metrics: DashboardMetrics = emptyMetrics;
     let briefing;
     let settings;
     let metricsError = null;
 
     try {
         // Fetch data in parallel for better performance
+        // If any of these fail, the catch block will handle it.
         [metrics, briefing, settings] = await Promise.all([
             getDashboardData(dateRange),
             getMorningBriefing(dateRange),
             getCompanySettings(),
         ]);
         
+        // The getDashboardData action now returns an error property if it fails internally
         if ((metrics as any).error) {
             metricsError = (metrics as any).error;
-            metrics = emptyMetrics; // Use empty metrics on error
+            metrics = emptyMetrics; // Ensure metrics are empty on error
         }
 
     } catch (error) {
         logger.error('Failed to fetch dashboard data', { error });
+        metricsError = 'Could not connect to the data service. This may be temporary or may require initial data import.';
+        // Provide default fallback data so the page can still render without crashing.
         metrics = emptyMetrics;
-        metricsError = 'Could not connect to the data service.';
-        // Provide default fallback data so the page can still render
-        briefing = { greeting: 'Welcome!', summary: 'Could not load insights. Please try again later.' };
-        settings = { currency: 'USD', timezone: 'UTC' };
+        briefing = { greeting: 'Welcome!', summary: 'Could not load insights. Please import your data to get started.' };
+        settings = { currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
     }
 
 
@@ -68,22 +70,22 @@ export default async function DashboardPage({
                 description="Here's a high-level overview of your business performance."
             />
             <div className="mt-6">
-                {metricsError ? (
-                    <Alert variant="destructive">
+                {metricsError && (
+                    <Alert variant="destructive" className="mb-6">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Error Loading Dashboard Data</AlertTitle>
+                        <AlertTitle>Could Not Load Dashboard Metrics</AlertTitle>
                         <AlertDescription>
-                            We couldn't load the metrics for your dashboard. This might be a temporary issue. Please try refreshing the page. If the problem persists, it may be because you have not yet imported any data.
+                            We couldn't load all the metrics for your dashboard. This might be a temporary issue or because you haven't imported any sales data yet.
                         </AlertDescription>
                     </Alert>
-                ) : (
-                    <DashboardClientPage
-                        initialMetrics={metrics}
-                        settings={settings}
-                        initialBriefing={briefing}
-                    />
                 )}
+                <DashboardClientPage
+                    initialMetrics={metrics}
+                    settings={settings}
+                    initialBriefing={briefing}
+                />
             </div>
         </AppPage>
     );
 }
+
