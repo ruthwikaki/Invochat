@@ -50,7 +50,8 @@ import {
     getAbcAnalysisFromDB,
     getSalesVelocityFromDB,
     getGrossMarginAnalysisFromDB,
-    getFeedbackFromDB
+    getFeedbackFromDB,
+    deletePurchaseOrderFromDb
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
@@ -372,7 +373,7 @@ export async function deletePurchaseOrder(formData: FormData) {
         const { companyId } = await getAuthContext();
         await validateCSRF(formData);
         const id = formData.get('id') as string;
-        // await deletePurchaseOrderFromDb(id, companyId);
+        await deletePurchaseOrderFromDb(id, companyId);
         revalidatePath('/purchase-orders');
         return { success: true };
     } catch (e) {
