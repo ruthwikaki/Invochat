@@ -63,7 +63,7 @@ const suggestPricesPrompt = ai.definePrompt({
   `,
 });
 
-export const suggestPriceOptimizationsFlow = ai.defineFlow(
+export const priceOptimizationFlow = ai.defineFlow(
   {
     name: 'suggestPriceOptimizationsFlow',
     inputSchema: PriceOptimizationInputSchema,
@@ -143,5 +143,5 @@ export const getPriceOptimizationSuggestions = ai.defineTool(
         inputSchema: PriceOptimizationInputSchema,
         outputSchema: PriceOptimizationOutputSchema
     },
-    async (input) => suggestPriceOptimizationsFlow(input)
+    async (input) => priceOptimizationFlow(input)
 );
