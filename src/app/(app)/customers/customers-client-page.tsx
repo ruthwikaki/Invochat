@@ -216,7 +216,6 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                    <>
                     <div className="max-h-[65vh] overflow-auto">
                     <Table>
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
@@ -267,7 +266,6 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                     </Table>
                     </div>
                     <PaginationControls totalCount={totalCount} itemsPerPage={itemsPerPage} currentPage={page} onPageChange={handlePageChange} />
-                </>
             </CardContent>
         </Card>
 

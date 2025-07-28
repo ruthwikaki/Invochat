@@ -3,7 +3,7 @@
 
 import { Input } from '@/components/ui/input';
 import type { Order, SalesAnalytics } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Search, DollarSign, ShoppingCart, Percent, Sparkles } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -153,7 +153,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                         {initialSales.length === 0 ? (
                             <TableRow>
                             <TableCell colSpan={5} className="h-24 text-center">
-                                No sales orders found.
+                                No sales orders found matching your search.
                             </TableCell>
                             </TableRow>
                         ) : initialSales.map(order => (

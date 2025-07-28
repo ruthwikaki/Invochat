@@ -3,7 +3,7 @@
 
 import { useState, useTransition, Fragment } from 'react';
 import type { PurchaseOrderWithItemsAndSupplier, Supplier } from '@/types';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -41,6 +41,29 @@ const statusColors: { [key: string]: string } = {
     'Cancelled': 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
 };
 
+function EmptyPurchaseOrderState() {
+  const router = useRouter();
+  return (
+    <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+        className="relative bg-primary/10 rounded-full p-6"
+      >
+        <FileText className="h-16 w-16 text-primary" />
+      </motion.div>
+      <h3 className="mt-6 text-xl font-semibold">No Purchase Orders Found</h3>
+      <p className="mt-2 text-muted-foreground">
+        Create your first purchase order to start tracking incoming inventory.
+      </p>
+      <Button className="mt-4" onClick={() => router.push('/purchase-orders/new')}>
+        Create Purchase Order
+      </Button>
+    </Card>
+  );
+}
+
 export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrdersClientPageProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -74,25 +97,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
   }
 
   if (initialPurchaseOrders.length === 0) {
-    return (
-       <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
-            <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
-                className="relative bg-primary/10 rounded-full p-6"
-            >
-                <FileText className="h-16 w-16 text-primary" />
-            </motion.div>
-            <h3 className="mt-6 text-xl font-semibold">No Purchase Orders Found</h3>
-            <p className="mt-2 text-muted-foreground">
-                Create your first purchase order to start tracking incoming inventory.
-            </p>
-             <Button className="mt-4" onClick={() => router.push('/purchase-orders/new')}>
-                Create Purchase Order
-            </Button>
-        </Card>
-    );
+    return <EmptyPurchaseOrderState />;
   }
 
   return (
