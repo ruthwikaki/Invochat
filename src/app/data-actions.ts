@@ -50,7 +50,9 @@ import {
     getSalesVelocityFromDB,
     getGrossMarginAnalysisFromDB,
     getFeedbackFromDB,
-    deletePurchaseOrderFromDb
+    deletePurchaseOrderFromDb,
+    getSupplierPerformanceFromDB,
+    getInventoryTurnoverFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
@@ -603,6 +605,11 @@ export async function getReorderReport() {
     return getReorderSuggestions({ companyId });
 }
 
+export async function getDeadStockReport() {
+    const { companyId } = await getAuthContext();
+    return getDeadStockReportFromDB(companyId);
+}
+
 export async function getAdvancedAbcReport() {
     const { companyId } = await getAuthContext();
     return getAbcAnalysisFromDB(companyId);
@@ -679,6 +686,3 @@ export async function getFeedbackData(params: {
         throw new Error('Failed to retrieve feedback data.');
     }
 }
-
-
-

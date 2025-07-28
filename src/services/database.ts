@@ -654,7 +654,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
-        .from('purchase_orders_with_items_view')
+        .from('purchase_orders_view')
         .select('*')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
@@ -672,7 +672,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         throw new Error('Invalid ID format');
     }
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('purchase_orders_with_items_view').select('*').eq('id', id).eq('company_id', companyId).single();
+    const { data, error } = await supabase.from('purchase_orders_view').select('*').eq('id', id).eq('company_id', companyId).single();
 
     if (error) {
         if(error.code === 'PGRST116') return null;
@@ -849,7 +849,7 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
     const supabase = getServiceRoleClient();
     
     try {
-        let query = supabase.from('feedback_with_messages').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('feedback_view').select('*', { count: 'exact' }).eq('company_id', companyId);
 
         if (validatedParams.query) {
             query = query.or(`user_email.ilike.%${validatedParams.query}%,user_message_content.ilike.%${validatedParams.query}%,assistant_message_content.ilike.%${validatedParams.query}%`);
@@ -871,3 +871,4 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -11,7 +12,7 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { markdownOptimizerFlow } from '@/app/(app)/analytics/dead-stock/actions';
+import { generateMarkdownPlan } from '@/app/(app)/analytics/dead-stock/actions';
 
 interface MarkdownPlan {
     suggestions: any[];
@@ -106,7 +107,7 @@ export function DeadStockClientPage({ initialData }: DeadStockClientPageProps) {
 
   const handleGeneratePlan = () => {
     startTransition(async () => {
-        const plan = await markdownOptimizerFlow();
+        const plan = await generateMarkdownPlan();
         setMarkdownPlan(plan);
     });
   };
