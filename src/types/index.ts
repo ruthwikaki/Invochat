@@ -1,4 +1,5 @@
 
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -187,6 +188,11 @@ export const PurchaseOrderSchema = z.object({
     created_at: z.string().datetime({ offset: true }),
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
+
+export const PurchaseOrderWithItemsSchema = PurchaseOrderSchema.extend({
+    line_items: z.array(PurchaseOrderLineItemSchema),
+});
+export type PurchaseOrderWithItems = z.infer<typeof PurchaseOrderWithItemsSchema>;
 
 export const PurchaseOrderWithSupplierSchema = PurchaseOrderSchema.extend({
     supplier_name: z.string().nullable(),
@@ -377,7 +383,7 @@ export const DashboardMetricsSchema = z.object({
     low_stock_value: z.number().int(),
     dead_stock_value: z.number().int(),
   }),
-});
+}).passthrough(); // Allow extra properties like 'error'
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
 export const SalesAnalyticsSchema = z.object({
@@ -515,3 +521,4 @@ export const FeedbackSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
+

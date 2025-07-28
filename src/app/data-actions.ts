@@ -1,4 +1,5 @@
 
+
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
@@ -36,8 +37,6 @@ import {
     upsertChannelFeeInDb,
     createExportJobInDb,
     reconcileInventoryInDb,
-    getSupplierPerformanceFromDB,
-    getInventoryTurnoverFromDB,
     getDashboardMetrics,
     checkUserPermission,
     getReorderSuggestionsFromDB,
@@ -54,7 +53,7 @@ import {
     deletePurchaseOrderFromDb
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
 import { DashboardMetricsSchema, SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -187,8 +186,7 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
 export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
-        await validateCSRF(formData);
+        await checkUserPermission(userId, 'Owner');
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
@@ -205,8 +203,8 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         await checkUserPermission(userId, 'Owner');
         await validateCSRF(formData);
         const memberId = formData.get('memberId') as string;
-        const newRole = formData.get('newRole') as 'Admin' | 'Member';
-        if (!['Admin', 'Member'].includes(newRole)) throw new Error('Invalid role specified.');
+        const newRole = formData.get('newRole') as 'Admin' | 'Member' | 'Owner';
+        if (!['Admin', 'Member', 'Owner'].includes(newRole)) throw new Error('Invalid role specified.');
         if (userId === memberId) throw new Error("You cannot change your own role.");
         
         await updateTeamMemberRoleInDb(memberId, companyId, newRole);
@@ -432,16 +430,39 @@ export async function reconcileInventory(integrationId: string) {
     }
 }
 
+const emptyMetrics: DashboardMetrics = {
+    total_revenue: 0,
+    revenue_change: 0,
+    total_sales: 0,
+    sales_change: 0,
+    new_customers: 0,
+    customers_change: 0,
+    dead_stock_value: 0,
+    sales_over_time: [],
+    top_selling_products: [],
+    inventory_summary: {
+        total_value: 0,
+        in_stock_value: 0,
+        low_stock_value: 0,
+        dead_stock_value: 0,
+    },
+};
+
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
-    const { companyId } = await getAuthContext();
-    const data = await getDashboardMetrics(companyId, dateRange);
-    return DashboardMetricsSchema.parse(data);
+    try {
+        const { companyId } = await getAuthContext();
+        const data = await getDashboardMetrics(companyId, dateRange);
+        return DashboardMetricsSchema.parse(data);
+    } catch (e) {
+        logError(e, { context: 'getDashboardData failed, returning empty metrics' });
+        return { ...emptyMetrics, error: getErrorMessage(e) } as DashboardMetrics;
+    }
 }
 
 export async function getMorningBriefing(dateRange: string) {
     const { companyId } = await getAuthContext();
     const user = await getCurrentUser();
-    const metrics = await getDashboardMetrics(companyId, dateRange);
+    const metrics = await getDashboardData(dateRange); // Use the safe version
     return generateMorningBriefing({ metrics, companyName: user?.user_metadata?.company_name });
 }
 
@@ -667,3 +688,4 @@ export async function getFeedbackData(params: {
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
