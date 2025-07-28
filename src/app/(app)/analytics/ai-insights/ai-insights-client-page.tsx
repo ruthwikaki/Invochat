@@ -4,13 +4,14 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Wand2, Lightbulb, Package, ShoppingCart, TrendingUp } from 'lucide-react';
+import { Loader2, Wand2, Lightbulb, Package, ShoppingCart, TrendingUp, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 interface MarkdownPlan {
     suggestions: any[];
@@ -27,10 +28,71 @@ interface PriceOptimization {
     analysis: string;
 }
 
+interface HiddenMoney {
+    opportunities: any[];
+    analysis: string;
+}
+
 interface AiInsightsClientPageProps {
   generateMarkdownPlanAction: () => Promise<MarkdownPlan>;
   generateBundleSuggestionsAction: (count: number) => Promise<BundleSuggestions>;
   generatePriceOptimizationAction: () => Promise<PriceOptimization>;
+  generateHiddenMoneyAction: () => Promise<HiddenMoney>;
+}
+
+function HiddenMoneyResults({ data }: { data: HiddenMoney }) {
+    if (!data || !data.opportunities || data.opportunities.length === 0) return <p className="text-muted-foreground">The AI did not find any specific hidden money opportunities at this time.</p>;
+    
+    const getOpportunityBadge = (type: string) => {
+        switch (type) {
+            case 'High-Margin Slow-Mover': return <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">{type}</Badge>;
+            case 'Price Increase Candidate': return <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">{type}</Badge>;
+            default: return <Badge>{type}</Badge>;
+        }
+    }
+
+    return (
+         <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+        >
+            <Alert className="mb-6 bg-primary/5 border-primary/20">
+                <Lightbulb className="h-4 w-4" />
+                <AlertTitle>AI Business Consultant's Summary</AlertTitle>
+                <AlertDescription>{data.analysis}</AlertDescription>
+            </Alert>
+            
+             <div className="max-h-[60vh] overflow-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Opportunity Type</TableHead>
+                            <TableHead>Reasoning</TableHead>
+                            <TableHead>Suggested Action</TableHead>
+                            <TableHead className="text-right">Potential Value</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {data.opportunities.map((item: any, index: number) => (
+                            <TableRow key={index}>
+                                <TableCell>
+                                    <div className="font-medium">{item.productName}</div>
+                                    <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                </TableCell>
+                                <TableCell>{getOpportunityBadge(item.type)}</TableCell>
+                                <TableCell className="text-xs">{item.reasoning}</TableCell>
+                                <TableCell className="text-xs font-medium">{item.suggestedAction}</TableCell>
+                                <TableCell className="text-right font-tabular font-semibold text-success">{formatCentsAsCurrency(item.potentialValue)}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </motion.div>
+    )
 }
 
 function MarkdownPlanResults({ plan }: { plan: MarkdownPlan }) {
@@ -163,7 +225,7 @@ function PriceOptimizationResults({ optimization }: { optimization: PriceOptimiz
     )
 }
 
-export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundleSuggestionsAction, generatePriceOptimizationAction }: AiInsightsClientPageProps) {
+export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundleSuggestionsAction, generatePriceOptimizationAction, generateHiddenMoneyAction }: AiInsightsClientPageProps) {
   const [markdownPlan, setMarkdownPlan] = useState<MarkdownPlan | null>(null);
   const [isMarkdownPending, startMarkdownTransition] = useTransition();
 
@@ -173,6 +235,9 @@ export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundl
 
   const [priceOptimization, setPriceOptimization] = useState<PriceOptimization | null>(null);
   const [isPricePending, startPriceTransition] = useTransition();
+
+  const [hiddenMoney, setHiddenMoney] = useState<HiddenMoney | null>(null);
+  const [isHiddenMoneyPending, startHiddenMoneyTransition] = useTransition();
 
 
   const handleGenerateMarkdownPlan = () => {
@@ -196,8 +261,39 @@ export function AiInsightsClientPage({ generateMarkdownPlanAction, generateBundl
     });
   };
 
+  const handleGenerateHiddenMoney = () => {
+    startHiddenMoneyTransition(async () => {
+        const money = await generateHiddenMoneyAction();
+        setHiddenMoney(money);
+    });
+  };
+
   return (
     <div className="space-y-8">
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+                    <div>
+                        <CardTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-primary"/> Hidden Money Finder</CardTitle>
+                        <CardDescription>
+                           Let AI find non-obvious opportunities, like high-margin, slow-moving products.
+                        </CardDescription>
+                    </div>
+                    <Button onClick={handleGenerateHiddenMoney} disabled={isHiddenMoneyPending}>
+                        {isHiddenMoneyPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                        Find Opportunities
+                    </Button>
+                </div>
+            </CardHeader>
+            <AnimatePresence>
+            {hiddenMoney && (
+                <CardContent>
+                    <HiddenMoneyResults data={hiddenMoney} />
+                </CardContent>
+            )}
+            </AnimatePresence>
+        </Card>
+
         <Card>
             <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4">
