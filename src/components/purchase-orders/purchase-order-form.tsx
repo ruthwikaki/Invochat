@@ -6,9 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { PurchaseOrderFormSchema, type PurchaseOrderFormData } from '@/types';
 import type { Supplier, UnifiedInventoryItem, PurchaseOrderWithItems } from '@/types';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTransition, useEffect, useMemo } from 'react';
+import { useTransition, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 import { createPurchaseOrder, updatePurchaseOrder } from '@/app/data-actions';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,11 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
     const searchParams = useSearchParams();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        generateAndSetCsrfToken(setCsrfToken);
+    }, []);
 
     const itemsFromParams = useMemo(() => {
         const itemsJson = searchParams.get('items');
@@ -80,10 +85,14 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
     }, [form.watch('line_items')]);
 
     const onSubmit = (data: PurchaseOrderFormData) => {
+        if (!csrfToken) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Missing required security token. Please refresh the page.' });
+            return;
+        }
+
         startTransition(async () => {
             const formData = new FormData();
-            const csrfToken = getCookie(CSRF_FORM_NAME);
-            if(csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
+            formData.append(CSRF_FORM_NAME, csrfToken);
 
             const serializedData = {
                 ...data,
@@ -268,7 +277,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                     </Card>
                     <div className="flex justify-end gap-2">
                         <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-                        <Button type="submit" disabled={isPending}>
+                        <Button type="submit" disabled={isPending || !csrfToken}>
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {initialData ? 'Save Changes' : 'Create Purchase Order'}
                         </Button>
