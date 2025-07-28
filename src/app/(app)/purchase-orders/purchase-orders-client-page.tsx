@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
-import type { PurchaseOrderWithSupplier, Supplier } from '@/types';
+import { useState, useTransition, Fragment } from 'react';
+import type { PurchaseOrderWithItemsAndSupplier, Supplier } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,7 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Edit, Trash2, FileText, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Edit, Trash2, FileText, Loader2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { deletePurchaseOrder } from '@/app/data-actions';
@@ -29,7 +29,7 @@ import {
 import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
 
 interface PurchaseOrdersClientPageProps {
-  initialPurchaseOrders: PurchaseOrderWithSupplier[];
+  initialPurchaseOrders: PurchaseOrderWithItemsAndSupplier[];
   suppliers: Supplier[];
 }
 
@@ -41,11 +41,16 @@ const statusColors: { [key: string]: string } = {
     'Cancelled': 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
 };
 
-export function PurchaseOrdersClientPage({ initialPurchaseOrders, suppliers }: PurchaseOrdersClientPageProps) {
+export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrdersClientPageProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isDeleting, startDeleteTransition] = useTransition();
-  const [poToDelete, setPoToDelete] = useState<PurchaseOrderWithSupplier | null>(null);
+  const [poToDelete, setPoToDelete] = useState<PurchaseOrderWithItemsAndSupplier | null>(null);
+  const [expandedPoId, setExpandedPoId] = useState<string | null>(null);
+
+  const toggleExpand = (poId: string) => {
+    setExpandedPoId(prevId => (prevId === poId ? null : poId));
+  };
 
   const handleDelete = () => {
     if (!poToDelete) return;
@@ -53,9 +58,8 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders, suppliers }: P
     startDeleteTransition(async () => {
         const formData = new FormData();
         const csrfToken = getCookie(CSRF_FORM_NAME);
-        if (csrfToken) {
-            formData.append(CSRF_FORM_NAME, csrfToken);
-        }
+        if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
+        
         formData.append('id', poToDelete.id);
         const result = await deletePurchaseOrder(formData);
 
@@ -99,6 +103,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders, suppliers }: P
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]"></TableHead>
               <TableHead>PO Number</TableHead>
               <TableHead>Supplier</TableHead>
               <TableHead>Status</TableHead>
@@ -110,35 +115,71 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders, suppliers }: P
           </TableHeader>
           <TableBody>
             {initialPurchaseOrders.map(po => (
-                <TableRow key={po.id}>
-                  <TableCell className="font-medium">{po.po_number}</TableCell>
-                  <TableCell>{po.supplier_name || 'N/A'}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn("whitespace-nowrap", statusColors[po.status] || '')}>
-                        {po.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{format(new Date(po.created_at), 'MMM d, yyyy')}</TableCell>
-                  <TableCell>{po.expected_arrival_date ? format(new Date(po.expected_arrival_date), 'MMM d, yyyy') : 'N/A'}</TableCell>
-                  <TableCell className="text-right font-tabular">{formatCentsAsCurrency(po.total_cost)}</TableCell>
-                  <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => router.push(`/purchase-orders/${po.id}/edit`)}>
-                            <Edit className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setPoToDelete(po)} className="text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                <Fragment key={po.id}>
+                    <TableRow onClick={() => toggleExpand(po.id)} className="cursor-pointer">
+                      <TableCell>
+                        <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', expandedPoId === po.id && 'rotate-180')} />
+                      </TableCell>
+                      <TableCell className="font-medium">{po.po_number}</TableCell>
+                      <TableCell>{po.supplier_name || 'N/A'}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn("whitespace-nowrap", statusColors[po.status] || '')}>
+                            {po.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{format(new Date(po.created_at), 'MMM d, yyyy')}</TableCell>
+                      <TableCell>{po.expected_arrival_date ? format(new Date(po.expected_arrival_date), 'MMM d, yyyy') : 'N/A'}</TableCell>
+                      <TableCell className="text-right font-tabular">{formatCentsAsCurrency(po.total_cost)}</TableCell>
+                      <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => router.push(`/purchase-orders/${po.id}/edit`)}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setPoToDelete(po)} className="text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                    {expandedPoId === po.id && (
+                        <TableRow className="bg-muted/50">
+                            <TableCell colSpan={8} className="p-4">
+                                <div className="p-2 bg-background rounded-md border">
+                                    <h4 className="font-semibold px-2 py-1">Line Items</h4>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Product SKU</TableHead>
+                                                <TableHead>Description</TableHead>
+                                                <TableHead className="text-right">Quantity</TableHead>
+                                                <TableHead className="text-right">Unit Cost</TableHead>
+                                                <TableHead className="text-right">Line Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {po.line_items.map(item => (
+                                                <TableRow key={item.id}>
+                                                    <TableCell className="font-mono text-xs">{item.sku}</TableCell>
+                                                    <TableCell>{item.product_name}</TableCell>
+                                                    <TableCell className="text-right">{item.quantity}</TableCell>
+                                                    <TableCell className="text-right">{formatCentsAsCurrency(item.cost)}</TableCell>
+                                                    <TableCell className="text-right font-semibold">{formatCentsAsCurrency(item.quantity * item.cost)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </Fragment>
               ))
             }
           </TableBody>

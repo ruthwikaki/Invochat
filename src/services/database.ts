@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
@@ -649,11 +649,11 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     return data;
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithSupplier[]> {
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItemsAndSupplier[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
-        .from('purchase_orders_view')
+        .from('purchase_orders_with_items_view')
         .select('*')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
@@ -663,7 +663,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data || []) as PurchaseOrderWithSupplier[];
+    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -678,7 +678,19 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         logError(error, { context: 'getPurchaseOrderByIdFromDB failed' });
         throw new Error('Failed to retrieve purchase order');
     }
-    return data as PurchaseOrderWithItems;
+    return data as PurchaseOrderWithItemsAndSupplier;
+}
+
+export async function deletePurchaseOrderFromDb(id: string, companyId: string) {
+    if (!z.string().uuid().safeParse(id).success || !z.string().uuid().safeParse(companyId).success) {
+        throw new Error('Invalid ID format');
+    }
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('purchase_orders').delete().eq('id', id).eq('company_id', companyId);
+    if(error) {
+        logError(error, { context: 'Failed to delete purchase order', id });
+        throw error;
+    }
 }
 
 

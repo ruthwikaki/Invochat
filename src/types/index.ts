@@ -150,6 +150,15 @@ export const SupplierSchema = z.object({
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
 
+export const PurchaseOrderLineItemSchema = z.object({
+  id: z.string().uuid(),
+  sku: z.string(),
+  product_name: z.string(),
+  quantity: z.number().int(),
+  cost: z.number().int()
+});
+export type PurchaseOrderLineItem = z.infer<typeof PurchaseOrderLineItemSchema>;
+
 export const PurchaseOrderLineItemFormSchema = z.object({
   variant_id: z.string().uuid(),
   quantity: z.number().int().positive(),
@@ -179,16 +188,15 @@ export const PurchaseOrderSchema = z.object({
 });
 export type PurchaseOrder = z.infer<typeof PurchaseOrderSchema>;
 
-export const PurchaseOrderWithItemsSchema = PurchaseOrderSchema.extend({
-  line_items: z.array(PurchaseOrderLineItemFormSchema),
-});
-export type PurchaseOrderWithItems = z.infer<typeof PurchaseOrderWithItemsSchema>;
-
-
 export const PurchaseOrderWithSupplierSchema = PurchaseOrderSchema.extend({
     supplier_name: z.string().nullable(),
 });
-export type PurchaseOrderWithSupplier = z.infer<typeof PurchaseOrderWithSupplier>;
+export type PurchaseOrderWithSupplier = z.infer<typeof PurchaseOrderWithSupplierSchema>;
+
+export const PurchaseOrderWithItemsAndSupplierSchema = PurchaseOrderWithSupplierSchema.extend({
+    line_items: z.array(PurchaseOrderLineItemSchema),
+});
+export type PurchaseOrderWithItemsAndSupplier = z.infer<typeof PurchaseOrderWithItemsAndSupplierSchema>;
 
 
 export const CompanySettingsSchema = z.object({
