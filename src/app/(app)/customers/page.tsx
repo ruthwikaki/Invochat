@@ -28,8 +28,8 @@ export default async function CustomersPage({
   return (
     <AppPage>
         <AppPageHeader
-            title="Customers"
-            description="View and manage your customer list and analytics."
+            title="Customer Intelligence"
+            description="Analyze customer behavior and identify your most valuable segments."
         />
         <div className="mt-6">
             <CustomersClientPage
