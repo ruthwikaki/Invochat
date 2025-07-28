@@ -65,6 +65,7 @@ import { getBundleSuggestions } from '@/ai/flows/suggest-bundles-flow';
 import { findHiddenMoney } from '@/ai/flows/hidden-money-finder-flow';
 import { getPromotionalImpactAnalysis } from '@/ai/flows/analytics-tools';
 import { getPriceOptimizationSuggestions } from '@/ai/flows/price-optimization-flow';
+import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 
 
 export async function getProducts() {
@@ -186,10 +187,25 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
 export async function removeTeamMember(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Owner');
         const memberId = formData.get('memberId') as string;
         if (userId === memberId) throw new Error("You cannot remove yourself.");
         
+        const members = await getTeamMembersFromDB(companyId);
+        const currentUser = members.find(m => m.id === userId);
+        const memberToRemove = members.find(m => m.id === memberId);
+
+        if (currentUser?.role === 'Owner') {
+            // Owners can remove anyone but themselves
+        } else if (currentUser?.role === 'Admin') {
+            // Admins can only remove Members
+            if (memberToRemove?.role === 'Admin' || memberToRemove?.role === 'Owner') {
+                throw new Error("Admins cannot remove other Admins or Owners.");
+            }
+        } else {
+            // Members can't remove anyone
+            throw new Error("You do not have permission to remove team members.");
+        }
+
         await removeTeamMemberFromDb(memberId, companyId);
         revalidatePath('/settings/profile');
         return { success: true };
@@ -663,5 +679,6 @@ export async function getFeedbackData(params: {
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
 
 
