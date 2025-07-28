@@ -48,10 +48,11 @@ import {
     getAuditLogFromDB,
     logUserFeedbackInDb as logUserFeedbackInDbService,
     getAbcAnalysisFromDB,
-    getSalesVelocityFromDB
+    getSalesVelocityFromDB,
+    getFeedbackFromDB
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
 import { DashboardMetricsSchema, SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -641,4 +642,21 @@ export async function getAuditLogData(params: {
     logError(error, { context: 'getAuditLogData failed' });
     throw new Error('Failed to retrieve audit log data.');
   }
+}
+
+export async function getFeedbackData(params: {
+  page: number;
+  limit: number;
+  query?: string;
+}): Promise<{ items: FeedbackWithMessages[]; totalCount: number }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
+
+        const offset = (params.page - 1) * params.limit;
+        return getFeedbackFromDB(companyId, { ...params, offset });
+    } catch (error) {
+        logError(error, { context: 'getFeedbackData failed' });
+        throw new Error('Failed to retrieve feedback data.');
+    }
 }

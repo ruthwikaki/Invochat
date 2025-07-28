@@ -2,8 +2,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -827,5 +827,34 @@ export async function getAuditLogFromDB(companyId: string, params: { query?: str
     } catch(e) {
         logError(e, { context: 'getAuditLogFromDB failed' });
         throw new Error('Failed to retrieve audit log.');
+    }
+}
+
+export async function getFeedbackFromDB(companyId: string, params: { query?: string, offset: number, limit: number }): Promise<{ items: FeedbackWithMessages[], totalCount: number }> {
+    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
+    const validatedParams = DatabaseQueryParamsSchema.parse(params);
+    const supabase = getServiceRoleClient();
+    
+    try {
+        let query = supabase.from('feedback_with_messages').select('*', { count: 'exact' }).eq('company_id', companyId);
+
+        if (validatedParams.query) {
+            query = query.or(`user_email.ilike.%${validatedParams.query}%,user_message_content.ilike.%${validatedParams.query}%,assistant_message_content.ilike.%${validatedParams.query}%`);
+        }
+
+        const limit = Math.min(validatedParams.limit || 25, 100);
+        const { data, error, count } = await query
+            .order('created_at', { ascending: false })
+            .range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
+
+        if (error) throw error;
+
+        return {
+            items: z.array(FeedbackSchema).parse(data || []),
+            totalCount: count || 0
+        };
+    } catch (e) {
+        logError(e, { context: 'getFeedbackFromDB failed' });
+        throw new Error('Failed to retrieve feedback data.');
     }
 }
