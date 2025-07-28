@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useState, useTransition, Fragment } from 'react';
+import { useState, useTransition, Fragment, useEffect } from 'react';
 import type { PurchaseOrderWithItemsAndSupplier, Supplier } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 interface PurchaseOrdersClientPageProps {
   initialPurchaseOrders: PurchaseOrderWithItemsAndSupplier[];
@@ -70,19 +70,25 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
   const [isDeleting, startDeleteTransition] = useTransition();
   const [poToDelete, setPoToDelete] = useState<PurchaseOrderWithItemsAndSupplier | null>(null);
   const [expandedPoId, setExpandedPoId] = useState<string | null>(null);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    generateAndSetCsrfToken(setCsrfToken);
+  }, []);
 
   const toggleExpand = (poId: string) => {
     setExpandedPoId(prevId => (prevId === poId ? null : poId));
   };
 
   const handleDelete = () => {
-    if (!poToDelete) return;
+    if (!poToDelete || !csrfToken) {
+        toast({ variant: 'destructive', title: "Error", description: 'Could not perform action. Please refresh.' });
+        return;
+    };
 
     startDeleteTransition(async () => {
         const formData = new FormData();
-        const csrfToken = getCookie(CSRF_FORM_NAME);
-        if (csrfToken) formData.append(CSRF_FORM_NAME, csrfToken);
-        
+        formData.append(CSRF_FORM_NAME, csrfToken);
         formData.append('id', poToDelete.id);
         const result = await deletePurchaseOrder(formData);
 
@@ -193,7 +199,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
       </CardContent>
     </Card>
 
-     <AlertDialog open={!!poToDelete} onOpenChange={setPoToDelete}>
+     <AlertDialog open={!!poToDelete} onOpenChange={(open) => { if (!open) setPoToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
@@ -203,7 +209,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction onClick={handleDelete} disabled={isDeleting || !csrfToken} className="bg-destructive hover:bg-destructive/90">
               {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Yes, delete'}
             </AlertDialogAction>
           </AlertDialogFooter>

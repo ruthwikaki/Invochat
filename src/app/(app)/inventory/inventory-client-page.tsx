@@ -5,7 +5,7 @@ import { useState, useMemo, Fragment } from 'react';
 import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import type { UnifiedInventoryItem, InventoryAnalytics } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, ChevronDown, Package as PackageIcon, AlertTriangle, DollarSign, History, ArrowDownUp } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
