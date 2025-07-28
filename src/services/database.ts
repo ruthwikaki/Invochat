@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithSupplier, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
@@ -37,7 +37,6 @@ export async function checkUserPermission(userId: string, requiredRole: 'Admin' 
     }
     
     const supabase = getServiceRoleClient();
-    // Explicitly cast the role to the 'company_role' enum to resolve ambiguity.
     const { data, error } = await supabase.rpc('check_user_permission', { 
         p_user_id: userId, 
         p_required_role: requiredRole as any
@@ -199,14 +198,13 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
     const supabase = getServiceRoleClient();
     try {
-        const response = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
-        if (!response || !response.data) throw new Error('No response from get_dashboard_metrics RPC call.');
-
-        const { data, error } = response;
+        const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
         if (error) {
             throw error;
         }
-        if (data == null) throw new Error('No data returned from get_dashboard_metrics RPC call.');
+        if (data == null) {
+            throw new Error('No data returned from get_dashboard_metrics RPC call.');
+        }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
@@ -474,7 +472,7 @@ export async function removeTeamMemberFromDb(userId: string, companyId: string) 
     return { success: true };
 }
 
-export async function updateTeamMemberRoleInDb(memberId: string, companyId: string, newRole: 'Admin' | 'Member') {
+export async function updateTeamMemberRoleInDb(memberId: string, companyId: string, newRole: 'Admin' | 'Member' | 'Owner') {
     if (!z.string().uuid().safeParse(memberId).success || !z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid ID format');
     }
@@ -631,7 +629,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     return data;
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItemsAndSupplier[]> {
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItems[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
@@ -645,7 +643,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
+    return (data || []) as PurchaseOrderWithItems[];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
