@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -129,7 +129,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     
     try {
         let query = supabase
-            .from('product_variants_with_details') // CORRECTED VIEW
+            .from('product_variants_with_details') // This view should exist and be correct
             .select('*', { count: 'exact' })
             .eq('company_id', companyId);
 
@@ -201,7 +201,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     try {
         const { data, error } = await supabase.rpc('get_dashboard_metrics_workaround', { p_company_id: companyId, p_days: days });
         if (error) {
-            logError(error, { context: 'getDashboardMetrics_workaround failed', companyId, period });
+            logError(error, { context: 'get_dashboard_metrics_workaround failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
         if (data == null) {
@@ -402,12 +402,32 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
     return { deadStockItems, totalValue, totalUnits };
 }
 
-export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> { 
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
-    if (error) throw error;
-    return (data || []) as ReorderSuggestion[];
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
+    if (!z.string().uuid().safeParse(companyId).success) {
+        throw new Error('Invalid Company ID');
+    }
+    try {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase
+            .from('reorder_suggestions_view')
+            .select('*')
+            .eq('company_id', companyId);
+
+        if (error) {
+            throw error;
+        }
+
+        return z.array(ReorderSuggestionSchema.omit({
+            base_quantity: true,
+            adjustment_reason: true,
+            seasonality_factor: true,
+            confidence: true,
+        })).parse(data || []);
+
+    } catch (e) {
+        logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
+        throw e;
+    }
 }
 
 export async function getSupplierPerformanceFromDB(companyId: string) { 
@@ -852,5 +872,6 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
 
 
