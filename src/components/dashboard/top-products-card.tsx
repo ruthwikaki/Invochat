@@ -25,7 +25,7 @@ export function TopProductsCard({ data, currency }: TopProductsCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {data.length > 0 ? (
+        {data && data.length > 0 ? (
           <ul className="space-y-4">
             {data.map((product, index) => (
               <motion.li 

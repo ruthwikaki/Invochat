@@ -67,14 +67,18 @@ const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: strin
             </CardTitle>
         </CardHeader>
         <CardContent>
-            <ul className="space-y-3">
-                {data.map((customer, index) => (
-                    <li key={index} className="flex items-center justify-between text-sm">
-                        <span className="font-medium truncate pr-4">{customer.name}</span>
-                        <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCurrency(customer.value)}</span>
-                    </li>
-                ))}
-            </ul>
+             {data && data.length > 0 ? (
+                <ul className="space-y-3">
+                    {data.map((customer, index) => (
+                        <li key={index} className="flex items-center justify-between text-sm">
+                            <span className="font-medium truncate pr-4">{customer.name}</span>
+                            <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCurrency(customer.value)}</span>
+                        </li>
+                    ))}
+                </ul>
+             ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">No customer data to display.</p>
+             )}
         </CardContent>
     </Card>
 );
@@ -185,7 +189,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   };
 
   if (showEmptyState) {
-    return <EmptyCustomerState />
+    return <EmptyCustomerState />;
   }
 
   return (
@@ -295,3 +299,4 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
+
