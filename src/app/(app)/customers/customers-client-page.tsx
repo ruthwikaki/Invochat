@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import type { Customer, CustomerAnalytics } from '@/types';
@@ -24,7 +24,7 @@ import {
 import { deleteCustomer } from '@/app/data-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { getCookie, CSRF_FORM_NAME } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 import { ExportButton } from '@/components/ui/export-button';
 import { useTableState } from '@/hooks/use-table-state';
 import Link from 'next/link';
@@ -146,6 +146,11 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    generateAndSetCsrfToken(setCsrfToken);
+  }, []);
 
   const {
     searchQuery,
@@ -158,14 +163,15 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   const showNoResultsState = totalCount === 0 && searchQuery;
 
   const handleDelete = () => {
-    if (!customerToDelete) return;
+    if (!customerToDelete || !csrfToken) {
+        toast({ variant: 'destructive', title: "Error", description: 'Could not perform action. Please refresh.' });
+        return;
+    };
+
     startDeleteTransition(async () => {
       const formData = new FormData();
       formData.append('id', customerToDelete.id);
-      const csrfToken = getCookie(CSRF_FORM_NAME);
-      if (csrfToken) {
-          formData.append(CSRF_FORM_NAME, csrfToken);
-      }
+      formData.append(CSRF_FORM_NAME, csrfToken);
 
       const result = await deleteCustomer(formData);
       if (result.success) {
@@ -279,7 +285,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                <AlertDialogAction onClick={handleDelete} disabled={isDeleting || !csrfToken} className="bg-destructive hover:bg-destructive/90">
                     {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Yes, delete
                 </AlertDialogAction>
