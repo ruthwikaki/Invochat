@@ -128,7 +128,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
     
     try {
         let query = supabase
-            .from('product_variants_with_details')
+            .from('product_variants_view')
             .select('*', { count: 'exact' })
             .eq('company_id', companyId);
 
@@ -201,16 +201,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
         const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
         if (error) {
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
-            throw new Error('Could not retrieve dashboard metrics from the database.');
-        }
-        if (data == null) {
-            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
-            return {
-                total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0,
-                customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
-                inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
-                error: 'No data returned from RPC'
-            } as any;
+            throw error;
         }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
@@ -327,7 +318,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers_view_mat').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
         query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
@@ -638,7 +629,7 @@ export async function createPurchaseOrdersFromSuggestions(companyId: string, use
     const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
         p_company_id: companyId,
         p_user_id: userId,
-        p_suggestions: suggestions,
+        p_suggestions: suggestions as Json,
     });
 
     if (error) {
@@ -678,7 +669,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
-        .from('purchase_orders_with_items_view')
+        .from('purchase_orders_view')
         .select('*')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false });
@@ -696,7 +687,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         throw new Error('Invalid ID format');
     }
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('purchase_orders_with_items_view').select('*').eq('id', id).eq('company_id', companyId).single();
+    const { data, error } = await supabase.from('purchase_orders_view').select('*').eq('id', id).eq('company_id', companyId).single();
 
     if (error) {
         if(error.code === 'PGRST116') return null;
@@ -846,7 +837,7 @@ export async function getAuditLogFromDB(companyId: string, params: { query?: str
     const supabase = getServiceRoleClient();
     
     try {
-        let query = supabase.from('audit_log_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('audit_log_view_mat').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`action.ilike.%${validatedParams.query}%,user_email.ilike.%${validatedParams.query}%`);
         }
@@ -895,3 +886,5 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
+    
