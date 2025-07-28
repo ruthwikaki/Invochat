@@ -476,26 +476,18 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         const data = await getDashboardMetrics(companyId, dateRange);
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
-        logError(e, { context: 'getDashboardData failed, returning empty metrics' });
-        // This is a safe fallback for new users or if the DB functions aren't ready
-        const emptyMetrics: DashboardMetrics = {
-            total_revenue: 0,
-            revenue_change: 0,
-            total_sales: 0,
-            sales_change: 0,
-            new_customers: 0,
-            customers_change: 0,
-            dead_stock_value: 0,
-            sales_over_time: [],
-            top_selling_products: [],
-            inventory_summary: {
-                total_value: 0,
-                in_stock_value: 0,
-                low_stock_value: 0,
-                dead_stock_value: 0,
-            },
-        };
-        return emptyMetrics;
+        const errorMessage = getErrorMessage(e);
+        // Only return an empty shell if the error indicates no data exists, which is normal for new users
+        if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+            logger.warn('Returning empty dashboard metrics due to missing relations, likely a new user.', { companyId: (await getAuthContext()).companyId });
+             const emptyMetrics: DashboardMetrics = {
+                total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+                inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
+            };
+            return emptyMetrics;
+        }
+        logError(e, { context: 'getDashboardData failed, rethrowing' });
+        throw e;
     }
 }
 
@@ -708,3 +700,5 @@ export async function getFeedbackData(params: {
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
+    
