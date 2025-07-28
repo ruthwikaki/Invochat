@@ -324,7 +324,7 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     const supabase = getServiceRoleClient();
     let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
-        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
@@ -890,3 +890,5 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
+    
