@@ -1,4 +1,5 @@
 
+
 'use server';
 /**
  * @fileOverview Defines a suite of Genkit tools for performing secure, advanced analytics.
@@ -160,3 +161,4 @@ export const getPromotionalImpactAnalysis = ai.defineTool(
     }
   }
 );
+
