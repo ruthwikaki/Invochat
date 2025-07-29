@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useTransition, Fragment, useEffect } from 'react';
-import type { PurchaseOrderWithItemsAndSupplier } from '@/types';
+import type { PurchaseOrderWithItemsAndSupplier, Supplier } from '@/types';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -131,7 +131,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
                         <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', expandedPoId === po.id && 'rotate-180')} />
                       </TableCell>
                       <TableCell className="font-medium">{po.po_number}</TableCell>
-                      <TableCell>{po.suppliers?.name || 'N/A'}</TableCell>
+                      <TableCell>{po.supplier_name || 'N/A'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn("whitespace-nowrap", statusColors[po.status] || '')}>
                             {po.status}
@@ -174,10 +174,10 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {po.purchase_order_line_items.map(item => (
+                                            {po.line_items.map(item => (
                                                 <TableRow key={item.id}>
-                                                    <TableCell className="font-mono text-xs">{item.product_variants.sku}</TableCell>
-                                                    <TableCell>{item.product_variants.product_title}</TableCell>
+                                                    <TableCell className="font-mono text-xs">{item.sku}</TableCell>
+                                                    <TableCell>{item.product_name}</TableCell>
                                                     <TableCell className="text-right">{item.quantity}</TableCell>
                                                     <TableCell className="text-right">{formatCentsAsCurrency(item.cost)}</TableCell>
                                                     <TableCell className="text-right font-semibold">{formatCentsAsCurrency(item.quantity * item.cost)}</TableCell>
