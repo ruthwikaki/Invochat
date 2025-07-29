@@ -7,11 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdvancedReportsPage() {
 
-    const [abcAnalysisData, salesVelocityData, grossMarginData] = await Promise.all([
-        getAdvancedAbcReport(),
-        getAdvancedSalesVelocityReport(),
-        getAdvancedGrossMarginReport()
-    ]);
+    const abcAnalysisData = await getAdvancedAbcReport();
 
     return (
         <AppPage>
@@ -22,8 +18,6 @@ export default async function AdvancedReportsPage() {
             <div className="mt-6">
                 <AdvancedReportsClientPage
                     abcAnalysisData={abcAnalysisData || []}
-                    salesVelocityData={salesVelocityData || []}
-                    grossMarginData={grossMarginData || []}
                 />
             </div>
         </AppPage>

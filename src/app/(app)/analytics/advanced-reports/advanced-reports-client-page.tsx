@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { BarChart3, LineChart, PackageSearch } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 // Define types for the report data
 type AbcAnalysisItem = {
@@ -18,27 +18,8 @@ type AbcAnalysisItem = {
     abc_category: 'A' | 'B' | 'C';
 };
 
-type SalesVelocityItem = {
-    sku: string;
-    product_name: string;
-    quantity: number;
-    total_value: number;
-    days_since_last_sale: number;
-};
-
-type GrossMarginItem = {
-    sku: string;
-    product_name: string;
-    total_revenue: number;
-    total_cogs: number;
-    gross_margin_percentage: number;
-    gross_profit: number;
-}
-
 interface AdvancedReportsClientPageProps {
   abcAnalysisData: AbcAnalysisItem[];
-  salesVelocityData: SalesVelocityItem[];
-  grossMarginData: GrossMarginItem[];
 }
 
 const ReportEmptyState = ({ title, description, icon: Icon }: { title: string, description: string, icon: React.ElementType }) => (
@@ -109,107 +90,14 @@ function AbcAnalysisTab({ data }: { data: AbcAnalysisItem[] }) {
     );
 }
 
-function SalesVelocityTab({ data }: { data: SalesVelocityItem[] }) {
-    if (!data || data.length === 0) return <ReportEmptyState title="No Inventory Aging Data" description="This report is generated from your sales history. Sync your sales to see how long items sit in stock." icon={LineChart} />;
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Inventory Aging Report</CardTitle>
-                <CardDescription>
-                    A list of your products, showing how long it's been since they last sold. Helps identify slow-moving stock.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="max-h-[60vh] overflow-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Product</TableHead>
-                            <TableHead className="text-right">Days Since Last Sale</TableHead>
-                            <TableHead className="text-right">Current Quantity</TableHead>
-                            <TableHead className="text-right">Total Value</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {data.map(item => (
-                            <TableRow key={item.sku}>
-                                <TableCell>
-                                    <div className="font-medium">{item.product_name}</div>
-                                    <div className="text-xs text-muted-foreground">{item.sku}</div>
-                                </TableCell>
-                                <TableCell className="text-right font-tabular font-semibold">{item.days_since_last_sale}</TableCell>
-                                <TableCell className="text-right font-tabular">{item.quantity}</TableCell>
-                                <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.total_value)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function GrossMarginTab({ data }: { data: GrossMarginItem[] }) {
-    if (!data || data.length === 0) return <ReportEmptyState title="No Gross Margin Data" description="Profitability analysis requires both sales prices and product costs. Ensure your products have cost data imported." icon={PackageSearch} />;
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Gross Margin Report</CardTitle>
-                <CardDescription>
-                    Analyze the profitability of each product based on its revenue and cost of goods sold (COGS).
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="max-h-[60vh] overflow-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Product</TableHead>
-                                <TableHead className="text-right">Gross Profit</TableHead>
-                                <TableHead className="text-right">Gross Margin</TableHead>
-                                <TableHead className="text-right">Total Revenue</TableHead>
-                                <TableHead className="text-right">Total COGS</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {data.map((item, index) => (
-                                <motion.tr key={item.sku} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
-                                    <TableCell>
-                                        <div className="font-medium">{item.product_name}</div>
-                                        <div className="text-xs text-muted-foreground">{item.sku}</div>
-                                    </TableCell>
-                                    <TableCell className="text-right font-tabular font-semibold">{formatCentsAsCurrency(item.gross_profit)}</TableCell>
-                                    <TableCell className="text-right font-tabular">{item.gross_margin_percentage.toFixed(1)}%</TableCell>
-                                    <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.total_revenue)}</TableCell>
-                                    <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.total_cogs)}</TableCell>
-                                </motion.tr>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-export function AdvancedReportsClientPage({ abcAnalysisData, salesVelocityData, grossMarginData }: AdvancedReportsClientPageProps) {
+export function AdvancedReportsClientPage({ abcAnalysisData }: AdvancedReportsClientPageProps) {
   return (
     <Tabs defaultValue="abc-analysis" className="space-y-4">
         <TabsList>
             <TabsTrigger value="abc-analysis">ABC Analysis</TabsTrigger>
-            <TabsTrigger value="sales-velocity">Inventory Aging</TabsTrigger>
-            <TabsTrigger value="gross-margin">Gross Margin</TabsTrigger>
         </TabsList>
         <TabsContent value="abc-analysis">
             <AbcAnalysisTab data={abcAnalysisData} />
-        </TabsContent>
-        <TabsContent value="sales-velocity">
-            <SalesVelocityTab data={salesVelocityData} />
-        </TabsContent>
-        <TabsContent value="gross-margin">
-            <GrossMarginTab data={grossMarginData} />
         </TabsContent>
     </Tabs>
   );
