@@ -131,7 +131,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
                         <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', expandedPoId === po.id && 'rotate-180')} />
                       </TableCell>
                       <TableCell className="font-medium">{po.po_number}</TableCell>
-                      <TableCell>{po.supplier_name || 'N/A'}</TableCell>
+                      <TableCell>{po.suppliers?.name || 'N/A'}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={cn("whitespace-nowrap", statusColors[po.status] || '')}>
                             {po.status}
@@ -174,7 +174,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {po.line_items.map(item => (
+                                            {po.purchase_order_line_items.map(item => (
                                                 <TableRow key={item.id}>
                                                     <TableCell className="font-mono text-xs">{item.product_variants?.sku || 'N/A'}</TableCell>
                                                     <TableCell>{item.product_variants?.products?.product_title || 'N/A'}</TableCell>
