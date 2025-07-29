@@ -325,7 +325,7 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     const supabase = getServiceRoleClient();
     let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
-        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
@@ -383,8 +383,6 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    // The RPC returns an array with a single object: [{...}]
-    // We need to extract the first element before parsing.
     const result = Array.isArray(data) && data.length > 0 ? data[0] : {};
     return CustomerAnalyticsSchema.parse(result);
 }
@@ -680,16 +678,14 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         .from('purchase_orders')
         .select(`
             *,
-            suppliers (
-                name
-            ),
+            suppliers ( name ),
             purchase_order_line_items (
                 id,
                 quantity,
                 cost,
                 product_variants (
                     sku,
-                    product_title
+                    products ( product_title )
                 )
             )
         `)
@@ -707,7 +703,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         line_items: po.purchase_order_line_items.map(li => ({
             id: li.id,
             sku: li.product_variants?.sku || 'N/A',
-            product_name: li.product_variants?.product_title || 'N/A',
+            product_name: li.product_variants?.products?.product_title || 'N/A',
             quantity: li.quantity,
             cost: li.cost,
         }))
@@ -723,9 +719,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         .from('purchase_orders')
         .select(`
             *,
-            suppliers (
-                name
-            ),
+            suppliers ( name ),
             purchase_order_line_items (
                 id,
                 quantity,
@@ -733,7 +727,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
                 variant_id,
                 product_variants (
                     sku,
-                    product_title
+                    products ( product_title )
                 )
             )
         `)
@@ -753,7 +747,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         line_items: data.purchase_order_line_items.map(li => ({
             id: li.id,
             sku: li.product_variants?.sku || 'N/A',
-            product_name: li.product_variants?.product_title || 'N/A',
+            product_name: li.product_variants?.products?.product_title || 'N/A',
             quantity: li.quantity,
             cost: li.cost,
             variant_id: li.variant_id,

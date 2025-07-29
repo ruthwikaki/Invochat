@@ -212,11 +212,14 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
     supplier_name: z.string().nullable(),
     line_items: z.array(z.object({
         id: z.string().uuid(),
-        sku: z.string(),
-        product_name: z.string(),
         quantity: z.number().int(),
         cost: z.number().int(),
-        variant_id: z.string().uuid().optional(), // Make variant_id optional here as it's for form use
+        product_variants: z.object({
+            sku: z.string(),
+            products: z.object({
+                product_title: z.string(),
+            }).nullable(),
+        }).nullable(),
     }))
 });
 
