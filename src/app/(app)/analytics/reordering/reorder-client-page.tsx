@@ -127,7 +127,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   const isAllSelected = initialSuggestions.length > 0 && selectedSuggestions.length === initialSuggestions.length;
   const isSomeSelected = selectedSuggestions.length > 0 && selectedSuggestions.length < initialSuggestions.length;
   
-  if (initialSuggestions.length === 0) {
+  if (!initialSuggestions || initialSuggestions.length === 0) {
     return (
         <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
             <motion.div
