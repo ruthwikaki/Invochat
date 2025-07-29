@@ -127,7 +127,7 @@ export type Refund = z.infer<typeof RefundSchema>;
 export const CustomerSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
-  name: z.string().nullable(),
+  customer_name: z.string().nullable(),
   email: z.string().email().nullable(),
   total_orders: z.number().int(),
   total_spent: z.number().int(),
@@ -325,6 +325,7 @@ export const ReorderSuggestionBaseSchema = z.object({
     suggested_reorder_quantity: z.number().int(),
     unit_cost: z.number().int().nullable(),
 });
+export type ReorderSuggestionBase = z.infer<typeof ReorderSuggestionBaseSchema>;
 
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
     base_quantity: z.number().int().optional(),
