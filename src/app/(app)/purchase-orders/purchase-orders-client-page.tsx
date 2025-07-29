@@ -31,6 +31,7 @@ import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 interface PurchaseOrdersClientPageProps {
   initialPurchaseOrders: PurchaseOrderWithItemsAndSupplier[];
+  suppliers: Supplier[];
 }
 
 const statusColors: { [key: string]: string } = {
