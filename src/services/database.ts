@@ -326,7 +326,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers').select('*, total_orders:orders(count), total_spent:orders(total_amount)', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers').select('id, name, email, created_at, orders(count, total_amount)', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
         query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
@@ -334,11 +334,10 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
     if(error) throw error;
     
-    // Manual mapping because the aggregated columns are inside an array
     const items = (data || []).map(c => ({
       ...c,
-      total_orders: c.total_orders[0]?.count ?? 0,
-      total_spent: (c.total_spent as unknown as {total_amount: number}[])?.reduce((sum, o) => sum + o.total_amount, 0) ?? 0,
+      total_orders: c.orders[0]?.count ?? 0,
+      total_spent: (c.orders as unknown as {total_amount: number}[])?.reduce((sum, o) => sum + o.total_amount, 0) ?? 0,
     }));
 
     return {items, totalCount: count || 0};
@@ -436,8 +435,8 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                 reorder_point,
                 reorder_quantity,
                 cost,
-                products!inner ( product_title ),
-                suppliers ( name, id, default_lead_time_days )
+                products!inner(product_title),
+                suppliers(name, id, default_lead_time_days)
             `)
             .eq('company_id', companyId);
 
@@ -516,7 +515,7 @@ export async function getInventoryTurnoverFromDB(companyId: string, days: number
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_turnover', { p_company_id: companyId, p_days: days });
     if (error) {
-        logError(error, { context: 'getInventoryTurnoverFromDB failed' });
+        logError(error, { context: 'getInventoryTurnoverFromDB failed, returning null'});
         return null
     };
     return data; 
@@ -767,7 +766,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
                 product_variants (
                     id,
                     sku,
-                    products (product_title)
+                    products!inner(product_title)
                 )
             )
         `)
@@ -797,7 +796,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
                 product_variants (
                     id,
                     sku,
-                    products (product_title)
+                    products!inner(product_title)
                 )
             )
         `)
