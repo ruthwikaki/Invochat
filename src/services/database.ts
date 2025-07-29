@@ -755,45 +755,53 @@ export async function getNetMarginByChannelFromDB(companyId: string, channelName
     }
     return data; 
 }
-export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { 
+export async function getSalesVelocity(companyId: string, days: number, limit: number) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_velocity', { p_company_id: companyId, p_days: days, p_limit: limit });
+    const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
     if(error) {
-        logError(error, { context: 'getSalesVelocityFromDB failed' });
+        logError(error, { context: 'getSalesVelocityFromDB -> get_inventory_aging_report failed' });
         throw error;
     }
-    return data; 
+    // This RPC returns all items, we need to sort and slice to mimic "sales velocity"
+    const sorted = (data || []).sort((a,b) => b.days_since_last_sale - a.days_since_last_sale);
+    return {
+        fast_sellers: sorted.slice(0, limit),
+        slow_sellers: sorted.slice(-limit),
+    };
 }
 export async function getDemandForecastFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_demand_forecast', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getDemandForecastFromDB failed' });
         throw error;
     }
-    return data; 
+    return data?.demand_forecast || []; 
 }
-export async function getAbcAnalysisFromDB(companyId: string) { 
+export async function getAbcAnalysis(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_abc_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getAbcAnalysisFromDB failed' });
         throw error;
     }
-    return data; 
+    return data?.abc_analysis || []; 
 }
-export async function getGrossMarginAnalysisFromDB(companyId: string) { 
+export async function getGrossMarginAnalysis(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_gross_margin_analysis', { p_company_id: companyId });
+     const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getGrossMarginAnalysisFromDB failed' });
         throw error;
     }
-    return data; 
+    return {
+        products: data?.gross_margin_analysis || [],
+        summary: data?.gross_margin_summary || { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 },
+    };
 }
 export async function getMarginTrendsFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
@@ -890,3 +898,5 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         throw new Error('Failed to retrieve feedback data.');
     }
 }
+
+    
