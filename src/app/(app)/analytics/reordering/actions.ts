@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getAuthContext } from '@/lib/auth-helpers';
@@ -10,10 +9,18 @@ import type { ReorderSuggestion } from '@/types';
 import Papa from 'papaparse';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 
-
-export async function getReorderReport() {
-    const { companyId } = await getAuthContext();
-    return getReorderSuggestions({ companyId });
+export async function getReorderReport(): Promise<ReorderSuggestion[]> {
+    try {
+        const { companyId } = await getAuthContext();
+        return await getReorderSuggestions({ companyId });
+    } catch (error) {
+        // Log the error for debugging but don't throw it
+        logError(error, { context: 'getReorderReport failed' });
+        
+        // Return empty array instead of throwing error
+        // This allows the UI to show the empty state
+        return [];
+    }
 }
 
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {

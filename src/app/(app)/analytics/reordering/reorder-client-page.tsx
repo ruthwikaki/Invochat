@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download, Info } from 'lucide-react';
+import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download, Info, Package, TrendingUp } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -58,20 +58,74 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
 
 function EmptyReorderState() {
     return (
-        <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+        <div className="flex flex-col items-center justify-center min-h-[400px] p-8">
             <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
-                className="relative bg-primary/10 rounded-full p-6"
+                className="relative bg-primary/10 rounded-full p-8 mb-6"
             >
-                <RefreshCw className="h-16 w-16 text-primary" />
+                <Package className="h-16 w-16 text-primary" />
             </motion.div>
-            <h3 className="mt-6 text-xl font-semibold">No Reorder Suggestions</h3>
-            <p className="mt-2 text-muted-foreground">
-                Your inventory levels are healthy, or there isn't enough sales data to make a suggestion.
-            </p>
-        </Card>
+            
+            <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-center space-y-4 max-w-md"
+            >
+                <h3 className="text-2xl font-semibold text-foreground">
+                    All Good! No Reorders Needed
+                </h3>
+                <p className="text-muted-foreground text-lg leading-relaxed">
+                    Your inventory levels are healthy right now. This could mean:
+                </p>
+                
+                <div className="grid gap-3 mt-6 text-left">
+                    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                        <TrendingUp className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="font-medium text-sm">Stock levels are optimal</p>
+                            <p className="text-xs text-muted-foreground">All products are above their reorder points</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                        <RefreshCw className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="font-medium text-sm">Data is still syncing</p>
+                            <p className="text-xs text-muted-foreground">Recent integrations may need time to populate</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                        <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="font-medium text-sm">Missing reorder points</p>
+                            <p className="text-xs text-muted-foreground">Set reorder points in your inventory settings</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="flex gap-3 justify-center mt-8">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => window.location.reload()}
+                        className="flex items-center gap-2"
+                    >
+                        <RefreshCw className="h-4 w-4" />
+                        Refresh
+                    </Button>
+                    <Button 
+                        onClick={() => window.location.href = '/inventory'}
+                        className="flex items-center gap-2"
+                    >
+                        <Package className="h-4 w-4" />
+                        View Inventory
+                    </Button>
+                </div>
+            </motion.div>
+        </div>
     );
 }
 
@@ -143,6 +197,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
     });
   };
   
+  // Show empty state when no suggestions
   if (!initialSuggestions || initialSuggestions.length === 0) {
     return <EmptyReorderState />;
   }

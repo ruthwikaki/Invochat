@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Product } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
@@ -326,7 +326,7 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers').select('id, name as customer_name, email, created_at', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers').select('*, total_orders:orders(count), total_spent:orders(total_amount)', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
         query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
@@ -334,12 +334,13 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
     if(error) throw error;
     
-    // This is a simplified version. A more robust solution might involve another query to get order details.
-    // For now, returning placeholder values for order count and total spent.
     const items = (data || []).map(c => ({
-      ...c,
-      total_orders: 0,
-      total_spent: 0,
+      id: c.id,
+      customer_name: c.name,
+      email: c.email,
+      created_at: c.created_at,
+      total_orders: Array.isArray(c.total_orders) ? c.total_orders[0].count : 0,
+      total_spent: Array.isArray(c.total_spent) ? c.total_spent.reduce((acc, o) => acc + o.total_amount, 0) : 0,
     }));
 
     return {items, totalCount: count || 0};
@@ -427,6 +428,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
         const supabase = getServiceRoleClient();
         const settings = await getSettings(companyId);
 
+        // Fetch product variants and their related product and supplier info in one go.
         const { data: variants, error: variantsError } = await supabase
             .from('product_variants')
             .select(`
