@@ -647,7 +647,7 @@ export async function getDeadStockReport() {
 export async function getAdvancedAbcReport() {
     try {
         const { companyId } = await getAuthContext();
-        return getAbcAnalysisFromDB(companyId);
+        return await getAbcAnalysisFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedAbcReport failed, returning null'});
         return null;
@@ -657,7 +657,7 @@ export async function getAdvancedAbcReport() {
 export async function getAdvancedSalesVelocityReport() {
     try {
         const { companyId } = await getAuthContext();
-        return getSalesVelocityFromDB(companyId, 90, 10);
+        return await getSalesVelocityFromDB(companyId, 90, 20);
     } catch(e) {
         logError(e, { context: 'getAdvancedSalesVelocityReport failed, returning null'});
         return null;

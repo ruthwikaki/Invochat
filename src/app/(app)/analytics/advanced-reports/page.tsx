@@ -7,7 +7,6 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdvancedReportsPage() {
 
-    // Set default values to handle cases where the database might return null for new users
     const [abcAnalysisData, salesVelocityData, grossMarginData] = await Promise.all([
         getAdvancedAbcReport(),
         getAdvancedSalesVelocityReport(),
@@ -22,9 +21,9 @@ export default async function AdvancedReportsPage() {
             />
             <div className="mt-6">
                 <AdvancedReportsClientPage
-                    abcAnalysisData={abcAnalysisData?.products || []}
-                    salesVelocityData={salesVelocityData || { fast_sellers: [], slow_sellers: [] }}
-                    grossMarginData={grossMarginData?.products || []}
+                    abcAnalysisData={abcAnalysisData || []}
+                    salesVelocityData={salesVelocityData || []}
+                    grossMarginData={grossMarginData || []}
                 />
             </div>
         </AppPage>
