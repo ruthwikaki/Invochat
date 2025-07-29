@@ -21,8 +21,9 @@ type AbcAnalysisItem = {
 type SalesVelocityItem = {
     sku: string;
     product_name: string;
-    units_sold: number;
-    sales_velocity: number;
+    quantity: number;
+    total_value: number;
+    days_since_last_sale: number;
 };
 
 type GrossMarginItem = {
@@ -36,10 +37,7 @@ type GrossMarginItem = {
 
 interface AdvancedReportsClientPageProps {
   abcAnalysisData: AbcAnalysisItem[];
-  salesVelocityData: {
-    fast_sellers: SalesVelocityItem[];
-    slow_sellers: SalesVelocityItem[];
-  };
+  salesVelocityData: SalesVelocityItem[];
   grossMarginData: GrossMarginItem[];
 }
 
@@ -111,49 +109,45 @@ function AbcAnalysisTab({ data }: { data: AbcAnalysisItem[] }) {
     );
 }
 
-function SalesVelocityTab({ data }: { data: { fast_sellers: SalesVelocityItem[], slow_sellers: SalesVelocityItem[] } }) {
-    if (!data || (data.fast_sellers.length === 0 && data.slow_sellers.length === 0)) return <ReportEmptyState title="No Sales Velocity Data" description="This report is generated from your sales history. Sync your sales to see which products move fastest and slowest." icon={LineChart} />;
+function SalesVelocityTab({ data }: { data: SalesVelocityItem[] }) {
+    if (!data || data.length === 0) return <ReportEmptyState title="No Inventory Aging Data" description="This report is generated from your sales history. Sync your sales to see how long items sit in stock." icon={LineChart} />;
 
-    const VelocityTable = ({ title, items }: { title: string, items: SalesVelocityItem[] }) => (
-        <Card className="flex-1">
+    return (
+        <Card>
             <CardHeader>
-                <CardTitle>{title}</CardTitle>
+                <CardTitle>Inventory Aging Report</CardTitle>
+                <CardDescription>
+                    A list of your products, showing how long it's been since they last sold. Helps identify slow-moving stock.
+                </CardDescription>
             </CardHeader>
             <CardContent>
-                 <div className="max-h-[45vh] overflow-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Product</TableHead>
-                                <TableHead className="text-right">Units Sold/Day</TableHead>
+                <div className="max-h-[60vh] overflow-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Days Since Last Sale</TableHead>
+                            <TableHead className="text-right">Current Quantity</TableHead>
+                            <TableHead className="text-right">Total Value</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {data.map(item => (
+                            <TableRow key={item.sku}>
+                                <TableCell>
+                                    <div className="font-medium">{item.product_name}</div>
+                                    <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                </TableCell>
+                                <TableCell className="text-right font-tabular font-semibold">{item.days_since_last_sale}</TableCell>
+                                <TableCell className="text-right font-tabular">{item.quantity}</TableCell>
+                                <TableCell className="text-right font-tabular">{formatCentsAsCurrency(item.total_value)}</TableCell>
                             </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {items.length > 0 ? items.map(item => (
-                                <TableRow key={item.sku}>
-                                    <TableCell>
-                                        <div className="font-medium">{item.product_name}</div>
-                                        <div className="text-xs text-muted-foreground">{item.sku}</div>
-                                    </TableCell>
-                                    <TableCell className="text-right font-tabular">{item.sales_velocity.toFixed(2)}</TableCell>
-                                </TableRow>
-                            )) : (
-                                <TableRow>
-                                    <TableCell colSpan={2} className="text-center text-muted-foreground h-24">No data for this category.</TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                        ))}
+                    </TableBody>
+                </Table>
                 </div>
             </CardContent>
         </Card>
-    );
-    
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <VelocityTable title="Fastest-Selling Products" items={data.fast_sellers} />
-            <VelocityTable title="Slowest-Selling Products" items={data.slow_sellers} />
-        </div>
     );
 }
 
@@ -205,7 +199,7 @@ export function AdvancedReportsClientPage({ abcAnalysisData, salesVelocityData, 
     <Tabs defaultValue="abc-analysis" className="space-y-4">
         <TabsList>
             <TabsTrigger value="abc-analysis">ABC Analysis</TabsTrigger>
-            <TabsTrigger value="sales-velocity">Sales Velocity</TabsTrigger>
+            <TabsTrigger value="sales-velocity">Inventory Aging</TabsTrigger>
             <TabsTrigger value="gross-margin">Gross Margin</TabsTrigger>
         </TabsList>
         <TabsContent value="abc-analysis">

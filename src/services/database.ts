@@ -758,9 +758,9 @@ export async function getNetMarginByChannelFromDB(companyId: string, channelName
 export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_velocity', { p_company_id: companyId, p_days: days, p_limit: limit });
+    const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
     if(error) {
-        logError(error, { context: 'getSalesVelocityFromDB failed' });
+        logError(error, { context: 'getSalesVelocityFromDB -> get_inventory_aging_report failed' });
         throw error;
     }
     return data; 
@@ -768,7 +768,7 @@ export async function getSalesVelocityFromDB(companyId: string, days: number, li
 export async function getDemandForecastFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('forecast_demand', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_demand_forecast', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getDemandForecastFromDB failed' });
         throw error;
@@ -783,7 +783,7 @@ export async function getAbcAnalysisFromDB(companyId: string) {
         logError(error, { context: 'getAbcAnalysisFromDB failed' });
         throw error;
     }
-    return data; 
+    return data?.products; 
 }
 export async function getGrossMarginAnalysisFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
@@ -793,7 +793,7 @@ export async function getGrossMarginAnalysisFromDB(companyId: string) {
         logError(error, { context: 'getGrossMarginAnalysisFromDB failed' });
         throw error;
     }
-    return data; 
+    return data?.products; 
 }
 export async function getMarginTrendsFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
