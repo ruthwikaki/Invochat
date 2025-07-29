@@ -1,10 +1,9 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema, PurchaseOrderWithItemsAndSupplierSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -196,7 +195,7 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
 }
 
 export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
+    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\D/g, ''), 10);
     const supabase = getServiceRoleClient();
     try {
         const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
@@ -764,8 +763,9 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
             purchase_order_line_items (
                 *,
                 product_variants (
+                    id,
                     sku,
-                    products ( product_title )
+                    products!inner(product_title)
                 )
             )
         `)
@@ -777,17 +777,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data || []).map(po => ({
-        ...po,
-        supplier_name: po.suppliers?.name || 'N/A',
-        line_items: po.purchase_order_line_items.map(li => ({
-            id: li.id,
-            sku: li.product_variants?.sku || 'N/A',
-            product_name: li.product_variants?.products?.product_title || 'N/A',
-            quantity: li.quantity,
-            cost: li.cost,
-        }))
-    })) as PurchaseOrderWithItemsAndSupplier[];
+    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -805,7 +795,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
                 product_variants (
                     id,
                     sku,
-                    products ( product_title )
+                    products!inner(product_title)
                 )
             )
         `)
@@ -819,18 +809,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         throw new Error('Failed to retrieve purchase order');
     }
 
-    return {
-        ...data,
-        supplier_name: data.suppliers?.name || 'N/A',
-        line_items: data.purchase_order_line_items.map(li => ({
-            id: li.id,
-            sku: li.product_variants?.sku || 'N/A',
-            product_name: li.product_variants?.products?.product_title || 'N/A',
-            quantity: li.quantity,
-            cost: li.cost,
-            variant_id: li.product_variants?.id || li.variant_id,
-        }))
-    } as PurchaseOrderWithItemsAndSupplier;
+    return data as PurchaseOrderWithItemsAndSupplier;
 }
 
 export async function deletePurchaseOrderFromDb(id: string, companyId: string) {
