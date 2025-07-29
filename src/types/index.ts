@@ -1,5 +1,4 @@
 
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -217,7 +216,9 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
         id: z.string().uuid(),
         quantity: z.number().int(),
         cost: z.number().int(),
+        variant_id: z.string().uuid(),
         product_variants: z.object({
+            id: z.string().uuid(),
             sku: z.string(),
             products: z.object({
                 product_title: z.string(),
