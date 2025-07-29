@@ -633,7 +633,7 @@ export async function createPurchaseOrdersFromSuggestions(companyId: string, use
     const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
         p_company_id: companyId,
         p_user_id: userId,
-        p_suggestions: suggestions as Json,
+        p_suggestions: suggestions as unknown as Json,
     });
 
     if (error) {
@@ -768,7 +768,7 @@ export async function getSalesVelocityFromDB(companyId: string, days: number, li
 export async function getDemandForecastFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_demand_forecast', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('forecast_demand', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getDemandForecastFromDB failed' });
         throw error;
