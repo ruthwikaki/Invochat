@@ -37,10 +37,9 @@ export async function checkUserPermission(userId: string, requiredRole: 'Admin' 
     }
     
     const supabase = getServiceRoleClient();
-    // Explicitly cast p_required_role to the 'company_role' enum to resolve ambiguity
     const { data, error } = await supabase.rpc('check_user_permission', { 
         p_user_id: userId, 
-        p_required_role: requiredRole as any
+        p_required_role: requiredRole
     });
     
     if (error) {
@@ -387,7 +386,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return CustomerAnalyticsSchema.parse(data as any);
+    return CustomerAnalyticsSchema.parse(Array.isArray(data) ? data[0] : data);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -414,75 +413,14 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     }
     try {
         const supabase = getServiceRoleClient();
-        const settings = await getSettings(companyId);
+        const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
 
-        const { data: variants, error: variantsError } = await supabase
-            .from('product_variants')
-            .select(`
-                id,
-                product_id,
-                sku,
-                inventory_quantity,
-                reorder_point,
-                reorder_quantity,
-                cost,
-                products!inner(product_title:title)
-            `)
-            .eq('company_id', companyId);
-
-        if (variantsError) {
-            logError(variantsError, { context: 'Failed to fetch variants for reorder suggestions' });
-            throw variantsError;
+        if (error) {
+            logError(error, { context: 'getReorderSuggestionsFromDB failed' });
+            throw error;
         }
 
-        if (!variants || variants.length === 0) {
-            return [];
-        }
-
-        const { data: salesData, error: salesError } = await supabase
-            .from('daily_sales_summary')
-            .select('variant_id, daily_avg_sales')
-            .eq('company_id', companyId)
-            .gte('date', new Date(Date.now() - settings.fast_moving_days * 24 * 60 * 60 * 1000).toISOString());
-        
-        if (salesError) {
-            logError(salesError, { context: 'Failed to fetch sales data for reorder suggestions' });
-            throw salesError;
-        }
-
-        const salesMap = new Map(salesData.map(s => [s.variant_id, s.daily_avg_sales]));
-        const suggestions: ReorderSuggestion[] = [];
-
-        for (const variant of variants) {
-            const reorderPoint = variant.reorder_point ?? 0;
-            if (variant.inventory_quantity <= reorderPoint) {
-                const dailySales = salesMap.get(variant.id) || 0;
-                const leadTime = 14; // Default lead time
-                const safetyStock = dailySales * 7; 
-                
-                let suggestedQuantity = variant.reorder_quantity || Math.ceil((dailySales * leadTime) + safetyStock);
-                
-                if (!variant.reorder_quantity && suggestedQuantity === 0) {
-                    suggestedQuantity = 10; 
-                }
-
-                if (suggestedQuantity > 0) {
-                    suggestions.push({
-                        variant_id: variant.id,
-                        product_id: variant.product_id,
-                        sku: variant.sku,
-                        product_name: (variant.products as any)?.product_title,
-                        supplier_name: null,
-                        supplier_id: null,
-                        current_quantity: variant.inventory_quantity,
-                        suggested_reorder_quantity: suggestedQuantity,
-                        unit_cost: variant.cost,
-                    });
-                }
-            }
-        }
-        
-        return ReorderSuggestionSchema.array().parse(suggestions);
+        return z.array(ReorderSuggestionBaseSchema).parse(data || []);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -990,5 +928,59 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
     } catch (e) {
         logError(e, { context: 'getFeedbackFromDB failed' });
         return { items: [], totalCount: 0 };
+    }
+}
+import { getAuthContext } from '@/lib/auth-helpers';
+import { revalidatePath } from 'next/cache';
+import { getErrorMessage, logError } from '@/lib/error-handler';
+import { createPurchaseOrdersFromSuggestions as createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
+import type { ReorderSuggestion } from '@/types';
+import Papa from 'papaparse';
+import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+
+export async function getReorderReport(): Promise<ReorderSuggestion[]> {
+    try {
+        const { companyId } = await getAuthContext();
+        return await getReorderSuggestions({ companyId });
+    } catch (error) {
+        // Log the error for debugging but don't throw it
+        logError(error, { context: 'getReorderReport failed' });
+        
+        // Return empty array instead of throwing error
+        // This allows the UI to show the empty state
+        return [];
+    }
+}
+
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
+        revalidatePath('/purchase-orders');
+        revalidatePath('/analytics/reordering');
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
+    try {
+        const dataToExport = suggestions.map(s => ({
+            sku: s.sku,
+            product_name: s.product_name,
+            supplier_name: s.supplier_name,
+            current_quantity: s.current_quantity,
+            suggested_reorder_quantity: s.suggested_reorder_quantity,
+            unit_cost: s.unit_cost !== null && s.unit_cost !== undefined ? (s.unit_cost / 100).toFixed(2) : '',
+            total_cost: s.unit_cost !== null && s.unit_cost !== undefined ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : '',
+            adjustment_reason: s.adjustment_reason,
+            confidence: s.confidence,
+        }));
+        const csv = Papa.unparse(dataToExport);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
     }
 }
