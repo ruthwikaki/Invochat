@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
 import { CompanySettingsSchema, SupplierFormSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
@@ -413,45 +413,14 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     }
     try {
         const supabase = getServiceRoleClient();
-        const settings = await getSettings(companyId);
+        const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
 
-        const { data: variantsData, error: variantsError } = await supabase
-            .from('product_variants')
-            .select(`
-                id,
-                product_id,
-                sku,
-                inventory_quantity,
-                reorder_point,
-                reorder_quantity,
-                cost,
-                products!inner(product_title:title)
-            `)
-            .eq('company_id', companyId)
-            .lt('inventory_quantity', 10); // Simplified for now
-
-        if (variantsError) {
-            logError(variantsError, { context: 'Failed to fetch variants for reorder suggestions' });
-            throw variantsError;
+        if (error) {
+            logError(error, { context: 'getReorderSuggestionsFromDB failed' });
+            throw error;
         }
 
-        if (!variantsData || variantsData.length === 0) {
-            return [];
-        }
-        
-        const suggestions: ReorderSuggestion[] = variantsData.map(variant => ({
-            variant_id: variant.id,
-            product_id: variant.product_id,
-            sku: variant.sku,
-            product_name: (variant.products as any)?.product_title || 'Unknown Product',
-            supplier_name: null,
-            supplier_id: null,
-            current_quantity: variant.inventory_quantity,
-            suggested_reorder_quantity: variant.reorder_quantity || 50, // Default to 50 for now
-            unit_cost: variant.cost,
-        }));
-        
-        return ReorderSuggestionSchema.array().parse(suggestions);
+        return z.array(ReorderSuggestionBaseSchema).parse(data || []);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -961,4 +930,3 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         return { items: [], totalCount: 0 };
     }
 }
-```
