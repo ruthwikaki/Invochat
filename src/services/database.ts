@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
-import { CompanySettingsSchema, SupplierFormSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
+import { CompanySettingsSchema, SupplierFormSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -407,7 +407,7 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
     return { deadStockItems, totalValue, totalUnits };
 }
 
-export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestionBase[]> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid Company ID');
     }
