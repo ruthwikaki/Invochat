@@ -1,4 +1,5 @@
 
+
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
@@ -44,9 +45,9 @@ import {
     adjustInventoryQuantityInDb,
     getAuditLogFromDB,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    getAbcAnalysis,
-    getSalesVelocity,
-    getGrossMarginAnalysis,
+    getAbcAnalysisFromDB,
+    getSalesVelocityFromDB,
+    getGrossMarginAnalysisFromDB,
     getFeedbackFromDB,
     deletePurchaseOrderFromDb,
     getSupplierPerformanceFromDB,
@@ -662,7 +663,7 @@ export async function getDeadStockReport() {
 export async function getAdvancedAbcReport() {
     try {
         const { companyId } = await getAuthContext();
-        return await getAbcAnalysis(companyId);
+        return await getAbcAnalysisFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedAbcReport failed, returning null'});
         return null;
@@ -672,7 +673,7 @@ export async function getAdvancedAbcReport() {
 export async function getAdvancedSalesVelocityReport() {
     try {
         const { companyId } = await getAuthContext();
-        return await getSalesVelocity(companyId, 90, 20);
+        return await getSalesVelocityFromDB(companyId, 90, 20);
     } catch(e) {
         logError(e, { context: 'getAdvancedSalesVelocityReport failed, returning null'});
         return { fast_sellers: [], slow_sellers: [] };
@@ -682,7 +683,7 @@ export async function getAdvancedSalesVelocityReport() {
 export async function getAdvancedGrossMarginReport() {
     try {
         const { companyId } = await getAuthContext();
-        return await getGrossMarginAnalysis(companyId);
+        return await getGrossMarginAnalysisFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedGrossMarginReport failed, returning null'});
         return { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } };
@@ -750,5 +751,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
-    
