@@ -63,6 +63,4 @@ export async function POST(request: Request) {
 
     } catch (e: unknown) {
         logError(e, { context: 'Amazon FBA Sync API' });
-        return NextResponse.json({ error: getErrorMessage(e) }, { status: 500 });
-    }
-}
+        return NextResponse.json({ error: getErrorMessage
