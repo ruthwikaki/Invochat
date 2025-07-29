@@ -56,6 +56,25 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     )
 }
 
+function EmptyReorderState() {
+    return (
+        <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
+            <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
+                className="relative bg-primary/10 rounded-full p-6"
+            >
+                <RefreshCw className="h-16 w-16 text-primary" />
+            </motion.div>
+            <h3 className="mt-6 text-xl font-semibold">No Reorder Suggestions</h3>
+            <p className="mt-2 text-muted-foreground">
+                Your inventory levels are healthy, or there isn't enough sales data to make a suggestion.
+            </p>
+        </Card>
+    );
+}
+
 export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: ReorderSuggestion[] }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -124,27 +143,13 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
     });
   };
   
+  if (!initialSuggestions || initialSuggestions.length === 0) {
+    return <EmptyReorderState />;
+  }
+  
   const isAllSelected = initialSuggestions.length > 0 && selectedSuggestions.length === initialSuggestions.length;
   const isSomeSelected = selectedSuggestions.length > 0 && selectedSuggestions.length < initialSuggestions.length;
   
-  if (!initialSuggestions || initialSuggestions.length === 0) {
-    return (
-        <Card className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed">
-            <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 10 }}
-                className="relative bg-primary/10 rounded-full p-6"
-            >
-                <RefreshCw className="h-16 w-16 text-primary" />
-            </motion.div>
-            <h3 className="mt-6 text-xl font-semibold">No Reorder Suggestions</h3>
-            <p className="mt-2 text-muted-foreground">
-                Your inventory levels are healthy, or there isn't enough sales data to make a suggestion.
-            </p>
-        </Card>
-    )
-  }
 
   return (
     <div className="space-y-4">

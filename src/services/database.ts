@@ -1,9 +1,10 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema, PurchaseOrderWithItemsAndSupplierSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -195,7 +196,7 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
 }
 
 export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\D/g, ''), 10);
+    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
     const supabase = getServiceRoleClient();
     try {
         const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
@@ -203,25 +204,20 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
-        // Handle case where RPC returns no data (e.g., new user)
-        if (!data || data.length === 0) {
+        if (data == null || (Array.isArray(data) && data.length === 0)) {
             logger.warn('[RPC] get_dashboard_metrics returned no data. Returning empty metrics.');
-            return {
+             return {
                 total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
                 inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
             };
         }
-        // Assuming the RPC returns a single object in an array
-        return DashboardMetricsSchema.parse(data[0]);
+        return DashboardMetricsSchema.parse(Array.isArray(data) ? data[0] : data);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-        // Return a safe, empty object to prevent frontend crashes
-        return {
-            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
-            inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
-        };
+        throw new Error('Could not retrieve dashboard metrics from the database.');
     }
 }
+
 
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) {
@@ -237,7 +233,7 @@ export async function getInventoryAnalyticsFromDB(companyId: string): Promise<In
         return InventoryAnalyticsSchema.parse(data);
     } catch (error) {
         logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
-        return { total_inventory_value: 0, total_products: 0, total_variants: 0, low_stock_items: 0 };
+        throw error;
     }
 }
 
@@ -259,7 +255,7 @@ export async function getSuppliersDataFromDB(companyId: string): Promise<Supplie
         return z.array(SupplierSchema).parse(data || []);
     } catch (error) {
         logError(error, { context: 'getSuppliersDataFromDB unexpected error', companyId });
-        return [];
+        throw error;
     }
 }
 
@@ -330,17 +326,22 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers').select('*, total_orders:orders(count), total_spent:orders(total_amount)', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
         query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
-    if(error) {
-        logError(error, {context: 'getCustomersFromDB failed'});
-        return { items: [], totalCount: 0 };
-    }
-    return {items: data || [], totalCount: count || 0};
+    if(error) throw error;
+    
+    // Manual mapping because the aggregated columns are inside an array
+    const items = (data || []).map(c => ({
+      ...c,
+      total_orders: c.total_orders[0]?.count ?? 0,
+      total_spent: (c.total_spent as unknown as {total_amount: number}[])?.reduce((sum, o) => sum + o.total_amount, 0) ?? 0,
+    }));
+
+    return {items, totalCount: count || 0};
 }
 
 export async function deleteCustomerFromDb(customerId: string, companyId: string) {
@@ -360,17 +361,20 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders').select('*, customers (email)', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_id.ilike.%${validatedParams.query}%`);
         }
         const limit = Math.min(validatedParams.limit || 25, 100);
         const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
         if (error) throw error;
-        return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
+        
+        const items = data?.map(d => ({...d, customer_email: (d.customers as any)?.email })) || [];
+        
+        return { items: z.array(OrderSchema).parse(items), totalCount: count || 0 };
     } catch(e) {
         logError(e, { context: 'getSalesFromDB failed' });
-        return { items: [], totalCount: 0 };
+        throw new Error('Failed to retrieve sales data.');
     }
 }
 
@@ -380,7 +384,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
     const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
-        return { total_revenue: 0, total_orders: 0, average_order_value: 0 };
+        throw error;
     }
     return SalesAnalyticsSchema.parse(data);
 }
@@ -391,10 +395,9 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
     const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
-        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
+        throw error;
     }
-    const result = Array.isArray(data) && data.length > 0 ? data[0] : {};
-    return CustomerAnalyticsSchema.parse(result);
+    return CustomerAnalyticsSchema.parse(Array.isArray(data) ? data[0] : data);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -433,8 +436,8 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                 reorder_point,
                 reorder_quantity,
                 cost,
-                products ( product_title ),
-                suppliers ( name, id )
+                products!inner ( product_title ),
+                suppliers ( name, id, default_lead_time_days )
             `)
             .eq('company_id', companyId);
 
@@ -465,7 +468,6 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             const reorderPoint = variant.reorder_point ?? 0;
             if (variant.inventory_quantity <= reorderPoint) {
                 const dailySales = salesMap.get(variant.id) || 0;
-                // Default lead time to 14 days if not set on the supplier
                 const leadTime = (variant.suppliers as any)?.default_lead_time_days ?? 14;
                 const safetyStock = dailySales * 7; 
                 
@@ -765,7 +767,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
                 product_variants (
                     id,
                     sku,
-                    products!inner(product_title)
+                    products (product_title)
                 )
             )
         `)
@@ -795,7 +797,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
                 product_variants (
                     id,
                     sku,
-                    products!inner(product_title)
+                    products (product_title)
                 )
             )
         `)
@@ -879,7 +881,7 @@ export async function getSalesVelocityFromDB(companyId: string, days: number, li
 export async function getDemandForecastFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_demand_forecast', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('forecast_demand', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getDemandForecastFromDB failed' });
         return null;
