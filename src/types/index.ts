@@ -1,5 +1,4 @@
 
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -315,26 +314,7 @@ export const ProductUpdateSchema = z.object({
 export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
 
 
-const ReorderSuggestionRawSchema = z.object({
-  variant_id: z.string().uuid(),
-  product_id: z.string().uuid(),
-  sku: z.string(),
-  inventory_quantity: z.number().int(),
-  reorder_point: z.number().int().nullable(),
-  reorder_quantity: z.number().int().nullable(),
-  cost: z.number().int().nullable(),
-  products: z.object({
-    product_title: z.string(),
-  }),
-  suppliers: z.object({
-    name: z.string(),
-    id: z.string().uuid(),
-    default_lead_time_days: z.number().int().nullable(),
-  }).nullable(),
-});
-export type ReorderSuggestionRaw = z.infer<typeof ReorderSuggestionRawSchema>;
-
-export const ReorderSuggestionSchema = z.object({
+export const ReorderSuggestionBaseSchema = z.object({
     variant_id: z.string().uuid(),
     product_id: z.string().uuid(),
     sku: z.string(),
@@ -344,6 +324,9 @@ export const ReorderSuggestionSchema = z.object({
     current_quantity: z.number().int(),
     suggested_reorder_quantity: z.number().int(),
     unit_cost: z.number().int().nullable(),
+});
+
+export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
     base_quantity: z.number().int().optional(),
     adjustment_reason: z.string().nullable().optional(),
     seasonality_factor: z.number().nullable().optional(),
