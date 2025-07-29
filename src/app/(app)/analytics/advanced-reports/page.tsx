@@ -1,8 +1,8 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
-import { getAuthContext } from "@/lib/auth-helpers";
 import { getAbcAnalysisFromDB, getSalesVelocityFromDB, getGrossMarginAnalysisFromDB } from "@/services/database";
 import { AdvancedReportsClientPage } from "./advanced-reports-client-page";
+import { getAuthContext } from "@/lib/auth-helpers";
 
 export const dynamic = 'force-dynamic';
 
