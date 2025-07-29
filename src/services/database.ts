@@ -3,8 +3,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Product } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
+import { CompanySettingsSchema, SupplierFormSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -413,14 +413,45 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     }
     try {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
+        const settings = await getSettings(companyId);
 
-        if (error) {
-            logError(error, { context: 'getReorderSuggestionsFromDB failed' });
-            throw error;
+        const { data: variantsData, error: variantsError } = await supabase
+            .from('product_variants')
+            .select(`
+                id,
+                product_id,
+                sku,
+                inventory_quantity,
+                reorder_point,
+                reorder_quantity,
+                cost,
+                products!inner(product_title:title)
+            `)
+            .eq('company_id', companyId)
+            .lt('inventory_quantity', 10); // Simplified for now
+
+        if (variantsError) {
+            logError(variantsError, { context: 'Failed to fetch variants for reorder suggestions' });
+            throw variantsError;
         }
 
-        return z.array(ReorderSuggestionBaseSchema).parse(data || []);
+        if (!variantsData || variantsData.length === 0) {
+            return [];
+        }
+        
+        const suggestions: ReorderSuggestion[] = variantsData.map(variant => ({
+            variant_id: variant.id,
+            product_id: variant.product_id,
+            sku: variant.sku,
+            product_name: (variant.products as any)?.product_title || 'Unknown Product',
+            supplier_name: null,
+            supplier_id: null,
+            current_quantity: variant.inventory_quantity,
+            suggested_reorder_quantity: variant.reorder_quantity || 50, // Default to 50 for now
+            unit_cost: variant.cost,
+        }));
+        
+        return ReorderSuggestionSchema.array().parse(suggestions);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -930,57 +961,4 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         return { items: [], totalCount: 0 };
     }
 }
-import { getAuthContext } from '@/lib/auth-helpers';
-import { revalidatePath } from 'next/cache';
-import { getErrorMessage, logError } from '@/lib/error-handler';
-import { createPurchaseOrdersFromSuggestions as createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
-import type { ReorderSuggestion } from '@/types';
-import Papa from 'papaparse';
-import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
-
-export async function getReorderReport(): Promise<ReorderSuggestion[]> {
-    try {
-        const { companyId } = await getAuthContext();
-        return await getReorderSuggestions({ companyId });
-    } catch (error) {
-        // Log the error for debugging but don't throw it
-        logError(error, { context: 'getReorderReport failed' });
-        
-        // Return empty array instead of throwing error
-        // This allows the UI to show the empty state
-        return [];
-    }
-}
-
-export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
-        revalidatePath('/purchase-orders');
-        revalidatePath('/analytics/reordering');
-        return { success: true, createdPoCount };
-    } catch (e) {
-        logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
-    try {
-        const dataToExport = suggestions.map(s => ({
-            sku: s.sku,
-            product_name: s.product_name,
-            supplier_name: s.supplier_name,
-            current_quantity: s.current_quantity,
-            suggested_reorder_quantity: s.suggested_reorder_quantity,
-            unit_cost: s.unit_cost !== null && s.unit_cost !== undefined ? (s.unit_cost / 100).toFixed(2) : '',
-            total_cost: s.unit_cost !== null && s.unit_cost !== undefined ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : '',
-            adjustment_reason: s.adjustment_reason,
-            confidence: s.confidence,
-        }));
-        const csv = Papa.unparse(dataToExport);
-        return { success: true, data: csv };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
+```
