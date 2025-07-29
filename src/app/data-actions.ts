@@ -499,13 +499,23 @@ export async function getMorningBriefing(dateRange: string) {
 }
 
 export async function getSupplierPerformanceReportData() {
-    const { companyId } = await getAuthContext();
-    return getSupplierPerformanceFromDB(companyId);
+    try {
+        const { companyId } = await getAuthContext();
+        return await getSupplierPerformanceFromDB(companyId);
+    } catch(e) {
+        logError(e, { context: 'getSupplierPerformanceReportData failed, returning empty array'});
+        return [];
+    }
 }
 
 export async function getInventoryTurnoverReportData() {
-    const { companyId } = await getAuthContext();
-    return getInventoryTurnoverFromDB(companyId, 90);
+    try {
+        const { companyId } = await getAuthContext();
+        return await getInventoryTurnoverFromDB(companyId, 90);
+    } catch(e) {
+        logError(e, { context: 'getInventoryTurnoverReportData failed, returning null'});
+        return null;
+    }
 }
 
 export async function getConversations(): Promise<Conversation[]> {
@@ -615,28 +625,53 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
 }
 
 export async function getReorderReport() {
-    const { companyId } = await getAuthContext();
-    return getReorderSuggestions({ companyId });
+    try {
+        const { companyId } = await getAuthContext();
+        return getReorderSuggestions({ companyId });
+    } catch(e) {
+        logError(e, { context: 'getReorderReport failed, returning empty array'});
+        return [];
+    }
 }
 
 export async function getDeadStockReport() {
-    const { companyId } = await getAuthContext();
-    return getDeadStockReportFromDB(companyId);
+    try {
+        const { companyId } = await getAuthContext();
+        return getDeadStockReportFromDB(companyId);
+    } catch(e) {
+        logError(e, { context: 'getDeadStockReport failed, returning default'});
+        return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
+    }
 }
 
 export async function getAdvancedAbcReport() {
-    const { companyId } = await getAuthContext();
-    return getAbcAnalysisFromDB(companyId);
+    try {
+        const { companyId } = await getAuthContext();
+        return getAbcAnalysisFromDB(companyId);
+    } catch(e) {
+        logError(e, { context: 'getAdvancedAbcReport failed, returning null'});
+        return null;
+    }
 }
 
 export async function getAdvancedSalesVelocityReport() {
-    const { companyId } = await getAuthContext();
-    return getSalesVelocityFromDB(companyId, 90, 10);
+    try {
+        const { companyId } = await getAuthContext();
+        return getSalesVelocityFromDB(companyId, 90, 10);
+    } catch(e) {
+        logError(e, { context: 'getAdvancedSalesVelocityReport failed, returning null'});
+        return null;
+    }
 }
 
 export async function getAdvancedGrossMarginReport() {
-    const { companyId } = await getAuthContext();
-    return getGrossMarginAnalysisFromDB(companyId);
+    try {
+        const { companyId } = await getAuthContext();
+        return await getGrossMarginAnalysisFromDB(companyId);
+    } catch(e) {
+        logError(e, { context: 'getAdvancedGrossMarginReport failed, returning null'});
+        return null;
+    }
 }
 
 export async function adjustInventoryQuantity(formData: FormData) {
