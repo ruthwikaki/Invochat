@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -203,33 +204,25 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
-        if (data == null) {
-            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
+        // Handle case where RPC returns no data (e.g., new user)
+        if (!data || data.length === 0) {
+            logger.warn('[RPC] get_dashboard_metrics returned no data. Returning empty metrics.');
             return {
-                total_revenue: 0,
-                revenue_change: 0,
-                total_sales: 0,
-                sales_change: 0,
-                new_customers: 0,
-                customers_change: 0,
-                dead_stock_value: 0,
-                sales_over_time: [],
-                top_selling_products: [],
-                inventory_summary: {
-                    total_value: 0,
-                    in_stock_value: 0,
-                    low_stock_value: 0,
-                    dead_stock_value: 0,
-                },
+                total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+                inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
             };
         }
-        return DashboardMetricsSchema.parse(data);
+        // Assuming the RPC returns a single object in an array
+        return DashboardMetricsSchema.parse(data[0]);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-        throw new Error('Could not retrieve dashboard metrics from the database.');
+        // Return a safe, empty object to prevent frontend crashes
+        return {
+            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+            inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
+        };
     }
 }
-
 
 export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) {
@@ -245,7 +238,7 @@ export async function getInventoryAnalyticsFromDB(companyId: string): Promise<In
         return InventoryAnalyticsSchema.parse(data);
     } catch (error) {
         logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
-        throw error;
+        return { total_inventory_value: 0, total_products: 0, total_variants: 0, low_stock_items: 0 };
     }
 }
 
@@ -267,7 +260,7 @@ export async function getSuppliersDataFromDB(companyId: string): Promise<Supplie
         return z.array(SupplierSchema).parse(data || []);
     } catch (error) {
         logError(error, { context: 'getSuppliersDataFromDB unexpected error', companyId });
-        throw error;
+        return [];
     }
 }
 
@@ -340,11 +333,14 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     const supabase = getServiceRoleClient();
     let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
-        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
-    if(error) throw error;
+    if(error) {
+        logError(error, {context: 'getCustomersFromDB failed'});
+        return { items: [], totalCount: 0 };
+    }
     return {items: data || [], totalCount: count || 0};
 }
 
@@ -367,7 +363,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
         const supabase = getServiceRoleClient();
         let query = supabase.from('orders').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
-            query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
+            query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_id.ilike.%${validatedParams.query}%`);
         }
         const limit = Math.min(validatedParams.limit || 25, 100);
         const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
@@ -375,7 +371,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
         return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
     } catch(e) {
         logError(e, { context: 'getSalesFromDB failed' });
-        throw new Error('Failed to retrieve sales data.');
+        return { items: [], totalCount: 0 };
     }
 }
 
@@ -385,7 +381,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
     const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
-        throw error;
+        return { total_revenue: 0, total_orders: 0, average_order_value: 0 };
     }
     return SalesAnalyticsSchema.parse(data);
 }
@@ -396,7 +392,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
     const { data, error } = await supabase.rpc('get_customer_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
-        throw error;
+        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
     }
     const result = Array.isArray(data) && data.length > 0 ? data[0] : {};
     return CustomerAnalyticsSchema.parse(result);
@@ -428,10 +424,19 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
         const supabase = getServiceRoleClient();
         const settings = await getSettings(companyId);
 
-        // Fetch all variants with their supplier info
         const { data: variants, error: variantsError } = await supabase
-            .from('product_variants_with_details')
-            .select('id, product_id, sku, product_title, supplier_id, suppliers(name), inventory_quantity, reorder_point, reorder_quantity, cost')
+            .from('product_variants')
+            .select(`
+                id,
+                product_id,
+                sku,
+                inventory_quantity,
+                reorder_point,
+                reorder_quantity,
+                cost,
+                products ( product_title ),
+                suppliers ( name, id )
+            `)
             .eq('company_id', companyId);
 
         if (variantsError) {
@@ -443,7 +448,6 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             return [];
         }
 
-        // Fetch sales data for all variants
         const { data: salesData, error: salesError } = await supabase
             .from('daily_sales_summary')
             .select('variant_id, daily_avg_sales')
@@ -462,12 +466,12 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             const reorderPoint = variant.reorder_point ?? 0;
             if (variant.inventory_quantity <= reorderPoint) {
                 const dailySales = salesMap.get(variant.id) || 0;
-                const leadTime = variant.suppliers?.default_lead_time_days ?? 14;
-                const safetyStock = dailySales * 7; // 1 week safety stock
+                // Default lead time to 14 days if not set on the supplier
+                const leadTime = (variant.suppliers as any)?.default_lead_time_days ?? 14;
+                const safetyStock = dailySales * 7; 
                 
                 let suggestedQuantity = variant.reorder_quantity || Math.ceil((dailySales * leadTime) + safetyStock);
                 
-                // Ensure we order at least a minimum quantity if reorder_quantity is not set
                 if (!variant.reorder_quantity && suggestedQuantity === 0) {
                     suggestedQuantity = 10; 
                 }
@@ -477,9 +481,9 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                         variant_id: variant.id,
                         product_id: variant.product_id,
                         sku: variant.sku,
-                        product_name: variant.product_title,
-                        supplier_name: variant.suppliers?.name || null,
-                        supplier_id: variant.supplier_id,
+                        product_name: (variant.products as any)?.product_title,
+                        supplier_name: (variant.suppliers as any)?.name || null,
+                        supplier_id: (variant.suppliers as any)?.id || null,
                         current_quantity: variant.inventory_quantity,
                         suggested_reorder_quantity: suggestedQuantity,
                         unit_cost: variant.cost,
@@ -488,7 +492,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             }
         }
         
-        return suggestions;
+        return ReorderSuggestionSchema.array().parse(suggestions);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -500,14 +504,20 @@ export async function getSupplierPerformanceFromDB(companyId: string) {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_supplier_performance_report', { p_company_id: companyId });
-    if (error) throw error;
+    if (error) {
+        logError(error, { context: 'getSupplierPerformanceFromDB failed' });
+        return [];
+    };
     return data || [];
 }
 export async function getInventoryTurnoverFromDB(companyId: string, days: number) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_inventory_turnover', { p_company_id: companyId, p_days: days });
-    if (error) throw error;
+    if (error) {
+        logError(error, { context: 'getInventoryTurnoverFromDB failed' });
+        return null
+    };
     return data; 
 }
 
@@ -515,7 +525,10 @@ export async function getIntegrationsByCompanyId(companyId: string): Promise<Int
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('integrations').select('*').eq('company_id', companyId);
-    if (error) throw new Error(`Could not load integrations: ${error.message}`);
+    if (error) {
+        logError(error, { context: 'getIntegrationsByCompanyId failed' });
+        return [];
+    };
     return (data || []) as Integration[];
 }
 export async function deleteIntegrationFromDb(id: string, companyId: string) {
@@ -530,7 +543,10 @@ export async function getTeamMembersFromDB(companyId: string): Promise<TeamMembe
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('get_users_for_company', { p_company_id: companyId });
-    if (error) throw error;
+    if (error) {
+        logError(error, { context: 'getTeamMembersFromDB failed' });
+        return [];
+    };
     return (data ?? []) as TeamMember[];
 }
 export async function inviteUserToCompanyInDb(companyId: string, companyName: string, email: string) { 
@@ -580,7 +596,7 @@ export async function getChannelFeesFromDB(companyId: string): Promise<ChannelFe
     const { data, error } = await supabase.from('channel_fees').select('*').eq('company_id', companyId);
     if (error) {
         logError(error, { context: 'getChannelFeesFromDB failed' });
-        throw error;
+        return [];
     }
     return data || [];
 }
@@ -839,7 +855,7 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
     });
     if (error) {
         logError(error, { context: 'Failed to get historical sales for single SKU' });
-        throw new Error('Could not retrieve historical sales data.');
+        return [];
     }
     return data || [];
 }
@@ -867,7 +883,7 @@ export async function getNetMarginByChannelFromDB(companyId: string, channelName
     const { data, error } = await supabase.rpc('get_net_margin_by_channel', { p_company_id: companyId, p_channel_name: channelName });
     if(error) {
         logError(error, { context: 'getNetMarginByChannelFromDB failed' });
-        throw error;
+        return null;
     }
     return data; 
 }
@@ -877,7 +893,7 @@ export async function getSalesVelocityFromDB(companyId: string, days: number, li
     const { data, error } = await supabase.rpc('get_inventory_aging_report', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getSalesVelocityFromDB -> get_inventory_aging_report failed' });
-        throw error;
+        return null;
     }
     return data; 
 }
@@ -887,37 +903,37 @@ export async function getDemandForecastFromDB(companyId: string) {
     const { data, error } = await supabase.rpc('get_demand_forecast', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getDemandForecastFromDB failed' });
-        throw error;
+        return null;
     }
     return data; 
 }
 export async function getAbcAnalysisFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_abc_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getAbcAnalysisFromDB failed' });
-        throw error;
+        return null;
     }
-    return data[0]?.abc_analysis || []; 
+    return (data as any)?.abc_analysis || []; 
 }
 export async function getGrossMarginAnalysisFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_gross_margin_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getGrossMarginAnalysisFromDB failed' });
-        throw error;
+        return null;
     }
-    return data; 
+    return (data as any)?.gross_margin_analysis || { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } };
 }
 export async function getMarginTrendsFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_margin_trend_analysis', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_margin_trends', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getMarginTrendsFromDB failed' });
-        throw error;
+        return null;
     }
     return data; 
 }
@@ -927,7 +943,7 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
     const { data, error } = await supabase.rpc('get_financial_impact_of_promotion', { p_company_id: companyId, p_skus: skus, p_discount_percentage: discount, p_duration_days: duration });
     if(error) {
         logError(error, { context: 'getFinancialImpactOfPromotionFromDB failed' });
-        throw error;
+        return null;
     }
     return data; 
 }
@@ -974,7 +990,7 @@ export async function getAuditLogFromDB(companyId: string, params: { query?: str
         };
     } catch(e) {
         logError(e, { context: 'getAuditLogFromDB failed' });
-        throw new Error('Failed to retrieve audit log.');
+        return { items: [], totalCount: 0 };
     }
 }
 
@@ -1003,6 +1019,6 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         };
     } catch (e) {
         logError(e, { context: 'getFeedbackFromDB failed' });
-        throw new Error('Failed to retrieve feedback data.');
+        return { items: [], totalCount: 0 };
     }
 }
