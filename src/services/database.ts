@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -206,7 +205,23 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
         }
         if (data == null) {
             logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
-            throw new Error('No response from get_dashboard_metrics RPC call.');
+            return {
+                total_revenue: 0,
+                revenue_change: 0,
+                total_sales: 0,
+                sales_change: 0,
+                new_customers: 0,
+                customers_change: 0,
+                dead_stock_value: 0,
+                sales_over_time: [],
+                top_selling_products: [],
+                inventory_summary: {
+                    total_value: 0,
+                    in_stock_value: 0,
+                    low_stock_value: 0,
+                    dead_stock_value: 0,
+                },
+            };
         }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
@@ -350,7 +365,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
             query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
@@ -411,19 +426,69 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
     }
     try {
         const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
-        
-        if (error) {
-            logError(error, { context: `Failed to get reorder suggestions for company ${companyId}` });
-            throw error;
+        const settings = await getSettings(companyId);
+
+        // Fetch all variants with their supplier info
+        const { data: variants, error: variantsError } = await supabase
+            .from('product_variants_with_details')
+            .select('id, product_id, sku, product_title, supplier_id, suppliers(name), inventory_quantity, reorder_point, reorder_quantity, cost')
+            .eq('company_id', companyId);
+
+        if (variantsError) {
+            logError(variantsError, { context: 'Failed to fetch variants for reorder suggestions' });
+            throw variantsError;
         }
 
-        return z.array(ReorderSuggestionSchema.omit({
-            base_quantity: true,
-            adjustment_reason: true,
-            seasonality_factor: true,
-            confidence: true,
-        })).parse(data || []);
+        if (!variants || variants.length === 0) {
+            return [];
+        }
+
+        // Fetch sales data for all variants
+        const { data: salesData, error: salesError } = await supabase
+            .from('daily_sales_summary')
+            .select('variant_id, daily_avg_sales')
+            .eq('company_id', companyId)
+            .gte('date', new Date(Date.now() - settings.fast_moving_days * 24 * 60 * 60 * 1000).toISOString());
+        
+        if (salesError) {
+            logError(salesError, { context: 'Failed to fetch sales data for reorder suggestions' });
+            throw salesError;
+        }
+
+        const salesMap = new Map(salesData.map(s => [s.variant_id, s.daily_avg_sales]));
+        const suggestions: ReorderSuggestion[] = [];
+
+        for (const variant of variants) {
+            const reorderPoint = variant.reorder_point ?? 0;
+            if (variant.inventory_quantity <= reorderPoint) {
+                const dailySales = salesMap.get(variant.id) || 0;
+                const leadTime = variant.suppliers?.default_lead_time_days ?? 14;
+                const safetyStock = dailySales * 7; // 1 week safety stock
+                
+                let suggestedQuantity = variant.reorder_quantity || Math.ceil((dailySales * leadTime) + safetyStock);
+                
+                // Ensure we order at least a minimum quantity if reorder_quantity is not set
+                if (!variant.reorder_quantity && suggestedQuantity === 0) {
+                    suggestedQuantity = 10; 
+                }
+
+                if (suggestedQuantity > 0) {
+                    suggestions.push({
+                        variant_id: variant.id,
+                        product_id: variant.product_id,
+                        sku: variant.sku,
+                        product_name: variant.product_title,
+                        supplier_name: variant.suppliers?.name || null,
+                        supplier_id: variant.supplier_id,
+                        current_quantity: variant.inventory_quantity,
+                        suggested_reorder_quantity: suggestedQuantity,
+                        unit_cost: variant.cost,
+                    });
+                }
+            }
+        }
+        
+        return suggestions;
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -722,6 +787,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
             purchase_order_line_items (
                 *,
                 product_variants (
+                    id,
                     sku,
                     products ( product_title )
                 )
@@ -746,7 +812,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
             product_name: li.product_variants?.products?.product_title || 'N/A',
             quantity: li.quantity,
             cost: li.cost,
-            variant_id: li.variant_id,
+            variant_id: li.product_variants?.id || li.variant_id,
         }))
     } as PurchaseOrderWithItemsAndSupplier;
 }
@@ -833,7 +899,7 @@ export async function getAbcAnalysisFromDB(companyId: string) {
         logError(error, { context: 'getAbcAnalysisFromDB failed' });
         throw error;
     }
-    return (data as any); 
+    return data[0]?.abc_analysis || []; 
 }
 export async function getGrossMarginAnalysisFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
