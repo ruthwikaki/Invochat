@@ -199,9 +199,27 @@ export const PurchaseOrderWithSupplierSchema = PurchaseOrderSchema.extend({
 });
 export type PurchaseOrderWithSupplier = z.infer<typeof PurchaseOrderWithSupplierSchema>;
 
-export const PurchaseOrderWithItemsAndSupplierSchema = PurchaseOrderWithSupplierSchema.extend({
-    line_items: z.array(PurchaseOrderLineItemSchema),
+export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
+    id: z.string().uuid(),
+    company_id: z.string().uuid(),
+    supplier_id: z.string().uuid().nullable(),
+    status: z.string(),
+    po_number: z.string(),
+    total_cost: z.number().int(),
+    expected_arrival_date: z.string().datetime().nullable(),
+    idempotency_key: z.string().uuid().nullable(),
+    created_at: z.string().datetime({ offset: true }),
+    supplier_name: z.string().nullable(),
+    line_items: z.array(z.object({
+        id: z.string().uuid(),
+        sku: z.string(),
+        product_name: z.string(),
+        quantity: z.number().int(),
+        cost: z.number().int(),
+        variant_id: z.string().uuid().optional(), // Make variant_id optional here as it's for form use
+    }))
 });
+
 export type PurchaseOrderWithItemsAndSupplier = z.infer<typeof PurchaseOrderWithItemsAndSupplierSchema>;
 
 
@@ -521,4 +539,3 @@ export const FeedbackSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
-
