@@ -1,4 +1,5 @@
 
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -127,11 +128,10 @@ export type Refund = z.infer<typeof RefundSchema>;
 export const CustomerSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
-  customer_name: z.string().nullable(),
+  name: z.string().nullable(),
   email: z.string().email().nullable(),
   total_orders: z.number().int(),
   total_spent: z.number().int(),
-  first_order_date: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
 });
 export type Customer = z.infer<typeof CustomerSchema>;
