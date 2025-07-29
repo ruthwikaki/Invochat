@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getAuthContext } from '@/lib/auth-helpers';
@@ -54,4 +53,3 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
-}

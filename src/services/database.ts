@@ -326,24 +326,14 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers').select('*, total_orders:orders(count), total_spent:orders(total_amount)', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
     if(validatedParams.query) {
-        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     const limit = Math.min(validatedParams.limit || 25, 100);
     const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
     if(error) throw error;
-    
-    const items = (data || []).map(c => ({
-      id: c.id,
-      customer_name: c.name,
-      email: c.email,
-      created_at: c.created_at,
-      total_orders: Array.isArray(c.total_orders) ? c.total_orders[0].count : 0,
-      total_spent: Array.isArray(c.total_spent) ? c.total_spent.reduce((acc, o) => acc + o.total_amount, 0) : 0,
-    }));
-
-    return {items, totalCount: count || 0};
+    return {items: data || [], totalCount: count || 0};
 }
 
 export async function deleteCustomerFromDb(customerId: string, companyId: string) {
@@ -363,17 +353,15 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders').select('*, customers (email)', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
-            query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_id.ilike.%${validatedParams.query}%`);
+            query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
         const limit = Math.min(validatedParams.limit || 25, 100);
         const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
         if (error) throw error;
         
-        const items = data?.map(d => ({...d, customer_email: (d.customers as any)?.email })) || [];
-        
-        return { items: z.array(OrderSchema).parse(items), totalCount: count || 0 };
+        return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
     } catch(e) {
         logError(e, { context: 'getSalesFromDB failed' });
         throw new Error('Failed to retrieve sales data.');
@@ -438,7 +426,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                 reorder_point,
                 reorder_quantity,
                 cost,
-                products:product_id!inner(product_title:title)
+                products!inner(product_title:title)
             `)
             .eq('company_id', companyId);
 
@@ -768,7 +756,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
                 product_variants:variant_id!inner (
                     id,
                     sku,
-                    products:product_id!inner(product_title:title)
+                    products!inner(product_title:title)
                 )
             )
         `)
@@ -798,7 +786,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
                 product_variants:variant_id!inner (
                     id,
                     sku,
-                    products:product_id!inner(product_title:title)
+                    products!inner(product_title:title)
                 )
             )
         `)
@@ -1031,6 +1019,7 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
         const { companyId, userId } = await getAuthContext();
         const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
         revalidatePath('/purchase-orders');
+        revalidatePath('/analytics/reordering');
         return { success: true, createdPoCount };
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
