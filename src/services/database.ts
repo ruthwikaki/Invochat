@@ -387,7 +387,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return CustomerAnalyticsSchema.parse(Array.isArray(data) ? data[0] : data);
+    return CustomerAnalyticsSchema.parse(data as any);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -425,7 +425,8 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                 inventory_quantity,
                 reorder_point,
                 reorder_quantity,
-                cost
+                cost,
+                products!inner(product_title:title)
             `)
             .eq('company_id', companyId);
 
@@ -437,19 +438,6 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
         if (!variants || variants.length === 0) {
             return [];
         }
-
-        const productIds = variants.map(v => v.product_id);
-        const { data: productsData, error: productsError } = await supabase
-            .from('products')
-            .select('id, title')
-            .in('id', productIds);
-
-        if (productsError) {
-            logError(productsError, { context: 'Failed to fetch products for reorder suggestions' });
-            throw productsError;
-        }
-
-        const productTitleMap = new Map(productsData.map(p => [p.id, p.title]));
 
         const { data: salesData, error: salesError } = await supabase
             .from('daily_sales_summary')
@@ -483,7 +471,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                         variant_id: variant.id,
                         product_id: variant.product_id,
                         sku: variant.sku,
-                        product_name: productTitleMap.get(variant.product_id) || 'Unknown Product',
+                        product_name: (variant.products as any)?.product_title,
                         supplier_name: null,
                         supplier_id: null,
                         current_quantity: variant.inventory_quantity,
@@ -494,7 +482,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             }
         }
         
-        return ReorderSuggestionBaseSchema.array().parse(suggestions);
+        return ReorderSuggestionSchema.array().parse(suggestions);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -763,12 +751,12 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         .select(`
             *,
             suppliers ( name ),
-            purchase_order_line_items (
+            purchase_order_line_items!purchase_order_line_items_purchase_order_id_fkey (
                 *,
                 product_variants:variant_id!inner (
                     id,
                     sku,
-                    products!inner(product_title:title)
+                    products!fk_product_variants_product_id(product_title:title)
                 )
             )
         `)
@@ -793,12 +781,12 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         .select(`
             *,
             suppliers ( name ),
-            purchase_order_line_items (
+            purchase_order_line_items!purchase_order_line_items_purchase_order_id_fkey (
                 *,
                 product_variants:variant_id!inner (
                     id,
                     sku,
-                    products!inner(product_title:title)
+                    products!fk_product_variants_product_id(product_title:title)
                 )
             )
         `)
