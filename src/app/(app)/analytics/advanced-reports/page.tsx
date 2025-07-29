@@ -1,5 +1,4 @@
 
-
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { getAuthContext } from "@/lib/auth-helpers";
 import { getAbcAnalysisFromDB, getSalesVelocityFromDB, getGrossMarginAnalysisFromDB } from "@/services/database";
@@ -11,10 +10,11 @@ export default async function AdvancedReportsPage() {
 
     const { companyId } = await getAuthContext();
 
+    // Set default values to handle cases where the database might return null for new users
     const [abcAnalysisData, salesVelocityData, grossMarginData] = await Promise.all([
-        getAbcAnalysisFromDB(companyId),
-        getSalesVelocityFromDB(companyId, 90, 10),
-        getGrossMarginAnalysisFromDB(companyId)
+        getAbcAnalysisFromDB(companyId).catch(() => null),
+        getSalesVelocityFromDB(companyId, 90, 10).catch(() => null),
+        getGrossMarginAnalysisFromDB(companyId).catch(() => null)
     ]);
 
     return (
@@ -33,4 +33,3 @@ export default async function AdvancedReportsPage() {
         </AppPage>
     );
 }
-
