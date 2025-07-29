@@ -204,14 +204,14 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
-        if (data == null || (Array.isArray(data) && data.length === 0)) {
-            logger.warn('[RPC] get_dashboard_metrics returned no data. Returning empty metrics.');
-             return {
+        if (data == null) {
+            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
+            return {
                 total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
                 inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
             };
         }
-        return DashboardMetricsSchema.parse(Array.isArray(data) ? data[0] : data);
+        return DashboardMetricsSchema.parse(data);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
         throw new Error('Could not retrieve dashboard metrics from the database.');
@@ -767,7 +767,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
             suppliers ( name ),
             purchase_order_line_items (
                 *,
-                product_variants (
+                product_variants!inner (
                     id,
                     sku,
                     products!inner(product_title)
@@ -797,7 +797,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
             suppliers ( name ),
             purchase_order_line_items (
                 *,
-                product_variants (
+                product_variants!inner (
                     id,
                     sku,
                     products!inner(product_title)
@@ -1004,5 +1004,58 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
     } catch (e) {
         logError(e, { context: 'getFeedbackFromDB failed' });
         return { items: [], totalCount: 0 };
+    }
+}
+import { getAuthContext } from '@/lib/auth-helpers';
+import { revalidatePath } from 'next/cache';
+import { getErrorMessage, logError } from '@/lib/error-handler';
+import { createPurchaseOrdersFromSuggestions as createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
+import type { ReorderSuggestion } from '@/types';
+import Papa from 'papaparse';
+import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+
+export async function getReorderReport(): Promise<ReorderSuggestion[]> {
+    try {
+        const { companyId } = await getAuthContext();
+        return await getReorderSuggestions({ companyId });
+    } catch (error) {
+        // Log the error for debugging but don't throw it
+        logError(error, { context: 'getReorderReport failed' });
+        
+        // Return empty array instead of throwing error
+        // This allows the UI to show the empty state
+        return [];
+    }
+}
+
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
+        revalidatePath('/purchase-orders');
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function exportReorderSuggestions(suggestions: ReorderSuggestion[]) {
+    try {
+        const dataToExport = suggestions.map(s => ({
+            sku: s.sku,
+            product_name: s.product_name,
+            supplier_name: s.supplier_name,
+            current_quantity: s.current_quantity,
+            suggested_reorder_quantity: s.suggested_reorder_quantity,
+            unit_cost: s.unit_cost !== null && s.unit_cost !== undefined ? (s.unit_cost / 100).toFixed(2) : '',
+            total_cost: s.unit_cost !== null && s.unit_cost !== undefined ? ((s.suggested_reorder_quantity * s.unit_cost) / 100).toFixed(2) : '',
+            adjustment_reason: s.adjustment_reason,
+            confidence: s.confidence,
+        }));
+        const csv = Papa.unparse(dataToExport);
+        return { success: true, data: csv };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
     }
 }
