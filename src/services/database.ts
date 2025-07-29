@@ -691,10 +691,10 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
             suppliers ( name ),
             purchase_order_line_items!purchase_order_line_items_purchase_order_id_fkey (
                 *,
-                product_variants:variant_id!inner (
+                product_variants:variant_id (
                     id,
                     sku,
-                    products!fk_product_variants_product_id(product_title:title)
+                    products!inner(product_title:title)
                 )
             )
         `)
@@ -721,10 +721,10 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
             suppliers ( name ),
             purchase_order_line_items!purchase_order_line_items_purchase_order_id_fkey (
                 *,
-                product_variants:variant_id!inner (
+                product_variants:variant_id (
                     id,
                     sku,
-                    products!fk_product_variants_product_id(product_title:title)
+                    products!inner(product_title:title)
                 )
             )
         `)
