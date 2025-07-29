@@ -28,6 +28,7 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
         const { companyId, userId } = await getAuthContext();
         const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
         revalidatePath('/purchase-orders');
+        revalidatePath('/analytics/reordering');
         return { success: true, createdPoCount };
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
@@ -53,3 +54,4 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
