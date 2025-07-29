@@ -81,6 +81,7 @@ export const getReorderSuggestions = ai.defineTool(
   },
   async (input): Promise<z.infer<typeof EnhancedReorderSuggestionSchema>[]> => {
     logger.info(`[Reorder Tool] Getting suggestions for company: ${input.companyId}`);
+    
     try {
         const baseSuggestions = await getReorderSuggestionsFromDB(input.companyId);
 
