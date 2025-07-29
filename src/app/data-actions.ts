@@ -36,7 +36,7 @@ import {
     upsertChannelFeeInDb,
     createExportJobInDb,
     reconcileInventoryInDb,
-    getDashboardMetrics,
+    getDashboardMetrics as getDashboardMetricsFromDb,
     checkUserPermission,
     getHistoricalSalesForSkus,
     refreshMaterializedViews,
@@ -44,9 +44,9 @@ import {
     adjustInventoryQuantityInDb,
     getAuditLogFromDB,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    getAbcAnalysisFromDB,
-    getSalesVelocityFromDB,
-    getGrossMarginAnalysisFromDB,
+    getAbcAnalysis,
+    getSalesVelocity,
+    getGrossMarginAnalysis,
     getFeedbackFromDB,
     deletePurchaseOrderFromDb,
     getSupplierPerformanceFromDB,
@@ -83,9 +83,14 @@ export async function getCustomers() {
 }
 
 export async function getUnifiedInventory(params: { query: string, page: number, limit: number, status: string, sortBy: string, sortDirection: string }) {
-    const { companyId } = await getAuthContext();
-    const offset = (params.page - 1) * params.limit;
-    return getUnifiedInventoryFromDB(companyId, { ...params, offset });
+    try {
+        const { companyId } = await getAuthContext();
+        const offset = (params.page - 1) * params.limit;
+        return await getUnifiedInventoryFromDB(companyId, { ...params, offset });
+    } catch (e) {
+        logError(e, {context: 'getUnifiedInventory action failed, returning empty state'});
+        return { items: [], totalCount: 0 };
+    }
 }
 
 export async function getInventoryAnalytics() {
@@ -260,9 +265,14 @@ export async function updateCompanySettings(formData: FormData) {
 }
 
 export async function getSalesData(params: { query: string; page: number, limit: number }) {
-    const { companyId } = await getAuthContext();
-    const offset = (params.page - 1) * params.limit;
-    return getSalesFromDB(companyId, { ...params, offset });
+    try {
+        const { companyId } = await getAuthContext();
+        const offset = (params.page - 1) * params.limit;
+        return await getSalesFromDB(companyId, { ...params, offset });
+    } catch(e) {
+        logError(e, {context: 'getSalesData action failed, returning empty state'});
+        return { items: [], totalCount: 0 };
+    }
 }
 
 export async function exportSales(params: { query: string }) {
@@ -287,9 +297,14 @@ export async function getSalesAnalytics() {
 }
 
 export async function getCustomersData(params: { query: string; page: number, limit: number }) {
-    const { companyId } = await getAuthContext();
-    const offset = (params.page - 1) * params.limit;
-    return getCustomersFromDB(companyId, { ...params, offset });
+    try {
+        const { companyId } = await getAuthContext();
+        const offset = (params.page - 1) * params.limit;
+        return await getCustomersFromDB(companyId, { ...params, offset });
+    } catch (e) {
+        logError(e, {context: 'getCustomersData action failed, returning empty state'});
+        return { items: [], totalCount: 0 };
+    }
 }
 
 export async function deleteCustomer(formData: FormData) {
@@ -357,8 +372,13 @@ export async function exportInventory(params: { query: string; status: string; s
 }
 
 export async function getPurchaseOrders() {
-    const { companyId } = await getAuthContext();
-    return getPurchaseOrdersFromDB(companyId);
+    try {
+        const { companyId } = await getAuthContext();
+        return await getPurchaseOrdersFromDB(companyId);
+    } catch (e) {
+        logError(e, {context: 'getPurchaseOrders action failed, returning empty state'});
+        return [];
+    }
 }
 
 export async function getPurchaseOrderById(id: string) {
@@ -471,23 +491,18 @@ export async function reconcileInventory(integrationId: string) {
 }
 
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
+    const emptyMetrics: DashboardMetrics = {
+        total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+        inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
+    };
     try {
         const { companyId } = await getAuthContext();
-        const data = await getDashboardMetrics(companyId, dateRange);
+        const data = await getDashboardMetricsFromDb(companyId, dateRange);
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
-        const errorMessage = getErrorMessage(e);
-        // Only return an empty shell if the error indicates no data exists, which is normal for new users
-        if (errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
-            logger.warn('Returning empty dashboard metrics due to missing relations, likely a new user.', { companyId: (await getAuthContext()).companyId });
-             const emptyMetrics: DashboardMetrics = {
-                total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
-                inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
-            };
-            return emptyMetrics;
-        }
-        logError(e, { context: 'getDashboardData failed, rethrowing' });
-        throw e;
+        logError(e, { context: 'getDashboardData failed' });
+        // Return a safe, empty object to prevent frontend crashes
+        return emptyMetrics;
     }
 }
 
@@ -627,7 +642,7 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
 export async function getReorderReport() {
     try {
         const { companyId } = await getAuthContext();
-        return getReorderSuggestions({ companyId });
+        return await getReorderSuggestions({ companyId });
     } catch(e) {
         logError(e, { context: 'getReorderReport failed, returning empty array'});
         return [];
@@ -637,7 +652,7 @@ export async function getReorderReport() {
 export async function getDeadStockReport() {
     try {
         const { companyId } = await getAuthContext();
-        return getDeadStockReportFromDB(companyId);
+        return await getDeadStockReportFromDB(companyId);
     } catch(e) {
         logError(e, { context: 'getDeadStockReport failed, returning default'});
         return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
@@ -647,7 +662,7 @@ export async function getDeadStockReport() {
 export async function getAdvancedAbcReport() {
     try {
         const { companyId } = await getAuthContext();
-        return await getAbcAnalysisFromDB(companyId);
+        return await getAbcAnalysis(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedAbcReport failed, returning null'});
         return null;
@@ -657,20 +672,20 @@ export async function getAdvancedAbcReport() {
 export async function getAdvancedSalesVelocityReport() {
     try {
         const { companyId } = await getAuthContext();
-        return await getSalesVelocityFromDB(companyId, 90, 20);
+        return await getSalesVelocity(companyId, 90, 20);
     } catch(e) {
         logError(e, { context: 'getAdvancedSalesVelocityReport failed, returning null'});
-        return null;
+        return { fast_sellers: [], slow_sellers: [] };
     }
 }
 
 export async function getAdvancedGrossMarginReport() {
     try {
         const { companyId } = await getAuthContext();
-        return await getGrossMarginAnalysisFromDB(companyId);
+        return await getGrossMarginAnalysis(companyId);
     } catch(e) {
         logError(e, { context: 'getAdvancedGrossMarginReport failed, returning null'});
-        return null;
+        return { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } };
     }
 }
 
@@ -715,7 +730,7 @@ export async function getAuditLogData(params: {
     return getAuditLogFromDB(companyId, { ...params, offset });
   } catch (error) {
     logError(error, { context: 'getAuditLogData failed' });
-    throw new Error('Failed to retrieve audit log data.');
+    return { items: [], totalCount: 0 };
   }
 }
 
@@ -732,6 +747,8 @@ export async function getFeedbackData(params: {
         return getFeedbackFromDB(companyId, { ...params, offset });
     } catch (error) {
         logError(error, { context: 'getFeedbackData failed' });
-        throw new Error('Failed to retrieve feedback data.');
+        return { items: [], totalCount: 0 };
     }
 }
+
+    
