@@ -428,7 +428,6 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
         const supabase = getServiceRoleClient();
         const settings = await getSettings(companyId);
 
-        // Fetch product variants and their related product and supplier info in one go.
         const { data: variants, error: variantsError } = await supabase
             .from('product_variants')
             .select(`
@@ -439,8 +438,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                 reorder_point,
                 reorder_quantity,
                 cost,
-                products!inner(product_title),
-                suppliers(name, id, default_lead_time_days)
+                products:product_id!inner(product_title:title)
             `)
             .eq('company_id', companyId);
 
@@ -471,7 +469,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             const reorderPoint = variant.reorder_point ?? 0;
             if (variant.inventory_quantity <= reorderPoint) {
                 const dailySales = salesMap.get(variant.id) || 0;
-                const leadTime = (variant.suppliers as any)?.default_lead_time_days ?? 14;
+                const leadTime = 14; // Default lead time
                 const safetyStock = dailySales * 7; 
                 
                 let suggestedQuantity = variant.reorder_quantity || Math.ceil((dailySales * leadTime) + safetyStock);
@@ -486,8 +484,8 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
                         product_id: variant.product_id,
                         sku: variant.sku,
                         product_name: (variant.products as any)?.product_title,
-                        supplier_name: (variant.suppliers as any)?.name || null,
-                        supplier_id: (variant.suppliers as any)?.id || null,
+                        supplier_name: null,
+                        supplier_id: null,
                         current_quantity: variant.inventory_quantity,
                         suggested_reorder_quantity: suggestedQuantity,
                         unit_cost: variant.cost,
@@ -767,10 +765,10 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
             suppliers ( name ),
             purchase_order_line_items (
                 *,
-                product_variants!inner (
+                product_variants:variant_id!inner (
                     id,
                     sku,
-                    products!inner(product_title)
+                    products:product_id!inner(product_title:title)
                 )
             )
         `)
@@ -797,10 +795,10 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
             suppliers ( name ),
             purchase_order_line_items (
                 *,
-                product_variants!inner (
+                product_variants:variant_id!inner (
                     id,
                     sku,
-                    products!inner(product_title)
+                    products:product_id!inner(product_title:title)
                 )
             )
         `)
