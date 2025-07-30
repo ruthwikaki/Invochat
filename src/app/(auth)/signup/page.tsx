@@ -1,6 +1,6 @@
 
 import { SignupForm } from '@/components/auth/SignupForm';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { AIventoryLogo } from '@/components/aiventory-logo';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 
@@ -17,8 +17,8 @@ export default async function SignupPage({
       <Card className="w-full border-none bg-transparent p-8 space-y-6">
         <CardHeader className="p-0 text-center">
           <Link href="/" className="mb-4 flex items-center justify-center gap-3">
-            <InvoChatLogo className="h-10 w-10 text-primary" />
-            <h1 className="bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent">ARVO</h1>
+            <AIventoryLogo className="h-10 w-10 text-primary" />
+            <h1 className="bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent">AIventory</h1>
           </Link>
           <CardTitle className="text-2xl">Create an Account</CardTitle>
           <CardDescription>
@@ -38,5 +38,3 @@ export default async function SignupPage({
     </div>
   );
 }
-
-    

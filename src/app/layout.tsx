@@ -15,8 +15,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'ARVO - Conversational Inventory Intelligence',
-  description: 'AI-powered inventory management for ARVO',
+  title: 'AIventory - Conversational Inventory Intelligence',
+  description: 'AI-powered inventory management for AIventory',
 };
 
 export default function RootLayout({

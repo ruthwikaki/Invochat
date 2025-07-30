@@ -1,7 +1,7 @@
 
-# InvoChat - Conversational Inventory Intelligence
+# AIventory - Conversational Inventory Intelligence
 
-This is a Next.js starter project for InvoChat, an AI-powered inventory management application.
+This is a Next.js starter project for AIventory, an AI-powered inventory management application.
 
 ## Getting Started
 

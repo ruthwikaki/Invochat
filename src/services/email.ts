@@ -67,10 +67,10 @@ async function sendEmail(to: string, subject: string, text: string, context: str
  */
 export async function sendEmailAlert(alert: Alert): Promise<void> {
   const metadata = alert.metadata as Record<string, unknown>;
-  const subject = `InvoChat Alert: ${alert.title} - ${metadata.productName || 'System Alert'}`;
+  const subject = `AIventory Alert: ${alert.title} - ${metadata.productName || 'System Alert'}`;
   
   const body = `
-    A new alert has been triggered in your InvoChat account.
+    A new alert has been triggered in your AIventory account.
 
     Alert Type: ${alert.type.replace(/_/g, ' ')}
     Severity: ${alert.severity.toUpperCase()}
@@ -85,7 +85,7 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
     - Last Sold Date: ${metadata.lastSoldDate ? new Date(String(metadata.lastSoldDate)).toLocaleDateString() : 'N/A'}
     - Current Value: $${((metadata.value as number) / 100).toLocaleString()}
 
-    You can view this alert in your InvoChat dashboard.
+    You can view this alert in your AIventory dashboard.
   `.trim().replace(/^ */gm, '');
 
   // In a real app, this would fetch the user's actual email address.
@@ -99,17 +99,17 @@ export async function sendEmailAlert(alert: Alert): Promise<void> {
  * @param resetLink The password reset link.
  */
 export async function sendPasswordResetEmail(email: string, resetLink: string): Promise<void> {
-    const subject = "Reset Your InvoChat Password";
+    const subject = "Reset Your AIventory Password";
     const body = `
         Hello,
 
-        You requested a password reset for your InvoChat account. Please click the link below to set a new password:
+        You requested a password reset for your AIventory account. Please click the link below to set a new password:
         ${resetLink}
 
         If you did not request this, you can safely ignore this email.
 
         Thanks,
-        The InvoChat Team
+        The AIventory Team
     `.trim();
     await sendEmail(email, subject, body, "Password Reset");
 }
@@ -119,17 +119,17 @@ export async function sendPasswordResetEmail(email: string, resetLink: string): 
  * @param email The new user's email address.
  */
 export async function sendWelcomeEmail(email: string): Promise<void> {
-    const subject = "Welcome to InvoChat!";
+    const subject = "Welcome to AIventory!";
     const body = `
         Hi there,
 
-        Welcome to InvoChat! We're excited to have you on board.
+        Welcome to AIventory! We're excited to have you on board.
         Your account is all set up. You can log in and start exploring your AI-powered inventory dashboard now.
 
         If you have any questions, just reply to this email.
 
         Best,
-        The InvoChat Team
+        The AIventory Team
     `.trim();
     await sendEmail(email, subject, body, "Welcome Email");
 }
@@ -147,11 +147,11 @@ export async function sendInventoryDigestEmail(to: string, insights: {
     topDeadStock: { product_name: string; total_value: number; }[];
     topLowStock: Alert[];
 }): Promise<void> {
-    const subject = "Your Weekly Inventory Digest from InvoChat";
+    const subject = "Your Weekly Inventory Digest from AIventory";
     let body = `
 Hello,
 
-Here's your weekly summary of key inventory insights from InvoChat.
+Here's your weekly summary of key inventory insights from AIventory.
 
 ---
 AI Business Summary
@@ -199,7 +199,7 @@ Top Dead Stock Items
 View more details on your dashboard: ${config.app.url}/insights
 
 Best,
-The InvoChat Team
+The AIventory Team
     `.trim();
     
     await sendEmail(to, subject, body, 'Inventory Digest');

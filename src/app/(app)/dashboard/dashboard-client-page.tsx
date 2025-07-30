@@ -59,7 +59,7 @@ function EmptyDashboardState() {
           <Sparkles className="h-8 w-8" />
         </motion.div>
       </motion.div>
-      <h3 className="mt-6 text-xl font-semibold">Welcome to ARVO!</h3>
+      <h3 className="mt-6 text-xl font-semibold">Welcome to AIventory!</h3>
       <p className="mt-2 text-muted-foreground">
         Your dashboard is ready. Import your data to see your metrics and get AI insights.
       </p>

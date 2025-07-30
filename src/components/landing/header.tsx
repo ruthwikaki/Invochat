@@ -2,7 +2,7 @@
 'use client';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { AIventoryLogo } from '@/components/aiventory-logo';
 import { useState, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
 
@@ -26,8 +26,8 @@ export function LandingHeader() {
     >
       <div className="container mx-auto px-4 lg:px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center justify-center gap-2" prefetch={false}>
-          <InvoChatLogo className="h-8 w-8 text-primary" />
-          <span className="text-xl font-semibold text-gray-800">ARVO</span>
+          <AIventoryLogo className="h-8 w-8 text-primary" />
+          <span className="text-xl font-semibold text-gray-800">AIventory</span>
         </Link>
         <nav className="ml-auto hidden md:flex items-center gap-4 sm:gap-6">
           <Button asChild variant="ghost">
