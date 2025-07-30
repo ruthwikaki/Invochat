@@ -14,7 +14,7 @@ import {
   SidebarMenuSubButton,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { InvoChatLogo } from '@/components/invochat-logo';
+import { AIventoryLogo } from '@/components/aiventory-logo';
 import { Separator } from '@/components/ui/separator';
 import { UserAccountNav } from './user-account-nav';
 import { getConversations } from '@/app/data-actions';
@@ -103,8 +103,8 @@ export function AppSidebar() {
       <SidebarHeader>
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-                <InvoChatLogo className="h-8 w-8 text-primary" />
-                <span className="text-lg font-semibold">ARVO</span>
+                <AIventoryLogo className="h-8 w-8 text-primary" />
+                <span className="text-lg font-semibold">AIventory</span>
             </div>
              <div className="flex items-center gap-1">
                 <AlertCenter />

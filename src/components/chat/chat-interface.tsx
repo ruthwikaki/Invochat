@@ -12,7 +12,7 @@ import { ChatMessage } from './chat-message';
 import { useRouter, usePathname } from 'next/navigation';
 import { getErrorMessage } from '@/lib/error-handler';
 import { motion } from 'framer-motion';
-import { InvoChatLogo } from '../invochat-logo';
+import { AIventoryLogo } from '../aiventory-logo';
 
 const contextualQuickActions: Record<string, string[]> = {
     default: [
@@ -73,7 +73,7 @@ function ChatWelcomePanel() {
             }}
             className="flex flex-col items-center justify-center p-8 rounded-full"
         >
-            <InvoChatLogo className="h-16 w-16 text-primary" />
+            <AIventoryLogo className="h-16 w-16 text-primary" />
         </motion.div>
         <motion.h2
             initial={{ y: 20, opacity: 0 }}
@@ -169,7 +169,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
         const errorMessage: Message = {
             id: `error_${Date.now()}`,
             role: 'assistant',
-            content: getErrorMessage(error) || 'Could not get response from ARVO.',
+            content: getErrorMessage(error) || 'Could not get response from AIventory.',
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
             company_id: '',

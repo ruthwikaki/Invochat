@@ -1,6 +1,6 @@
 
 /**
- * @fileoverview Centralized, environment-aware configuration for InvoChat.
+ * @fileoverview Centralized, environment-aware configuration for AIventory.
  *
  * This file consolidates all external configuration, pulling from environment
  * variables with sensible defaults. This is crucial for security and for
@@ -48,7 +48,7 @@ const parseIntWithDefault = (value: string | undefined, defaultValue: number): n
 
 export const config = {
   app: {
-    name: process.env.APP_NAME || 'ARVO',
+    name: process.env.APP_NAME || 'AIventory',
     url: envValidation.success ? envValidation.data.NEXT_PUBLIC_SITE_URL : 'http://localhost:3000',
     environment: process.env.NODE_ENV,
   },

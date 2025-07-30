@@ -74,7 +74,7 @@ export function WooCommerceConnectModal({ isOpen, onClose }: WooCommerceConnectM
                         <AlertDescription className="space-y-1 text-xs">
                            <p>1. In your WordPress Admin, go to: <strong>WooCommerce → Settings → Advanced → REST API</strong>.</p>
                            <p>2. Click "Add key" to create new API keys.</p>
-                           <p>3. Give the key a description (e.g., "InvoChat Integration") and set Permissions to "Read/Write".</p>
+                           <p>3. Give the key a description (e.g., "AIventory Integration") and set Permissions to "Read/Write".</p>
                            <p>4. Click "Generate API key" and copy the Consumer Key and Consumer Secret provided.</p>
                         </AlertDescription>
                     </Alert>

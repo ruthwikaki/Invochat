@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileoverview Implements the advanced, multi-agent AI chat system for InvoChat.
+ * @fileoverview Implements the advanced, multi-agent AI chat system for AIventory.
  * This system uses a Chain-of-Thought approach with distinct steps for planning,
  * generation, validation, and response formulation to provide more accurate and
  * context-aware answers.
@@ -57,7 +57,7 @@ const finalResponsePrompt = genkit.ai.definePrompt({
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
   output: { schema: FinalResponseObjectSchema },
   prompt: `
-    You are an expert AI inventory analyst for the ARVO application. Your tone is professional, intelligent, and helpful.
+    You are an expert AI inventory analyst for the AIventory application. Your tone is professional, intelligent, and helpful.
     The user asked: "{{userQuery}}"
     The result from your internal tools is:
     {{{json toolResult}}}

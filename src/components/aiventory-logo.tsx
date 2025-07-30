@@ -1,7 +1,7 @@
 
 import { cn } from '@/lib/utils';
 
-export function InvoChatLogo({ className }: { className?: string }) {
+export function AIventoryLogo({ className }: { className?: string }) {
   return (
     <div className={cn("h-10 w-10 text-primary", className)}>
         <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
