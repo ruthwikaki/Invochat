@@ -15,10 +15,10 @@ import { suggestCsvMappings } from '@/ai/flows/csv-mapping-flow';
 import { getAuthContext } from '@/lib/auth-helpers';
 import { checkUserPermission, refreshMaterializedViews } from '@/services/database';
 import type { Json } from '@/types/database.types';
+import { config } from '@/config/app-config';
 
-const MAX_FILE_SIZE_MB = 10;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const BATCH_SIZE = 500;
+const MAX_FILE_SIZE_BYTES = config.import.maxFileSizeMB * 1024 * 1024;
+const BATCH_SIZE = config.import.batchSize;
 
 export type ImportResult = {
   success: boolean;
@@ -211,6 +211,10 @@ export async function getMappingSuggestions(formData: FormData): Promise<CsvMapp
         throw new Error('File not provided for mapping suggestions.');
     }
     
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+        throw new Error(`File size of ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds the ${config.import.maxFileSizeMB}MB limit.`);
+    }
+
     const fileContent = await file.text();
     const { data: rows, meta } = Papa.parse<Record<string, unknown>>(fileContent, {
         header: true,
@@ -255,7 +259,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         await checkUserPermission(userId, 'Admin');
         
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-        const { limited } = await rateLimit(ip, 'data_import', 10, 3600);
+        const { limited } = await rateLimit(ip, 'data_import', config.ratelimit.import, 3600);
         if (limited) {
             return { success: false, isDryRun, summaryMessage: 'You have reached the import limit. Please try again in an hour.' };
         }
@@ -266,7 +270,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
             return { success: false, isDryRun, summaryMessage: 'No file was uploaded or the file is empty.' };
         }
         if (file.size > MAX_FILE_SIZE_BYTES) {
-            return { success: false, isDryRun, summaryMessage: `File size exceeds the ${MAX_FILE_SIZE_MB}MB limit.` };
+            return { success: false, isDryRun, summaryMessage: `File size exceeds the ${config.import.maxFileSizeMB}MB limit.` };
         }
         
         let result: Omit<ImportResult, 'success' | 'isDryRun'>;
