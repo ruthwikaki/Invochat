@@ -5,6 +5,7 @@ import { CompanySettingsCard } from "./_components/company-settings-card";
 import { ChannelFeesCard } from "./_components/channel-fees-card";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertSettings } from "@/components/settings/alert-settings";
 
 function SettingsLoading() {
     return (
@@ -26,6 +27,7 @@ export default function ProfilePage() {
             <div className="space-y-6 mt-6">
                 <Suspense fallback={<SettingsLoading />}>
                     <CompanySettingsCard />
+                    <AlertSettings />
                     <TeamMembersCard />
                     <ChannelFeesCard />
                 </Suspense>
