@@ -98,70 +98,28 @@ export async function signup(formData: FormData) {
       redirect('/signup?error=Passwords do not match');
   }
 
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
-
   const serviceSupabase = getServiceRoleClient();
-  const { data: { users }, error: userError } = await serviceSupabase.auth.admin.listUsers({ email });
-
-  if (userError) {
-      logError(userError, { context: 'Error checking for existing user during signup' });
-      redirect(`/signup?error=${encodeURIComponent('Could not complete signup. Please try again.')}`);
-      return;
-  }
-
-  if (users && users.length > 0) {
-      redirect(`/signup?error=${encodeURIComponent('A user with this email already exists.')}`);
-      return;
-  }
 
   try {
-    const { data: authData, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          company_name: companyName,
-        },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
-      },
+    // This new RPC function handles the creation of the company and user
+    // in a single transaction, preventing race conditions.
+    const { error } = await serviceSupabase.rpc('create_company_and_user', {
+        p_company_name: companyName,
+        p_user_email: email,
+        p_user_password: password,
+        p_email_redirect_to: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
     });
 
     if (error) {
-      logError(error, { context: 'Signup failed' });
-      redirect(`/signup?error=${encodeURIComponent(error.message)}`);
-    } else if (authData.user) {
-      // Manually call the function to create company and link user
-      const { error: rpcError } = await serviceSupabase.rpc('create_company_and_owner', {
-        p_user_id: authData.user.id,
-        p_company_name: companyName
-      });
-
-      if (rpcError) {
-        logError(rpcError, { context: 'Failed to create company and owner link after signup' });
-        // Attempt to clean up the user if the company creation fails
-        await serviceSupabase.auth.admin.deleteUser(authData.user.id);
-        redirect(`/signup?error=${encodeURIComponent('Could not set up your company. Please try again.')}`);
+        logError(error, { context: 'Signup RPC failed' });
+        let errorMessage = 'Could not complete signup. Please try again.';
+        if (error.message.includes('A user with this email already exists')) {
+            errorMessage = 'A user with this email already exists.';
+        }
+        redirect(`/signup?error=${encodeURIComponent(errorMessage)}`);
         return;
-      }
     }
-
+    
   } catch (e) {
       const message = getErrorMessage(e);
       logError(e, { context: 'Signup exception' });
