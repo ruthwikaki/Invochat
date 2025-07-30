@@ -96,26 +96,31 @@ export async function signup(formData: FormData) {
   
   if (password !== confirmPassword) {
       redirect('/signup?error=Passwords do not match');
+      return;
   }
 
   const serviceSupabase = getServiceRoleClient();
 
   try {
-    const { error } = await serviceSupabase.rpc('create_company_and_user', {
+    const { data, error } = await serviceSupabase.rpc('create_company_and_user', {
         p_company_name: companyName,
         p_user_email: email,
         p_user_password: password,
     });
 
     if (error) {
-        logError(error, { context: 'Signup RPC failed' });
-        let errorMessage = 'Could not complete signup. Please try again.';
-        if (error.message.includes('A user with this email already exists')) {
-            errorMessage = 'A user with this email already exists.';
-        } else if (error.message.includes('duplicate key value violates unique constraint')) {
-            errorMessage = 'A company with this name may already exist or another issue occurred.';
+        throw new Error(`Database RPC error: ${error.message}`);
+    }
+
+    if (!data.success) {
+        logError(new Error(data.message), { context: 'Signup RPC returned failure', data });
+        let userMessage = 'Could not complete signup. Please try again.';
+        if (data.message?.includes('duplicate key value violates unique constraint "users_email_key"')) {
+            userMessage = 'A user with this email already exists.';
+        } else if (data.message?.includes('duplicate key value violates unique constraint "companies_name_key"')) {
+             userMessage = 'A company with this name already exists.';
         }
-        redirect(`/signup?error=${encodeURIComponent(errorMessage)}`);
+        redirect(`/signup?error=${encodeURIComponent(userMessage)}`);
         return;
     }
     
@@ -123,6 +128,7 @@ export async function signup(formData: FormData) {
       const message = getErrorMessage(e);
       logError(e, { context: 'Signup exception' });
       redirect(`/signup?error=${encodeURIComponent(message)}`);
+      return;
   }
 
   revalidatePath('/', 'layout');
