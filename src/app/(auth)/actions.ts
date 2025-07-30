@@ -115,6 +115,8 @@ export async function signup(formData: FormData) {
         let errorMessage = 'Could not complete signup. Please try again.';
         if (error.message.includes('A user with this email already exists')) {
             errorMessage = 'A user with this email already exists.';
+        } else if (error.message.includes('duplicate key value violates unique constraint')) {
+            errorMessage = 'A company with this name may already exist or another issue occurred.';
         }
         redirect(`/signup?error=${encodeURIComponent(errorMessage)}`);
         return;
@@ -223,4 +225,3 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
-    
