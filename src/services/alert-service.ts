@@ -17,82 +17,83 @@ export const AlertSettingsSchema = z.object({
 export type AlertSettings = z.infer<typeof AlertSettingsSchema>;
 
 
-export class AlertService {
-  private supabase = getServiceRoleClient();
-
-  async getCompanyAlerts(companyId: string): Promise<Alert[]> {
-    const { data, error } = await this.supabase
-      .rpc('get_alerts_with_status', { p_company_id: companyId });
-    
-    if (error) {
-      logger.error('Failed to fetch alerts from get_alerts_with_status', { error: error.message, companyId });
-      return [];
-    }
-    
-    // The data from the RPC call is expected to be JSON, which needs parsing.
-    return (data || []).map((a: any) => a as Alert);
+export async function getCompanyAlerts(companyId: string): Promise<Alert[]> {
+  const supabase = getServiceRoleClient();
+  const { data, error } = await supabase
+    .rpc('get_alerts_with_status', { p_company_id: companyId });
+  
+  if (error) {
+    logger.error('Failed to fetch alerts from get_alerts_with_status', { error: error.message, companyId });
+    return [];
   }
+  
+  // The data from the RPC call is expected to be JSON, which needs parsing.
+  return (data || []).map((a: any) => a as Alert);
+}
 
-  async getAlertSettings(companyId: string): Promise<AlertSettings> {
-    const { data, error } = await this.supabase
-      .from('company_settings')
-      .select('alert_settings')
-      .eq('company_id', companyId)
-      .single();
-    
-    if (error) {
-      logger.error('Failed to fetch alert settings', { error: error.message, companyId });
-      return AlertSettingsSchema.parse({}); // Return default settings on error
-    }
-    
-    return AlertSettingsSchema.parse(data?.alert_settings || {});
+export async function getAlertSettings(companyId: string): Promise<AlertSettings> {
+  const supabase = getServiceRoleClient();
+  const { data, error } = await supabase
+    .from('company_settings')
+    .select('alert_settings')
+    .eq('company_id', companyId)
+    .single();
+  
+  if (error) {
+    logger.error('Failed to fetch alert settings', { error: error.message, companyId });
+    return AlertSettingsSchema.parse({}); // Return default settings on error
   }
+  
+  return AlertSettingsSchema.parse(data?.alert_settings || {});
+}
 
-  async updateAlertSettings(companyId: string, settings: Partial<AlertSettings>) {
-    const { error } = await this.supabase
-      .from('company_settings')
-      .update({ alert_settings: settings })
-      .eq('company_id', companyId);
-    
-    if (error) {
-      logger.error('Failed to update alert settings', { error: error.message, companyId });
-      throw error;
-    }
+export async function updateAlertSettings(companyId: string, settings: Partial<AlertSettings>) {
+  const supabase = getServiceRoleClient();
+  const { error } = await supabase
+    .from('company_settings')
+    .update({ alert_settings: settings })
+    .eq('company_id', companyId);
+  
+  if (error) {
+    logger.error('Failed to update alert settings', { error: error.message, companyId });
+    throw error;
   }
+}
 
-   async markAlertAsRead(alertId: string, companyId: string) {
-    const { error } = await this.supabase
-      .from('alert_history')
-      .upsert(
-        { 
-          company_id: companyId,
-          alert_id: alertId, 
-          status: 'read', 
-          read_at: new Date().toISOString()
-        },
-        { onConflict: 'company_id, alert_id' }
-      );
-    
-    if (error) {
-      logger.error('Failed to mark alert as read', { error: error.message, alertId });
-    }
+ export async function markAlertAsRead(alertId: string, companyId: string) {
+  const supabase = getServiceRoleClient();
+  const { error } = await supabase
+    .from('alert_history')
+    .upsert(
+      { 
+        company_id: companyId,
+        alert_id: alertId, 
+        status: 'read', 
+        read_at: new Date().toISOString()
+      },
+      { onConflict: 'company_id, alert_id' }
+    );
+  
+  if (error) {
+    logger.error('Failed to mark alert as read', { error: error.message, alertId });
   }
+}
 
-  async dismissAlert(alertId: string, companyId: string) {
-    const { error } = await this.supabase
-      .from('alert_history')
-      .upsert(
-        {
-          company_id: companyId,
-          alert_id: alertId,
-          status: 'dismissed',
-          dismissed_at: new Date().toISOString()
-        },
-        { onConflict: 'company_id, alert_id' }
-       );
+export async function dismissAlert(alertId: string, companyId: string) {
+  const supabase = getServiceRoleClient();
+  const { error } = await supabase
+    .from('alert_history')
+    .upsert(
+      {
+        company_id: companyId,
+        alert_id: alertId,
+        status: 'dismissed',
+        dismissed_at: new Date().toISOString()
+      },
+      { onConflict: 'company_id, alert_id' }
+     );
 
-    if (error) {
-      logger.error('Failed to dismiss alert', { error: error.message, alertId });
-    }
+  if (error) {
+    logger.error('Failed to dismiss alert', { error: error.message, alertId });
   }
 }
