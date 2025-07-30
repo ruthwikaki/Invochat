@@ -36,8 +36,9 @@ export async function getCurrentCompanyId(): Promise<string | null> {
  * A helper function to get the full authentication context (user and company ID)
  * in a single call. Throws an error if the user is not authenticated, making it
  * suitable for protecting server actions.
+ * This now performs a database check to ensure the user actually belongs to the company.
  * @returns An object containing the userId and companyId.
- * @throws {Error} if the user is not authenticated or does not have a company ID.
+ * @throws {Error} if the user is not authenticated, does not have a company ID, or is not a valid member of that company.
  */
 export async function getAuthContext() {
     const supabase = createServerClient();
@@ -51,6 +52,20 @@ export async function getAuthContext() {
     
     if (!companyId) {
         throw new Error("Authorization failed: User is not associated with a company.");
+    }
+
+    // CRITICAL: Verify from the database that the user is actually a member of the company.
+    // This prevents any potential issues if the JWT metadata were to become stale or be manipulated.
+    const { data: companyUser, error } = await supabase
+        .from('company_users')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .eq('company_id', companyId)
+        .single();
+    
+    if (error || !companyUser) {
+        logError(error, { context: 'getAuthContext company membership validation failed', userId: user.id, companyId });
+        throw new Error("Authorization failed: User is not a valid member of the specified company.");
     }
 
     return { userId: user.id, companyId };
