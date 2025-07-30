@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import { AlertService } from '@/services/alert-service';
+import { markAlertAsRead } from '@/services/alert-service';
 import { getAuthContext } from '@/lib/auth-helpers';
 import { getErrorMessage } from '@/lib/error-handler';
 
@@ -8,9 +8,8 @@ export async function POST(request: NextRequest) {
   try {
     const { companyId } = await getAuthContext();
     const { alertId } = await request.json();
-    const alertService = new AlertService();
     
-    await alertService.markAlertAsRead(alertId, companyId);
+    await markAlertAsRead(alertId, companyId);
     
     return NextResponse.json({ success: true });
   } catch (error) {
