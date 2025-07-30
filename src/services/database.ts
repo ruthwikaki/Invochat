@@ -386,7 +386,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return CustomerAnalyticsSchema.parse(Array.isArray(data) ? data[0] : data);
+    return CustomerAnalyticsSchema.parse(data);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -691,10 +691,10 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
             suppliers ( name ),
             purchase_order_line_items!purchase_order_line_items_purchase_order_id_fkey (
                 *,
-                product_variants:variant_id (
+                product_variants:variant_id!inner (
                     id,
                     sku,
-                    products!inner(product_title:title)
+                    products!fk_product_variants_product_id(product_title:title)
                 )
             )
         `)
@@ -721,10 +721,10 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
             suppliers ( name ),
             purchase_order_line_items!purchase_order_line_items_purchase_order_id_fkey (
                 *,
-                product_variants:variant_id (
+                product_variants:variant_id!inner (
                     id,
                     sku,
-                    products!inner(product_title:title)
+                    products!fk_product_variants_product_id(product_title:title)
                 )
             )
         `)

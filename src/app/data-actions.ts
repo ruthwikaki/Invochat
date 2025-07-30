@@ -56,7 +56,7 @@ import {
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
-import { DashboardMetricsSchema, SupplierFormSchema } from '@/types';
+import { SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -451,7 +451,7 @@ export async function deletePurchaseOrder(formData: FormData) {
     }
 }
 
-export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]) {
     try {
         const { companyId, userId } = await getAuthContext();
         const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
@@ -795,4 +795,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
