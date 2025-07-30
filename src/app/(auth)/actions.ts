@@ -109,15 +109,18 @@ export async function signup(formData: FormData) {
     });
 
     if (error) {
+        logError(error, { context: 'Signup RPC call failed' });
         throw new Error(`Database RPC error: ${error.message}`);
     }
 
-    if (!data.success) {
-        logError(new Error(data.message), { context: 'Signup RPC returned failure', data });
+    const result = data as { success: boolean; message?: string };
+
+    if (!result.success) {
+        logError(new Error(result.message), { context: 'Signup RPC returned failure', data: result });
         let userMessage = 'Could not complete signup. Please try again.';
-        if (data.message?.includes('duplicate key value violates unique constraint "users_email_key"')) {
+        if (result.message?.includes('duplicate key value violates unique constraint "users_email_key"')) {
             userMessage = 'A user with this email already exists.';
-        } else if (data.message?.includes('duplicate key value violates unique constraint "companies_name_key"')) {
+        } else if (result.message?.includes('duplicate key value violates unique constraint "companies_name_key"')) {
              userMessage = 'A company with this name already exists.';
         }
         redirect(`/signup?error=${encodeURIComponent(userMessage)}`);
