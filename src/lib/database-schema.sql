@@ -1,66 +1,46 @@
--- supabase/migrations/20240725120000_initial_schema.sql
 
--- Drop the old, problematic function if it exists to avoid conflicts.
+-- Drop the existing function if it exists, to avoid "cannot change return type" errors.
 DROP FUNCTION IF EXISTS public.create_company_and_user(text, text, text);
 
---
--- Create the new, correct function for handling user signup.
--- This function runs with the privileges of the definer (the admin role),
--- which is necessary to create users in the 'auth' schema.
---
-create or replace function public.create_company_and_user(
-    p_company_name text,
-    p_user_email text,
-    p_user_password text
+-- Create the new, corrected function for handling user signup.
+CREATE OR REPLACE FUNCTION public.create_company_and_user(
+    p_company_name TEXT,
+    p_user_email TEXT,
+    p_user_password TEXT
 )
-returns uuid
-language plpgsql
-security definer set search_path = public
-as $$
-declare
-  new_company_id uuid;
-  new_user_id uuid;
-begin
-  -- 1. Create a new company.
-  insert into public.companies (name)
-  values (p_company_name)
-  returning id into new_company_id;
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER -- <<< This is critical for allowing the function to create users in the auth schema.
+SET search_path = public
+AS $$
+DECLARE
+    new_company_id uuid;
+    new_user_id uuid;
+BEGIN
+    -- Step 1: Create the company first.
+    INSERT INTO public.companies (name)
+    VALUES (p_company_name)
+    RETURNING id INTO new_company_id;
 
-  -- 2. Create the new user in the auth.users table, embedding the company_id
-  --    and a default role in the user's metadata.
-  insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, recovery_token, recovery_sent_at, last_sign_in_at, raw_app_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, email_change_token_current, email_change_confirm_status)
-  values
-    (
-      '00000000-0000-0000-0000-000000000000',
-      gen_random_uuid(),
-      'authenticated',
-      'authenticated',
-      p_user_email,
-      crypt(p_user_password, gen_salt('bf')),
-      now(),
-      '',
-      now(),
-      now(),
-      jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email'), 'company_id', new_company_id, 'role', 'Owner'),
-      now(),
-      now(),
-      '',
-      '',
-      '',
-      '',
-      0
-    )
-  returning id into new_user_id;
+    -- Step 2: Create the user in the auth schema, embedding the company_id in the metadata.
+    -- This ensures the trigger `on_auth_user_created` has the company_id when it runs.
+    SELECT auth.admin_create_user(
+        p_user_email,
+        p_user_password,
+        jsonb_build_object(
+            'company_id', new_company_id,
+            'company_name', p_company_name,
+            'role', 'Owner'
+        )
+    ) INTO new_user_id;
 
-  -- 3. Update the company with the new user's ID as the owner.
-  update public.companies
-  set owner_id = new_user_id
-  where id = new_company_id;
+    -- The trigger `on_auth_user_created` will handle inserting into `public.users` and `public.company_users`.
 
-  -- 4. Link the user to the company in the company_users table.
-  insert into public.company_users (company_id, user_id, role)
-  values (new_company_id, new_user_id, 'Owner');
-
-  return new_user_id;
-end;
+    -- Step 3: Update the company with the owner's ID.
+    UPDATE public.companies
+    SET owner_id = new_user_id
+    WHERE id = new_company_id;
+    
+    RETURN new_user_id;
+END;
 $$;
