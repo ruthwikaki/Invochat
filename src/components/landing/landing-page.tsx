@@ -184,10 +184,16 @@ export function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="flex items-center justify-center py-6 border-t bg-white">
-        <p className="text-xs text-gray-500">
-          &copy; {new Date().getFullYear()} ARVO. All rights reserved.
-        </p>
+      <footer className="w-full border-t bg-white">
+        <div className="container mx-auto py-6 px-4 md:px-6 flex flex-col sm:flex-row items-center justify-between text-sm text-gray-500">
+          <p className="text-xs">
+            &copy; {new Date().getFullYear()} ARVO. All rights reserved.
+          </p>
+          <div className="flex gap-4 mt-4 sm:mt-0">
+            <Link href="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</Link>
+            <Link href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+          </div>
+        </div>
       </footer>
     </div>
   );
