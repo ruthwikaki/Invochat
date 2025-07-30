@@ -117,15 +117,27 @@ export async function signup(formData: FormData) {
     }
   );
 
+  const serviceSupabase = getServiceRoleClient();
+  const { data: { users }, error: userError } = await serviceSupabase.auth.admin.listUsers({ email });
+
+  if (userError) {
+      logError(userError, { context: 'Error checking for existing user during signup' });
+      redirect(`/signup?error=${encodeURIComponent('Could not complete signup. Please try again.')}`);
+      return;
+  }
+
+  if (users && users.length > 0) {
+      redirect(`/signup?error=${encodeURIComponent('A user with this email already exists.')}`);
+      return;
+  }
+
   try {
-    const { error } = await supabase.auth.signUp({
+    const { data: authData, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           company_name: companyName,
-          // This is the key change: passing company_name in the user metadata
-          // so the database trigger can correctly create the company and associate the user.
         },
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
       },
@@ -134,7 +146,22 @@ export async function signup(formData: FormData) {
     if (error) {
       logError(error, { context: 'Signup failed' });
       redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+    } else if (authData.user) {
+      // Manually call the function to create company and link user
+      const { error: rpcError } = await serviceSupabase.rpc('create_company_and_owner', {
+        p_user_id: authData.user.id,
+        p_company_name: companyName
+      });
+
+      if (rpcError) {
+        logError(rpcError, { context: 'Failed to create company and owner link after signup' });
+        // Attempt to clean up the user if the company creation fails
+        await serviceSupabase.auth.admin.deleteUser(authData.user.id);
+        redirect(`/signup?error=${encodeURIComponent('Could not set up your company. Please try again.')}`);
+        return;
+      }
     }
+
   } catch (e) {
       const message = getErrorMessage(e);
       logError(e, { context: 'Signup exception' });
