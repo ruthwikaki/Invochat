@@ -101,13 +101,10 @@ export async function signup(formData: FormData) {
   const serviceSupabase = getServiceRoleClient();
 
   try {
-    // This new RPC function handles the creation of the company and user
-    // in a single transaction, preventing race conditions.
     const { error } = await serviceSupabase.rpc('create_company_and_user', {
         p_company_name: companyName,
         p_user_email: email,
         p_user_password: password,
-        p_email_redirect_to: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
     });
 
     if (error) {
