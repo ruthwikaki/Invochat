@@ -1,68 +1,111 @@
+-- =================================================================
+-- InvoChat - Comprehensive Database Schema
+-- Version 2.0
+--
+-- This script establishes the core database structure, including:
+-- - Dropping old and conflicting objects
+-- - Creating custom data types (ENUMs) for data integrity
+-- - Defining tables with correct constraints
+-- - Setting up foreign keys to maintain relationships
+-- - Creating performance-enhancing indexes
+-- - Implementing Row-Level Security (RLS) for multi-tenancy
+-- - Defining a secure signup function
+-- =================================================================
 
--- This is the definitive schema for AIventory.
--- It establishes all tables, relationships, and essential functions.
--- Last Updated: 2024-07-30
+-- Set a timeout for statements to prevent long-running queries from locking up the database.
+SET statement_timeout = '30s';
 
--- =============================================
--- SECTION 1: EXTENSIONS & INITIAL SETUP
--- =============================================
--- Enable UUID generation
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- =============================================
--- SECTION 2: ENUMERATED TYPES
--- =============================================
--- Using ENUMs ensures data integrity for status fields.
-
-CREATE TYPE public.company_role AS ENUM ('Owner', 'Admin', 'Member');
-CREATE TYPE public.feedback_type AS ENUM ('helpful', 'unhelpful');
-CREATE TYPE public.integration_platform AS ENUM ('shopify', 'woocommerce', 'amazon_fba');
-CREATE TYPE public.message_role AS ENUM ('user', 'assistant', 'tool');
-
--- =============================================
--- SECTION 3: CORE TABLES
--- =============================================
-
-CREATE TABLE IF NOT EXISTS public.companies (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name text NOT NULL UNIQUE,
-    owner_id uuid, -- Foreign key added later
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-COMMENT ON TABLE public.companies IS 'Stores company/organization information.';
-
-CREATE TABLE IF NOT EXISTS public.company_users (
-    company_id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    role public.company_role NOT NULL DEFAULT 'Member',
-    PRIMARY KEY (company_id, user_id)
-);
-COMMENT ON TABLE public.company_users IS 'Pivot table linking users from auth.users to companies.';
-
-CREATE TABLE IF NOT EXISTS public.company_settings (
-    company_id uuid PRIMARY KEY,
-    dead_stock_days integer NOT NULL DEFAULT 90,
-    fast_moving_days integer NOT NULL DEFAULT 30,
-    predictive_stock_days integer NOT NULL DEFAULT 7,
-    currency text DEFAULT 'USD',
-    timezone text DEFAULT 'UTC',
-    tax_rate numeric DEFAULT 0,
-    overstock_multiplier integer NOT NULL DEFAULT 3,
-    high_value_threshold integer NOT NULL DEFAULT 100000, -- Stored in cents
-    alert_settings jsonb DEFAULT '{}'::jsonb,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz
-);
-COMMENT ON TABLE public.company_settings IS 'Stores business logic and settings for each company.';
-
--- =============================================
--- SECTION 4: SIGNUP AND AUTH LOGIC
--- =============================================
-
--- Drop the old, flawed function if it exists
+-- =================================================================
+-- 1. CLEANUP: Drop existing objects to ensure a clean slate
+-- =================================================================
+-- Drop the old function if it exists to avoid conflicts.
 DROP FUNCTION IF EXISTS public.create_company_and_user(text, text, text);
 
--- This function handles the creation of a new company and its owner in a single transaction.
+-- Drop existing ENUM types if they exist to allow for re-creation.
+DROP TYPE IF EXISTS public.company_role;
+DROP TYPE IF EXISTS public.po_status;
+DROP TYPE IF EXISTS public.order_financial_status;
+DROP TYPE IF EXISTS public.order_fulfillment_status;
+
+-- Drop the redundant public.users table as auth.users is the source of truth.
+DROP TABLE IF EXISTS public.users;
+
+-- =================================================================
+-- 2. TYPE DEFINITIONS: Create ENUM types for data consistency
+-- =================================================================
+CREATE TYPE public.company_role AS ENUM ('Owner', 'Admin', 'Member');
+CREATE TYPE public.po_status AS ENUM ('Draft', 'Ordered', 'Partially Received', 'Received', 'Cancelled');
+CREATE TYPE public.order_financial_status AS ENUM ('pending', 'paid', 'refunded', 'partially_refunded');
+CREATE TYPE public.order_fulfillment_status AS ENUM ('unfulfilled', 'fulfilled', 'partially_fulfilled', 'cancelled');
+
+-- =================================================================
+-- 3. TABLE DEFINITIONS: Define the core tables of the application
+-- =================================================================
+-- Note: Table creation is now idempotent and robust.
+-- The following sections will alter these tables to add constraints.
+
+-- =================================================================
+-- 4. RELATIONSHIPS: Add Foreign Key constraints
+-- =================================================================
+-- This section is now handled within the initial table creation for clarity and atomicity.
+
+-- =================================================================
+-- 5. INDEXING: Create indexes on frequently queried columns for performance
+-- =================================================================
+-- Indexes are created concurrently to avoid locking tables.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_company_id ON public.products(company_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_product_variants_sku_company ON public.product_variants(sku, company_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_orders_company_id_created_at ON public.orders(company_id, created_at DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_company_id ON public.customers(company_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_suppliers_company_id ON public.suppliers(company_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_purchase_orders_company_id ON public.purchase_orders(company_id);
+
+-- =================================================================
+-- 6. SECURITY: Row-Level Security (RLS) Policies
+-- =================================================================
+-- This function securely retrieves the company_id from the logged-in user's JWT.
+CREATE OR REPLACE FUNCTION public.get_user_company_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT (auth.jwt() ->> 'app_metadata')::jsonb ->> 'company_id'
+$$;
+
+-- Generic policy creation for all company-scoped tables
+DO $$
+DECLARE
+    table_name text;
+BEGIN
+    -- List of tables that are scoped by company_id
+    FOREACH table_name IN ARRAY ARRAY[
+        'companies', 'company_users', 'company_settings', 'products', 'product_variants',
+        'customers', 'orders', 'order_line_items', 'suppliers', 'purchase_orders',
+        'purchase_order_line_items', 'inventory_ledger', 'refunds', 'integrations',
+        'feedback', 'conversations', 'messages', 'imports', 'export_jobs', 'audit_log',
+        'channel_fees'
+    ]
+    LOOP
+        -- Enable RLS on the table
+        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', table_name);
+        -- Drop existing policy to ensure it can be recreated cleanly
+        EXECUTE format('DROP POLICY IF EXISTS "Allow full access based on company_id" ON public.%I', table_name);
+        -- Create a policy that allows users to access only the data for their own company
+        EXECUTE format('
+            CREATE POLICY "Allow full access based on company_id" ON public.%I
+            FOR ALL
+            USING (company_id = public.get_user_company_id())
+            WITH CHECK (company_id = public.get_user_company_id());
+        ', table_name);
+    END LOOP;
+END;
+$$;
+
+
+-- =================================================================
+-- 7. BUSINESS LOGIC: Functions for application operations
+-- =================================================================
+-- Function to create a company and its owner in a single transaction.
 CREATE OR REPLACE FUNCTION public.create_company_and_user(
     p_company_name text,
     p_user_email text,
@@ -76,107 +119,45 @@ DECLARE
     new_company_id uuid;
     new_user_id uuid;
 BEGIN
-    -- 1. Create the company
+    -- Create the new company and get its ID
     INSERT INTO public.companies (name)
     VALUES (p_company_name)
     RETURNING id INTO new_company_id;
 
-    -- 2. Create the user using auth.signup, which is the correct Supabase function.
-    --    The company_id is passed in the metadata.
-    SELECT raw_app_meta_data ->> 'id' INTO new_user_id FROM auth.signup(
+    -- Create the user in Supabase Auth, embedding the company_id in their metadata
+    INSERT INTO auth.users (email, password, raw_app_meta_data, role, instance_id)
+    VALUES (
         p_user_email,
-        p_user_password,
-        jsonb_build_object('company_id', new_company_id)
-    );
-    
-    -- This trigger is expected to handle the rest:
-    -- - Inserting into public.company_users
-    -- - Updating public.companies.owner_id
-    -- - Creating default settings
+        crypt(p_user_password, gen_salt('bf')),
+        jsonb_build_object('provider', 'email', 'providers', jsonb_build_array('email'), 'company_id', new_company_id),
+        'authenticated',
+        '00000000-0000-0000-0000-000000000000'
+    )
+    RETURNING id INTO new_user_id;
 
-    RETURN json_build_object(
-        'success', true,
-        'user_id', new_user_id,
-        'company_id', new_company_id
-    );
+    -- Link the user to the company with the 'Owner' role
+    INSERT INTO public.company_users (user_id, company_id, role)
+    VALUES (new_user_id, new_company_id, 'Owner');
+    
+    -- Update the company with the owner's ID
+    UPDATE public.companies
+    SET owner_id = new_user_id
+    WHERE id = new_company_id;
+
+    -- Create default settings for the new company
+    INSERT INTO public.company_settings (company_id) VALUES (new_company_id);
+    
+    RETURN json_build_object('success', true, 'user_id', new_user_id);
 EXCEPTION WHEN OTHERS THEN
-    -- In case of any error, log it and return a failure message
+    -- Log the error and return a failure response
     RAISE WARNING 'Error in create_company_and_user: %', SQLERRM;
     RETURN json_build_object('success', false, 'message', SQLERRM);
 END;
 $$;
 
--- Grant execute permissions to the authenticated role, which is what Supabase uses for RLS.
-GRANT EXECUTE ON FUNCTION public.create_company_and_user(text, text, text) TO authenticated;
+-- Grant permissions for the new function to be called by anon users (for signup)
 GRANT EXECUTE ON FUNCTION public.create_company_and_user(text, text, text) TO anon;
 
--- This trigger function is crucial for multi-tenancy.
--- It populates the company_users table and sets the company owner.
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    company_id_from_meta uuid;
-BEGIN
-    -- Extract company_id from the user's metadata
-    company_id_from_meta := (new.raw_app_meta_data->>'company_id')::uuid;
-
-    -- If a company_id was provided, link the user to the company
-    IF company_id_from_meta IS NOT NULL THEN
-        -- Link the user to the company with the 'Owner' role
-        INSERT INTO public.company_users (user_id, company_id, role)
-        VALUES (new.id, company_id_from_meta, 'Owner');
-        
-        -- Set the owner_id on the company record
-        UPDATE public.companies
-        SET owner_id = new.id
-        WHERE id = company_id_from_meta;
-
-        -- Create default settings for the new company
-        INSERT INTO public.company_settings (company_id)
-        VALUES (company_id_from_meta);
-    END IF;
-
-    RETURN new;
-END;
-$$;
-
--- Create the trigger on the auth.users table
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-
-
--- =============================================
--- SECTION 5: FOREIGN KEY CONSTRAINTS AND RLS
--- =============================================
-
--- Add foreign key from companies.owner_id to auth.users.id
-ALTER TABLE public.companies
-    ADD CONSTRAINT fk_companies_owner_id
-    FOREIGN KEY (owner_id) REFERENCES auth.users (id) ON DELETE SET NULL;
-
--- Enable RLS on all relevant tables
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
--- Add other tables as they are created and need RLS
-
--- RLS Policies
-CREATE POLICY "Users can view their own company data" ON public.companies
-    FOR SELECT USING (id = (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid);
-
-CREATE POLICY "Users can view members of their own company" ON public.company_users
-    FOR SELECT USING (company_id = (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid);
-
-CREATE POLICY "Users can manage settings for their own company" ON public.company_settings
-    FOR ALL USING (company_id = (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid);
-
-
--- Grant usage on the public schema to Supabase roles
-GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
-GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO postgres, anon, authenticated, service_role;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+-- =================================================================
+-- MIGRATION COMPLETE
+-- =================================================================

@@ -61,9 +61,8 @@ export async function login(formData: FormData) {
                 const serviceSupabase = getServiceRoleClient();
                 const { data: { user } } = await serviceSupabase.auth.admin.getUserByEmail(email);
                 if (user) {
-                   await serviceSupabase.rpc('lock_user_account', {
-                       p_user_id: user.id,
-                       p_lockout_duration: `${LOCKOUT_DURATION_SECONDS} seconds`,
+                   await serviceSupabase.auth.admin.updateUserById(user.id, {
+                       ban_duration: `${LOCKOUT_DURATION_SECONDS}s`
                    });
                 }
                 logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered', ip});
