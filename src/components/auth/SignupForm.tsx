@@ -10,12 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function SubmitButton({ disabled }: { disabled?: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={disabled || pending}>
+      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
@@ -27,13 +26,7 @@ interface SignupFormProps {
 
 export function SignupForm({ error: initialError }: SignupFormProps) {
     const [error, setError] = useState(initialError);
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
-    const [isPending, startTransition] = useTransition();
-
-    useEffect(() => {
-        generateAndSetCsrfToken(setCsrfToken);
-    }, []);
-
+    
     useEffect(() => {
         setError(initialError);
         if (initialError) {
@@ -47,15 +40,8 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
         if (error) setError(null);
     };
 
-    const formAction = (formData: FormData) => {
-        startTransition(() => {
-            signup(formData);
-        });
-    }
-
     return (
-        <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
-            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
+        <form action={signup} className="grid gap-4" onChange={handleInteraction}>
             <div className="grid gap-2">
                 <Label htmlFor="companyName">Company Name</Label>
                 <Input
@@ -105,7 +91,9 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <SubmitButton disabled={!csrfToken || isPending} />
+            <div className="pt-2">
+                <SubmitButton />
+            </div>
         </form>
     );
 }
