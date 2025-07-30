@@ -1,3 +1,4 @@
+
 import { createServerClient as createServerClientOriginal, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { config, envValidation } from '@/config/app-config';
