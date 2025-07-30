@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@/lib/supabase/admin';
@@ -65,6 +66,9 @@ export async function getAuthContext() {
     
     if (error || !companyUser) {
         logError(error, { context: 'getAuthContext company membership validation failed', userId: user.id, companyId });
+        // IMPORTANT CHANGE: Throw a specific, catchable error instead of a generic one.
+        // This allows middleware and error boundaries to handle this specific case gracefully
+        // (e.g., by redirecting to a setup page) instead of showing a generic error page.
         throw new Error("Authorization failed: User is not a valid member of the specified company.");
     }
 
