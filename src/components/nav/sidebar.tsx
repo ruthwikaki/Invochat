@@ -12,7 +12,7 @@ import {
   SidebarFooter,
   SidebarMenuSub,
   SidebarMenuSubButton,
-  SidebarMenuSubItem
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { InvoChatLogo } from '@/components/invochat-logo';
 import { Separator } from '@/components/ui/separator';
@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import type { Conversation } from '@/types';
 import { useAuth } from '@/context/auth-context';
+import { AlertCenter } from '../alerts/alert-center';
 
 
 const mainNav = [
@@ -100,9 +101,15 @@ export function AppSidebar() {
   return (
     <>
       <SidebarHeader>
-        <div className="flex items-center gap-2">
-            <InvoChatLogo className="h-8 w-8 text-primary" />
-            <span className="text-lg font-semibold">ARVO</span>
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <InvoChatLogo className="h-8 w-8 text-primary" />
+                <span className="text-lg font-semibold">ARVO</span>
+            </div>
+             <div className="flex items-center gap-1">
+                <AlertCenter />
+                <SidebarTrigger className="md:hidden" />
+             </div>
         </div>
       </SidebarHeader>
       
