@@ -63,6 +63,9 @@ import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation } from '@/types';
 import { z } from 'zod';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+import { isRedisEnabled, redisClient } from '@/lib/redis';
+import { config } from '@/config/app-config';
+import { logger } from '@/lib/logger';
 
 
 export async function getProducts() {
@@ -97,7 +100,14 @@ export async function getUnifiedInventory(params: { query: string, page: number,
 export async function getInventoryAnalytics() {
     try {
         const { companyId } = await getAuthContext();
-        return await getInventoryAnalyticsFromDB(companyId);
+        const cacheKey = `cache:inventory-analytics:${companyId}`;
+        if(isRedisEnabled) {
+            const cached = await redisClient.get(cacheKey);
+            if(cached) return JSON.parse(cached);
+        }
+        const analytics = await getInventoryAnalyticsFromDB(companyId);
+        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', config.redis.ttl.dashboard);
+        return analytics;
     } catch (e) {
         logError(e, {context: 'getInventoryAnalytics action failed, returning default'});
         return { total_inventory_value: 0, total_products: 0, total_variants: 0, low_stock_items: 0 };
@@ -290,7 +300,14 @@ export async function exportSales(params: { query: string }) {
 export async function getSalesAnalytics() {
     try {
         const { companyId } = await getAuthContext();
-        return await getSalesAnalyticsFromDB(companyId);
+        const cacheKey = `cache:sales-analytics:${companyId}`;
+        if(isRedisEnabled) {
+            const cached = await redisClient.get(cacheKey);
+            if(cached) return JSON.parse(cached);
+        }
+        const analytics = await getSalesAnalyticsFromDB(companyId);
+        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', config.redis.ttl.dashboard);
+        return analytics;
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
         return { total_revenue: 0, total_orders: 0, average_order_value: 0 };
@@ -337,7 +354,14 @@ export async function exportCustomers(params: { query: string }) {
 export async function getCustomerAnalytics() {
     try {
         const { companyId } = await getAuthContext();
-        return await getCustomerAnalyticsFromDB(companyId);
+        const cacheKey = `cache:customer-analytics:${companyId}`;
+        if(isRedisEnabled) {
+            const cached = await redisClient.get(cacheKey);
+            if(cached) return JSON.parse(cached);
+        }
+        const analytics = await getCustomerAnalyticsFromDB(companyId);
+        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', config.redis.ttl.dashboard);
+        return analytics;
     } catch (e) {
         logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
         return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
@@ -492,18 +516,34 @@ export async function reconcileInventory(integrationId: string) {
 }
 
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
-    const emptyMetrics: DashboardMetrics = {
-        total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
-        inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
-    };
+    const { companyId } = await getAuthContext();
+    const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
+    if (isRedisEnabled) {
+      try {
+        const cached = await redisClient.get(cacheKey);
+        if (cached) {
+            logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+            return JSON.parse(cached);
+        }
+        logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+      } catch (e) {
+        logError(e, { context: 'Dashboard cache read failed' });
+      }
+    }
+
     try {
-        const { companyId } = await getAuthContext();
         const data = await getDashboardMetricsFromDb(companyId, dateRange);
-        return DashboardMetricsSchema.parse(data);
+        if (isRedisEnabled) {
+          await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
+        }
+        return data;
     } catch (e) {
         logError(e, { context: 'getDashboardData failed' });
         // Return a safe, empty object to prevent frontend crashes
-        return emptyMetrics;
+        return {
+            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+            inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
+        };
     }
 }
 
@@ -640,12 +680,16 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
     }
 }
 
-export async function getReorderReport() {
+export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     try {
         const { companyId } = await getAuthContext();
         return await getReorderSuggestions({ companyId });
-    } catch(e) {
-        logError(e, { context: 'getReorderReport failed, returning empty array'});
+    } catch (error) {
+        // Log the error for debugging but don't throw it
+        logError(error, { context: 'getReorderReport failed' });
+        
+        // Return empty array instead of throwing error
+        // This allows the UI to show the empty state
         return [];
     }
 }
@@ -751,3 +795,4 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+

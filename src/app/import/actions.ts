@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { headers } from 'next/headers';
@@ -290,7 +291,7 @@ export async function handleDataImport(formData: FormData): Promise<ImportResult
         result = await processCsv(file.stream() as unknown as NodeJS.ReadableStream, currentConfig.schema, companyId, userId, isDryRun, mappings, dataType, importJobId);
 
         if (!isDryRun && (result.processedCount || 0) > 0) {
-            await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
+            await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock', 'inventory', 'suppliers']);
             requiresViewRefresh = true;
             revalidatePath('/inventory');
             revalidatePath('/suppliers');
