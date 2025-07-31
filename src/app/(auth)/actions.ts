@@ -98,31 +98,47 @@ export async function signup(formData: FormData) {
       return;
   }
 
-  const serviceSupabase = getServiceRoleClient();
+  // Use the standard client, not the service role client, to call the signup function.
+  // This ensures the call is made in the context of the user.
+  const cookieStore = cookies();
+   const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+          set(name: string, value: string, options) {
+            cookieStore.set({ name, value, ...options });
+          },
+          remove(name: string, options) {
+            cookieStore.set({ name, value: '', ...options });
+          },
+        },
+      }
+    );
 
   try {
-    const { data, error } = await serviceSupabase.rpc('create_company_and_user', {
-        p_company_name: companyName,
-        p_user_email: email,
-        p_user_password: password,
+    // The trigger on `auth.users` will handle creating the company and linking the user.
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+            data: {
+                company_name: companyName,
+            }
+        }
     });
 
     if (error) {
-        logError(error, { context: 'Signup RPC call failed' });
-        throw new Error(`Database RPC error: ${error.message}`);
+        logError(error, { context: 'Supabase auth.signUp failed' });
+        redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+        return;
     }
 
-    const result = data as { success: boolean; message?: string };
-
-    if (!result.success) {
-        logError(new Error(result.message), { context: 'Signup RPC returned failure', data: result });
-        let userMessage = 'Could not complete signup. Please try again.';
-        if (result.message?.includes('duplicate key value violates unique constraint "users_email_key"')) {
-            userMessage = 'A user with this email already exists.';
-        } else if (result.message?.includes('duplicate key value violates unique constraint "companies_name_key"')) {
-             userMessage = 'A company with this name already exists.';
-        }
-        redirect(`/signup?error=${encodeURIComponent(userMessage)}`);
+    if (!data.user) {
+        redirect(`/signup?error=${encodeURIComponent('Could not create user. Please try again.')}`);
         return;
     }
     
@@ -134,7 +150,8 @@ export async function signup(formData: FormData) {
   }
 
   revalidatePath('/', 'layout');
-  redirect('/login?message=Check your email to continue signing up.');
+  // Redirect to a confirmation page. The middleware will handle redirects for confirmed users.
+  redirect('/login?message=Check your email to confirm your account and continue.');
 }
 
 
