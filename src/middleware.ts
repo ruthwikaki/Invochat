@@ -64,8 +64,15 @@ export async function middleware(req: NextRequest) {
   
   // If the user is logged in
   if (session) {
-    // If they are on a public-only route, redirect to dashboard.
-    if (isPublicRoute) {
+    const companyId = session.user.app_metadata?.company_id;
+
+    // If user has a session but no company_id, and they are not already on the env-check page, redirect them there.
+    if (!companyId && pathname !== '/env-check') {
+        return NextResponse.redirect(new URL('/env-check', req.url));
+    }
+    
+    // If user has a session and a company_id, but they are on a public-only route, redirect to dashboard.
+    if (companyId && isPublicRoute) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } 
