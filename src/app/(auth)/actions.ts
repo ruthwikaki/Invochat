@@ -20,29 +20,29 @@ export async function login(formData: FormData) {
   const cookieStore = cookies();
   const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
 
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options) {
+          cookieStore.set({ name, value: '', ...options });
+        },
+      },
+    }
+  );
+
   try {
     const { limited } = await rateLimit(ip, 'login_attempt', config.ratelimit.auth, 3600);
     if (limited) {
         redirect(`/login?error=${encodeURIComponent('Too many login attempts. Please try again in an hour.')}`);
     }
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options) {
-            cookieStore.set({ name, value: '', ...options });
-          },
-        },
-      }
-    );
 
     const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -69,7 +69,7 @@ export async function login(formData: FormData) {
             }
         }
         
-        redirect(`/login?error=${encodeURIComponent('Invalid login credentials.')}`);
+        return redirect(`/login?error=${encodeURIComponent('Invalid login credentials.')}`);
     }
 
     if (isRedisEnabled) {
@@ -79,11 +79,11 @@ export async function login(formData: FormData) {
   } catch (e) {
     const message = getErrorMessage(e);
     logError(e, { context: 'Login exception' });
-    redirect(`/login?error=${encodeURIComponent(message)}`);
+    return redirect(`/login?error=${encodeURIComponent(message)}`);
   }
   
-  // The middleware will handle redirecting to the dashboard.
-  // We revalidate the root path to ensure the layout reflects the new auth state.
+  // Revalidate the root path to ensure the middleware picks up the new session
+  // This is the key fix to prevent the redirect loop.
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
@@ -258,5 +258,3 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
-
-    
