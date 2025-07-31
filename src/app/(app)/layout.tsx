@@ -3,12 +3,20 @@ import { ReactNode } from 'react';
 import { Sidebar, SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/nav/sidebar';
 import { QueryClientProvider } from '@/context/query-client-provider';
+import { getAuthContext } from '@/lib/auth-helpers';
+import { redirect } from 'next/navigation';
 
-export default function AppLayout({
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // This check now happens within the app layout, after the session is stable.
+  const { companyId } = await getAuthContext();
+  if (!companyId) {
+    return redirect('/env-check');
+  }
+  
   return (
     <QueryClientProvider>
       <SidebarProvider>
