@@ -1,756 +1,502 @@
+-- supabase/migrations/20240726120000_initial_schema.sql
 
--- ===============================================================================================
---                                          IMPORTANT
---  This file is the single source of truth for the database schema.
---  It should be idempotent, meaning it can be run multiple times without causing errors.
---  This is achieved by using `CREATE OR REPLACE` for functions and `CREATE TABLE IF NOT EXISTS` for tables.
---  DO NOT REMOVE OR ALTER 'SECURITY DEFINER' on functions. It is required for RLS to work correctly.
--- ===============================================================================================
+-- 1. Enable UUID extension
+create extension if not exists "uuid-ossp" with schema "extensions";
 
--- -----------------------------------------------------------------------------------------------
---                                             Enums
---  Define custom types to enforce consistency for specific fields like roles and statuses.
--- -----------------------------------------------------------------------------------------------
+-- 2. Enumerated Types
+create type "public"."company_role" as enum ('Owner', 'Admin', 'Member');
+create type "public"."integration_platform" as enum ('shopify', 'woocommerce', 'amazon_fba');
+create type "public"."message_role" as enum ('user', 'assistant', 'tool');
+create type "public"."feedback_type" as enum ('helpful', 'unhelpful');
 
-DO $$ BEGIN
-    CREATE TYPE public.company_role AS ENUM ('Owner', 'Admin', 'Member');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
 
-DO $$ BEGIN
-    CREATE TYPE public.integration_platform AS ENUM ('shopify', 'woocommerce', 'amazon_fba');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE public.message_role AS ENUM ('user', 'assistant', 'tool');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE public.feedback_type AS ENUM ('helpful', 'unhelpful');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
--- -----------------------------------------------------------------------------------------------
---                                       Core Data Tables
---  These tables store the primary business data for companies, users, and inventory.
--- -----------------------------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS public.companies (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    name text NOT NULL,
-    owner_id uuid NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL
+-- 3. Companies Table
+create table "public"."companies" (
+    "id" uuid not null default uuid_generate_v4(),
+    "name" text not null,
+    "created_at" timestamp with time zone not null default now(),
+    "owner_id" uuid
 );
+alter table "public"."companies" enable row level security;
+create unique index companies_pkey on public.companies using btree (id);
+alter table "public"."companies" add constraint "companies_pkey" primary key using index "companies_pkey";
+alter table "public"."companies" add constraint "companies_owner_id_fkey" foreign key (owner_id) references auth.users(id) on delete set null;
 
-CREATE TABLE IF NOT EXISTS public.company_users (
-    user_id uuid NOT NULL,
-    company_id uuid NOT NULL,
-    role company_role DEFAULT 'Member'::company_role NOT NULL,
-    PRIMARY KEY (user_id, company_id)
+
+-- 4. Company Users Join Table (for roles)
+create table "public"."company_users" (
+    "company_id" uuid not null,
+    "user_id" uuid not null,
+    "role" company_role not null default 'Member'::company_role
 );
+alter table "public"."company_users" enable row level security;
+create unique index company_users_pkey on public.company_users using btree (company_id, user_id);
+alter table "public"."company_users" add constraint "company_users_pkey" primary key using index "company_users_pkey";
+alter table "public"."company_users" add constraint "company_users_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."company_users" add constraint "company_users_user_id_fkey" foreign key (user_id) references auth.users(id) on delete cascade;
 
-CREATE TABLE IF NOT EXISTS public.company_settings (
-    company_id uuid PRIMARY KEY NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    dead_stock_days int DEFAULT 90 NOT NULL,
-    fast_moving_days int DEFAULT 30 NOT NULL,
-    overstock_multiplier real DEFAULT 3 NOT NULL,
-    high_value_threshold int DEFAULT 100000 NOT NULL, -- Stored in cents
-    currency text DEFAULT 'USD' NOT NULL,
-    tax_rate real DEFAULT 0 NOT NULL,
-    timezone text DEFAULT 'UTC' NOT NULL,
-    predictive_stock_days int DEFAULT 7 NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz
+
+-- 5. Company Settings Table
+create table "public"."company_settings" (
+    "company_id" uuid not null,
+    "dead_stock_days" integer not null default 90,
+    "fast_moving_days" integer not null default 30,
+    "predictive_stock_days" integer not null default 7,
+    "currency" text default 'USD'::text,
+    "timezone" text default 'UTC'::text,
+    "tax_rate" numeric default 0,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone default null,
+    "overstock_multiplier" integer not null default 3,
+    "high_value_threshold" integer not null default 1000,
+    "alert_settings" jsonb default '{"dismissal_hours": 24, "email_notifications": true, "enabled_alert_types": ["low_stock", "out_of_stock", "overstock"], "low_stock_threshold": 10, "morning_briefing_time": "09:00", "critical_stock_threshold": 5, "morning_briefing_enabled": true}'::jsonb
 );
-
-CREATE TABLE IF NOT EXISTS public.suppliers (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    name text NOT NULL,
-    email text,
-    phone text,
-    default_lead_time_days int,
-    notes text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz
-);
-
-CREATE TABLE IF NOT EXISTS public.products (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    description text,
-    handle text,
-    product_type text,
-    tags text[],
-    status text,
-    image_url text,
-    external_product_id text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz,
-    UNIQUE (company_id, external_product_id)
-);
-
-CREATE TABLE IF NOT EXISTS public.product_variants (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL,
-    sku text NOT NULL,
-    title text,
-    option1_name text,
-    option1_value text,
-    option2_name text,
-    option2_value text,
-    option3_name text,
-    option3_value text,
-    barcode text,
-    price int, -- Stored in cents
-    compare_at_price int, -- Stored in cents
-    cost int, -- Stored in cents
-    inventory_quantity int DEFAULT 0 NOT NULL,
-    location text,
-    reorder_point int,
-    reorder_quantity int,
-    external_variant_id text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz,
-    UNIQUE (company_id, sku),
-    UNIQUE (company_id, external_variant_id)
-);
-
-CREATE TABLE IF NOT EXISTS public.customers (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    external_customer_id text,
-    name text,
-    email text,
-    phone text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz,
-    deleted_at timestamptz,
-    UNIQUE (company_id, external_customer_id),
-    UNIQUE (company_id, email)
-);
-
-CREATE TABLE IF NOT EXISTS public.orders (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    order_number text NOT NULL,
-    external_order_id text,
-    customer_id uuid REFERENCES public.customers(id),
-    financial_status text,
-    fulfillment_status text,
-    currency text,
-    subtotal int NOT NULL,
-    total_tax int,
-    total_shipping int,
-    total_discounts int,
-    total_amount int NOT NULL,
-    source_platform text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz,
-    UNIQUE (company_id, external_order_id),
-    UNIQUE (company_id, order_number)
-);
-
-CREATE TABLE IF NOT EXISTS public.order_line_items (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    variant_id uuid REFERENCES public.product_variants(id) ON DELETE SET NULL,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_name text,
-    variant_title text,
-    sku text,
-    quantity int NOT NULL,
-    price int NOT NULL,
-    total_discount int,
-    tax_amount int,
-    cost_at_time int,
-    external_line_item_id text
-);
-
-CREATE TABLE IF NOT EXISTS public.purchase_orders (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id uuid REFERENCES public.suppliers(id),
-    status text DEFAULT 'Draft'::text NOT NULL,
-    po_number text NOT NULL,
-    total_cost int NOT NULL,
-    expected_arrival_date date,
-    idempotency_key uuid UNIQUE,
-    notes text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz,
-    UNIQUE (company_id, po_number)
-);
-
-CREATE TABLE IF NOT EXISTS public.purchase_order_line_items (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    purchase_order_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    quantity int NOT NULL,
-    cost int NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.refunds (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    refund_number text NOT NULL,
-    status text NOT NULL,
-    reason text,
-    note text,
-    total_amount int NOT NULL,
-    created_by_user_id uuid REFERENCES public.users(id),
-    external_refund_id text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    UNIQUE (company_id, refund_number)
-);
-
--- -----------------------------------------------------------------------------------------------
---                                          AI & System Tables
---  These tables support the AI features, integrations, and internal system operations.
--- -----------------------------------------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS public.conversations (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    last_accessed_at timestamptz DEFAULT now() NOT NULL,
-    is_starred boolean DEFAULT false NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.messages (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    role message_role NOT NULL,
-    content text NOT NULL,
-    component text,
-    "componentProps" jsonb,
-    visualization jsonb,
-    confidence real,
-    assumptions text[],
-    "isError" boolean,
-    created_at timestamptz DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.integrations (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    platform integration_platform NOT NULL,
-    shop_domain text,
-    shop_name text,
-    is_active boolean DEFAULT true NOT NULL,
-    last_sync_at timestamptz,
-    sync_status text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz,
-    UNIQUE (company_id, platform)
-);
-
-CREATE TABLE IF NOT EXISTS public.inventory_ledger (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    change_type text NOT NULL,
-    quantity_change int NOT NULL,
-    new_quantity int NOT NULL,
-    related_id uuid,
-    notes text,
-    created_at timestamptz DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.channel_fees (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    channel_name text NOT NULL,
-    fixed_fee int, -- in cents
-    percentage_fee real,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz,
-    UNIQUE (company_id, channel_name)
-);
-
-CREATE TABLE IF NOT EXISTS public.export_jobs (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    requested_by_user_id uuid NOT NULL REFERENCES auth.users(id),
-    status text DEFAULT 'pending'::text NOT NULL,
-    download_url text,
-    expires_at timestamptz,
-    error_message text,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    completed_at timestamptz
-);
-
-CREATE TABLE IF NOT EXISTS public.audit_log (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    user_id uuid REFERENCES auth.users(id),
-    action text NOT NULL,
-    details jsonb,
-    created_at timestamptz DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.feedback (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES auth.users(id),
-    company_id uuid NOT NULL REFERENCES public.companies(id),
-    subject_id text NOT NULL,
-    subject_type text NOT NULL,
-    feedback feedback_type NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS public.webhook_events (
-  id uuid default gen_random_uuid() primary key,
-  integration_id uuid not null references public.integrations(id) on delete cascade,
-  webhook_id text not null,
-  created_at timestamptz default now() not null,
-  unique (integration_id, webhook_id)
-);
+alter table "public"."company_settings" enable row level security;
+create unique index company_settings_pkey on public.company_settings using btree (company_id);
+alter table "public"."company_settings" add constraint "company_settings_pkey" primary key using index "company_settings_pkey";
+alter table "public"."company_settings" add constraint "company_settings_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
 
 
--- ===============================================================================================
---                                        Helper Functions
---  These functions provide useful utilities that can be used in policies and other queries.
--- ===============================================================================================
-
--- This function retrieves the company_id from the JWT's app_metadata.
--- It's a secure way to get the user's company without an extra DB query.
-CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
-RETURNS uuid
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT (auth.jwt()->>'app_metadata')::jsonb ->> 'company_id' FROM auth.users WHERE id = p_user_id;
+-- 6. Helper Function to Get User's Company ID
+-- This function securely gets the company_id from the session JWT.
+-- It is essential for RLS policies.
+create or replace function public.get_company_id_for_user(p_user_id uuid)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+    select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'app_metadata', '')::jsonb ->> 'company_id' as "company_id"
 $$;
 
 
--- Check if a user has a required role in their company.
-CREATE OR REPLACE FUNCTION public.check_user_permission(p_user_id uuid, p_required_role company_role)
-RETURNS boolean
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  user_role company_role;
-BEGIN
-  SELECT role INTO user_role
-  FROM public.company_users
-  WHERE user_id = p_user_id
-    AND company_id = public.get_company_id_for_user(p_user_id);
-
-  IF user_role IS NULL THEN
-    RETURN FALSE;
-  END IF;
-
-  RETURN CASE
-    WHEN p_required_role = 'Owner' THEN user_role = 'Owner'
-    WHEN p_required_role = 'Admin' THEN user_role IN ('Owner', 'Admin')
-    ELSE TRUE -- 'Member' role has no special permissions beyond base access
-  END;
-END;
-$$;
+-- 7. Suppliers Table
+create table "public"."suppliers" (
+    "id" uuid not null default uuid_generate_v4(),
+    "company_id" uuid not null,
+    "name" text not null,
+    "email" text,
+    "phone" text,
+    "default_lead_time_days" integer,
+    "notes" text,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone default now()
+);
+alter table "public"."suppliers" enable row level security;
+create unique index suppliers_pkey on public.suppliers using btree (id);
+alter table "public"."suppliers" add constraint "suppliers_pkey" primary key using index "suppliers_pkey";
+alter table "public"."suppliers" add constraint "suppliers_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
 
 
--- ===============================================================================================
---                                       Database Triggers
---  Automated functions that fire in response to database events (e.g., new user sign-up).
--- ===============================================================================================
+-- 8. Products and Variants Tables
+create table "public"."products" (
+    "id" uuid not null default uuid_generate_v4(),
+    "company_id" uuid not null,
+    "title" text not null,
+    "description" text,
+    "handle" text,
+    "product_type" text,
+    "tags" text[],
+    "status" text,
+    "image_url" text,
+    "external_product_id" text,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone,
+    "deleted_at" timestamp with time zone
+);
+alter table "public"."products" enable row level security;
+create unique index products_pkey on public.products using btree (id);
+create unique index products_company_id_external_product_id_key on public.products using btree (company_id, external_product_id);
+alter table "public"."products" add constraint "products_pkey" primary key using index "products_pkey";
+alter table "public"."products" add constraint "products_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
 
--- This trigger automatically creates a company for a new user and links them as the owner.
--- This is critical for the multi-tenant structure of the application.
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
+create table "public"."product_variants" (
+    "id" uuid not null default gen_random_uuid(),
+    "product_id" uuid not null,
+    "company_id" uuid not null,
+    "sku" text not null,
+    "title" text,
+    "option1_name" text,
+    "option1_value" text,
+    "option2_name" text,
+    "option2_value" text,
+    "option3_name" text,
+    "option3_value" text,
+    "barcode" text,
+    "price" integer,
+    "compare_at_price" integer,
+    "cost" integer,
+    "inventory_quantity" integer not null default 0,
+    "supplier_id" uuid,
+    "reorder_point" integer,
+    "reorder_quantity" integer,
+    "location" text,
+    "external_variant_id" text,
+    "created_at" timestamp with time zone default now(),
+    "updated_at" timestamp with time zone default now(),
+    "deleted_at" timestamp with time zone
+);
+alter table "public"."product_variants" enable row level security;
+create unique index product_variants_pkey on public.product_variants using btree (id);
+create unique index product_variants_company_id_sku_key on public.product_variants using btree (company_id, sku);
+create unique index product_variants_company_id_external_variant_id_key on public.product_variants using btree (company_id, external_variant_id);
+alter table "public"."product_variants" add constraint "product_variants_pkey" primary key using index "product_variants_pkey";
+alter table "public"."product_variants" add constraint "product_variants_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."product_variants" add constraint "product_variants_product_id_fkey" foreign key (product_id) references products(id) on delete cascade;
+alter table "public"."product_variants" add constraint "product_variants_supplier_id_fkey" foreign key (supplier_id) references suppliers(id) on delete set null;
+
+
+-- 9. Customers Table
+create table "public"."customers" (
+    "id" uuid not null default uuid_generate_v4(),
+    "company_id" uuid not null,
+    "name" text,
+    "email" text,
+    "phone" text,
+    "external_customer_id" text,
+    "created_at" timestamp with time zone default now(),
+    "updated_at" timestamp with time zone,
+    "deleted_at" timestamp with time zone
+);
+alter table "public"."customers" enable row level security;
+create unique index customers_pkey on public.customers using btree (id);
+create unique index customers_company_id_external_customer_id_key on public.customers using btree (company_id, external_customer_id);
+alter table "public"."customers" add constraint "customers_pkey" primary key using index "customers_pkey";
+alter table "public"."customers" add constraint "customers_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+
+
+-- 10. Orders and Line Items Tables
+create table "public"."orders" (
+    "id" uuid not null default gen_random_uuid(),
+    "company_id" uuid not null,
+    "order_number" text not null,
+    "external_order_id" text,
+    "customer_id" uuid,
+    "financial_status" text default 'pending'::text,
+    "fulfillment_status" text default 'unfulfilled'::text,
+    "currency" text default 'USD'::text,
+    "subtotal" integer not null default 0,
+    "total_tax" integer default 0,
+    "total_shipping" integer default 0,
+    "total_discounts" integer default 0,
+    "total_amount" integer not null,
+    "source_platform" text,
+    "created_at" timestamp with time zone default now(),
+    "updated_at" timestamp with time zone
+);
+alter table "public"."orders" enable row level security;
+create unique index orders_pkey on public.orders using btree (id);
+create unique index orders_company_id_external_order_id_key on public.orders using btree (company_id, external_order_id);
+alter table "public"."orders" add constraint "orders_pkey" primary key using index "orders_pkey";
+alter table "public"."orders" add constraint "orders_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."orders" add constraint "orders_customer_id_fkey" foreign key (customer_id) references customers(id) on delete set null;
+
+create table "public"."order_line_items" (
+    "id" uuid not null default gen_random_uuid(),
+    "order_id" uuid not null,
+    "variant_id" uuid,
+    "company_id" uuid not null,
+    "product_name" text,
+    "variant_title" text,
+    "sku" text,
+    "quantity" integer not null,
+    "price" integer not null,
+    "total_discount" integer default 0,
+    "tax_amount" integer default 0,
+    "cost_at_time" integer,
+    "external_line_item_id" text
+);
+alter table "public"."order_line_items" enable row level security;
+create unique index order_line_items_pkey on public.order_line_items using btree (id);
+alter table "public"."order_line_items" add constraint "order_line_items_pkey" primary key using index "order_line_items_pkey";
+alter table "public"."order_line_items" add constraint "order_line_items_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."order_line_items" add constraint "order_line_items_order_id_fkey" foreign key (order_id) references orders(id) on delete cascade;
+alter table "public"."order_line_items" add constraint "order_line_items_variant_id_fkey" foreign key (variant_id) references product_variants(id) on delete set null;
+
+
+-- 11. Purchase Orders and Line Items Tables
+create table "public"."purchase_orders" (
+    "id" uuid not null default uuid_generate_v4(),
+    "company_id" uuid not null,
+    "supplier_id" uuid,
+    "status" text not null default 'Draft'::text,
+    "po_number" text not null,
+    "total_cost" integer not null,
+    "expected_arrival_date" date,
+    "notes" text,
+    "idempotency_key" uuid,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone
+);
+alter table "public"."purchase_orders" enable row level security;
+create unique index purchase_orders_pkey on public.purchase_orders using btree (id);
+alter table "public"."purchase_orders" add constraint "purchase_orders_pkey" primary key using index "purchase_orders_pkey";
+alter table "public"."purchase_orders" add constraint "purchase_orders_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."purchase_orders" add constraint "purchase_orders_supplier_id_fkey" foreign key (supplier_id) references suppliers(id) on delete set null;
+
+create table "public"."purchase_order_line_items" (
+    "id" uuid not null default uuid_generate_v4(),
+    "purchase_order_id" uuid not null,
+    "variant_id" uuid not null,
+    "quantity" integer not null,
+    "cost" integer not null,
+    "company_id" uuid not null
+);
+alter table "public"."purchase_order_line_items" enable row level security;
+create unique index purchase_order_line_items_pkey on public.purchase_order_line_items using btree (id);
+alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_pkey" primary key using index "purchase_order_line_items_pkey";
+alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_purchase_order_id_fkey" foreign key (purchase_order_id) references purchase_orders(id) on delete cascade;
+alter table "public"."purchase_order_line_items" add constraint "purchase_order_line_items_variant_id_fkey" foreign key (variant_id) references product_variants(id) on delete cascade;
+
+
+-- 12. Integrations Table
+create table "public"."integrations" (
+    "id" uuid not null default uuid_generate_v4(),
+    "company_id" uuid not null,
+    "platform" integration_platform not null,
+    "shop_domain" text,
+    "shop_name" text,
+    "is_active" boolean default false,
+    "last_sync_at" timestamp with time zone,
+    "sync_status" text,
+    "created_at" timestamp with time zone not null default now(),
+    "updated_at" timestamp with time zone
+);
+alter table "public"."integrations" enable row level security;
+create unique index integrations_pkey on public.integrations using btree (id);
+create unique index integrations_company_id_platform_key on public.integrations using btree (company_id, platform);
+alter table "public"."integrations" add constraint "integrations_pkey" primary key using index "integrations_pkey";
+alter table "public"."integrations" add constraint "integrations_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+
+-- 13. AI-related Tables (Conversations, Messages, Feedback)
+create table "public"."conversations" (
+    "id" uuid not null default uuid_generate_v4(),
+    "user_id" uuid not null,
+    "company_id" uuid not null,
+    "title" text not null,
+    "created_at" timestamp with time zone default now(),
+    "last_accessed_at" timestamp with time zone default now(),
+    "is_starred" boolean default false
+);
+alter table "public"."conversations" enable row level security;
+create unique index conversations_pkey on public.conversations using btree (id);
+alter table "public"."conversations" add constraint "conversations_pkey" primary key using index "conversations_pkey";
+alter table "public"."conversations" add constraint "conversations_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."conversations" add constraint "conversations_user_id_fkey" foreign key (user_id) references auth.users(id) on delete cascade;
+
+create table "public"."messages" (
+    "id" uuid not null default uuid_generate_v4(),
+    "conversation_id" uuid not null,
+    "company_id" uuid not null,
+    "role" message_role not null,
+    "content" text not null,
+    "visualization" jsonb,
+    "component" text,
+    "component_props" jsonb,
+    "confidence" numeric,
+    "assumptions" text[],
+    "is_error" boolean default false,
+    "created_at" timestamp with time zone default now()
+);
+alter table "public"."messages" enable row level security;
+create unique index messages_pkey on public.messages using btree (id);
+alter table "public"."messages" add constraint "messages_pkey" primary key using index "messages_pkey";
+alter table "public"."messages" add constraint "messages_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."messages" add constraint "messages_conversation_id_fkey" foreign key (conversation_id) references conversations(id) on delete cascade;
+
+create table "public"."feedback" (
+    "id" uuid not null default gen_random_uuid(),
+    "user_id" uuid not null,
+    "company_id" uuid not null,
+    "subject_id" text not null,
+    "subject_type" text not null,
+    "feedback" feedback_type not null,
+    "created_at" timestamp with time zone default now()
+);
+alter table "public"."feedback" enable row level security;
+create unique index feedback_pkey on public.feedback using btree (id);
+alter table "public"."feedback" add constraint "feedback_pkey" primary key using index "feedback_pkey";
+alter table "public"."feedback" add constraint "feedback_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."feedback" add constraint "feedback_user_id_fkey" foreign key (user_id) references auth.users(id) on delete cascade;
+
+
+-- 14. Audit Log Table
+create table "public"."audit_log" (
+    "id" uuid not null default gen_random_uuid(),
+    "company_id" uuid not null,
+    "user_id" uuid,
+    "action" text not null,
+    "details" jsonb,
+    "created_at" timestamp with time zone default now()
+);
+alter table "public"."audit_log" enable row level security;
+create index audit_log_company_id_idx on public.audit_log using btree (company_id);
+create unique index audit_log_pkey on public.audit_log using btree (id);
+alter table "public"."audit_log" add constraint "audit_log_pkey" primary key using index "audit_log_pkey";
+alter table "public"."audit_log" add constraint "audit_log_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+alter table "public"."audit_log" add constraint "audit_log_user_id_fkey" foreign key (user_id) references auth.users(id) on delete set null;
+
+-- 15. Channel Fees Table
+create table "public"."channel_fees" (
+    "id" uuid not null default uuid_generate_v4(),
+    "company_id" uuid not null,
+    "channel_name" text not null,
+    "percentage_fee" numeric,
+    "fixed_fee" integer, -- in cents
+    "created_at" timestamp with time zone default now(),
+    "updated_at" timestamp with time zone
+);
+alter table "public"."channel_fees" enable row level security;
+create unique index channel_fees_pkey on public.channel_fees using btree (id);
+create unique index channel_fees_company_id_channel_name_key on public.channel_fees using btree (company_id, channel_name);
+alter table "public"."channel_fees" add constraint "channel_fees_pkey" primary key using index "channel_fees_pkey";
+alter table "public"."channel_fees" add constraint "channel_fees_company_id_fkey" foreign key (company_id) references companies(id) on delete cascade;
+
+-- 16. Webhook Events Table
+create table "public"."webhook_events" (
+    "id" uuid not null default gen_random_uuid(),
+    "integration_id" uuid not null,
+    "webhook_id" text not null,
+    "created_at" timestamp with time zone default now()
+);
+alter table "public"."webhook_events" enable row level security;
+create unique index webhook_events_pkey on public.webhook_events using btree (id);
+create unique index webhook_events_integration_id_webhook_id_key on public.webhook_events using btree (integration_id, webhook_id);
+alter table "public"."webhook_events" add constraint "webhook_events_pkey" primary key using index "webhook_events_pkey";
+alter table "public"."webhook_events" add constraint "webhook_events_integration_id_fkey" foreign key (integration_id) references integrations(id) on delete cascade;
+
+
+-- =================================================================
+-- RLS POLICIES
+-- =================================================================
+
+-- Generic policy for most tables: User must be part of the company.
+create policy "Enable access for company members" on "public"."companies" for select using (id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."company_users" for select using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."company_settings" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."suppliers" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."products" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."product_variants" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."customers" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."orders" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."order_line_items" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."purchase_orders" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."purchase_order_line_items" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."integrations" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."conversations" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."messages" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."audit_log" for select using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for company members" on "public"."channel_fees" for all using (company_id = get_company_id_for_user(auth.uid()));
+create policy "Enable access for feedback" on "public"."feedback" for all using (company_id = get_company_id_for_user(auth.uid()));
+
+-- Policy for webhook events: any authenticated user can insert if they know the integration ID
+alter table "public"."webhook_events" drop constraint if exists "webhook_events_integration_id_fkey";
+alter table "public"."webhook_events" add constraint "webhook_events_integration_id_fkey" foreign key ("integration_id") references "public"."integrations"("id") on delete cascade;
+create policy "Allow insert for authenticated users" on "public"."webhook_events" for insert to authenticated with check (true);
+
+
+-- =================================================================
+-- TRIGGERS AND FUNCTIONS
+-- =================================================================
+
+-- 1. Function to create a company and link it to the new user on signup
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
   new_company_id uuid;
-  company_name text := new.raw_user_meta_data->>'company_name';
-BEGIN
-  -- Create a new company for the user
-  INSERT INTO public.companies (name, owner_id)
-  VALUES (COALESCE(company_name, 'My Company'), new.id)
-  RETURNING id INTO new_company_id;
+  user_company_name text;
+begin
+  -- Extract company name from user metadata, fallback to a default
+  user_company_name := new.raw_user_meta_data ->> 'company_name';
+  if user_company_name is null or user_company_name = '' then
+    user_company_name := new.email;
+  end if;
 
-  -- Link the user to the new company as 'Owner'
-  INSERT INTO public.company_users (user_id, company_id, role)
-  VALUES (new.id, new_company_id, 'Owner');
+  -- Create a new company for the new user
+  insert into public.companies (name, owner_id)
+  values (user_company_name, new.id)
+  returning id into new_company_id;
+
+  -- Link the new user to the new company as 'Owner'
+  insert into public.company_users (user_id, company_id, role)
+  values (new.id, new_company_id, 'Owner');
 
   -- Update the user's app_metadata with the new company_id
-  UPDATE auth.users
-  SET app_metadata = app_metadata || jsonb_build_object('company_id', new_company_id)
-  WHERE id = new.id;
+  -- This is critical for RLS policies
+  update auth.users
+  set raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id)
+  where id = new.id;
+  
+  -- Create default settings for the new company
+  insert into public.company_settings (company_id)
+  values (new_company_id);
 
-  RETURN new;
-END;
+  return new;
+end;
 $$;
 
-
--- Drop the trigger if it exists to ensure it can be created cleanly.
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-
--- Create the trigger to fire the handle_new_user function after a new user is created in Supabase Auth.
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- 2. Trigger to call handle_new_user on new user creation
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 
--- ===============================================================================================
---                                      Row-Level Security (RLS)
---  These policies are the foundation of the multi-tenant security model. They ensure that users
---  can only access data belonging to their own company.
--- ===============================================================================================
+-- 3. Function to update `updated_at` timestamps automatically
+create or replace function public.set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
 
--- Generic policy function to check company membership
-CREATE OR REPLACE FUNCTION public.is_member_of_company(p_company_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.company_users
-    WHERE company_id = p_company_id
-      AND user_id = auth.uid()
-  );
-$$;
+-- 4. Triggers for `updated_at`
+create trigger handle_updated_at before update on public.companies for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.company_settings for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.suppliers for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.products for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.product_variants for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.customers for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.orders for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.purchase_orders for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.integrations for each row execute procedure public.set_updated_at();
+create trigger handle_updated_at before update on public.channel_fees for each row execute procedure public.set_updated_at();
 
--- Enable RLS on all tables
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.refunds ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
-
-
--- Drop existing policies before creating new ones to ensure a clean state
-DROP POLICY IF EXISTS "Allow all access to own company" ON public.companies;
-DROP POLICY IF EXISTS "Allow users to view members of their own company" ON public.company_users;
-DROP POLICY IF EXISTS "Allow access to own settings" ON public.company_settings;
-DROP POLICY IF EXISTS "Allow access to own suppliers" ON public.suppliers;
-DROP POLICY IF EXISTS "Allow access to own products" ON public.products;
-DROP POLICY IF EXISTS "Allow access to own variants" ON public.product_variants;
-DROP POLICY IF EXISTS "Allow access to own customers" ON public.customers;
-DROP POLICY IF EXISTS "Allow access to own orders" ON public.orders;
-DROP POLICY IF EXISTS "Allow access to own order line items" ON public.order_line_items;
-DROP POLICY IF EXISTS "Allow access to own purchase orders" ON public.purchase_orders;
-DROP POLICY IF EXISTS "Allow access to own PO line items" ON public.purchase_order_line_items;
-DROP POLICY IF EXISTS "Allow access to own refunds" ON public.refunds;
-DROP POLICY IF EXISTS "Allow access to own conversations" ON public.conversations;
-DROP POLICY IF EXISTS "Allow access to own messages" ON public.messages;
-DROP POLICY IF EXISTS "Allow access to own integrations" ON public.integrations;
-DROP POLICY IF EXISTS "Allow access to own inventory ledger" ON public.inventory_ledger;
-DROP POLICY IF EXISTS "Allow access to own channel fees" ON public.channel_fees;
-DROP POLICY IF EXISTS "Allow access to own export jobs" ON public.export_jobs;
-DROP POLICY IF EXISTS "Allow access to own audit logs" ON public.audit_log;
-DROP POLICY IF EXISTS "Allow access to own feedback" ON public.feedback;
-DROP POLICY IF EXISTS "Allow access to own webhook events" ON public.webhook_events;
-
--- Policies for tables with a direct company_id column
-CREATE POLICY "Allow all access to own company" ON public.companies FOR ALL USING (id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow users to view members of their own company" ON public.company_users FOR SELECT USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own settings" ON public.company_settings FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own suppliers" ON public.suppliers FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own products" ON public.products FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own variants" ON public.product_variants FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own customers" ON public.customers FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own orders" ON public.orders FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own order line items" ON public.order_line_items FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own purchase orders" ON public.purchase_orders FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own PO line items" ON public.purchase_order_line_items FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own refunds" ON public.refunds FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own integrations" ON public.integrations FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own inventory ledger" ON public.inventory_ledger FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own channel fees" ON public.channel_fees FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own audit logs" ON public.audit_log FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own feedback" ON public.feedback FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-
--- User-specific policies
-CREATE POLICY "Allow access to own conversations" ON public.conversations FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "Allow access to own messages" ON public.messages FOR ALL USING (company_id = (select get_company_id_for_user(auth.uid())));
-CREATE POLICY "Allow access to own export jobs" ON public.export_jobs FOR ALL USING (requested_by_user_id = auth.uid());
-
--- Policy for webhook_events based on the linked integration
-CREATE POLICY "Allow access to own webhook events" ON public.webhook_events FOR SELECT
-USING (
-    is_member_of_company(
-        (SELECT company_id FROM public.integrations WHERE id = integration_id)
-    )
-);
-
-
--- ===============================================================================================
---                                      Database Views
---  Simplified, pre-joined, or aggregated versions of tables for easier and more performant querying.
---  They are read-only and help encapsulate complex logic.
--- ===============================================================================================
-
--- A unified view of product variants with their parent product details.
-CREATE OR REPLACE VIEW public.product_variants_with_details AS
-SELECT
-    pv.id,
-    pv.product_id,
-    pv.company_id,
-    p.title as product_title,
-    pv.title as variant_title,
-    p.status as product_status,
-    p.image_url,
-    p.product_type,
-    pv.sku,
-    pv.price,
-    pv.cost,
-    pv.inventory_quantity,
-    pv.location,
-    pv.barcode,
-    pv.compare_at_price,
-    pv.option1_name,
-    pv.option1_value,
-    pv.option2_name,
-    pv.option2_value,
-    pv.option3_name,
-    pv.option3_value,
-    pv.supplier_id,
-    pv.reorder_point,
-    pv.reorder_quantity,
-    pv.external_variant_id,
-    pv.created_at,
-    pv.updated_at
-FROM
-    public.product_variants pv
-JOIN
-    public.products p ON pv.product_id = p.id;
-
-
--- A view for all orders with customer email for easy searching.
-CREATE OR REPLACE VIEW public.orders_view AS
-SELECT
-    o.*,
-    c.email as customer_email
-FROM
-    public.orders o
-LEFT JOIN
-    public.customers c ON o.customer_id = c.id;
-
--- A view for all customers with their total orders and spend.
-CREATE OR REPLACE VIEW public.customers_view AS
-SELECT
-    c.*,
-    (SELECT COUNT(*) FROM public.orders o WHERE o.customer_id = c.id) as total_orders,
-    (SELECT SUM(o.total_amount) FROM public.orders o WHERE o.customer_id = c.id) as total_spent
-FROM
-    public.customers c;
-
-
--- A view for all purchase orders with supplier name for easy display.
-CREATE OR REPLACE VIEW public.purchase_orders_view AS
-SELECT
-  po.*,
-  s.name as supplier_name,
-  (
-    SELECT json_agg(json_build_object(
-      'id', poli.id,
-      'product_name', p.title,
-      'sku', pv.sku,
-      'quantity', poli.quantity,
-      'cost', poli.cost
-    ))
-    FROM public.purchase_order_line_items poli
-    JOIN public.product_variants pv ON poli.variant_id = pv.id
-    JOIN public.products p ON pv.product_id = p.id
-    WHERE poli.purchase_order_id = po.id
-  ) as line_items
-FROM public.purchase_orders po
-LEFT JOIN public.suppliers s ON po.supplier_id = s.id;
-
-
--- A view for audit logs that joins user email for readability.
-CREATE OR REPLACE VIEW public.audit_log_view AS
-SELECT
-    al.id,
-    al.created_at,
-    al.company_id,
-    al.action,
-    al.details,
-    u.email AS user_email
-FROM
-    public.audit_log al
-LEFT JOIN
-    auth.users u ON al.user_id = u.id;
-    
-
--- A view for user feedback that joins message content for context.
-CREATE OR REPLACE VIEW public.feedback_view AS
-SELECT
-    f.id,
-    f.created_at,
-    f.company_id,
-    f.feedback,
-    u.email AS user_email,
-    m.content AS assistant_message_content,
-    (
-        SELECT prev_msg.content
-        FROM public.messages prev_msg
-        WHERE prev_msg.conversation_id = m.conversation_id
-          AND prev_msg.created_at < m.created_at
-        ORDER BY prev_msg.created_at DESC
-        LIMIT 1
-    ) AS user_message_content
-FROM
-    public.feedback f
-JOIN
-    auth.users u ON f.user_id = u.id
-JOIN
-    public.messages m ON f.subject_id = m.id AND f.subject_type = 'message';
-
--- ===============================================================================================
---                                  Materialized Views
---  These are pre-computed tables that store the result of a query. They are used for expensive
---  analytics queries that don't need to be real-time. This significantly speeds up the dashboard.
--- ===============================================================================================
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.daily_sales_stats AS
-SELECT
-    company_id,
-    date(created_at) AS sale_date,
-    SUM(total_amount) AS total_revenue,
-    COUNT(id) AS total_sales,
-    COUNT(DISTINCT customer_id) AS total_customers
-FROM
-    public.orders
-GROUP BY
-    company_id, date(created_at);
-
-CREATE MATERIALIZED VIEW IF NOT EXISTS public.product_sales_stats AS
-SELECT
-    oli.company_id,
-    oli.sku,
-    oli.variant_id,
-    p.id as product_id,
-    p.title as product_name,
-    p.image_url,
-    SUM(oli.quantity) AS total_quantity_sold,
-    SUM(oli.price * oli.quantity) AS total_revenue,
-    SUM(oli.cost_at_time * oli.quantity) AS total_cogs
-FROM
-    public.order_line_items oli
-JOIN
-    public.product_variants pv ON oli.variant_id = pv.id
-JOIN
-    public.products p ON pv.product_id = p.id
-GROUP BY
-    oli.company_id, oli.sku, oli.variant_id, p.id;
-
--- Function to refresh all materialized views for a specific company
-CREATE OR REPLACE FUNCTION public.refresh_all_matviews(p_company_id uuid)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
+-- 5. Function to automatically create an audit log entry on certain table changes
+CREATE OR REPLACE FUNCTION log_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    audit_details jsonb;
+    action_type TEXT;
 BEGIN
-  -- We can't refresh concurrently on views that don't have a unique index
-  -- For simplicity, we use a standard refresh. This will lock the view briefly.
-  REFRESH MATERIALIZED VIEW public.daily_sales_stats;
-  REFRESH MATERIALIZED VIEW public.product_sales_stats;
+    action_type := TG_OP; -- INSERT, UPDATE, DELETE
+
+    IF (TG_OP = 'UPDATE') THEN
+        audit_details := jsonb_build_object('old', to_jsonb(OLD), 'new', to_jsonb(NEW));
+    ELSIF (TG_OP = 'DELETE') THEN
+        audit_details := jsonb_build_object('deleted', to_jsonb(OLD));
+    ELSIF (TG_OP = 'INSERT') THEN
+        audit_details := jsonb_build_object('new', to_jsonb(NEW));
+    END IF;
+
+    INSERT INTO public.audit_log (company_id, user_id, action, details)
+    VALUES (
+        NEW.company_id,
+        auth.uid(),
+        action_type || '_' || TG_TABLE_NAME,
+        audit_details
+    );
+
+    RETURN COALESCE(NEW, OLD);
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-
--- ===============================================================================================
---                                  Functions for Indexes
---  These functions allow us to create indexes on expressions, which can dramatically speed up
---  queries that filter or sort on computed values (like JSONB properties).
--- ===============================================================================================
-
--- Safely get a text value from a JSONB object.
-CREATE OR REPLACE FUNCTION public.jsonb_get_text(data jsonb, key text)
-RETURNS text AS $$
-BEGIN
-  RETURN data->>key;
-EXCEPTION
-  WHEN others THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-
--- Safely get an integer value from a JSONB object.
-CREATE OR REPLACE FUNCTION public.jsonb_get_int(data jsonb, key text)
-RETURNS int AS $$
-BEGIN
-  RETURN (data->>key)::int;
-EXCEPTION
-  WHEN others THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-
--- Safely get a float value from a JSONB object.
-CREATE OR REPLACE FUNCTION public.jsonb_get_float(data jsonb, key text)
-RETURNS float AS $$
-BEGIN
-  RETURN (data->>key)::float;
-EXCEPTION
-  WHEN others THEN
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
-
-
--- ===============================================================================================
---                                            Indexes
---  Indexes are crucial for database performance. They speed up data retrieval operations.
--- ===============================================================================================
-
--- General purpose indexes on foreign keys and frequently queried columns
-CREATE INDEX IF NOT EXISTS idx_company_users_company_id ON public.company_users(company_id);
-CREATE INDEX IF NOT EXISTS idx_products_company_id ON public.products(company_id);
-CREATE INDEX IF NOT EXISTS idx_product_variants_company_id_sku ON public.product_variants(company_id, sku);
-CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON public.product_variants(product_id);
-CREATE INDEX IF NOT EXISTS idx_orders_company_id_created_at ON public.orders(company_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_order_line_items_order_id ON public.order_line_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_order_line_items_variant_id ON public.order_line_items(variant_id);
-CREATE INDEX IF NOT EXISTS idx_purchase_orders_company_id ON public.purchase_orders(company_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_ledger_variant_id ON public.inventory_ledger(variant_id);
-
--- GIN indexes for tsvector full-text search (if implemented) and JSONB columns
-CREATE INDEX IF NOT EXISTS idx_products_gin_tags ON public.products USING gin(tags);
-CREATE INDEX IF NOT EXISTS idx_messages_visualization ON public.messages USING gin(visualization);
-CREATE INDEX IF NOT EXISTS idx_messages_component_props ON public.messages USING gin("componentProps");
-
--- Indexes on materialized views for fast dashboard loading
-CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_sales_stats_unique ON public.daily_sales_stats(company_id, sale_date);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_product_sales_stats_unique ON public.product_sales_stats(company_id, variant_id);
-
--- Indexes for audit log and feedback tables
-CREATE INDEX IF NOT EXISTS idx_audit_log_company_id_created_at ON public.audit_log(company_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_feedback_subject ON public.feedback(subject_id, subject_type);
+-- 6. Trigger for audit log (Example for suppliers)
+-- You can add more triggers for other tables as needed.
+CREATE TRIGGER suppliers_audit_trigger
+AFTER INSERT OR UPDATE OR DELETE ON public.suppliers
+FOR EACH ROW EXECUTE FUNCTION log_change();
