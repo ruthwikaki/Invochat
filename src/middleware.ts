@@ -65,14 +65,13 @@ export async function middleware(req: NextRequest) {
   
   // If the user is logged in
   if (user) {
-    // If user has no company_id, they must complete setup
-    // This is critical for ensuring data is correctly associated with a tenant
+    // If user has no company_id AND is not already on the env-check page, redirect them.
     if (!user.app_metadata.company_id && !pathname.startsWith('/env-check')) {
         return NextResponse.redirect(new URL('/env-check', req.url));
     }
 
     // If company is set up and they are on a public-only route, redirect to dashboard.
-    if (isPublicRoute) {
+    if (isPublicRoute && user.app_metadata.company_id) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } 
