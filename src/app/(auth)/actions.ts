@@ -98,8 +98,6 @@ export async function signup(formData: FormData) {
       return;
   }
 
-  // Use the standard client, not the service role client, to call the signup function.
-  // This ensures the call is made in the context of the user.
   const cookieStore = cookies();
    const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -119,36 +117,30 @@ export async function signup(formData: FormData) {
       }
     );
 
-  try {
-    // The trigger on `auth.users` will handle creating the company and linking the user.
-    const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-            data: {
-                company_name: companyName,
-            }
-        }
-    });
+  // The database trigger 'on_auth_user_created' will handle creating the company
+  // and linking the user. We just need to call the standard signUp method.
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      // Pass the company name in the metadata, which the trigger can access.
+      data: {
+        company_name: companyName,
+      },
+    },
+  });
 
-    if (error) {
-        logError(error, { context: 'Supabase auth.signUp failed' });
-        redirect(`/signup?error=${encodeURIComponent(error.message)}`);
-        return;
-    }
-
-    if (!data.user) {
-        redirect(`/signup?error=${encodeURIComponent('Could not create user. Please try again.')}`);
-        return;
-    }
-    
-  } catch (e) {
-      const message = getErrorMessage(e);
-      logError(e, { context: 'Signup exception' });
-      redirect(`/signup?error=${encodeURIComponent(message)}`);
-      return;
+  if (error) {
+    logError(error, { context: 'Supabase signUp failed' });
+    redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+    return;
   }
 
+  if (!data.user) {
+    redirect(`/signup?error=${encodeURIComponent('Could not create user. Please try again.')}`);
+    return;
+  }
+    
   revalidatePath('/', 'layout');
   // Redirect to a confirmation page. The middleware will handle redirects for confirmed users.
   redirect('/login?message=Check your email to confirm your account and continue.');
