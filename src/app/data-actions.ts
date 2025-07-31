@@ -451,7 +451,7 @@ export async function deletePurchaseOrder(formData: FormData) {
     }
 }
 
-export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]) {
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
         const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
