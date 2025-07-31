@@ -49,7 +49,7 @@ export async function login(formData: FormData) {
   try {
     const { limited } = await rateLimit(ip, 'login_attempt', config.ratelimit.auth, 3600);
     if (limited) {
-        return redirect(`/login?error=${encodeURIComponent('Too many login attempts. Please try again in an hour.')}`);
+        return { success: false, error: 'Too many login attempts. Please try again in an hour.' };
     }
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -77,7 +77,7 @@ export async function login(formData: FormData) {
             }
         }
         
-        return redirect(`/login?error=${encodeURIComponent('Invalid login credentials.')}`);
+        return { success: false, error: 'Invalid login credentials.' };
     }
 
     if (isRedisEnabled) {
@@ -87,12 +87,11 @@ export async function login(formData: FormData) {
   } catch (e) {
     const message = getErrorMessage(e);
     logError(e, { context: 'Login exception' });
-    return redirect(`/login?error=${encodeURIComponent(message)}`);
+    return { success: false, error: message };
   }
   
-  // Revalidate the root path to ensure the middleware picks up the new session
-  revalidatePath('/', 'layout');
-  redirect('/dashboard');
+  // On success, just return a success response. The client will handle the redirect.
+  return { success: true };
 }
 
 
