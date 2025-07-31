@@ -90,6 +90,7 @@ export async function login(formData: FormData) {
     return { success: false, error: message };
   }
   
+  revalidatePath('/', 'layout');
   return { success: true };
 }
 
