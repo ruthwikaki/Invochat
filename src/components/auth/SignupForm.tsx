@@ -1,8 +1,9 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,11 +12,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 
-function SubmitButton() {
+function SubmitButton({ isPending }: { isPending: boolean }) {
     const { pending } = useFormStatus();
+    const disabled = isPending || pending;
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
-        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
+      <Button type="submit" className="w-full h-12 text-base" disabled={disabled}>
+        {disabled ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
 }
@@ -26,6 +28,8 @@ interface SignupFormProps {
 
 export function SignupForm({ error: initialError }: SignupFormProps) {
     const [error, setError] = useState(initialError);
+    const [isPending, startTransition] = useTransition();
+    const router = useRouter();
     
     useEffect(() => {
         setError(initialError);
@@ -40,8 +44,25 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
         if (error) setError(null);
     };
 
+    const handleSubmit = (formData: FormData) => {
+      setError(null);
+      startTransition(async () => {
+        const result = await signup(formData);
+        if (result.success) {
+          if (result.message) {
+            router.push(`/login?message=${encodeURIComponent(result.message)}`);
+          } else {
+            router.push('/dashboard');
+          }
+          router.refresh();
+        } else {
+          setError(result.error || 'An unexpected error occurred.');
+        }
+      });
+    };
+
     return (
-        <form action={signup} className="grid gap-4" onChange={handleInteraction}>
+        <form action={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
             <div className="grid gap-2">
                 <Label htmlFor="companyName">Company Name</Label>
                 <Input
@@ -92,7 +113,7 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
               </Alert>
             )}
             <div className="pt-2">
-                <SubmitButton />
+                <SubmitButton isPending={isPending} />
             </div>
         </form>
     );

@@ -95,15 +95,14 @@ export async function login(formData: FormData) {
 }
 
 
-export async function signup(formData: FormData) {
+export async function signup(formData: FormData): Promise<{ success: boolean; error?: string; message?: string }> {
   const companyName = formData.get('companyName') as string;
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const confirmPassword = formData.get('confirmPassword') as string;
   
   if (password !== confirmPassword) {
-      redirect('/signup?error=Passwords do not match');
-      return;
+      return { success: false, error: 'Passwords do not match' };
   }
 
   const cookieStore = cookies();
@@ -138,29 +137,24 @@ export async function signup(formData: FormData) {
 
     if (error) {
       logError(error, { context: 'Supabase signUp failed' });
-      redirect(`/signup?error=${encodeURIComponent(error.message)}`);
-      return;
+      return { success: false, error: error.message };
     }
 
     if (!data.user) {
-      redirect(`/signup?error=${encodeURIComponent('Could not create user. Please try again.')}`);
-      return;
+      return { success: false, error: 'Could not create user. Please try again.' };
     }
 
     if (data.user && !data.user.email_confirmed_at && data.user.confirmation_sent_at) {
-      redirect('/login?message=Check your email to confirm your account and continue.');
-    } else if (data.user && data.user.email_confirmed_at) {
-      revalidatePath('/', 'layout');
-      redirect('/dashboard?success=Account created successfully');
-    } else {
-      revalidatePath('/', 'layout');
-      redirect('/dashboard?success=Account created successfully');
+      return { success: true, message: 'Check your email to confirm your account and continue.' };
     }
+    
+    revalidatePath('/', 'layout');
+    return { success: true };
 
   } catch (e) {
     const message = getErrorMessage(e);
     logError(e, { context: 'Signup exception' });
-    redirect(`/signup?error=${encodeURIComponent(message)}`);
+    return { success: false, error: message };
   }
 }
 
