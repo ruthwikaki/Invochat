@@ -85,8 +85,6 @@ export async function login(formData: FormData) {
   // Revalidate the root path to ensure the middleware picks up the new session
   // This is the key fix to prevent the redirect loop.
   revalidatePath('/', 'layout');
-  // DO NOT redirect here. Let the client-side form submission complete.
-  // The middleware will handle the redirect on the next page load.
 }
 
 
