@@ -41,7 +41,7 @@ export async function login(formData: FormData) {
   try {
     const { limited } = await rateLimit(ip, 'login_attempt', config.ratelimit.auth, 3600);
     if (limited) {
-        redirect(`/login?error=${encodeURIComponent('Too many login attempts. Please try again in an hour.')}`);
+        return redirect(`/login?error=${encodeURIComponent('Too many login attempts. Please try again in an hour.')}`);
     }
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -85,7 +85,7 @@ export async function login(formData: FormData) {
   // Revalidate the root path to ensure the middleware picks up the new session
   // This is the key fix to prevent the redirect loop.
   revalidatePath('/', 'layout');
-  redirect('/dashboard');
+  // DO NOT redirect here. The client will handle the navigation after the form submission.
 }
 
 
