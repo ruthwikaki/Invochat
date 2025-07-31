@@ -55,6 +55,7 @@ export async function middleware(req: NextRequest) {
     }
   );
 
+  // This line is crucial. It forces the session to be refreshed from the cookies.
   const { data: { user } } = await supabase.auth.getUser();
 
   // Define public routes that do not require authentication
