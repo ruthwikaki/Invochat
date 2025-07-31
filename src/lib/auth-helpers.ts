@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { createServerClient } from '@/lib/supabase/admin';
@@ -35,10 +34,11 @@ export async function getCurrentCompanyId(): Promise<string | null> {
 
 /**
  * A helper function to get the full authentication context (user and company ID)
- * in a single call. Throws an error if the user is not authenticated, making it
- * suitable for protecting server actions.
+ * in a single call. Throws an error if the user is not authenticated.
+ * This function includes a database fallback to prevent race conditions during signup
+ * where the JWT's app_metadata may not yet be updated.
  * @returns An object containing the userId and companyId.
- * @throws {Error} if the user is not authenticated or does not have a company ID.
+ * @throws {Error} if the user is not authenticated or a company ID cannot be found.
  */
 export async function getAuthContext() {
     const supabase = createServerClient();
@@ -48,11 +48,26 @@ export async function getAuthContext() {
         throw new Error("Authentication required: No user session found.");
     }
     
-    const companyId = user.app_metadata.company_id;
+    let companyId = user.app_metadata.company_id;
+    
+    // Fallback for race condition on signup: If company_id is not in the JWT metadata,
+    // check the database directly. This is the source of truth.
+    if (!companyId) {
+        const { data: companyUserData, error } = await supabase
+            .from('company_users')
+            .select('company_id')
+            .eq('user_id', user.id)
+            .single();
+
+        if (error) {
+             logError(error, { context: 'getAuthContext: Fallback DB check for company_id failed.'});
+             throw new Error("Authorization failed: Could not verify user's company association.");
+        }
+        
+        companyId = companyUserData?.company_id;
+    }
     
     if (!companyId) {
-        // This specific error is now caught by the middleware, which will handle the redirect.
-        // This prevents the application from crashing.
         throw new Error("Authorization failed: User is not associated with a company.");
     }
 
