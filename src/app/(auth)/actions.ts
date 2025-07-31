@@ -29,10 +29,18 @@ export async function login(formData: FormData) {
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options) {
-          cookieStore.set({ name, value, ...options });
+          try {
+            cookieStore.set({ name, value, ...options });
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+          }
         },
         remove(name: string, options) {
-          cookieStore.set({ name, value: '', ...options });
+          try {
+            cookieStore.set({ name, value: '', ...options });
+          } catch (error) {
+            // The `delete` method was called from a Server Component.
+          }
         },
       },
     }
@@ -83,8 +91,8 @@ export async function login(formData: FormData) {
   }
   
   // Revalidate the root path to ensure the middleware picks up the new session
-  // This is the key fix to prevent the redirect loop.
   revalidatePath('/', 'layout');
+  redirect('/dashboard');
 }
 
 
