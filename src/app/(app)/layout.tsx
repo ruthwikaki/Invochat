@@ -3,12 +3,19 @@ import { ReactNode } from 'react';
 import { Sidebar, SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/nav/sidebar';
 import { QueryClientProvider } from '@/context/query-client-provider';
+import { getCurrentUser } from '@/lib/auth-helpers';
+import { redirect } from 'next/navigation';
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getCurrentUser();
+  if (user && !user.app_metadata.company_id) {
+    redirect('/env-check');
+  }
+
   return (
     <QueryClientProvider>
       <SidebarProvider>
