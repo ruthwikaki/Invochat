@@ -90,7 +90,6 @@ export async function login(formData: FormData) {
     return { success: false, error: message };
   }
   
-  // On success, just return a success response. The client will handle the redirect.
   return { success: true };
 }
 
@@ -126,13 +125,10 @@ export async function signup(formData: FormData) {
   );
 
   try {
-    // The database trigger 'on_auth_user_created' will handle creating the company
-    // and linking the user. We just need to call the standard signUp method.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        // Pass the company name in the metadata, which the trigger can access.
         data: {
           company_name: companyName,
         },
@@ -150,16 +146,12 @@ export async function signup(formData: FormData) {
       return;
     }
 
-    // Check if email confirmation is required
     if (data.user && !data.user.email_confirmed_at && data.user.confirmation_sent_at) {
-      // Email confirmation is enabled and email was sent
       redirect('/login?message=Check your email to confirm your account and continue.');
     } else if (data.user && data.user.email_confirmed_at) {
-      // User is already confirmed (auto-confirm is enabled)
       revalidatePath('/', 'layout');
       redirect('/dashboard?success=Account created successfully');
     } else {
-      // User created but no confirmation needed (development mode)
       revalidatePath('/', 'layout');
       redirect('/dashboard?success=Account created successfully');
     }
@@ -253,7 +245,6 @@ export async function updatePassword(formData: FormData) {
             logError(error, { context: 'Password update failed' });
             redirect(`/update-password?error=${encodeURIComponent(error.message)}`);
         } else {
-            // After successful password update, sign out to invalidate all sessions and the recovery token.
             await supabase.auth.signOut();
         }
     } catch (e) {
@@ -263,4 +254,70 @@ export async function updatePassword(formData: FormData) {
     }
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
+}
+
+export async function setupCompanyForExistingUser(formData: FormData) {
+    const companyName = formData.get('companyName') as string;
+    if (!companyName) {
+        redirect('/env-check?error=Company name is required.');
+        return;
+    }
+    
+    const cookieStore = cookies();
+    const authSupabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: { get: (name: string) => cookieStore.get(name)?.value },
+        }
+    );
+    
+    const { data: { user } } = await authSupabase.auth.getUser();
+
+    if (!user) {
+        redirect('/login?error=You must be logged in to perform this action.');
+        return;
+    }
+
+    const serviceSupabase = getServiceRoleClient();
+    
+    // 1. Create the company
+    const { data: company, error: companyError } = await serviceSupabase
+        .from('companies')
+        .insert({ name: companyName, owner_id: user.id })
+        .select()
+        .single();
+
+    if (companyError) {
+        logError(companyError, { context: 'Failed to create company for existing user' });
+        redirect(`/env-check?error=${encodeURIComponent('Could not create your company.')}`);
+        return;
+    }
+
+    // 2. Link user to company
+    const { error: companyUserError } = await serviceSupabase
+        .from('company_users')
+        .insert({ company_id: company.id, user_id: user.id, role: 'Owner' });
+
+    if (companyUserError) {
+        logError(companyUserError, { context: 'Failed to link existing user to new company' });
+        redirect(`/env-check?error=${encodeURIComponent('Could not link user to company.')}`);
+        return;
+    }
+
+    // 3. Update the user's app_metadata with the new company ID
+    const { error: updateUserError } = await serviceSupabase.auth.admin.updateUserById(
+        user.id,
+        { app_metadata: { ...user.app_metadata, company_id: company.id } }
+    );
+    
+    if (updateUserError) {
+        logError(updateUserError, { context: "Failed to update user's app_metadata with company ID" });
+        redirect(`/env-check?error=${encodeURIComponent('Could not finalize user setup.')}`);
+        return;
+    }
+
+    // Revalidate and redirect
+    revalidatePath('/', 'layout');
+    redirect('/dashboard');
 }
