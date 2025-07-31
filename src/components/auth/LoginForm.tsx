@@ -1,9 +1,10 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,15 +13,16 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 
-function LoginSubmitButton() {
+function LoginSubmitButton({ isPending }: { isPending: boolean }) {
     const { pending } = useFormStatus();
+    const disabled = isPending || pending;
     return (
         <Button 
             type="submit" 
-            disabled={pending} 
+            disabled={disabled} 
             className="w-full h-12 text-base font-semibold"
         >
-            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+            {disabled ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
         </Button>
     )
 }
@@ -31,10 +33,11 @@ interface LoginFormProps {
 
 export function LoginForm({ initialError }: LoginFormProps) {
   const [error, setError] = useState(initialError);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   useEffect(() => {
     setError(initialError);
-    // Clear the error from the URL so it doesn't persist on refresh
     if (initialError) {
         const url = new URL(window.location.href);
         url.searchParams.delete('error');
@@ -42,13 +45,26 @@ export function LoginForm({ initialError }: LoginFormProps) {
     }
   }, [initialError]);
 
-  // Clear the error message when the user starts typing
   const handleInteraction = () => {
     if (error) setError(null);
   };
   
+  const handleSubmit = (formData: FormData) => {
+    setError(null);
+    startTransition(async () => {
+      const result = await login(formData);
+      if (result?.success) {
+        router.push('/dashboard');
+        // We call refresh to ensure the layout re-renders with the new user session
+        router.refresh();
+      } else {
+        setError(result?.error || 'An unexpected error occurred.');
+      }
+    });
+  };
+  
   return (
-    <form action={login} className="space-y-4" onChange={handleInteraction}>
+    <form action={handleSubmit} className="space-y-4" onChange={handleInteraction}>
         <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -86,7 +102,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
         )}
         
         <div className="pt-2">
-            <LoginSubmitButton />
+            <LoginSubmitButton isPending={isPending} />
         </div>
     </form>
   );
