@@ -99,51 +99,68 @@ export async function signup(formData: FormData) {
   }
 
   const cookieStore = cookies();
-   const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options) {
-            cookieStore.set({ name, value, ...options });
-          },
-          remove(name: string, options) {
-            cookieStore.set({ name, value: '', ...options });
-          },
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
         },
-      }
-    );
-
-  // The database trigger 'on_auth_user_created' will handle creating the company
-  // and linking the user. We just need to call the standard signUp method.
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      // Pass the company name in the metadata, which the trigger can access.
-      data: {
-        company_name: companyName,
+        set(name: string, value: string, options) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name: string, options) {
+          cookieStore.set({ name, value: '', ...options });
+        },
       },
-    },
-  });
+    }
+  );
 
-  if (error) {
-    logError(error, { context: 'Supabase signUp failed' });
-    redirect(`/signup?error=${encodeURIComponent(error.message)}`);
-    return;
-  }
+  try {
+    // The database trigger 'on_auth_user_created' will handle creating the company
+    // and linking the user. We just need to call the standard signUp method.
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // Pass the company name in the metadata, which the trigger can access.
+        data: {
+          company_name: companyName,
+        },
+      },
+    });
 
-  if (!data.user) {
-    redirect(`/signup?error=${encodeURIComponent('Could not create user. Please try again.')}`);
-    return;
+    if (error) {
+      logError(error, { context: 'Supabase signUp failed' });
+      redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+      return;
+    }
+
+    if (!data.user) {
+      redirect(`/signup?error=${encodeURIComponent('Could not create user. Please try again.')}`);
+      return;
+    }
+
+    // Check if email confirmation is required
+    if (data.user && !data.user.email_confirmed_at && data.user.confirmation_sent_at) {
+      // Email confirmation is enabled and email was sent
+      redirect('/login?message=Check your email to confirm your account and continue.');
+    } else if (data.user && data.user.email_confirmed_at) {
+      // User is already confirmed (auto-confirm is enabled)
+      revalidatePath('/', 'layout');
+      redirect('/dashboard?success=Account created successfully');
+    } else {
+      // User created but no confirmation needed (development mode)
+      revalidatePath('/', 'layout');
+      redirect('/dashboard?success=Account created successfully');
+    }
+
+  } catch (e) {
+    const message = getErrorMessage(e);
+    logError(e, { context: 'Signup exception' });
+    redirect(`/signup?error=${encodeURIComponent(message)}`);
   }
-    
-  revalidatePath('/', 'layout');
-  // Redirect to a confirmation page. The middleware will handle redirects for confirmed users.
-  redirect('/login?message=Check your email to confirm your account and continue.');
 }
 
 
