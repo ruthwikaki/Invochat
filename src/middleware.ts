@@ -59,19 +59,19 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   // Define public routes that do not require authentication
-  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/update-password', '/database-setup', '/env-check'];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
   const isLandingPage = pathname === '/';
   
   // If the user is logged in
   if (user) {
     // If user has no company_id, redirect them to the setup page.
-    if (!user.app_metadata.company_id) {
+    if (!user.app_metadata.company_id && pathname !== '/env-check') {
         return NextResponse.redirect(new URL('/env-check', req.url));
     }
 
     // If company is set up and they are on a public-only route, redirect to dashboard.
-    if (isPublicRoute) {
+    if (isPublicRoute && user.app_metadata.company_id) {
         return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   } 
