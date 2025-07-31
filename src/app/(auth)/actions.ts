@@ -82,6 +82,8 @@ export async function login(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(message)}`);
   }
   
+  // The middleware will handle redirecting to the dashboard.
+  // We revalidate the root path to ensure the layout reflects the new auth state.
   revalidatePath('/', 'layout');
   redirect('/dashboard');
 }
@@ -256,3 +258,5 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
+
+    
