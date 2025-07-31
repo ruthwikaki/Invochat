@@ -12,17 +12,18 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function LoginSubmitButton({ isPending }: { isPending: boolean }) {
+function LoginSubmitButton({ isPending, disabled }: { isPending: boolean, disabled: boolean }) {
     const { pending } = useFormStatus();
-    const disabled = isPending || pending;
+    const isDisabled = isPending || pending || disabled;
     return (
         <Button 
             type="submit" 
-            disabled={disabled} 
+            disabled={isDisabled} 
             className="w-full h-12 text-base font-semibold"
         >
-            {disabled ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+            {isDisabled ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
         </Button>
     )
 }
@@ -35,6 +36,11 @@ export function LoginForm({ initialError }: LoginFormProps) {
   const [error, setError] = useState(initialError);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    generateAndSetCsrfToken(setCsrfToken);
+  }, []);
 
   useEffect(() => {
     setError(initialError);
@@ -50,12 +56,17 @@ export function LoginForm({ initialError }: LoginFormProps) {
   };
   
   const handleSubmit = (formData: FormData) => {
+    if (!csrfToken) {
+        setError('A required security token was not found. Please refresh the page and try again.');
+        return;
+    }
+    formData.append(CSRF_FORM_NAME, csrfToken);
+    
     setError(null);
     startTransition(async () => {
       const result = await login(formData);
       if (result?.success) {
         router.push('/dashboard');
-        // We call refresh to ensure the layout re-renders with the new user session
         router.refresh();
       } else {
         setError(result?.error || 'An unexpected error occurred.');
@@ -102,7 +113,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
         )}
         
         <div className="pt-2">
-            <LoginSubmitButton isPending={isPending} />
+            <LoginSubmitButton isPending={isPending} disabled={!csrfToken} />
         </div>
     </form>
   );

@@ -11,13 +11,14 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function SubmitButton({ isPending }: { isPending: boolean }) {
+function SubmitButton({ isPending, disabled }: { isPending: boolean, disabled: boolean }) {
     const { pending } = useFormStatus();
-    const disabled = isPending || pending;
+    const isDisabled = isPending || pending || disabled;
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={disabled}>
-        {disabled ? <Loader2 className="animate-spin" /> : 'Create Account'}
+      <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
+        {isDisabled ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
 }
@@ -30,6 +31,11 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
     const [error, setError] = useState(initialError);
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+
+    useEffect(() => {
+        generateAndSetCsrfToken(setCsrfToken);
+    }, []);
     
     useEffect(() => {
         setError(initialError);
@@ -45,6 +51,12 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
     };
 
     const handleSubmit = (formData: FormData) => {
+      if (!csrfToken) {
+        setError('A required security token was not found. Please refresh the page and try again.');
+        return;
+      }
+      formData.append(CSRF_FORM_NAME, csrfToken);
+
       setError(null);
       startTransition(async () => {
         const result = await signup(formData);
@@ -52,9 +64,10 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
           if (result.message) {
             router.push(`/login?message=${encodeURIComponent(result.message)}`);
           } else {
+            // A direct sign up without email confirmation will land here
             router.push('/dashboard');
           }
-          router.refresh();
+          router.refresh(); // Important to update the auth state for the layout
         } else {
           setError(result.error || 'An unexpected error occurred.');
         }
@@ -113,7 +126,7 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
               </Alert>
             )}
             <div className="pt-2">
-                <SubmitButton isPending={isPending} />
+                <SubmitButton isPending={isPending} disabled={!csrfToken} />
             </div>
         </form>
     );
