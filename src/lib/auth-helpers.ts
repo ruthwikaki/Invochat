@@ -48,10 +48,12 @@ export async function getAuthContext() {
         throw new Error("Authentication required: No user session found.");
     }
     
+    // The company_id from the JWT's app_metadata is the primary source of truth.
+    // It's fast and doesn't require an extra database hit.
     let companyId = user.app_metadata.company_id;
     
     // Fallback for race condition on signup: If company_id is not in the JWT metadata,
-    // check the database directly. This is the source of truth.
+    // check the database directly. This is the source of truth, but it's slower.
     if (!companyId) {
         const { data: companyUserData, error } = await supabase
             .from('company_users')
@@ -68,6 +70,8 @@ export async function getAuthContext() {
     }
     
     if (!companyId) {
+        // If, after both checks, there is still no company ID, then the user is
+        // not properly set up. The middleware will handle redirecting this user.
         throw new Error("Authorization failed: User is not associated with a company.");
     }
 
