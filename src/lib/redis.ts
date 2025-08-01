@@ -167,7 +167,7 @@ export async function testRedisConnection() {
  * @param action A descriptor for the action being limited (e.g., 'auth', 'ai_chat').
  * @param limit The maximum number of requests allowed in the window.
  * @param windowSeconds The duration of the window in seconds.
- * @param failClosed If true, the rate limiter will block requests if Redis is unavailable. Defaults to `true` for critical actions.
+ * @param failClosed If true, the rate limiter will block requests if Redis is unavailable. Defaults to `true`.
  * @returns A promise resolving to an object with `limited` (boolean) and `remaining` (number) properties.
  */
 export async function rateLimit(
@@ -219,3 +219,5 @@ export async function rateLimit(
         return { limited: failClosed, remaining: failClosed ? 0 : limit };
     }
 }
+
+    

@@ -25,7 +25,7 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
     await validateCSRF(formData);
 
     // Rate limit by IP to prevent email enumeration and brute-force attacks
-    const { limited: ipLimited } = await rateLimit(ip, 'login_attempt_ip', config.ratelimit.auth * 5, 3600, true);
+    const { limited: ipLimited } = await rateLimit(ip, 'login_attempt_ip', config.ratelimit.auth * 5, 3600);
     if (ipLimited) {
         return { success: false, error: 'Too many login attempts from this IP. Please try again in an hour.' };
     }
@@ -68,18 +68,15 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
             const serviceSupabase = getServiceRoleClient();
             const { data: { user } } = await serviceSupabase.auth.admin.getUserByEmail(email);
 
-            // Use the user's ID for lockout if the user exists, otherwise use the IP address.
-            // This prevents attackers from enumerating emails and ties lockouts to specific accounts.
-            const lockoutIdentifier = user ? user.id : ip;
+            const lockoutIdentifier = user ? `user:${user.id}` : `ip:${ip}`;
             const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${lockoutIdentifier}`;
             
             const failedAttempts = await redisClient.incr(failedAttemptsKey);
             await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
 
-            // Only ban the user account if the user actually exists.
             if (user && failedAttempts >= MAX_LOGIN_ATTEMPTS) {
                await serviceSupabase.auth.admin.updateUserById(user.id, {
-                   ban_duration: `${LOCKOUT_DURATION_SECONDS}s`
+                   banned_until: new Date(Date.now() + LOCKOUT_DURATION_SECONDS * 1000).toISOString(),
                });
                logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered', ip, userId: user.id });
             }
@@ -89,8 +86,7 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
     }
 
     if (isRedisEnabled && data.user) {
-      // On successful login, clear the failed attempts counter for the user.
-      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${data.user.id}`);
+      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}user:${data.user.id}`);
     }
 
     revalidatePath('/', 'layout');
@@ -265,3 +261,5 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
+
+    
