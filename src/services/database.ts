@@ -1,10 +1,9 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
-import { CompanySettingsSchema, SupplierFormSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionBaseSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionBaseSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -211,7 +210,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
         // Re-throw the original error to be handled by the caller
-        throw new Error(`Could not retrieve dashboard metrics from the database.`);
+        throw new Error('Could not retrieve dashboard metrics from the database.');
     }
 }
 
