@@ -128,6 +128,17 @@ export async function getAuthContext() {
                     throw new Error("Company association not yet found in database.");
                 }
                 
+                // CRITICAL FIX: Verify the company exists
+                const { error: companyError } = await supabase
+                    .from('companies')
+                    .select('id')
+                    .eq('id', companyUserData.company_id)
+                    .single();
+
+                if (companyError) {
+                    throw new Error(`Invalid company association: company ID ${companyUserData.company_id} not found.`);
+                }
+                
                 return companyUserData.company_id;
             }, { 
                 maxAttempts: 3, 
