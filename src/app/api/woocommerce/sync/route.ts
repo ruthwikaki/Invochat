@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
         const { limited } = await rateLimit(ip, 'sync_endpoint', config.ratelimit.sync, 3600);
         if (limited) {
-            return new Response('Rate limit exceeded', { status: 429 });
+            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
         }
         
         const isWebhookTriggered = await validateWooCommerceWebhook(request.clone());
