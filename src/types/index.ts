@@ -380,13 +380,13 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
 
 export const DashboardMetricsSchema = z.object({
-  total_revenue: z.number().int(),
+  total_revenue: z.number(),
   revenue_change: z.number(),
-  total_orders: z.number().int(),
+  total_orders: z.number(),
   orders_change: z.number(),
-  new_customers: z.number().int(),
+  new_customers: z.number(),
   customers_change: z.number(),
-  dead_stock_value: z.number().int(),
+  dead_stock_value: z.number(),
   sales_over_time: z.array(z.object({
     date: z.string(),
     revenue: z.number(),
@@ -521,8 +521,6 @@ export const AlertSchema = z.object({
   timestamp: z.string(),
   metadata: z.record(z.unknown()),
   read: z.boolean().optional(),
-  dismissed: z.boolean().optional(),
-  status: z.enum(['unread', 'read', 'dismissed']).optional(),
 });
 export type Alert = z.infer<typeof AlertSchema>;
 
@@ -544,4 +542,3 @@ export const FeedbackSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
-

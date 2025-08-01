@@ -357,6 +357,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
         const limit = Math.min(validatedParams.limit || 25, 100);
         const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
         if (error) throw error;
+        
         return { items: z.array(OrderSchema).parse(data || []), totalCount: count || 0 };
     } catch(e) {
         logError(e, { context: 'getSalesFromDB failed' });
@@ -650,7 +651,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     return data;
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItems[]> {
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItemsAndSupplier[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
@@ -664,7 +665,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data || []) as PurchaseOrderWithItems[];
+    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -870,4 +871,23 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         logError(e, { context: 'getFeedbackFromDB failed' });
         throw new Error('Failed to retrieve feedback data.');
     }
+}
+
+export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]) {
+    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
+        throw new Error('Invalid ID format');
+    }
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_suggestions: suggestions as unknown as Json,
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to execute create_purchase_orders_from_suggestions RPC' });
+        throw new Error('Database error while creating purchase orders from suggestions.');
+    }
+    
+    return data;
 }
