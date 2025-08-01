@@ -1,4 +1,3 @@
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -389,12 +388,12 @@ export const DashboardMetricsSchema = z.object({
   sales_over_time: z.array(z.object({
     date: z.string(),
     revenue: z.number(),
-    orders: z.number(),
   })).default([]),
   top_selling_products: z.array(z.object({
     product_name: z.string(),
     image_url: z.string().url().nullable(),
     total_revenue: z.number(),
+    quantity_sold: z.number(),
   })).default([]),
   inventory_summary: z.object({
     total_value: z.number(),
@@ -402,7 +401,7 @@ export const DashboardMetricsSchema = z.object({
     low_stock_value: z.number(),
     dead_stock_value: z.number(),
   }),
-});
+}).passthrough();
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
 export const SalesAnalyticsSchema = z.object({

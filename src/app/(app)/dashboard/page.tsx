@@ -64,7 +64,7 @@ export default async function DashboardPage({
         // In either error case (new user or unexpected), fall back to safe, empty data to prevent crashes
         metrics = emptyMetrics;
         briefing = { greeting: 'Welcome!', summary: 'Import your data to get started with AI insights.' };
-        settings = { company_id: '', created_at: '', updated_at: null, currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
+        settings = { currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
     }
 
     return (

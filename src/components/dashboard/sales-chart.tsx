@@ -8,7 +8,7 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { TrendingUp } from 'lucide-react';
 
 interface SalesChartProps {
-  data: { date: string; orders: number; revenue: number }[];
+  data: { date: string; revenue: number }[];
   currency: string;
 }
 
