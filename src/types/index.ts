@@ -385,23 +385,27 @@ export const DashboardMetricsSchema = z.object({
   orders_growth: z.number(),
   total_customers: z.number(),
   customers_growth: z.number(),
-  dead_stock_value: z.number().int(),
+  dead_stock_value: z.number(),
   sales_over_time: z.array(z.object({
     date: z.string(),
-    total_sales: z.number(),
+    revenue: z.number(),
+    orders: z.number(),
   })),
   top_products: z.array(z.object({
+    variant_id: z.string().uuid(),
+    sku: z.string(),
     product_name: z.string(),
-    total_revenue: z.number(),
-    image_url: z.string().nullable(),
+    quantity_sold: z.number(),
+    revenue: z.number(),
   })),
   inventory_summary: z.object({
-    total_value: z.number().int(),
-    in_stock_value: z.number().int(),
-    low_stock_value: z.number().int(),
-    dead_stock_value: z.number().int(),
+    total_products: z.number(),
+    total_variants: z.number(),
+    low_stock_items: z.number(),
+    out_of_stock_items: z.number(),
+    total_inventory_value: z.number(),
   }),
-}).passthrough(); // Allow extra properties like 'error'
+}).passthrough();
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
 export const SalesAnalyticsSchema = z.object({
