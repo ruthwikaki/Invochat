@@ -24,6 +24,12 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
   try {
     await validateCSRF(formData);
 
+    // Rate limit by IP to prevent email enumeration and brute-force attacks
+    const { limited: ipLimited } = await rateLimit(ip, 'login_attempt_ip', config.ratelimit.auth * 5, 3600);
+    if (ipLimited) {
+        return { success: false, error: 'Too many login attempts from this IP. Please try again in an hour.' };
+    }
+
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -49,13 +55,8 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
           },
         }
     );
-
-    const { limited } = await rateLimit(ip, 'login_attempt', config.ratelimit.auth, 3600);
-    if (limited) {
-        return { success: false, error: 'Too many login attempts. Please try again in an hour.' };
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({
+    
+    const { error, data } = await supabase.auth.signInWithPassword({
         email,
         password,
     });
@@ -64,27 +65,29 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
         logError(error, { context: 'Login failed' });
         
         if (isRedisEnabled) {
-            const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`;
-            const failedAttempts = await redisClient.incr(failedAttemptsKey);
-            await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
+            // After a failed login, get the user ID to track failures against the ID, not the email.
+            const serviceSupabase = getServiceRoleClient();
+            const { data: { user } } = await serviceSupabase.auth.admin.getUserByEmail(email);
 
-            if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
-                const serviceSupabase = getServiceRoleClient();
-                const { data: { user } } = await serviceSupabase.auth.admin.getUserByEmail(email);
-                if (user) {
+            if (user) {
+                const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${user.id}`;
+                const failedAttempts = await redisClient.incr(failedAttemptsKey);
+                await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
+
+                if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
                    await serviceSupabase.auth.admin.updateUserById(user.id, {
                        ban_duration: `${LOCKOUT_DURATION_SECONDS}s`
                    });
+                   logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered', ip, userId: user.id });
                 }
-                logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered', ip});
             }
         }
         
         return { success: false, error: 'Invalid login credentials.' };
     }
 
-    if (isRedisEnabled) {
-      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${email}`);
+    if (isRedisEnabled && data.user) {
+      await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${data.user.id}`);
     }
 
     revalidatePath('/', 'layout');
@@ -259,3 +262,5 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
+
+    
