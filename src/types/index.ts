@@ -1,4 +1,5 @@
 
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -520,6 +521,8 @@ export const AlertSchema = z.object({
   timestamp: z.string(),
   metadata: z.record(z.unknown()),
   read: z.boolean().optional(),
+  dismissed: z.boolean().optional(),
+  status: z.enum(['unread', 'read', 'dismissed']).optional(),
 });
 export type Alert = z.infer<typeof AlertSchema>;
 
@@ -541,3 +544,4 @@ export const FeedbackSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
+

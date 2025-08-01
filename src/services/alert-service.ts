@@ -1,20 +1,15 @@
 
 
+'use server';
+
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import type { Alert } from '@/types';
 import { z } from 'zod';
+import { CompanySettingsSchema, type CompanySettings } from '@/types';
 
-// Define the shape of alert settings for validation
-const AlertSettingsSchema = z.object({
-  email_notifications: z.boolean().default(true),
-  morning_briefing_enabled: z.boolean().default(true),
-  morning_briefing_time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).default('09:00'), // HH:MM format
-  low_stock_threshold: z.number().int().positive().default(10),
-  critical_stock_threshold: z.number().int().positive().default(5),
-});
-export type AlertSettings = z.infer<typeof AlertSettingsSchema>;
-
+// This file provides direct-to-database functions for handling alerts
+// and their settings, aligning with the latest database schema.
 
 export async function getAlertsWithStatus(companyId: string): Promise<Alert[]> {
   const supabase = getServiceRoleClient();
@@ -30,27 +25,32 @@ export async function getAlertsWithStatus(companyId: string): Promise<Alert[]> {
   return (data || []).map((a: any) => a as Alert);
 }
 
-export async function getAlertSettings(companyId: string): Promise<AlertSettings> {
+export async function getAlertSettings(companyId: string): Promise<CompanySettings> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .from('company_settings')
-    .select('alert_settings')
+    .select('*')
     .eq('company_id', companyId)
     .single();
   
   if (error) {
     logger.error('Failed to fetch alert settings', { error: error.message, companyId });
-    return AlertSettingsSchema.parse({}); // Return default settings on error
+    // This will create settings if they don't exist, which is handled by the getSettings function
+    const { data: newSettings, error: creationError } = await supabase.from('company_settings').insert({ company_id: companyId }).select().single();
+    if(creationError) {
+        throw new Error('Failed to create default settings');
+    }
+    return CompanySettingsSchema.parse(newSettings);
   }
   
-  return AlertSettingsSchema.parse(data?.alert_settings || {});
+  return CompanySettingsSchema.parse(data || {});
 }
 
-export async function updateAlertSettings(companyId: string, settings: Partial<AlertSettings>) {
+export async function updateAlertSettings(companyId: string, settings: Partial<CompanySettings>) {
   const supabase = getServiceRoleClient();
   const { error } = await supabase
     .from('company_settings')
-    .update({ alert_settings: settings })
+    .update({ alert_settings: settings as any }) // Use a cast to handle partial updates
     .eq('company_id', companyId);
   
   if (error) {
@@ -75,6 +75,7 @@ export async function updateAlertSettings(companyId: string, settings: Partial<A
   
   if (error) {
     logger.error('Failed to mark alert as read', { error: error.message, alertId });
+    throw error;
   }
 }
 
@@ -94,5 +95,7 @@ export async function dismissAlert(alertId: string, companyId: string) {
 
   if (error) {
     logger.error('Failed to dismiss alert', { error: error.message, alertId });
+    throw error;
   }
 }
+

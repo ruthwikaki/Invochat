@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -7,44 +8,42 @@ import { logger } from '@/lib/logger';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import { getDashboardMetrics } from '@/services/database';
 import type { Alert, DashboardMetrics } from '@/types';
-import { AlertService } from './alert-service';
+import { getAlertsWithStatus, getAlertSettings } from './alert-service';
 
-// This service is designed to be called by a scheduled job (e.g., a cron job).
-export class DailyAlertJobService {
-  private alertService = new AlertService();
-  private supabase = getServiceRoleClient();
 
-  async processDailyAlerts() {
+export async function processDailyAlerts() {
     logger.info('Starting daily alert processing job...');
+    const supabase = getServiceRoleClient();
     
     try {
-      const { data: companies, error } = await this.supabase
-        .from('companies')
-        .select('id, name'); // In a real multi-tenant app, you might add an 'is_active' flag here.
-      
-      if (error) throw error;
-      
-      for (const company of companies || []) {
-        await this.processCompanyAlerts(company.id, company.name);
-      }
-      
-      logger.info('Daily alert processing job completed successfully.');
+        const { data: companies, error } = await supabase
+            .from('companies')
+            .select('id, name');
+        
+        if (error) throw error;
+        
+        for (const company of companies || []) {
+            await processCompanyAlerts(company.id, company.name);
+        }
+        
+        logger.info('Daily alert processing job completed successfully.');
     } catch (error) {
-      logger.error('Daily alert processing job failed', { error });
+        logger.error('Daily alert processing job failed', { error });
     }
-  }
+}
 
-  private async processCompanyAlerts(companyId: string, companyName: string) {
+async function processCompanyAlerts(companyId: string, companyName: string) {
     logger.info(`Processing alerts for company: ${companyName} (${companyId})`);
+    const supabase = getServiceRoleClient();
     try {
-      const settings = await this.alertService.getAlertSettings(companyId);
+      const settings = await getAlertSettings(companyId);
       
-      if (!settings.morning_briefing_enabled || !settings.email_notifications) {
+      if (!settings?.alert_settings?.morning_briefing_enabled || !settings?.alert_settings?.email_notifications) {
         logger.info(`Skipping email briefing for company ${companyName} as it is disabled.`);
         return;
       }
 
-      const { data: users, error } = await this.supabase
+      const { data: users, error } = await supabase
         .from('company_users')
         .select('users(email)')
         .eq('company_id', companyId)
@@ -56,7 +55,7 @@ export class DailyAlertJobService {
       const userEmails = users.map(u => (u.users as { email: string }).email);
 
       // Generate alerts and briefing
-      const alerts = await this.alertService.getCompanyAlerts(companyId);
+      const alerts = await getAlertsWithStatus(companyId);
       const metrics = await getDashboardMetrics(companyId, '30d');
       const briefing = await generateMorningBriefing({ 
         metrics, 
@@ -65,20 +64,20 @@ export class DailyAlertJobService {
 
       // Send emails to all admins/owners of the company
       for (const email of userEmails) {
-        await this.sendDailyDigest(email, briefing, alerts, metrics);
+        await sendDailyDigest(email, briefing, alerts, metrics);
       }
       
     } catch (error) {
       logger.error(`Failed to process alerts for company ${companyId}`, { error });
     }
-  }
+}
 
-  private async sendDailyDigest(
+async function sendDailyDigest(
     email: string,
     briefing: Awaited<ReturnType<typeof generateMorningBriefing>>,
     alerts: Alert[],
     metrics: DashboardMetrics
-  ) {
+) {
     const lowStockAlerts = alerts.filter(a => a.type === 'low_stock');
     const deadStockItems = metrics.top_selling_products
         .filter(p => p.total_revenue === 0)
@@ -91,5 +90,4 @@ export class DailyAlertJobService {
       topDeadStock: deadStockItems,
       topLowStock: lowStockAlerts.slice(0, 5)
     });
-  }
 }
