@@ -1,3 +1,4 @@
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -378,20 +379,20 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
 
 export const DashboardMetricsSchema = z.object({
-  total_revenue: z.number().int(),
-  revenue_change: z.number(),
-  total_sales: z.number(),
-  sales_change: z.number(),
-  new_customers: z.number(),
-  customers_change: z.number(),
+  total_revenue: z.number(),
+  revenue_growth: z.number(),
+  total_orders: z.number(),
+  orders_growth: z.number(),
+  total_customers: z.number(),
+  customers_growth: z.number(),
   dead_stock_value: z.number().int(),
   sales_over_time: z.array(z.object({
     date: z.string(),
-    total_sales: z.number().int(),
+    total_sales: z.number(),
   })),
-  top_selling_products: z.array(z.object({
+  top_products: z.array(z.object({
     product_name: z.string(),
-    total_revenue: z.number().int(),
+    total_revenue: z.number(),
     image_url: z.string().nullable(),
   })),
   inventory_summary: z.object({

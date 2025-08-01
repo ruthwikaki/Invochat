@@ -59,7 +59,7 @@ function EmptyDashboardState() {
           <Sparkles className="h-8 w-8" />
         </motion.div>
       </motion.div>
-      <h3 className="mt-6 text-xl font-semibold">Welcome to AIventory!</h3>
+      <h3 className="mt-6 text-xl font-semibold">Welcome to ARVO!</h3>
       <p className="mt-2 text-muted-foreground">
         Your dashboard is ready. Import your data to see your metrics and get AI insights.
       </p>
@@ -100,7 +100,7 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         router.push(`/dashboard?range=${value}`);
     };
     
-    const hasData = initialMetrics.total_revenue > 0 || initialMetrics.total_sales > 0;
+    const hasData = initialMetrics.total_revenue > 0 || initialMetrics.total_orders > 0;
 
     if (!hasData) {
         return (
@@ -139,15 +139,15 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
             <MorningBriefingCard briefing={initialBriefing} />
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue, settings.currency)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
-                <StatCard title="Total Sales" value={initialMetrics.total_sales.toLocaleString()} change={`${initialMetrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
-                <StatCard title="New Customers" value={initialMetrics.new_customers.toLocaleString()} change={`${initialMetrics.customers_change.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
+                <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue, settings.currency)} change={`${initialMetrics.revenue_growth.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_growth >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
+                <StatCard title="Total Sales" value={initialMetrics.total_orders.toLocaleString()} change={`${initialMetrics.orders_growth.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.orders_growth >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
+                <StatCard title="New Customers" value={initialMetrics.total_customers.toLocaleString()} change={`${initialMetrics.customers_growth.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_growth >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
                 <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value, settings.currency)} icon={TrendingDown} gradient="bg-rose-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SalesChart data={initialMetrics.sales_over_time} currency={settings.currency} />
-                <TopProductsCard data={initialMetrics.top_selling_products} currency={settings.currency} />
+                <TopProductsCard data={initialMetrics.top_products} currency={settings.currency} />
             </div>
             
             <InventorySummaryCard data={initialMetrics.inventory_summary} currency={settings.currency} />
