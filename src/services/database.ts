@@ -203,8 +203,6 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
-        // This is a critical fix. If the DB function returns null (e.g., for a new company with no data),
-        // we must throw an error to be caught by the calling action, which can then provide a default empty state.
         if (data == null) {
             logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
             throw new Error('No response from get_dashboard_metrics RPC call.');
@@ -213,7 +211,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
         // Re-throw the original error to be handled by the caller
-        throw new Error('Could not retrieve dashboard metrics from the database.');
+        throw new Error(`Could not retrieve dashboard metrics from the database.`);
     }
 }
 
@@ -883,7 +881,7 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
     }
 }
 
-export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]): Promise<number> {
+export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]) {
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
         throw new Error('Invalid ID format');
     }
