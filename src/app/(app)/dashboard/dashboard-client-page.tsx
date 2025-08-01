@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -153,3 +154,5 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         </motion.div>
     );
 }
+
+    

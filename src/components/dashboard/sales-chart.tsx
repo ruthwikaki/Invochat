@@ -72,3 +72,5 @@ export function SalesChart({ data, currency }: SalesChartProps) {
     </Card>
   );
 }
+
+    
