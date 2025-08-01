@@ -329,10 +329,10 @@ export const ReorderSuggestionBaseSchema = z.object({
 export type ReorderSuggestionBase = z.infer<typeof ReorderSuggestionBaseSchema>;
 
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
-    base_quantity: z.number().int().optional(),
-    adjustment_reason: z.string().nullable().optional(),
-    seasonality_factor: z.number().nullable().optional(),
-    confidence: z.number().min(0).max(1).nullable().optional(),
+    base_quantity: z.number().int(),
+    adjustment_reason: z.string(),
+    seasonality_factor: z.number(),
+    confidence: z.number().min(0).max(1),
 });
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
 
@@ -527,6 +527,7 @@ export const AlertSchema = z.object({
   severity: z.string(),
   timestamp: z.string(),
   metadata: z.record(z.unknown()),
+  read: z.boolean().optional(),
 });
 export type Alert = z.infer<typeof AlertSchema>;
 
