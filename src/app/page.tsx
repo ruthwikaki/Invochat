@@ -1,3 +1,4 @@
+
 import { createServerClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { LandingPage } from '@/components/landing/landing-page';
