@@ -13,6 +13,7 @@ let isInitializing = false;
 const mockRedisClient = {
     get: async (_key: string) => null,
     set: async (_key: string, _value: string, ..._args: unknown[]) => 'OK' as const,
+    setex: async (_key: string, _seconds: number, _value: string) => 'OK' as const,
     del: async (..._keys: string[]) => 1 as const,
     pipeline: function () { // The pipeline function needs to return an object with the chained methods
         const pipeline = {
@@ -27,6 +28,7 @@ const mockRedisClient = {
     ping: async () => 'PONG' as const,
     incr: async (_key: string) => 1,
     expire: async (_key: string, _seconds: number) => 1,
+    ttl: async (_key: string) => -2,
     incrbyfloat: async (_key: string, inc: number) => String(inc),
     zcard: async (_key: string) => 0,
 };
@@ -219,5 +221,3 @@ export async function rateLimit(
         return { limited: failClosed, remaining: failClosed ? 0 : limit };
     }
 }
-
-    
