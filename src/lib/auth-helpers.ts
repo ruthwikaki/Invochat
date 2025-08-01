@@ -2,6 +2,7 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase/admin';
+import { getServiceRoleClient } from '@/lib/supabase/admin'; // ADD THIS IMPORT
 import type { User } from '@/types';
 import { logError } from './error-handler';
 import { retry } from './async-utils';
@@ -44,12 +45,15 @@ export async function getCurrentCompanyId(): Promise<string | null> {
 
 /**
  * Helper function to get company ID from database with retry logic
+ * FIXED: Now uses service role client to bypass RLS policies
  */
 async function getCompanyIdFromDatabase(userId: string): Promise<string | null> {
-    const supabase = createServerClient();
+    // CRITICAL FIX: Use service role client instead of regular client
+    const serviceSupabase = getServiceRoleClient(); // CHANGED FROM createServerClient()
+    
     try {
         return await retry(async () => {
-            const { data: companyUserData, error } = await supabase
+            const { data: companyUserData, error } = await serviceSupabase // USING SERVICE ROLE CLIENT
                 .from('company_users')
                 .select('company_id')
                 .eq('user_id', userId)
@@ -117,7 +121,7 @@ export async function getAuthContext() {
 
 /**
  * Enhanced function for debugging auth issues during development
- * Remove this in production
+ * FIXED: Now uses service role client to avoid RLS issues
  */
 export async function debugAuthContext() {
     if (process.env.NODE_ENV === 'production') {
@@ -131,14 +135,17 @@ export async function debugAuthContext() {
         return { error: 'No user found' };
     }
     
+    // FIXED: Use service role client for debugging to bypass RLS
+    const serviceSupabase = getServiceRoleClient();
+    
     // Check company_users table
-    const { data: companyData, error: companyError } = await supabase
+    const { data: companyData, error: companyError } = await serviceSupabase // USING SERVICE ROLE
         .from('company_users')
         .select('*')
         .eq('user_id', user.id);
     
     // Check companies table
-    const { data: companiesData, error: companiesError } = await supabase
+    const { data: companiesData, error: companiesError } = await serviceSupabase // USING SERVICE ROLE
         .from('companies')
         .select('*')
         .eq('owner_id', user.id);
