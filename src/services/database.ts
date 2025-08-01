@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionBaseSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -213,7 +213,11 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-        throw new Error('Could not retrieve dashboard metrics from the database.');
+        // Return a safe, empty object to prevent frontend crashes
+        return {
+            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+            inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
+        };
     }
 }
 
@@ -881,4 +885,23 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         logError(e, { context: 'getFeedbackFromDB failed' });
         return { items: [], totalCount: 0 };
     }
+}
+
+export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]): Promise<number> {
+    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
+        throw new Error('Invalid ID format');
+    }
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_suggestions: suggestions as unknown as Json,
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to execute create_purchase_orders_from_suggestions RPC' });
+        throw new Error('Database error while creating purchase orders from suggestions.');
+    }
+    
+    return data;
 }
