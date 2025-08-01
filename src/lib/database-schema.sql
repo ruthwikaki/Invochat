@@ -1,59 +1,49 @@
 -- ============================================================================
--- IDEMPOTENT FUNCTION REPLACEMENT SCRIPT
+-- FINAL AUTH SYSTEM FIX: RECURSION AND DEPENDENCY SAFE
 -- ============================================================================
--- This script safely replaces the get_company_id_for_user function to fix
--- an "infinite recursion" error in RLS policies. It temporarily disables
--- RLS on affected tables, replaces the function, and then re-enables RLS.
+-- This script replaces the faulty get_company_id_for_user function with a
+-- corrected version that is guaranteed to not cause infinite recursion.
+-- It also handles existing dependencies by using CREATE OR REPLACE.
 
-DO $$
-DECLARE
-    -- Array of all tables that have RLS policies depending on the function
-    tables_with_rls TEXT[] := ARRAY[
-        'products', 'product_variants', 'orders', 'order_line_items', 'customers',
-        'suppliers', 'purchase_orders', 'purchase_order_line_items', 'integrations',
-        'webhook_events', 'inventory_ledger', 'messages', 'audit_log',
-        'company_settings', 'refunds', 'feedback', 'export_jobs',
-        'channel_fees', 'company_users', 'imports'
-    ];
-    table_name TEXT;
+BEGIN;
+
+-- This function is called by RLS policies to get the company ID for the currently authenticated user.
+-- The original version caused an infinite recursion error because it queried a table that was protected
+-- by a policy that called this same function.
+--
+-- The corrected version below resolves this by getting the company_id directly and securely
+-- from the user's authentication token (JWT), which is the proper way to handle this
+-- in a multi-tenant Supabase environment. It does not query any tables, thus breaking the loop.
+CREATE OR REPLACE FUNCTION get_company_id_for_user(user_uuid uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+STABLE
+AS $$
 BEGIN
-    RAISE NOTICE 'Starting safe function replacement...';
-
-    -- STEP 1: Temporarily disable RLS on all dependent tables
-    RAISE NOTICE 'Disabling RLS on dependent tables...';
-    FOREACH table_name IN ARRAY tables_with_rls
-    LOOP
-        -- Using format() to safely quote the table name
-        EXECUTE format('ALTER TABLE public.%I DISABLE ROW LEVEL SECURITY;', table_name);
-        RAISE NOTICE '  -> RLS disabled on %', table_name;
-    END LOOP;
-
-    -- STEP 2: Replace the faulty function with the corrected version
-    -- The new version gets the company_id from the JWT claims instead of a recursive query.
-    RAISE NOTICE 'Replacing the get_company_id_for_user function...';
-    CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
-    RETURNS uuid
-    LANGUAGE sql
-    STABLE
-    SECURITY DEFINER
-    AS $$
-        -- This is the primary and secure way to get the company ID for RLS.
-        -- It avoids table queries, preventing infinite recursion in policies.
-        SELECT NULLIF(auth.jwt()->'app_metadata'->>'company_id', '')::uuid;
-    $$;
-    RAISE NOTICE '  -> Function get_company_id_for_user has been updated.';
-
-
-    -- STEP 3: Re-enable RLS on all tables
-    RAISE NOTICE 'Re-enabling RLS on all tables...';
-    FOREACH table_name IN ARRAY tables_with_rls
-    LOOP
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', table_name);
-        -- Force RLS for table owners as well, which is a security best practice
-        EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY;', table_name);
-        RAISE NOTICE '  -> RLS re-enabled and forced on %', table_name;
-    END LOOP;
-
-    RAISE NOTICE 'Function replacement script completed successfully!';
+  -- This function now securely gets the company_id directly from the JWT's app_metadata
+  -- This avoids the recursive query on company_users that caused the "infinite recursion" error.
+  RETURN (
+    SELECT NULLIF(auth.jwt()->'app_metadata'->>'company_id', '')::uuid
+  );
 END;
 $$;
+
+
+-- This function is a simple helper to get the user's role within their company.
+-- It is also made SECURITY DEFINER to work correctly within RLS policies.
+CREATE OR REPLACE FUNCTION get_user_role(user_uuid uuid)
+RETURNS TEXT
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT role::text
+  FROM public.company_users
+  WHERE user_id = user_uuid;
+$$;
+
+
+COMMIT;
+
+-- After running this script, the "infinite recursion" errors should be permanently resolved.
