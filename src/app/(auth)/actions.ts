@@ -10,7 +10,7 @@ import { isRedisEnabled, rateLimit, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { validateCSRF } from '@/lib/csrf';
-import { getAuthContext } from '@/lib/auth-helpers';
+import { getAuthContext as getAuthContextHelper } from '@/lib/auth-helpers';
 
 const FAILED_LOGIN_ATTEMPTS_KEY_PREFIX = 'failed_login_attempts:';
 const MAX_LOGIN_ATTEMPTS = 5;
