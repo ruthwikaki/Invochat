@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -220,7 +218,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
-                        checked={isAllSelected ? true : (isSomeSelected ? 'indeterminate' : false)}
+                        checked={isAllSelected}
                         onCheckedChange={handleSelectAll}
                         aria-label="Select all rows"
                     />

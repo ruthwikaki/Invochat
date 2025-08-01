@@ -1,5 +1,3 @@
-
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -209,21 +207,13 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
     idempotency_key: z.string().uuid().nullable(),
     created_at: z.string().datetime({ offset: true }),
     updated_at: z.string().datetime({ offset: true }).nullable(),
-    suppliers: z.object({
-        name: z.string(),
-    }).nullable(),
-    purchase_order_line_items: z.array(z.object({
+    supplier_name: z.string().nullable(),
+    line_items: z.array(z.object({
         id: z.string().uuid(),
         quantity: z.number().int(),
         cost: z.number().int(),
-        variant_id: z.string().uuid(),
-        product_variants: z.object({
-            id: z.string().uuid(),
-            sku: z.string(),
-            products: z.object({
-                product_title: z.string(),
-            }).nullable(),
-        }).nullable(),
+        sku: z.string(),
+        product_name: z.string(),
     }))
 });
 
