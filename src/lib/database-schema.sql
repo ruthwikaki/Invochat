@@ -1,474 +1,344 @@
+-- ============================================================================
+-- AUTH SYSTEM CLEANUP MIGRATION
+-- ============================================================================
+-- This migration removes the redundant public.users table and fixes all
+-- foreign key relationships to properly reference auth.users as the single
+-- source of truth for user identity.
 
--- ===============================================================================================
--- HELPER FUNCTIONS
--- ===============================================================================================
+BEGIN;
 
--- Gets the company_id for a user from their JWT, falling back to a direct lookup.
--- This function is crucial for RLS policies.
-CREATE OR REPLACE FUNCTION get_company_id_for_user(p_user_id uuid)
-RETURNS uuid AS $$
+-- ============================================================================
+-- STEP 1: AUDIT CURRENT STATE
+-- ============================================================================
+-- First, let's see what data we're working with
+
+-- Check for any data in public.users that might need to be preserved
+SELECT 
+    pu.id as public_user_id,
+    pu.company_id,
+    pu.email as public_email,
+    pu.role as public_role,
+    pu.created_at as public_created,
+    au.id as auth_user_id,
+    au.email as auth_email,
+    au.created_at as auth_created,
+    cu.role as company_role
+FROM public.users pu
+LEFT JOIN auth.users au ON pu.id = au.id
+LEFT JOIN public.company_users cu ON pu.id = cu.user_id AND pu.company_id = cu.company_id;
+
+-- Check for orphaned records in company_users
+SELECT cu.*, au.email 
+FROM public.company_users cu
+LEFT JOIN auth.users au ON cu.user_id = au.id
+WHERE au.id IS NULL;
+
+-- ============================================================================
+-- STEP 2: DATA MIGRATION & CLEANUP
+-- ============================================================================
+
+-- Ensure all users in public.users exist in auth.users
+-- If there are missing auth.users records, this needs manual intervention
+DO $$
 DECLARE
-    company_id_from_jwt uuid;
-    company_id_from_db uuid;
+    missing_count INTEGER;
 BEGIN
-    -- First, try to get the company_id from the JWT's app_metadata.
-    -- This is the fastest and most common method.
-    SELECT (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid INTO company_id_from_jwt;
-
-    IF company_id_from_jwt IS NOT NULL THEN
-        RETURN company_id_from_jwt;
+    SELECT COUNT(*) INTO missing_count
+    FROM public.users pu
+    LEFT JOIN auth.users au ON pu.id = au.id
+    WHERE au.id IS NULL;
+    
+    IF missing_count > 0 THEN
+        RAISE EXCEPTION 'Found % users in public.users that do not exist in auth.users. Manual intervention required.', missing_count;
     END IF;
+END $$;
 
-    -- If the JWT doesn't have it (e.g., during signup race conditions),
-    -- fall back to a direct query on the company_users table.
-    -- This part is NOT called by RLS policies on company_users itself, avoiding recursion.
-    SELECT company_id INTO company_id_from_db
-    FROM public.company_users
-    WHERE user_id = p_user_id;
+-- Migrate any missing company_users relationships
+-- This ensures every user in public.users has a corresponding company_users record
+INSERT INTO public.company_users (company_id, user_id, role)
+SELECT 
+    pu.company_id,
+    pu.id,
+    CASE 
+        WHEN pu.role = 'owner' THEN 'Owner'::company_role
+        WHEN pu.role = 'admin' THEN 'Admin'::company_role
+        ELSE 'Member'::company_role
+    END
+FROM public.users pu
+LEFT JOIN public.company_users cu ON pu.id = cu.user_id AND pu.company_id = cu.company_id
+WHERE cu.user_id IS NULL
+ON CONFLICT (company_id, user_id) DO NOTHING;
 
-    RETURN company_id_from_db;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- ============================================================================
+-- STEP 3: UPDATE FOREIGN KEY REFERENCES
+-- ============================================================================
 
+-- Update all tables that currently reference public.users to reference auth.users
+-- Most should already be correct, but let's ensure consistency
 
--- ===============================================================================================
--- TABLE CREATION
--- ===============================================================================================
+-- Fix any foreign key constraints that might be pointing to public.users
+-- (Note: We'll drop and recreate proper constraints later)
 
--- Companies Table: Stores basic information about each company tenant.
-CREATE TABLE IF NOT EXISTS public.companies (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name text NOT NULL,
-    owner_id uuid REFERENCES auth.users(id),
-    created_at timestamptz NOT NULL DEFAULT now()
-);
+-- Update audit_log table to ensure user_id references auth.users
+-- (This should already be correct, but let's verify)
+UPDATE public.audit_log 
+SET user_id = NULL 
+WHERE user_id IS NOT NULL 
+AND user_id NOT IN (SELECT id FROM auth.users);
 
--- Company Users Table: A junction table to link users to companies with roles.
-CREATE TABLE IF NOT EXISTS public.company_users (
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    role company_role NOT NULL DEFAULT 'Member',
-    PRIMARY KEY (company_id, user_id)
-);
+-- Update conversations table
+UPDATE public.conversations 
+SET user_id = NULL 
+WHERE user_id IS NOT NULL 
+AND user_id NOT IN (SELECT id FROM auth.users);
 
--- Suppliers Table: Stores supplier information for each company.
-CREATE TABLE IF NOT EXISTS public.suppliers (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    name text NOT NULL,
-    email text,
-    phone text,
-    default_lead_time_days integer,
-    notes text,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz
-);
+-- Update export_jobs table
+UPDATE public.export_jobs 
+SET requested_by_user_id = NULL 
+WHERE requested_by_user_id IS NOT NULL 
+AND requested_by_user_id NOT IN (SELECT id FROM auth.users);
 
--- Products Table: Central repository for product master data.
-CREATE TABLE IF NOT EXISTS public.products (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    description text,
-    handle text,
-    product_type text,
-    tags text[],
-    status text,
-    image_url text,
-    external_product_id text,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    UNIQUE(company_id, external_product_id)
-);
+-- Update feedback table
+UPDATE public.feedback 
+SET user_id = NULL 
+WHERE user_id IS NOT NULL 
+AND user_id NOT IN (SELECT id FROM auth.users);
 
--- Product Variants Table: Stores individual SKUs for each product.
-CREATE TABLE IF NOT EXISTS public.product_variants (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL,
-    sku text NOT NULL,
-    title text,
-    option1_name text,
-    option1_value text,
-    option2_name text,
-    option2_value text,
-    option3_name text,
-    option3_value text,
-    barcode text,
-    price integer, -- in cents
-    compare_at_price integer, -- in cents
-    cost integer, -- in cents
-    inventory_quantity integer NOT NULL DEFAULT 0,
-    location text,
-    external_variant_id text,
-    reorder_point integer,
-    reorder_quantity integer,
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz,
-    UNIQUE(company_id, sku)
-);
+-- Update imports table
+UPDATE public.imports 
+SET created_by = NULL 
+WHERE created_by IS NOT NULL 
+AND created_by NOT IN (SELECT id FROM auth.users);
 
+-- Update refunds table
+UPDATE public.refunds 
+SET created_by_user_id = NULL 
+WHERE created_by_user_id IS NOT NULL 
+AND created_by_user_id NOT IN (SELECT id FROM auth.users);
 
--- Customers Table: Stores customer information.
-CREATE TABLE IF NOT EXISTS public.customers (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  name text,
-  email text,
-  phone text,
-  external_customer_id text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz,
-  deleted_at timestamptz,
-  UNIQUE(company_id, email)
-);
+-- ============================================================================
+-- STEP 4: DROP REDUNDANT public.users TABLE
+-- ============================================================================
 
--- Orders Table: Records sales transactions.
-CREATE TABLE IF NOT EXISTS public.orders (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    order_number text NOT NULL,
-    external_order_id text,
-    customer_id uuid REFERENCES public.customers(id),
-    financial_status text,
-    fulfillment_status text,
-    currency text,
-    subtotal integer NOT NULL,
-    total_tax integer,
-    total_shipping integer,
-    total_discounts integer,
-    total_amount integer NOT NULL,
-    source_platform text,
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz,
-    UNIQUE(company_id, external_order_id)
-);
-
--- Order Line Items Table: Details of products within each order.
-CREATE TABLE IF NOT EXISTS public.order_line_items (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
-    variant_id uuid REFERENCES public.product_variants(id) ON DELETE SET NULL,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    product_name text,
-    variant_title text,
-    sku text,
-    quantity integer NOT NULL,
-    price integer NOT NULL, -- in cents
-    total_discount integer,
-    tax_amount integer,
-    cost_at_time integer,
-    external_line_item_id text
-);
-
-
--- Purchase Orders Table: Manages orders placed with suppliers.
-CREATE TABLE IF NOT EXISTS public.purchase_orders (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    supplier_id uuid REFERENCES public.suppliers(id),
-    status text NOT NULL DEFAULT 'Draft',
-    po_number text NOT NULL,
-    total_cost integer NOT NULL,
-    expected_arrival_date date,
-    idempotency_key uuid,
-    notes text,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz,
-    UNIQUE(company_id, po_number)
-);
-
--- Purchase Order Line Items Table: Details of products within each PO.
-CREATE TABLE IF NOT EXISTS public.purchase_order_line_items (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    purchase_order_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    quantity integer NOT NULL,
-    cost integer NOT NULL -- in cents
-);
-
--- Inventory Ledger Table: Immutable record of all stock movements.
-CREATE TABLE IF NOT EXISTS public.inventory_ledger (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
-    change_type text NOT NULL, -- e.g., 'sale', 'purchase_order', 'manual_adjustment'
-    quantity_change integer NOT NULL,
-    new_quantity integer NOT NULL,
-    related_id uuid, -- e.g., order_id or purchase_order_id
-    notes text,
-    created_at timestamptz NOT NULL DEFAULT now()
-);
-
-
--- Integrations Table: Manages connections to third-party platforms.
-CREATE TABLE IF NOT EXISTS public.integrations (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  platform integration_platform NOT NULL,
-  shop_domain text,
-  shop_name text,
-  is_active boolean DEFAULT false,
-  last_sync_at timestamptz,
-  sync_status text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz,
-  UNIQUE(company_id, platform)
-);
-
-
--- Webhook Events Table: Stores webhook events to prevent duplicates.
-CREATE TABLE IF NOT EXISTS public.webhook_events (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    integration_id uuid NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
-    webhook_id text NOT NULL,
-    created_at timestamptz DEFAULT now(),
-    UNIQUE(integration_id, webhook_id)
-);
-
--- Company Settings Table: Configurable business logic parameters.
-CREATE TABLE IF NOT EXISTS public.company_settings (
-  company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
-  dead_stock_days integer NOT NULL DEFAULT 90,
-  fast_moving_days integer NOT NULL DEFAULT 30,
-  overstock_multiplier real NOT NULL DEFAULT 3,
-  high_value_threshold integer NOT NULL DEFAULT 100000, -- in cents
-  predictive_stock_days integer NOT NULL DEFAULT 7,
-  currency text DEFAULT 'USD',
-  timezone text DEFAULT 'UTC',
-  tax_rate numeric DEFAULT 0,
-  alert_settings jsonb DEFAULT '{}'::jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz
-);
-
--- Audit Log Table: Tracks significant user and system actions.
-CREATE TABLE IF NOT EXISTS public.audit_log (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  user_id uuid REFERENCES auth.users(id),
-  action text NOT NULL,
-  details jsonb,
-  created_at timestamptz DEFAULT now()
-);
-
--- Feedback Table: Stores user feedback on AI responses.
-CREATE TABLE IF NOT EXISTS public.feedback (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES auth.users(id),
-  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-  subject_id text NOT NULL,
-  subject_type text NOT NULL,
-  feedback feedback_type NOT NULL,
-  created_at timestamptz DEFAULT now()
-);
-
--- Conversations Table: Stores AI chat conversations.
-CREATE TABLE IF NOT EXISTS public.conversations (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    title text NOT NULL,
-    created_at timestamptz DEFAULT now(),
-    last_accessed_at timestamptz DEFAULT now(),
-    is_starred boolean DEFAULT false
-);
-
--- Messages Table: Stores individual chat messages.
-CREATE TABLE IF NOT EXISTS public.messages (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    role message_role NOT NULL,
-    content text NOT NULL,
-    component text,
-    "componentProps" jsonb,
-    visualization jsonb,
-    confidence numeric,
-    assumptions text[],
-    isError boolean,
-    created_at timestamptz DEFAULT now()
-);
-
-
--- Channel Fees Table: Stores sales channel fees for profit calculation.
-CREATE TABLE IF NOT EXISTS public.channel_fees (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    channel_name text NOT NULL,
-    percentage_fee numeric NOT NULL,
-    fixed_fee numeric NOT NULL, -- in cents
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz,
-    UNIQUE(company_id, channel_name)
-);
-
--- Export Jobs Table: Manages asynchronous data export requests.
-CREATE TABLE IF NOT EXISTS public.export_jobs (
-    id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    requested_by_user_id uuid NOT NULL REFERENCES auth.users(id),
-    status text NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
-    download_url text,
-    expires_at timestamptz,
-    error_message text,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    completed_at timestamptz
-);
-
--- Imports Table: Tracks CSV file import jobs.
-CREATE TABLE IF NOT EXISTS public.imports (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    created_by uuid NOT NULL REFERENCES auth.users(id),
-    import_type text NOT NULL,
-    file_name text NOT NULL,
-    total_rows integer,
-    processed_rows integer,
-    failed_rows integer,
-    status text NOT NULL DEFAULT 'pending',
-    errors jsonb,
-    summary jsonb,
-    created_at timestamptz DEFAULT now(),
-    completed_at timestamptz
-);
-
--- Alert History Table: Tracks user interactions with alerts.
-CREATE TABLE IF NOT EXISTS public.alert_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
-    alert_id TEXT NOT NULL,
-    status TEXT DEFAULT 'unread', -- 'unread', 'read', 'dismissed'
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    read_at TIMESTAMPTZ,
-    dismissed_at TIMESTAMPTZ,
-    metadata JSONB DEFAULT '{}'::jsonb,
-    UNIQUE (company_id, alert_id)
-);
--- ===============================================================================================
--- ROW-LEVEL SECURITY (RLS) POLICIES
--- ===============================================================================================
-
--- Enable RLS for all tables in the public schema
-ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.imports ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.alert_history ENABLE ROW LEVEL SECURITY;
-
-
--- Policies for 'companies' table
-CREATE POLICY "Allow owner to read their own company" ON public.companies FOR SELECT USING (id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow owner to update their own company" ON public.companies FOR UPDATE USING (id = get_company_id_for_user(auth.uid()));
-
--- Policies for 'company_users' table
-CREATE POLICY "Allow users to see members of their own company" ON public.company_users FOR SELECT USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow admin/owner to manage their company users" ON public.company_users FOR ALL USING (company_id = get_company_id_for_user(auth.uid()) AND check_user_permission(auth.uid(), 'Admin'));
-
--- Policies for tables with a direct company_id link
-CREATE POLICY "Allow company members to access their own data" ON public.suppliers FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.products FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.product_variants FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.customers FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.orders FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.order_line_items FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.purchase_orders FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.purchase_order_line_items FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.inventory_ledger FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.integrations FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own settings" ON public.company_settings FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own audit logs" ON public.audit_log FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own feedback" ON public.feedback FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow users to access their own conversations" ON public.conversations FOR ALL USING (user_id = auth.uid());
-CREATE POLICY "Allow users to access messages in their conversations" ON public.messages FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own data" ON public.channel_fees FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow users to access their own export jobs" ON public.export_jobs FOR ALL USING (requested_by_user_id = auth.uid());
-CREATE POLICY "Allow company members to access their own imports" ON public.imports FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-CREATE POLICY "Allow company members to access their own alert history" ON public.alert_history FOR ALL USING (company_id = get_company_id_for_user(auth.uid()));
-
-
--- ===============================================================================================
--- DATABASE TRIGGERS
--- ===============================================================================================
-
--- Trigger to create a company and link the owner when a new user signs up.
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+-- First, drop any foreign key constraints that reference public.users
+-- (We'll check if any exist)
+DO $$
 DECLARE
-  new_company_id uuid;
+    constraint_record RECORD;
 BEGIN
-  -- Create a new company for the user
-  INSERT INTO public.companies (name, owner_id)
-  VALUES (new.raw_app_meta_data->>'company_name', new.id)
-  RETURNING id INTO new_company_id;
+    FOR constraint_record IN
+        SELECT tc.constraint_name, tc.table_name, tc.table_schema
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu 
+            ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage ccu 
+            ON tc.constraint_name = ccu.constraint_name
+        WHERE ccu.table_name = 'users' 
+        AND ccu.table_schema = 'public'
+        AND tc.constraint_type = 'FOREIGN KEY'
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT %I',
+            constraint_record.table_schema,
+            constraint_record.table_name,
+            constraint_record.constraint_name);
+        RAISE NOTICE 'Dropped constraint % from %.%', 
+            constraint_record.constraint_name,
+            constraint_record.table_schema,
+            constraint_record.table_name;
+    END LOOP;
+END $$;
 
-  -- Link the user to the new company as an Owner
-  INSERT INTO public.company_users (company_id, user_id, role)
-  VALUES (new_company_id, new.id, 'Owner');
-  
-  -- Update the user's app_metadata with the new company_id
-  UPDATE auth.users
-  SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id)
-  WHERE id = new.id;
-  
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Now we can safely drop the public.users table
+DROP TABLE IF EXISTS public.users CASCADE;
 
--- Drop the trigger if it already exists to avoid errors on re-run
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+-- ============================================================================
+-- STEP 5: CREATE PROPER FOREIGN KEY CONSTRAINTS
+-- ============================================================================
 
--- Create the trigger
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW
-  EXECUTE FUNCTION public.handle_new_user();
+-- Add proper foreign key constraints pointing to auth.users
 
--- Trigger to automatically set the updated_at timestamp on various tables
-CREATE OR REPLACE FUNCTION set_updated_at_timestamp()
-RETURNS TRIGGER AS $$
+-- company_users should reference auth.users
+ALTER TABLE public.company_users 
+ADD CONSTRAINT company_users_user_id_fkey 
+FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- companies.owner_id should reference auth.users
+ALTER TABLE public.companies 
+ADD CONSTRAINT companies_owner_id_fkey 
+FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- audit_log should reference auth.users
+ALTER TABLE public.audit_log 
+ADD CONSTRAINT audit_log_user_id_fkey 
+FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- conversations should reference auth.users
+ALTER TABLE public.conversations 
+ADD CONSTRAINT conversations_user_id_fkey 
+FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- export_jobs should reference auth.users
+ALTER TABLE public.export_jobs 
+ADD CONSTRAINT export_jobs_requested_by_user_id_fkey 
+FOREIGN KEY (requested_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- feedback should reference auth.users
+ALTER TABLE public.feedback 
+ADD CONSTRAINT feedback_user_id_fkey 
+FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- imports should reference auth.users
+ALTER TABLE public.imports 
+ADD CONSTRAINT imports_created_by_fkey 
+FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- refunds should reference auth.users
+ALTER TABLE public.refunds 
+ADD CONSTRAINT refunds_created_by_user_id_fkey 
+FOREIGN KEY (created_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- ============================================================================
+-- STEP 6: ADD ESSENTIAL INDEXES AND CONSTRAINTS
+-- ============================================================================
+
+-- Ensure email uniqueness in auth.users (should already exist, but let's be sure)
+CREATE UNIQUE INDEX IF NOT EXISTS auth_users_email_unique 
+ON auth.users(email) WHERE email IS NOT NULL;
+
+-- Add indexes for frequently queried auth fields
+CREATE INDEX IF NOT EXISTS auth_users_created_at_idx ON auth.users(created_at);
+CREATE INDEX IF NOT EXISTS auth_users_last_sign_in_at_idx ON auth.users(last_sign_in_at);
+
+-- Add indexes for company_users join table
+CREATE INDEX IF NOT EXISTS company_users_user_id_idx ON public.company_users(user_id);
+CREATE INDEX IF NOT EXISTS company_users_company_id_idx ON public.company_users(company_id);
+
+-- Ensure unique constraint on company_users (user can only have one role per company)
+CREATE UNIQUE INDEX IF NOT EXISTS company_users_unique 
+ON public.company_users(company_id, user_id);
+
+-- ============================================================================
+-- STEP 7: CREATE HELPFUL VIEWS FOR USER-COMPANY RELATIONSHIPS
+-- ============================================================================
+
+-- Create a view that makes it easy to query user-company relationships
+CREATE OR REPLACE VIEW public.user_companies AS
+SELECT 
+    au.id as user_id,
+    au.email,
+    au.created_at as user_created_at,
+    au.last_sign_in_at,
+    c.id as company_id,
+    c.name as company_name,
+    cu.role as company_role,
+    c.created_at as company_created_at
+FROM auth.users au
+JOIN public.company_users cu ON au.id = cu.user_id
+JOIN public.companies c ON cu.company_id = c.id
+WHERE au.deleted_at IS NULL;
+
+-- Create a view for company owners
+CREATE OR REPLACE VIEW public.company_owners AS
+SELECT 
+    c.id as company_id,
+    c.name as company_name,
+    au.id as owner_id,
+    au.email as owner_email,
+    c.created_at
+FROM public.companies c
+JOIN auth.users au ON c.owner_id = au.id
+WHERE au.deleted_at IS NULL;
+
+-- ============================================================================
+-- STEP 8: ADD ROW LEVEL SECURITY HELPERS
+-- ============================================================================
+
+-- Create a helper function to get user's companies
+CREATE OR REPLACE FUNCTION public.get_user_companies(user_uuid uuid)
+RETURNS TABLE(company_id uuid, role company_role)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+    SELECT cu.company_id, cu.role
+    FROM public.company_users cu
+    WHERE cu.user_id = user_uuid;
+$$;
+
+-- Create a helper function to check if user belongs to company
+CREATE OR REPLACE FUNCTION public.user_belongs_to_company(user_uuid uuid, company_uuid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+AS $$
+    SELECT EXISTS(
+        SELECT 1 
+        FROM public.company_users cu
+        WHERE cu.user_id = user_uuid 
+        AND cu.company_id = company_uuid
+    );
+$$;
+
+-- ============================================================================
+-- VERIFICATION QUERIES
+-- ============================================================================
+
+-- Verify the migration was successful
+DO $$
 BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+    -- Check that public.users table no longer exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
+        RAISE EXCEPTION 'public.users table still exists!';
+    END IF;
+    
+    -- Check that all foreign keys are properly set up
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE table_name = 'company_users' 
+        AND constraint_name = 'company_users_user_id_fkey'
+    ) THEN
+        RAISE EXCEPTION 'company_users foreign key constraint missing!';
+    END IF;
+    
+    RAISE NOTICE 'Migration completed successfully!';
+END $$;
 
--- Apply the updated_at trigger to relevant tables
-DROP TRIGGER IF EXISTS set_updated_at ON public.suppliers;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.suppliers FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+COMMIT;
 
-DROP TRIGGER IF EXISTS set_updated_at ON public.products;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+-- ============================================================================
+-- POST-MIGRATION VERIFICATION QUERIES
+-- ============================================================================
 
-DROP TRIGGER IF EXISTS set_updated_at ON public.product_variants;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.product_variants FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+-- Run these after the migration to verify everything is working:
 
-DROP TRIGGER IF EXISTS set_updated_at ON public.customers;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.customers FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+-- 1. Check all users have proper company relationships
+SELECT 'Users without company relationships' as check_type, COUNT(*) as count
+FROM auth.users au
+LEFT JOIN public.company_users cu ON au.id = cu.user_id
+WHERE cu.user_id IS NULL AND au.deleted_at IS NULL;
 
-DROP TRIGGER IF EXISTS set_updated_at ON public.orders;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+-- 2. Check all company_users reference valid auth.users
+SELECT 'Invalid company_users references' as check_type, COUNT(*) as count
+FROM public.company_users cu
+LEFT JOIN auth.users au ON cu.user_id = au.id
+WHERE au.id IS NULL;
 
-DROP TRIGGER IF EXISTS set_updated_at ON public.purchase_orders;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.purchase_orders FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+-- 3. Test the new views
+SELECT 'Total user-company relationships' as check_type, COUNT(*) as count
+FROM public.user_companies;
 
-DROP TRIGGER IF EXISTS set_updated_at ON public.company_settings;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.company_settings FOR EACH ROW EXECUTE FUNCTION set_updated_at_timestamp();
+-- 4. Check foreign key constraints
+SELECT 
+    tc.table_name,
+    tc.constraint_name,
+    ccu.table_name AS foreign_table_name,
+    ccu.column_name AS foreign_column_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu 
+    ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage ccu 
+    ON tc.constraint_name = ccu.constraint_name
+WHERE tc.constraint_type = 'FOREIGN KEY'
+AND (ccu.table_name = 'users' AND ccu.table_schema = 'auth')
+ORDER BY tc.table_name;
