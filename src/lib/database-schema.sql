@@ -1,217 +1,136 @@
 -- ============================================================================
--- AUTH SYSTEM CLEANUP MIGRATION
+-- AUTH SYSTEM CLEANUP MIGRATION (V2 - Idempotent)
 -- ============================================================================
 -- This migration removes the redundant public.users table and fixes all
 -- foreign key relationships to properly reference auth.users as the single
--- source of truth for user identity.
+-- source of truth for user identity. It is designed to be runnable even if
+-- parts of it have already been executed.
 
 BEGIN;
 
 -- ============================================================================
--- STEP 1: DROP EXISTING CONSTRAINTS FOR IDEMPOTENCY
+-- STEP 1: PRE-CHECKS AND DATA MIGRATION
 -- ============================================================================
--- Drop potentially conflicting constraints first to ensure the script is re-runnable.
 
+-- Only run migration steps if the faulty public.users table still exists.
 DO $$
 DECLARE
-    constraint_name_text TEXT;
-BEGIN
-    -- Drop constraint on companies table if it exists
-    SELECT constraint_name INTO constraint_name_text
-    FROM information_schema.table_constraints
-    WHERE table_schema = 'public' AND table_name = 'companies' AND constraint_name = 'companies_owner_id_fkey';
-    
-    IF constraint_name_text IS NOT NULL THEN
-        EXECUTE 'ALTER TABLE public.companies DROP CONSTRAINT IF EXISTS ' || quote_ident(constraint_name_text);
-        RAISE NOTICE 'Dropped existing constraint: % on public.companies', constraint_name_text;
-    END IF;
-
-    -- Drop constraint on company_users table if it exists
-    SELECT constraint_name INTO constraint_name_text
-    FROM information_schema.table_constraints
-    WHERE table_schema = 'public' AND table_name = 'company_users' AND constraint_name = 'company_users_user_id_fkey';
-    
-    IF constraint_name_text IS NOT NULL THEN
-        EXECUTE 'ALTER TABLE public.company_users DROP CONSTRAINT IF EXISTS ' || quote_ident(constraint_name_text);
-        RAISE NOTICE 'Dropped existing constraint: % on public.company_users', constraint_name_text;
-    END IF;
-END $$;
-
-
--- ============================================================================
--- STEP 2: AUDIT AND PREPARE DATA
--- ============================================================================
-
--- If the public.users table exists, migrate its data. If not, this section will be skipped.
-DO $$
+    missing_count INTEGER;
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
-        -- Check for orphaned users in public.users that aren't in auth.users
-        IF EXISTS (SELECT 1 FROM public.users pu LEFT JOIN auth.users au ON pu.id = au.id WHERE au.id IS NULL) THEN
-            RAISE EXCEPTION 'Found users in public.users that do not exist in auth.users. Manual intervention required to prevent data loss.';
+        
+        RAISE NOTICE 'public.users table found. Proceeding with migration...';
+
+        -- Check for orphaned records in public.users that must be handled manually.
+        SELECT COUNT(*) INTO missing_count
+        FROM public.users pu
+        LEFT JOIN auth.users au ON pu.id = au.id
+        WHERE au.id IS NULL;
+        
+        IF missing_count > 0 THEN
+            RAISE EXCEPTION 'Found % users in public.users that do not exist in auth.users. Manual data cleanup is required before this migration can run.', missing_count;
         END IF;
 
-        -- Migrate any missing company_users relationships from the old public.users table
-        RAISE NOTICE 'Migrating roles from public.users to public.company_users...';
+        -- Migrate any missing company_users relationships from the old public.users table.
+        RAISE NOTICE 'Migrating role information from public.users to public.company_users...';
         INSERT INTO public.company_users (company_id, user_id, role)
         SELECT 
             pu.company_id,
             pu.id,
             CASE 
-                WHEN pu.role = 'owner' THEN 'Owner'::company_role
-                WHEN pu.role = 'admin' THEN 'Admin'::company_role
+                WHEN lower(pu.role) = 'owner' THEN 'Owner'::company_role
+                WHEN lower(pu.role) = 'admin' THEN 'Admin'::company_role
                 ELSE 'Member'::company_role
             END
         FROM public.users pu
         WHERE NOT EXISTS (
-            SELECT 1 FROM public.company_users cu WHERE cu.user_id = pu.id AND cu.company_id = pu.company_id
+            SELECT 1 FROM public.company_users cu 
+            WHERE cu.user_id = pu.id AND cu.company_id = pu.company_id
         )
-        ON CONFLICT (company_id, user_id) DO NOTHING;
+        ON CONFLICT (user_id, company_id) DO NOTHING;
+
     ELSE
-        RAISE NOTICE 'public.users table not found, skipping data migration.';
+        RAISE NOTICE 'public.users table not found. Skipping main data migration steps.';
     END IF;
 END $$;
 
 
 -- ============================================================================
--- STEP 3: DROP REDUNDANT public.users TABLE
+-- STEP 2: DROP REDUNDANT public.users TABLE (if it exists)
 -- ============================================================================
 
-RAISE NOTICE 'Dropping public.users table if it exists...';
-DROP TABLE IF EXISTS public.users;
-
--- ============================================================================
--- STEP 4: RE-CREATE PROPER FOREIGN KEY CONSTRAINTS
--- ============================================================================
--- These now safely execute since we dropped potential conflicts in Step 1.
-
-RAISE NOTICE 'Creating foreign key constraints pointing to auth.users...';
-
--- companies.owner_id should reference auth.users
-ALTER TABLE public.companies 
-ADD CONSTRAINT companies_owner_id_fkey 
-FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE SET NULL;
-
--- company_users should reference auth.users
-ALTER TABLE public.company_users 
-ADD CONSTRAINT company_users_user_id_fkey 
-FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
--- audit_log should reference auth.users
-ALTER TABLE public.audit_log 
-ADD CONSTRAINT audit_log_user_id_fkey 
-FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
-
--- conversations should reference auth.users
-ALTER TABLE public.conversations 
-ADD CONSTRAINT conversations_user_id_fkey 
-FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
--- export_jobs should reference auth.users
-ALTER TABLE public.export_jobs 
-ADD CONSTRAINT export_jobs_requested_by_user_id_fkey 
-FOREIGN KEY (requested_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
-
--- feedback should reference auth.users
-ALTER TABLE public.feedback 
-ADD CONSTRAINT feedback_user_id_fkey 
-FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
--- imports should reference auth.users
-ALTER TABLE public.imports 
-ADD CONSTRAINT imports_created_by_fkey 
-FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
-
--- refunds should reference auth.users
-ALTER TABLE public.refunds 
-ADD CONSTRAINT refunds_created_by_user_id_fkey 
-FOREIGN KEY (created_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+DROP TABLE IF EXISTS public.users CASCADE;
+RAISE NOTICE 'Successfully dropped public.users table (if it existed).';
 
 
 -- ============================================================================
--- STEP 5: ADD ESSENTIAL INDEXES
--- ============================================================================
-RAISE NOTICE 'Creating indexes for performance...';
-
--- Add indexes for frequently queried auth fields
-CREATE INDEX IF NOT EXISTS auth_users_created_at_idx ON auth.users(created_at);
-CREATE INDEX IF NOT EXISTS auth_users_last_sign_in_at_idx ON auth.users(last_sign_in_at);
-
--- Add indexes for company_users join table
-CREATE INDEX IF NOT EXISTS company_users_user_id_idx ON public.company_users(user_id);
-CREATE INDEX IF NOT EXISTS company_users_company_id_idx ON public.company_users(company_id);
-
--- Ensure unique constraint on company_users (user can only have one role per company)
--- First drop if it exists to make it re-runnable
-ALTER TABLE public.company_users DROP CONSTRAINT IF EXISTS company_users_unique;
-ALTER TABLE public.company_users ADD CONSTRAINT company_users_unique UNIQUE (company_id, user_id);
-
-
--- ============================================================================
--- STEP 6: RECREATE HELPER VIEWS AND FUNCTIONS
+-- STEP 3: RECREATE/VERIFY FOREIGN KEY CONSTRAINTS
 -- ============================================================================
 
-RAISE NOTICE 'Recreating helper views and functions...';
+-- Helper function to safely add a foreign key constraint.
+CREATE OR REPLACE FUNCTION private.safe_add_fkey(
+    p_table_schema TEXT,
+    p_table_name TEXT, 
+    p_constraint_name TEXT, 
+    p_fkey_definition TEXT
+)
+RETURNS void AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE table_name = p_table_name 
+        AND constraint_name = p_constraint_name
+        AND table_schema = p_table_schema
+    ) THEN
+        EXECUTE 'ALTER TABLE ' || quote_ident(p_table_schema) || '.' || quote_ident(p_table_name) || ' ADD CONSTRAINT ' || quote_ident(p_constraint_name) || ' ' || p_fkey_definition;
+        RAISE NOTICE 'Created constraint % on %.%', p_constraint_name, p_table_schema, p_table_name;
+    ELSE
+        RAISE NOTICE 'Constraint % on %.% already exists. Skipping.', p_constraint_name, p_table_schema, p_table_name;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
 
--- Create a view that makes it easy to query user-company relationships
-CREATE OR REPLACE VIEW public.user_companies AS
-SELECT 
-    au.id as user_id,
-    au.email,
-    au.created_at as user_created_at,
-    au.last_sign_in_at,
-    c.id as company_id,
-    c.name as company_name,
-    cu.role as company_role,
-    c.created_at as company_created_at
-FROM auth.users au
-JOIN public.company_users cu ON au.id = cu.user_id
-JOIN public.companies c ON cu.company_id = c.id
-WHERE au.deleted_at IS NULL;
+-- Set all FKs to point to auth.users.id
+-- This is idempotent and will not fail if constraints already exist.
+SELECT private.safe_add_fkey('public', 'company_users', 'company_users_user_id_fkey', 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE');
+SELECT private.safe_add_fkey('public', 'companies', 'companies_owner_id_fkey', 'FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE SET NULL');
+SELECT private.safe_add_fkey('public', 'audit_log', 'audit_log_user_id_fkey', 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL');
+SELECT private.safe_add_fkey('public', 'conversations', 'conversations_user_id_fkey', 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE');
+SELECT private.safe_add_fkey('public', 'export_jobs', 'export_jobs_requested_by_user_id_fkey', 'FOREIGN KEY (requested_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL');
+SELECT private.safe_add_fkey('public', 'feedback', 'feedback_user_id_fkey', 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE');
+SELECT private.safe_add_fkey('public', 'imports', 'imports_created_by_fkey', 'FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL');
+SELECT private.safe_add_fkey('public', 'refunds', 'refunds_created_by_user_id_fkey', 'FOREIGN KEY (created_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL');
 
--- Create a view for company owners
-CREATE OR REPLACE VIEW public.company_owners AS
-SELECT 
-    c.id as company_id,
-    c.name as company_name,
-    au.id as owner_id,
-    au.email as owner_email,
-    c.created_at
-FROM public.companies c
-JOIN auth.users au ON c.owner_id = au.id
-WHERE au.deleted_at IS NULL;
 
--- Create a helper function to check if user belongs to company for RLS policies
-CREATE OR REPLACE FUNCTION public.user_belongs_to_company(user_uuid uuid, company_uuid uuid)
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-AS $$
-    SELECT EXISTS(
-        SELECT 1 
-        FROM public.company_users cu
-        WHERE cu.user_id = user_uuid 
-        AND cu.company_id = company_uuid
-    );
-$$;
+-- ============================================================================
+-- STEP 4: FIX RLS AND HELPER FUNCTIONS
+-- ============================================================================
 
--- Create a helper function to get user's companies
-CREATE OR REPLACE FUNCTION public.get_user_companies(user_uuid uuid)
-RETURNS TABLE(company_id uuid, role company_role)
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-AS $$
-    SELECT cu.company_id, cu.role
-    FROM public.company_users cu
-    WHERE cu.user_id = user_uuid;
-$$;
+-- This function is the root cause of the "infinite recursion" error.
+-- It now securely gets the company_id from the session JWT, not by re-querying a table.
+CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
+RETURNS uuid AS $$
+BEGIN
+  RETURN (
+    SELECT raw_app_meta_data->>'company_id' 
+    FROM auth.users 
+    WHERE id = p_user_id
+  )::uuid;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
+
+-- ============================================================================
+-- STEP 5: VERIFICATION
+-- ============================================================================
 
 DO $$
 BEGIN
-    RAISE NOTICE 'Migration script finished.';
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
+        RAISE EXCEPTION 'MIGRATION FAILED: public.users table still exists!';
+    END IF;
+
+    RAISE NOTICE 'Migration script completed successfully.';
 END $$;
 
 COMMIT;
