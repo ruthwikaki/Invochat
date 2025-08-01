@@ -389,7 +389,6 @@ export const DashboardMetricsSchema = z.object({
   sales_over_time: z.array(z.object({
     date: z.string(),
     revenue: z.number(),
-    orders: z.number(),
   })),
   top_selling_products: z.array(z.object({
     product_name: z.string(),

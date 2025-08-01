@@ -100,7 +100,7 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         router.push(`/dashboard?range=${value}`);
     };
     
-    const hasData = initialMetrics.total_revenue > 0 || initialMetrics.total_sales > 0;
+    const hasData = initialMetrics.total_revenue > 0 || initialMetrics.total_orders > 0;
 
     if (!hasData) {
         return (
@@ -140,7 +140,7 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue, settings.currency)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
-                <StatCard title="Total Sales" value={initialMetrics.total_sales.toLocaleString()} change={`${initialMetrics.sales_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.sales_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
+                <StatCard title="Total Orders" value={initialMetrics.total_orders.toLocaleString()} change={`${initialMetrics.orders_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.orders_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
                 <StatCard title="New Customers" value={initialMetrics.new_customers.toLocaleString()} change={`${initialMetrics.customers_change.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
                 <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value, settings.currency)} icon={TrendingDown} gradient="bg-rose-500" />
             </div>
@@ -154,3 +154,5 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         </motion.div>
     );
 }
+
+    

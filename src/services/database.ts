@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -203,9 +202,10 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
+        // If data is null (e.g., new user with no data), return a valid empty object.
         if (data == null) {
-            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
-            return DashboardMetricsSchema.parse({}); // Return empty schema-compliant object
+            logger.warn('[RPC] get_dashboard_metrics returned null, returning default empty metrics.');
+            return DashboardMetricsSchema.parse({}); 
         }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
@@ -899,3 +899,5 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     
     return data;
 }
+
+    
