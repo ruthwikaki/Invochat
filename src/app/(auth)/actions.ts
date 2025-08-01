@@ -266,4 +266,9 @@ export async function updatePassword(formData: FormData) {
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
 
-    
+// Add this helper function to your actions.ts file
+async function getAuthContext() {
+  // Import the fixed getAuthContext from auth-helpers
+  const { getAuthContext: getAuth } = await import('@/lib/auth-helpers');
+  return getAuth();
+}
