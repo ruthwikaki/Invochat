@@ -1,86 +1,83 @@
--- =============================================
--- Invochat Database Schema
--- Version: 2.0
--- Description: Full schema with tables, RLS, functions, and triggers.
--- =============================================
+-- This is the single source of truth for the database schema.
+-- It is idempotent and can be run multiple times.
 
--- Extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_cron";
+-- 1. Create custom types
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'company_role') THEN
+        CREATE TYPE company_role AS ENUM ('Owner', 'Admin', 'Member');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'integration_platform') THEN
+        CREATE TYPE integration_platform AS ENUM ('shopify', 'woocommerce', 'amazon_fba');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'message_role') THEN
+        CREATE TYPE message_role AS ENUM ('user', 'assistant', 'tool');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'feedback_type') THEN
+        CREATE TYPE feedback_type AS ENUM ('helpful', 'unhelpful');
+    END IF;
+END$$;
 
--- =============================================
--- ENUMS
--- =============================================
-DO $$ BEGIN
-    CREATE TYPE company_role AS ENUM ('Owner', 'Admin', 'Member');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
 
-DO $$ BEGIN
-    CREATE TYPE integration_platform AS ENUM ('shopify', 'woocommerce', 'amazon_fba');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE message_role AS ENUM ('user', 'assistant', 'tool');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE feedback_type AS ENUM ('helpful', 'unhelpful');
-EXCEPTION
-    WHEN duplicate_object THEN null;
-END $$;
-
--- =============================================
--- TABLES
--- =============================================
+-- 2. Create tables
 
 -- Companies Table
 CREATE TABLE IF NOT EXISTS companies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    owner_id UUID NOT NULL REFERENCES auth.users(id),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
+    owner_id UUID NOT NULL REFERENCES auth.users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Company Users Join Table
 CREATE TABLE IF NOT EXISTS company_users (
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     role company_role NOT NULL DEFAULT 'Member',
-    PRIMARY KEY (user_id, company_id)
+    PRIMARY KEY (company_id, user_id)
 );
+
+-- Company Settings Table
+CREATE TABLE IF NOT EXISTS company_settings (
+  company_id UUID PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+  dead_stock_days INTEGER NOT NULL DEFAULT 90,
+  fast_moving_days INTEGER NOT NULL DEFAULT 30,
+  overstock_multiplier NUMERIC NOT NULL DEFAULT 3.0,
+  high_value_threshold INTEGER NOT NULL DEFAULT 100000, -- in cents
+  predictive_stock_days INTEGER NOT NULL DEFAULT 7,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  tax_rate NUMERIC NOT NULL DEFAULT 0.0,
+  timezone TEXT NOT NULL DEFAULT 'UTC',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ
+);
+
 
 -- Products Table
 CREATE TABLE IF NOT EXISTS products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     external_product_id TEXT,
     title TEXT NOT NULL,
     description TEXT,
     handle TEXT,
     product_type TEXT,
-    status TEXT,
     tags TEXT[],
+    status TEXT DEFAULT 'active',
     image_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ,
     UNIQUE (company_id, external_product_id)
 );
 
 -- Suppliers Table
 CREATE TABLE IF NOT EXISTS suppliers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     email TEXT,
     phone TEXT,
-    default_lead_time_days INT,
+    default_lead_time_days INTEGER,
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ
@@ -88,73 +85,36 @@ CREATE TABLE IF NOT EXISTS suppliers (
 
 -- Product Variants Table
 CREATE TABLE IF NOT EXISTS product_variants (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     external_variant_id TEXT,
-    sku TEXT NOT NULL,
     title TEXT,
+    sku TEXT NOT NULL,
+    barcode TEXT,
+    price INTEGER, -- in cents
+    compare_at_price INTEGER, -- in cents
+    cost INTEGER, -- in cents
+    inventory_quantity INTEGER NOT NULL DEFAULT 0,
+    location TEXT,
+    supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+    reorder_point INTEGER,
+    reorder_quantity INTEGER,
     option1_name TEXT,
     option1_value TEXT,
     option2_name TEXT,
     option2_value TEXT,
     option3_name TEXT,
     option3_value TEXT,
-    barcode TEXT,
-    price INT, -- in cents
-    compare_at_price INT, -- in cents
-    cost INT, -- in cents
-    inventory_quantity INT NOT NULL DEFAULT 0,
-    location TEXT,
-    supplier_id UUID REFERENCES suppliers(id),
-    reorder_point INT,
-    reorder_quantity INT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ,
-    UNIQUE (company_id, sku)
-);
-
--- Orders Table
-CREATE TABLE IF NOT EXISTS orders (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    external_order_id TEXT,
-    order_number TEXT NOT NULL,
-    customer_id UUID, -- Can be null for guest checkouts
-    financial_status TEXT,
-    fulfillment_status TEXT,
-    subtotal INT NOT NULL, -- in cents
-    total_tax INT,
-    total_shipping INT,
-    total_discounts INT,
-    total_amount INT NOT NULL,
-    currency TEXT,
-    source_platform TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ
-);
-
--- Order Line Items Table
-CREATE TABLE IF NOT EXISTS order_line_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    variant_id UUID REFERENCES product_variants(id) ON DELETE SET NULL,
-    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    external_line_item_id TEXT,
-    product_name TEXT,
-    variant_title TEXT,
-    sku TEXT,
-    quantity INT NOT NULL,
-    price INT NOT NULL, -- in cents
-    total_discount INT,
-    tax_amount INT,
-    cost_at_time INT
+    UNIQUE (company_id, sku),
+    UNIQUE (company_id, external_variant_id)
 );
 
 -- Customers Table
 CREATE TABLE IF NOT EXISTS customers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen-random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     external_customer_id TEXT,
     name TEXT,
@@ -162,103 +122,117 @@ CREATE TABLE IF NOT EXISTS customers (
     phone TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
+    deleted_at TIMESTAMPTZ,
+    UNIQUE (company_id, external_customer_id),
+    UNIQUE (company_id, email)
 );
-ALTER TABLE orders ADD CONSTRAINT fk_customer_id FOREIGN KEY (customer_id) REFERENCES customers(id);
+
+-- Orders Table
+CREATE TABLE IF NOT EXISTS orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    external_order_id TEXT,
+    order_number TEXT NOT NULL,
+    customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+    financial_status TEXT,
+    fulfillment_status TEXT,
+    currency TEXT,
+    subtotal INTEGER NOT NULL, -- in cents
+    total_shipping INTEGER, -- in cents
+    total_tax INTEGER, -- in cents
+    total_discounts INTEGER, -- in cents
+    total_amount INTEGER NOT NULL, -- in cents
+    source_platform TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    UNIQUE(company_id, external_order_id)
+);
+
+-- Order Line Items Table
+CREATE TABLE IF NOT EXISTS order_line_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    variant_id UUID REFERENCES product_variants(id) ON DELETE SET NULL,
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    external_line_item_id TEXT,
+    product_name TEXT,
+    variant_title TEXT,
+    sku TEXT,
+    quantity INTEGER NOT NULL,
+    price INTEGER NOT NULL, -- in cents
+    total_discount INTEGER, -- in cents
+    tax_amount INTEGER, -- in cents
+    cost_at_time INTEGER -- in cents
+);
+
+-- Inventory Ledger Table
+CREATE TABLE IF NOT EXISTS inventory_ledger (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    variant_id UUID NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+    change_type TEXT NOT NULL, -- e.g., 'sale', 'purchase_order_received', 'manual_adjustment', 'reconciliation'
+    quantity_change INTEGER NOT NULL,
+    new_quantity INTEGER NOT NULL,
+    related_id UUID, -- Optional ID of the related order, PO, etc.
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- Purchase Orders Table
 CREATE TABLE IF NOT EXISTS purchase_orders (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    supplier_id UUID REFERENCES suppliers(id),
+    supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
     po_number TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'Draft',
-    total_cost INT NOT NULL,
+    total_cost INTEGER NOT NULL,
     expected_arrival_date DATE,
     notes TEXT,
     idempotency_key UUID,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ
 );
+CREATE INDEX IF NOT EXISTS idx_po_company_supplier ON purchase_orders (company_id, supplier_id);
 
 -- Purchase Order Line Items Table
 CREATE TABLE IF NOT EXISTS purchase_order_line_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    variant_id UUID NOT NULL REFERENCES product_variants(id),
-    quantity INT NOT NULL,
-    cost INT NOT NULL -- in cents
-);
-
--- Inventory Ledger Table
-CREATE TABLE IF NOT EXISTS inventory_ledger (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    variant_id UUID NOT NULL REFERENCES product_variants(id),
-    change_type TEXT NOT NULL, -- e.g., 'sale', 'purchase_order', 'manual_adjustment', 'reconciliation'
-    quantity_change INT NOT NULL,
-    new_quantity INT NOT NULL,
-    related_id UUID, -- Can link to order_id, po_id, etc.
-    notes TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    variant_id UUID NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL,
+    cost INTEGER NOT NULL -- cost per unit in cents
 );
 
 -- Integrations Table
 CREATE TABLE IF NOT EXISTS integrations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     platform integration_platform NOT NULL,
     shop_domain TEXT,
     shop_name TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    sync_status TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT FALSE,
     last_sync_at TIMESTAMPTZ,
+    sync_status TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
     UNIQUE (company_id, platform)
 );
 
--- Company Settings Table
-CREATE TABLE IF NOT EXISTS company_settings (
-    company_id UUID PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
-    dead_stock_days INT NOT NULL DEFAULT 90,
-    fast_moving_days INT NOT NULL DEFAULT 30,
-    overstock_multiplier NUMERIC NOT NULL DEFAULT 3.0,
-    high_value_threshold INT NOT NULL DEFAULT 100000, -- in cents
-    predictive_stock_days INT NOT NULL DEFAULT 7,
-    currency TEXT NOT NULL DEFAULT 'USD',
-    timezone TEXT NOT NULL DEFAULT 'UTC',
-    tax_rate NUMERIC NOT NULL DEFAULT 0,
-    alert_settings JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ
-);
-
--- Audit Log Table
-CREATE TABLE IF NOT EXISTS audit_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES auth.users(id),
-    action TEXT NOT NULL,
-    details JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 -- Conversations Table (for AI Chat)
 CREATE TABLE IF NOT EXISTS conversations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
-    is_starred BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_accessed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    last_accessed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_starred BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Messages Table (for AI Chat)
 CREATE TABLE IF NOT EXISTS messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
     role message_role NOT NULL,
@@ -274,418 +248,195 @@ CREATE TABLE IF NOT EXISTS messages (
 
 -- Feedback Table
 CREATE TABLE IF NOT EXISTS feedback (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id),
     company_id UUID NOT NULL REFERENCES companies(id),
-    subject_id TEXT NOT NULL,
-    subject_type TEXT NOT NULL,
+    subject_id TEXT NOT NULL, -- Can be message ID, alert ID, etc.
+    subject_type TEXT NOT NULL, -- e.g., 'message', 'alert'
     feedback feedback_type NOT NULL,
-    created_at TIMESTAMTz NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Alert History Table
-CREATE TABLE IF NOT EXISTS alert_history (
+-- Audit Log Table
+CREATE TABLE IF NOT EXISTS audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    alert_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'unread' CHECK (status IN ('unread', 'read', 'dismissed')),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    read_at TIMESTAMPTZ,
-    dismissed_at TIMESTAMPTZ,
-    metadata JSONB DEFAULT '{}',
-    UNIQUE(company_id, alert_id)
+    user_id UUID REFERENCES auth.users(id),
+    action TEXT NOT NULL,
+    details JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Channel Fees Table
+CREATE TABLE IF NOT EXISTS channel_fees (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    channel_name TEXT NOT NULL,
+    fixed_fee INTEGER, -- in cents
+    percentage_fee NUMERIC, -- e.g., 2.9 for 2.9%
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ,
+    UNIQUE (company_id, channel_name)
+);
 
--- =============================================
--- TRIGGERS & FUNCTIONS
--- =============================================
+-- Data Export Jobs Table
+CREATE TABLE IF NOT EXISTS export_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    requested_by_user_id UUID NOT NULL REFERENCES auth.users(id),
+    status TEXT NOT NULL DEFAULT 'pending', -- pending, processing, completed, failed
+    download_url TEXT,
+    expires_at TIMESTAMPTZ,
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
 
--- Function to handle new user signup
+-- 3. Create database functions
+
+-- Function to handle new user sign-up and company creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
-  new_company_id uuid;
+  new_company_id UUID;
+  company_name_from_meta TEXT;
 BEGIN
-  -- Create company first
+  -- Extract company name from metadata, defaulting to 'My Company'
+  company_name_from_meta := NEW.raw_user_meta_data->>'company_name';
+  IF company_name_from_meta IS NULL OR company_name_from_meta = '' THEN
+    company_name_from_meta := 'My Company';
+  END IF;
+
+  -- Create a new company for the new user
   INSERT INTO public.companies (name, owner_id)
-  VALUES (
-    COALESCE(NEW.raw_user_meta_data->>'company_name', 'My Company'),
-    NEW.id
-  )
+  VALUES (company_name_from_meta, NEW.id)
   RETURNING id INTO new_company_id;
-  
-  -- Create company_users association with proper role
+
+  -- Link the new user to the new company as 'Owner'
   INSERT INTO public.company_users (company_id, user_id, role)
   VALUES (new_company_id, NEW.id, 'Owner');
-  
-  -- CRITICAL: Update JWT metadata immediately to prevent race conditions
-  UPDATE auth.users 
-  SET raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || 
-    jsonb_build_object('company_id', new_company_id)
+
+  -- Update the user's app_metadata with the new company_id
+  UPDATE auth.users
+  SET app_metadata = jsonb_set(
+    COALESCE(app_metadata, '{}'::jsonb),
+    '{company_id}',
+    to_jsonb(new_company_id)
+  )
   WHERE id = NEW.id;
-  
-  RAISE NOTICE 'Created company % for new user %', new_company_id, NEW.id;
-  
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- Trigger for new user signup
+-- Trigger to execute the function on new user creation
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-  
--- Function to update inventory on new order
-CREATE OR REPLACE FUNCTION public.update_inventory_on_order()
-RETURNS trigger AS $$
-BEGIN
-    UPDATE product_variants
-    SET inventory_quantity = inventory_quantity - NEW.quantity
-    WHERE id = NEW.variant_id
-      AND company_id = NEW.company_id;
-      
-    INSERT INTO inventory_ledger (company_id, variant_id, change_type, quantity_change, new_quantity, related_id, notes)
-    SELECT 
-        NEW.company_id,
-        NEW.variant_id,
-        'sale',
-        -NEW.quantity,
-        v.inventory_quantity,
-        NEW.order_id,
-        'Order #' || o.order_number
-    FROM product_variants v
-    JOIN orders o ON o.id = NEW.order_id
-    WHERE v.id = NEW.variant_id;
-        
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Trigger for new order line items
-DROP TRIGGER IF EXISTS on_new_order_line_item ON order_line_items;
-CREATE TRIGGER on_new_order_line_item
-  AFTER INSERT ON order_line_items
-  FOR EACH ROW EXECUTE PROCEDURE public.update_inventory_on_order();
-
-
--- =============================================
--- RLS (ROW LEVEL SECURITY)
--- =============================================
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE company_users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE product_variants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE purchase_order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory_ledger ENABLE ROW LEVEL SECURITY;
-ALTER TABLE integrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE company_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;
-ALTER TABLE alert_history ENABLE ROW LEVEL SECURITY;
-
--- Policies
-CREATE POLICY "Users can manage their own company data" ON companies
-    FOR ALL USING (id = (auth.jwt() ->> 'company_id')::uuid);
-
-CREATE POLICY "Users can only see their own user-company association" ON company_users
-    FOR SELECT USING (user_id = auth.uid());
-    
-CREATE POLICY "Users can only access data within their own company" ON products FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON product_variants FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON suppliers FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON orders FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON order_line_items FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON customers FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON purchase_orders FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON purchase_order_line_items FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON inventory_ledger FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON integrations FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON company_settings FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON audit_log FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON conversations FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON messages FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON feedback FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-CREATE POLICY "Users can only access data within their own company" ON alert_history FOR ALL USING (company_id = (auth.jwt() ->> 'company_id')::uuid);
-
-
--- =============================================
--- DATABASE FUNCTIONS
--- =============================================
-
--- Function to check user permission level
-CREATE OR REPLACE FUNCTION check_user_permission(p_user_id UUID, p_required_role company_role)
-RETURNS BOOLEAN AS $$
-DECLARE
-    user_role company_role;
-BEGIN
-    SELECT role INTO user_role FROM company_users WHERE user_id = p_user_id;
-    IF user_role = 'Owner' THEN
-        RETURN TRUE;
-    ELSIF user_role = 'Admin' AND (p_required_role = 'Admin' OR p_required_role = 'Member') THEN
-        RETURN TRUE;
-    ELSIF user_role = 'Member' AND p_required_role = 'Member' THEN
-        RETURN TRUE;
-    END IF;
-    RETURN FALSE;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-
--- Function for Dashboard Metrics
+-- Corrected get_dashboard_metrics function
+DROP FUNCTION IF EXISTS get_dashboard_metrics(p_company_id UUID, p_days INTEGER);
 CREATE OR REPLACE FUNCTION get_dashboard_metrics(p_company_id UUID, p_days INTEGER)
 RETURNS JSON AS $$
 DECLARE
     result JSON;
-    current_revenue NUMERIC := 0;
-    prev_revenue NUMERIC := 0;
-    current_orders INTEGER := 0;
-    prev_orders INTEGER := 0;
-    current_customers INTEGER := 0;
-    prev_customers INTEGER := 0;
-    dead_stock_val NUMERIC := 0;
-    inventory_total NUMERIC := 0;
-    inventory_in_stock NUMERIC := 0;
-    inventory_low_stock NUMERIC := 0;
-    start_date DATE;
-    prev_start_date DATE;
-    prev_end_date DATE;
 BEGIN
-    -- Calculate date ranges
-    start_date := CURRENT_DATE - (p_days || ' days')::INTERVAL;
-    prev_end_date := start_date - INTERVAL '1 day';
-    prev_start_date := prev_end_date - (p_days || ' days')::INTERVAL;
-
-    -- Current period metrics
-    SELECT 
-        COALESCE(SUM(total_amount), 0),
-        COUNT(*),
-        COUNT(DISTINCT customer_id)
-    INTO current_revenue, current_orders, current_customers
-    FROM orders 
-    WHERE company_id = p_company_id 
-      AND created_at >= start_date
-      AND financial_status = 'paid';
-
-    -- Previous period metrics
-    SELECT 
-        COALESCE(SUM(total_amount), 0),
-        COUNT(*),
-        COUNT(DISTINCT customer_id)
-    INTO prev_revenue, prev_orders, prev_customers
-    FROM orders 
-    WHERE company_id = p_company_id 
-      AND created_at >= prev_start_date 
-      AND created_at <= prev_end_date
-      AND financial_status = 'paid';
-
-    -- Calculate inventory values
-    SELECT 
-        COALESCE(SUM(inventory_quantity * COALESCE(cost, 0)), 0),
-        COALESCE(SUM(CASE WHEN inventory_quantity > 0 THEN inventory_quantity * COALESCE(cost, 0) ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN inventory_quantity <= COALESCE(reorder_point, 0) AND reorder_point > 0 THEN inventory_quantity * COALESCE(cost, 0) ELSE 0 END), 0)
-    INTO inventory_total, inventory_in_stock, inventory_low_stock
-    FROM product_variants 
-    WHERE company_id = p_company_id
-      AND deleted_at IS NULL;
-
-    -- Calculate dead stock value (simplified - items not sold in the period)
-    SELECT COALESCE(SUM(pv.inventory_quantity * COALESCE(pv.cost, 0)), 0)
-    INTO dead_stock_val
-    FROM product_variants pv
-    WHERE pv.company_id = p_company_id
-      AND pv.deleted_at IS NULL
-      AND pv.inventory_quantity > 0
-      AND NOT EXISTS (
-          SELECT 1 FROM order_line_items oli
-          JOIN orders o ON oli.order_id = o.id
-          WHERE oli.variant_id = pv.id
-            AND o.financial_status = 'paid'
-            AND o.created_at >= start_date
-      );
-
-    -- Build result matching DashboardMetricsSchema
-    result := json_build_object(
-        'total_revenue', current_revenue,
-        'revenue_change', CASE 
-            WHEN prev_revenue > 0 THEN ((current_revenue - prev_revenue) / prev_revenue * 100)
-            WHEN current_revenue > 0 THEN 100
-            ELSE 0
-        END,
-        'total_orders', current_orders,
-        'orders_change', CASE 
-            WHEN prev_orders > 0 THEN ((current_orders - prev_orders)::numeric / prev_orders * 100)
-            WHEN current_orders > 0 THEN 100
-            ELSE 0
-        END,
-        'new_customers', current_customers,
-        'customers_change', CASE 
-            WHEN prev_customers > 0 THEN ((current_customers - prev_customers)::numeric / prev_customers * 100)
-            WHEN current_customers > 0 THEN 100
-            ELSE 0
-        END,
-        'dead_stock_value', dead_stock_val,
-        'sales_over_time', COALESCE(
-            (SELECT json_agg(
-                json_build_object(
-                    'date', sale_date::text,
-                    'revenue', daily_revenue,
-                    'orders', daily_orders
-                )
-            ) FROM (
-                SELECT 
-                    DATE(o.created_at) as sale_date,
-                    SUM(o.total_amount) as daily_revenue,
-                    COUNT(*) as daily_orders
-                FROM orders o
-                WHERE o.company_id = p_company_id 
-                  AND o.created_at >= start_date
-                  AND o.financial_status = 'paid'
-                GROUP BY DATE(o.created_at)
-                ORDER BY sale_date
-            ) daily_sales),
-            '[]'::json
-        ),
-        'top_selling_products', COALESCE(
-            (SELECT json_agg(
-                json_build_object(
-                    'product_name', product_name,
-                    'total_revenue', total_revenue,
-                    'image_url', image_url
-                )
-            ) FROM (
-                SELECT 
-                    p.title as product_name,
-                    SUM(oli.price * oli.quantity) as total_revenue,
-                    p.image_url
-                FROM order_line_items oli
-                JOIN orders o ON oli.order_id = o.id
-                JOIN product_variants pv ON oli.variant_id = pv.id
-                JOIN products p ON pv.product_id = p.id
-                WHERE oli.company_id = p_company_id
-                  AND o.created_at >= start_date
-                  AND o.financial_status = 'paid'
-                GROUP BY p.id, p.title, p.image_url
-                ORDER BY total_revenue DESC
-                LIMIT 5
-            ) top_products),
-            '[]'::json
-        ),
-        'inventory_summary', json_build_object(
-            'total_value', inventory_total,
-            'in_stock_value', inventory_in_stock,
-            'low_stock_value', inventory_low_stock,
-            'dead_stock_value', dead_stock_val
-        )
-    );
-
+    -- This function now directly builds the JSON object and relies on COALESCE
+    -- to handle cases with no data, preventing null errors.
+    SELECT json_build_object(
+        'total_revenue', COALESCE((SELECT SUM(o.total_amount) FROM orders o WHERE o.company_id = p_company_id AND o.created_at >= (CURRENT_DATE - میکروفونp_days * INTERVAL '1 day') AND o.financial_status = 'paid'), 0)::INT,
+        'revenue_change', COALESCE(
+            (
+                (
+                    (SELECT SUM(total_amount) FROM orders WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - p_days * INTERVAL '1 day')) -
+                    (SELECT SUM(total_amount) FROM orders WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - 2 * p_days * INTERVAL '1 day') AND created_at < (CURRENT_DATE - p_days * INTERVAL '1 day'))
+                ) / NULLIF((SELECT SUM(total_amount) FROM orders WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - 2 * p_days * INTERVAL '1 day') AND created_at < (CURRENT_DATE - p_days * INTERVAL '1 day')), 0) * 100
+            ), 0.0)::NUMERIC(10, 2),
+        'total_orders', COALESCE((SELECT COUNT(*) FROM orders o WHERE o.company_id = p_company_id AND o.created_at >= (CURRENT_DATE - p_days * INTERVAL '1 day')), 0)::INT,
+        'orders_change', COALESCE(
+            (
+                (
+                    (SELECT COUNT(*) FROM orders WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - p_days * INTERVAL '1 day'))::NUMERIC -
+                    (SELECT COUNT(*) FROM orders WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - 2 * p_days * INTERVAL '1 day') AND created_at < (CURRENT_DATE - p_days * INTERVAL '1 day'))::NUMERIC
+                ) / NULLIF((SELECT COUNT(*) FROM orders WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - 2 * p_days * INTERVAL '1 day') AND created_at < (CURRENT_DATE - p_days * INTERVAL '1 day')), 0) * 100
+            ), 0.0)::NUMERIC(10, 2),
+        'new_customers', COALESCE((SELECT COUNT(*) FROM customers c WHERE c.company_id = p_company_id AND c.created_at >= (CURRENT_DATE - p_days * INTERVAL '1 day')), 0)::INT,
+        'customers_change', COALESCE(
+             (
+                (
+                    (SELECT COUNT(*) FROM customers WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - p_days * INTERVAL '1 day'))::NUMERIC -
+                    (SELECT COUNT(*) FROM customers WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - 2 * p_days * INTERVAL '1 day') AND created_at < (CURRENT_DATE - p_days * INTERVAL '1 day'))::NUMERIC
+                ) / NULLIF((SELECT COUNT(*) FROM customers WHERE company_id = p_company_id AND created_at >= (CURRENT_DATE - 2 * p_days * INTERVAL '1 day') AND created_at < (CURRENT_DATE - p_days * INTERVAL '1 day')), 0) * 100
+            ), 0.0)::NUMERIC(10, 2),
+        'dead_stock_value', COALESCE((SELECT SUM(pv.inventory_quantity * COALESCE(pv.cost, 0)) FROM product_variants pv WHERE pv.company_id = p_company_id AND pv.inventory_quantity > 0 AND NOT EXISTS (SELECT 1 FROM order_line_items oli JOIN orders o ON oli.order_id = o.id WHERE oli.variant_id = pv.id AND o.created_at >= (CURRENT_DATE - (SELECT cs.dead_stock_days FROM company_settings cs WHERE cs.company_id = p_company_id) * INTERVAL '1 day'))), 0)::INT,
+        'sales_over_time', COALESCE((SELECT json_agg(json_build_object('date', d.sale_date, 'orders', d.daily_orders, 'revenue', d.daily_revenue)) FROM (SELECT DATE(o.created_at) AS sale_date, COUNT(*) as daily_orders, SUM(o.total_amount) AS daily_revenue FROM orders o WHERE o.company_id = p_company_id AND o.created_at >= (CURRENT_DATE - p_days * INTERVAL '1 day') GROUP BY DATE(o.created_at) ORDER BY sale_date) d), '[]'::json),
+        'top_selling_products', COALESCE((SELECT json_agg(p) FROM (SELECT p.title AS product_name, p.image_url, SUM(oli.price * oli.quantity) AS total_revenue FROM order_line_items oli JOIN orders o ON oli.order_id = o.id JOIN product_variants pv ON oli.variant_id = pv.id JOIN products p ON pv.product_id = p.id WHERE oli.company_id = p_company_id AND o.created_at >= (CURRENT_DATE - p_days * INTERVAL '1 day') GROUP BY p.id, p.title, p.image_url ORDER BY total_revenue DESC LIMIT 5) p), '[]'::json),
+        'inventory_summary', COALESCE((SELECT json_build_object('total_value', SUM(v.inventory_quantity * COALESCE(v.cost, 0)), 'in_stock_value', SUM(CASE WHEN v.inventory_quantity > 0 THEN v.inventory_quantity * COALESCE(v.cost, 0) ELSE 0 END), 'low_stock_value', SUM(CASE WHEN v.inventory_quantity > 0 AND v.inventory_quantity <= v.reorder_point THEN v.inventory_quantity * COALESCE(v.cost, 0) ELSE 0 END), 'dead_stock_value', (SELECT SUM(pv.inventory_quantity * COALESCE(pv.cost, 0)) FROM product_variants pv WHERE pv.company_id = p_company_id AND pv.inventory_quantity > 0 AND NOT EXISTS (SELECT 1 FROM order_line_items oli JOIN orders o ON oli.order_id = o.id WHERE oli.variant_id = pv.id AND o.created_at >= (CURRENT_DATE - (SELECT cs.dead_stock_days FROM company_settings cs WHERE cs.company_id = p_company_id) * INTERVAL '1 day')))) FROM product_variants v WHERE v.company_id = p_company_id), json_build_object('total_value', 0, 'in_stock_value', 0, 'low_stock_value', 0, 'dead_stock_value', 0))
+    )
+    INTO result;
+    
     RETURN result;
-
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Error in get_dashboard_metrics: %', SQLERRM;
-    RETURN json_build_object(
-        'total_revenue', 0, 'revenue_change', 0, 'total_orders', 0, 'orders_change', 0,
-        'new_customers', 0, 'customers_change', 0, 'dead_stock_value', 0,
-        'sales_over_time', '[]'::json, 'top_selling_products', '[]'::json,
-        'inventory_summary', json_build_object('total_value', 0, 'in_stock_value', 0, 'low_stock_value', 0, 'dead_stock_value', 0)
-    );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
+-- 4. Enable RLS and create policies
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "companies_owner_access" ON companies FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = id);
 
--- Function for Alert System
-CREATE OR REPLACE FUNCTION get_alerts(p_company_id UUID)
-RETURNS JSON[] AS $$
-DECLARE
-    alerts JSON[];
-    r RECORD;
-    settings record;
-BEGIN
-    SELECT * INTO settings FROM company_settings WHERE company_id = p_company_id;
-    
-    alerts := ARRAY[]::JSON[];
+ALTER TABLE company_users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "company_users_access" ON company_users FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
-    IF settings IS NULL THEN
-        INSERT INTO company_settings (company_id) VALUES (p_company_id) ON CONFLICT (company_id) DO NOTHING;
-        SELECT * INTO settings FROM company_settings WHERE company_id = p_company_id;
-    END IF;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "products_company_access" ON products FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
-    -- Low Stock Alerts
-    FOR r IN (
-        SELECT 
-            v.id, v.sku, p.title as product_name, v.inventory_quantity,
-            COALESCE(v.reorder_point, 10) as reorder_point
-        FROM product_variants v
-        JOIN products p ON v.product_id = p.id
-        WHERE v.company_id = p_company_id AND v.inventory_quantity <= COALESCE(v.reorder_point, 10) AND v.inventory_quantity > 0 LIMIT 50
-    ) LOOP
-        alerts := array_append(alerts, json_build_object(
-            'id', 'low_stock_' || r.id, 'type', 'low_stock', 'title', 'Low Stock Warning',
-            'message', r.product_name || ' (' || r.sku || ') is running low.',
-            'severity', 'warning', 'timestamp', now(),
-            'metadata', json_build_object('productId', r.id, 'productName', r.product_name, 'sku', r.sku, 'currentStock', r.inventory_quantity, 'reorderPoint', r.reorder_point)
-        ));
-    END LOOP;
+ALTER TABLE product_variants ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "product_variants_company_access" ON product_variants FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
-    RETURN alerts;
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "suppliers_company_access" ON suppliers FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Error in get_alerts: %', SQLERRM;
-    RETURN ARRAY[]::JSON[];
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "customers_company_access" ON customers FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
--- Function to get alerts with status
-CREATE OR REPLACE FUNCTION get_alerts_with_status(p_company_id UUID)
-RETURNS JSON[] AS $$
-DECLARE
-    base_alerts JSON[];
-    alerts_with_status JSON[] := ARRAY[]::JSON[];
-    alert_json JSON;
-    alert_id TEXT;
-    alert_status RECORD;
-    i INTEGER;
-BEGIN
-    SELECT get_alerts(p_company_id) INTO base_alerts;
-    
-    IF base_alerts IS NULL OR array_length(base_alerts, 1) IS NULL THEN
-        RETURN alerts_with_status;
-    END IF;
-    
-    FOR i IN 1..array_length(base_alerts, 1) LOOP
-        alert_json := base_alerts[i];
-        alert_id := alert_json->>'id';
-        
-        SELECT status, read_at, dismissed_at INTO alert_status FROM alert_history 
-        WHERE company_id = p_company_id AND alert_history.alert_id = alert_json->>'id';
-        
-        alert_json := alert_json || jsonb_build_object(
-            'read', COALESCE((alert_status.status = 'read' OR alert_status.status = 'dismissed'), FALSE),
-            'dismissed', COALESCE(alert_status.status = 'dismissed', FALSE)
-        );
-        
-        alerts_with_status := array_append(alerts_with_status, alert_json);
-    END LOOP;
-    
-    RETURN alerts_with_status;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "orders_company_access" ON orders FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
+ALTER TABLE order_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "order_line_items_company_access" ON order_line_items FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
--- =============================================
--- FINAL GRANTS
--- =============================================
-GRANT EXECUTE ON FUNCTION get_dashboard_metrics(UUID, INTEGER) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_alerts(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_alerts_with_status(UUID) TO authenticated;
+ALTER TABLE inventory_ledger ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "inventory_ledger_company_access" ON inventory_ledger FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
 
--- Grant usage on all sequences to authenticated users
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+ALTER TABLE purchase_orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "purchase_orders_company_access" ON purchase_orders FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE purchase_order_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "purchase_order_line_items_company_access" ON purchase_order_line_items FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE integrations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "integrations_company_access" ON integrations FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE company_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "company_settings_access" ON company_settings FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "conversations_access" ON conversations FOR ALL USING ((auth.jwt() ->> 'uid')::uuid = user_id);
+
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "messages_access" ON messages FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "feedback_access" ON feedback FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "audit_log_access" ON audit_log FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE channel_fees ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "channel_fees_access" ON channel_fees FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
+
+ALTER TABLE export_jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "export_jobs_access" ON export_jobs FOR ALL USING ((auth.jwt() ->> 'company_id')::uuid = company_id);
