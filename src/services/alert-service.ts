@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -8,7 +7,7 @@ import type { Alert } from '@/types';
 import { z } from 'zod';
 
 // Define the shape of alert settings for validation
-export const AlertSettingsSchema = z.object({
+const AlertSettingsSchema = z.object({
   email_notifications: z.boolean().default(true),
   morning_briefing_enabled: z.boolean().default(true),
   morning_briefing_time: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).default('09:00'), // HH:MM format
