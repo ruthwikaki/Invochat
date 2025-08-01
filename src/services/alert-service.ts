@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -17,7 +18,7 @@ export const AlertSettingsSchema = z.object({
 export type AlertSettings = z.infer<typeof AlertSettingsSchema>;
 
 
-export async function getCompanyAlerts(companyId: string): Promise<Alert[]> {
+export async function getAlertsWithStatus(companyId: string): Promise<Alert[]> {
   const supabase = getServiceRoleClient();
   const { data, error } = await supabase
     .rpc('get_alerts_with_status', { p_company_id: companyId });
