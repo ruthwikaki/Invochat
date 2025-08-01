@@ -1,3 +1,5 @@
+
+
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -201,14 +203,17 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
             logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
             throw new Error('Could not retrieve dashboard metrics from the database.');
         }
+        // This is a critical fix. If the DB function returns null (e.g., for a new company with no data),
+        // we must throw an error to be caught by the calling action, which can then provide a default empty state.
+        if (data == null) {
+            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
+            throw new Error('No response from get_dashboard_metrics RPC call.');
+        }
         return DashboardMetricsSchema.parse(data);
     } catch (e) {
         logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-        // Return a safe, empty object to prevent frontend crashes
-        return {
-            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
-            inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
-        };
+        // Re-throw the original error to be handled by the caller
+        throw new Error('Could not retrieve dashboard metrics from the database.');
     }
 }
 
@@ -710,7 +715,7 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
     });
     if (error) {
         logError(error, { context: 'Failed to get historical sales for single SKU' });
-        return [];
+        throw new Error('Could not retrieve historical sales data.');
     }
     return data || [];
 }
@@ -738,7 +743,7 @@ export async function getNetMarginByChannelFromDB(companyId: string, channelName
     const { data, error } = await supabase.rpc('get_net_margin_by_channel', { p_company_id: companyId, p_channel_name: channelName });
     if(error) {
         logError(error, { context: 'getNetMarginByChannelFromDB failed' });
-        return null;
+        throw error;
     }
     return data; 
 }
@@ -748,7 +753,7 @@ export async function getSalesVelocityFromDB(companyId: string, days: number, li
     const { data, error } = await supabase.rpc('get_sales_velocity', { p_company_id: companyId, p_days: days, p_limit: limit });
     if(error) {
         logError(error, { context: 'getSalesVelocityFromDB failed' });
-        return { fast_sellers: [], slow_sellers: [] };
+        throw error;
     }
     return data; 
 }
@@ -758,7 +763,7 @@ export async function getDemandForecastFromDB(companyId: string) {
     const { data, error } = await supabase.rpc('forecast_demand', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getDemandForecastFromDB failed' });
-        return null;
+        throw error;
     }
     return data; 
 }
@@ -768,7 +773,7 @@ export async function getAbcAnalysisFromDB(companyId: string) {
     const { data, error } = await supabase.rpc('get_abc_analysis', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getAbcAnalysisFromDB failed' });
-        return [];
+        throw error;
     }
     return data; 
 }
@@ -778,7 +783,7 @@ export async function getGrossMarginAnalysisFromDB(companyId: string) {
     const { data, error } = await supabase.rpc('get_gross_margin_analysis', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getGrossMarginAnalysisFromDB failed' });
-        return { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } };
+        throw error;
     }
     return data; 
 }
@@ -788,7 +793,7 @@ export async function getMarginTrendsFromDB(companyId: string) {
     const { data, error } = await supabase.rpc('get_margin_trends', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'getMarginTrendsFromDB failed' });
-        return null;
+        throw error;
     }
     return data; 
 }
@@ -798,7 +803,7 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
     const { data, error } = await supabase.rpc('get_financial_impact_of_promotion', { p_company_id: companyId, p_skus: skus, p_discount_percentage: discount, p_duration_days: duration });
     if(error) {
         logError(error, { context: 'getFinancialImpactOfPromotionFromDB failed' });
-        return null;
+        throw error;
     }
     return data; 
 }
@@ -845,7 +850,7 @@ export async function getAuditLogFromDB(companyId: string, params: { query?: str
         };
     } catch(e) {
         logError(e, { context: 'getAuditLogFromDB failed' });
-        return { items: [], totalCount: 0 };
+        throw new Error('Failed to retrieve audit log.');
     }
 }
 
@@ -874,7 +879,7 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         };
     } catch (e) {
         logError(e, { context: 'getFeedbackFromDB failed' });
-        return { items: [], totalCount: 0 };
+        throw new Error('Failed to retrieve feedback data.');
     }
 }
 
