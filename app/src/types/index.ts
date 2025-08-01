@@ -1,3 +1,4 @@
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -221,7 +222,6 @@ export type PurchaseOrderWithItemsAndSupplier = z.infer<typeof PurchaseOrderWith
 
 
 export const CompanySettingsSchema = z.object({
-  company_id: z.string().uuid(),
   dead_stock_days: z.coerce.number().int().positive().default(90),
   fast_moving_days: z.coerce.number().int().positive().default(30),
   overstock_multiplier: z.coerce.number().positive().default(3),
@@ -230,7 +230,6 @@ export const CompanySettingsSchema = z.object({
   currency: z.string().default('USD'),
   tax_rate: z.number().nonnegative().default(0),
   timezone: z.string().default('UTC'),
-  created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
 });
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
@@ -388,12 +387,12 @@ export const DashboardMetricsSchema = z.object({
   sales_over_time: z.array(z.object({
     date: z.string(),
     revenue: z.number(),
-    orders: z.number(),
   })),
   top_selling_products: z.array(z.object({
     product_name: z.string(),
     image_url: z.string().url().nullable(),
     total_revenue: z.number(),
+    quantity_sold: z.number(),
   })),
   inventory_summary: z.object({
     total_value: z.number(),
