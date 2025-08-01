@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition, Fragment, useEffect } from 'react';
@@ -218,5 +217,3 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
     </>
   );
 }
-
-    
