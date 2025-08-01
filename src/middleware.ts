@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // This function will refresh the session if expired and validate it server-side.
+  // This function will refresh the session if expired.
   const { data: { session } } = await supabase.auth.getSession();
 
   // Define public routes that do not require authentication
