@@ -65,21 +65,23 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
         logError(error, { context: 'Login failed' });
         
         if (isRedisEnabled) {
-            // After a failed login, get the user ID to track failures against the ID, not the email.
             const serviceSupabase = getServiceRoleClient();
             const { data: { user } } = await serviceSupabase.auth.admin.getUserByEmail(email);
 
-            if (user) {
-                const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${user.id}`;
-                const failedAttempts = await redisClient.incr(failedAttemptsKey);
-                await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
+            // Use the user's ID for lockout if the user exists, otherwise use the IP address.
+            // This prevents attackers from enumerating emails and ties lockouts to specific accounts.
+            const lockoutIdentifier = user ? user.id : ip;
+            const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${lockoutIdentifier}`;
+            
+            const failedAttempts = await redisClient.incr(failedAttemptsKey);
+            await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
 
-                if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
-                   await serviceSupabase.auth.admin.updateUserById(user.id, {
-                       ban_duration: `${LOCKOUT_DURATION_SECONDS}s`
-                   });
-                   logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered', ip, userId: user.id });
-                }
+            // Only ban the user account if the user actually exists.
+            if (user && failedAttempts >= MAX_LOGIN_ATTEMPTS) {
+               await serviceSupabase.auth.admin.updateUserById(user.id, {
+                   ban_duration: `${LOCKOUT_DURATION_SECONDS}s`
+               });
+               logError(new Error(`Account locked for user ${email}`), { context: 'Account Lockout Triggered', ip, userId: user.id });
             }
         }
         
@@ -87,6 +89,7 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
     }
 
     if (isRedisEnabled && data.user) {
+      // On successful login, clear the failed attempts counter for the user.
       await redisClient.del(`${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${data.user.id}`);
     }
 

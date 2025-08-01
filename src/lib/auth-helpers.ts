@@ -4,6 +4,7 @@
 import { createServerClient } from '@/lib/supabase/admin';
 import type { User } from '@/types';
 import { logError } from './error-handler';
+import { retry, delay } from './async-utils';
 
 /**
  * Gets the current authenticated user from the server-side context.
@@ -35,8 +36,8 @@ export async function getCurrentCompanyId(): Promise<string | null> {
 /**
  * A helper function to get the full authentication context (user and company ID)
  * in a single call. Throws an error if the user is not authenticated.
- * This function includes a database fallback to prevent race conditions during signup
- * where the JWT's app_metadata may not yet be updated.
+ * This function includes a database fallback with retry logic to prevent race 
+ * conditions during signup where the JWT's app_metadata may not yet be updated.
  * @returns An object containing the userId and companyId.
  * @throws {Error} if the user is not authenticated or a company ID cannot be found.
  */
@@ -53,20 +54,35 @@ export async function getAuthContext() {
     let companyId = user.app_metadata.company_id;
     
     // Fallback for race condition on signup: If company_id is not in the JWT metadata,
-    // check the database directly. This is the source of truth, but it's slower.
+    // check the database directly with retry logic.
     if (!companyId) {
-        const { data: companyUserData, error } = await supabase
-            .from('company_users')
-            .select('company_id')
-            .eq('user_id', user.id)
-            .single();
+        logError(new Error("JWT missing company_id, attempting DB fallback."), { userId: user.id });
+        try {
+            companyId = await retry(async () => {
+                const { data: companyUserData, error } = await supabase
+                    .from('company_users')
+                    .select('company_id')
+                    .eq('user_id', user.id)
+                    .single();
+                
+                if (error) {
+                    throw new Error(`Fallback DB check failed: ${error.message}`);
+                }
+                if (!companyUserData?.company_id) {
+                    throw new Error("Company association not yet found in database.");
+                }
+                
+                return companyUserData.company_id;
+            }, { 
+                maxAttempts: 3, 
+                delayMs: 500,
+                onRetry: (e, attempt) => logError(e, { context: `getAuthContext fallback retry attempt ${attempt}` })
+            });
 
-        if (error) {
-             logError(error, { context: 'getAuthContext: Fallback DB check for company_id failed.'});
-             throw new Error("Authorization failed: Could not verify user's company association.");
+        } catch (e) {
+            logError(e, { context: 'getAuthContext: Fallback DB check failed after multiple retries.'});
+            throw new Error("Authorization failed: Could not verify user's company association after multiple attempts.");
         }
-        
-        companyId = companyUserData?.company_id;
     }
     
     if (!companyId) {
