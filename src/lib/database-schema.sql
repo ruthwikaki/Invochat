@@ -1,33 +1,20 @@
---
--- This script only contains the necessary function update to fix the infinite recursion error.
--- It will not alter your existing tables or other database objects.
---
--- Name: get_company_id_for_user(uuid); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
+-- Alter the function to use auth.jwt() to prevent recursion
+CREATE OR REPLACE FUNCTION get_company_id_for_user(p_user_id uuid)
+RETURNS uuid AS $$
+DECLARE
+    company_id_from_jwt uuid;
 BEGIN
-  -- This function now safely retrieves the company_id directly from the
-  -- user's authentication token (JWT), which avoids the infinite recursion
-  -- issue caused by querying the company_users table within a policy that
-  -- also uses this function.
-  RETURN (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid;
+    -- This is the most reliable way to get the company_id in RLS policies
+    -- as it doesn't query other tables, thus avoiding recursion.
+    company_id_from_jwt := (auth.jwt() -> 'app_metadata' ->> 'company_id')::uuid;
+
+    IF company_id_from_jwt IS NOT NULL THEN
+        RETURN company_id_from_jwt;
+    END IF;
+
+    -- Fallback for scenarios where the JWT might not be populated yet,
+    -- but this is less ideal for RLS and should be avoided in policies.
+    -- The primary fix is relying on the JWT.
+    RETURN (SELECT company_id FROM public.company_users WHERE user_id = p_user_id LIMIT 1);
 END;
-$$;
-
-
-ALTER FUNCTION public.get_company_id_for_user(p_user_id uuid) OWNER TO postgres;
-
--- Re-apply the security policy for the company_users table to ensure it uses the updated function.
--- This ensures that users can only see their own company's user list.
-DROP POLICY IF EXISTS "Enable read access for company members" ON public.company_users;
-CREATE POLICY "Enable read access for company members"
-ON public.company_users
-FOR SELECT
-USING (
-  (public.get_company_id_for_user(auth.uid()) = company_id)
-);
+$$ LANGUAGE plpgsql SECURITY DEFINER;
