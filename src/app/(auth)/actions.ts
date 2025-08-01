@@ -25,7 +25,7 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
     await validateCSRF(formData);
 
     // Rate limit by IP to prevent email enumeration and brute-force attacks
-    const { limited: ipLimited } = await rateLimit(ip, 'login_attempt_ip', config.ratelimit.auth * 5, 3600);
+    const { limited: ipLimited } = await rateLimit(ip, 'login_attempt_ip', config.ratelimit.auth * 5, 3600, true);
     if (ipLimited) {
         return { success: false, error: 'Too many login attempts from this IP. Please try again in an hour.' };
     }
@@ -264,11 +264,4 @@ export async function updatePassword(formData: FormData) {
     }
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
-}
-
-// Add this helper function to your actions.ts file
-async function getAuthContext() {
-  // Import the fixed getAuthContext from auth-helpers
-  const { getAuthContext: getAuth } = await import('@/lib/auth-helpers');
-  return getAuth();
 }
