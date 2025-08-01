@@ -12,8 +12,8 @@ export const dynamic = 'force-dynamic';
 const emptyMetrics: DashboardMetrics = {
     total_revenue: 0,
     revenue_change: 0,
-    total_sales: 0,
-    sales_change: 0,
+    total_orders: 0,
+    orders_change: 0,
     new_customers: 0,
     customers_change: 0,
     dead_stock_value: 0,
@@ -64,7 +64,7 @@ export default async function DashboardPage({
         // In either error case (new user or unexpected), fall back to safe, empty data to prevent crashes
         metrics = emptyMetrics;
         briefing = { greeting: 'Welcome!', summary: 'Import your data to get started with AI insights.' };
-        settings = { currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
+        settings = { company_id: '', created_at: '', updated_at: null, currency: 'USD', timezone: 'UTC', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, tax_rate: 0 };
     }
 
     return (
@@ -92,5 +92,3 @@ export default async function DashboardPage({
         </AppPage>
     );
 }
-
-    

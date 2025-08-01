@@ -8,7 +8,7 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { TrendingUp } from 'lucide-react';
 
 interface SalesChartProps {
-  data: { date: string; total_sales: number }[];
+  data: { date: string; orders: number; revenue: number }[];
   currency: string;
 }
 
@@ -58,7 +58,7 @@ export function SalesChart({ data, currency }: SalesChartProps) {
                 }}
                 formatter={(value: number) => [formatCentsAsCurrency(value, currency), 'Sales']}
               />
-              <Bar dataKey="total_sales" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="revenue" fill="url(#colorUv)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
