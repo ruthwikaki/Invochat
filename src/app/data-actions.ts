@@ -516,18 +516,22 @@ export async function reconcileInventory(integrationId: string) {
 }
 
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
-    try {
-        const { companyId } = await getAuthContext();
-        const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
-        if (isRedisEnabled) {
-          const cached = await redisClient.get(cacheKey);
-          if (cached) {
-              logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
-              return JSON.parse(cached);
-          }
-          logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+    const { companyId } = await getAuthContext();
+    const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
+    if (isRedisEnabled) {
+        try {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+                return JSON.parse(cached);
+            }
+            logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+        } catch (e) {
+            logError(e, { context: 'Redis cache get failed for dashboard' });
         }
+    }
 
+    try {
         const data = await getDashboardMetricsFromDb(companyId, dateRange);
         if (isRedisEnabled) {
           await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
@@ -537,7 +541,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         logError(e, { context: 'Failed to fetch dashboard data' });
         // Return a safe, empty object to prevent frontend crashes
         return {
-            total_revenue: 0, revenue_change: 0, total_sales: 0, sales_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
+            total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
             inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
         };
     }
