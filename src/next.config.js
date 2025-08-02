@@ -1,4 +1,3 @@
-
 // @ts-check
 
 /**
@@ -64,9 +63,7 @@ const nextConfig = defineNextConfig({
     ],
   },
   experimental: {
-    // This is required to fix critical dependency warnings/errors with server-side packages.
-    // Adding these prevents webpack errors and allows Genkit, Supabase, and Redis
-    // to function correctly in server actions and server components.
+    appDir: true,
     serverComponentsExternalPackages: [
       '@opentelemetry/instrumentation',
       '@opentelemetry/exporter-jaeger',
