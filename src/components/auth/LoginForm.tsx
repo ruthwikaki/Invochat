@@ -55,7 +55,9 @@ export function LoginForm({ initialError }: LoginFormProps) {
     if (error) setError(null);
   };
   
-  const handleSubmit = (formData: FormData) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
     if (!csrfToken) {
         setError('A required security token was not found. Please refresh the page and try again.');
         return;
@@ -75,7 +77,7 @@ export function LoginForm({ initialError }: LoginFormProps) {
   };
   
   return (
-    <form action={handleSubmit} className="space-y-4" onChange={handleInteraction}>
+    <form onSubmit={handleSubmit} className="space-y-4" onChange={handleInteraction}>
         <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
