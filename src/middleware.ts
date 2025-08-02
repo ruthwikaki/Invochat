@@ -1,13 +1,8 @@
+
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
-  console.log('🚀 Middleware called for:', req.nextUrl.pathname);
-  
-  // TEMPORARILY BYPASS ALL MIDDLEWARE LOGIC
-  return NextResponse.next();
-  
-  /* COMMENTED OUT FOR DEBUGGING
   let response = NextResponse.next({
     request: {
       headers: req.headers,
@@ -84,7 +79,6 @@ export async function middleware(req: NextRequest) {
   }
 
   return response;
-  */
 }
 
 export const config = {
