@@ -5,15 +5,29 @@ import { AppSidebar } from '@/components/nav/sidebar';
 import { QueryClientProvider } from '@/context/query-client-provider';
 import { getCurrentUser } from '@/lib/auth-helpers';
 import { redirect } from 'next/navigation';
+import { logError } from '@/lib/error-handler';
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
-  if (user && !user.app_metadata.company_id) {
-    redirect('/env-check');
+  try {
+    const user = await getCurrentUser();
+    // This check is critical. If the user object exists but has no company_id,
+    // it means the database setup trigger failed. Redirect to a recovery page.
+    if (user && !user.app_metadata.company_id) {
+      return redirect('/env-check');
+    }
+    // If there is no user session at all, redirect to login.
+    if (!user) {
+        return redirect('/login');
+    }
+  } catch (error) {
+      logError(error, { context: 'AppLayout auth check failed' });
+      // If the database call itself fails, we can't check the user.
+      // Redirect to login with an error message indicating a server issue.
+      return redirect('/login?error=Could not connect to the authentication service. Please try again later.');
   }
 
   return (
