@@ -1,4 +1,3 @@
-
 // @ts-check
 
 /**
@@ -10,16 +9,19 @@ function defineNextConfig(config) {
   return config;
 }
 
-
 /** @type {import('next').NextConfig} */
 const nextConfig = defineNextConfig({
   reactStrictMode: true,
-  // Production optimizations
   compress: true,
   poweredByHeader: false,
-  webpack: (config, { isServer, webpack }) => {
-    // This setting can help resolve strange build issues on Windows,
-    // especially when the project is in a cloud-synced directory like OneDrive.
+  
+  // Add error handling for development
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
+  },
+  
+  webpack: (config, { isServer, webpack, dev }) => {
     config.resolve.symlinks = false;
 
     if (!isServer) {
@@ -38,8 +40,14 @@ const nextConfig = defineNextConfig({
         )
     }
 
-    // This is the correct way to suppress the specific, known warnings from Sentry/Supabase.
-    // It prevents the build log from being cluttered with non-actionable "Critical dependency" messages.
+    // Better error handling in development
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+      };
+    }
+
     config.externals.push({
         '@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation',
     });
@@ -55,6 +63,7 @@ const nextConfig = defineNextConfig({
 
     return config;
   },
+  
   images: {
     remotePatterns: [
       {
@@ -63,10 +72,8 @@ const nextConfig = defineNextConfig({
       },
     ],
   },
+  
   experimental: {
-    // This is required to fix critical dependency warnings/errors with server-side packages.
-    // Adding these prevents webpack errors and allows Genkit, Supabase, and Redis
-    // to function correctly in server actions and server components.
     serverComponentsExternalPackages: [
       '@opentelemetry/instrumentation',
       '@opentelemetry/exporter-jaeger',
@@ -78,33 +85,28 @@ const nextConfig = defineNextConfig({
   },
 });
 
-// The Sentry webpack plugin gets loaded here.
-const { withSentryConfig } = require("@sentry/nextjs");
+// Only add Sentry in production or if explicitly configured
+let finalConfig = nextConfig;
 
-module.exports = withSentryConfig(
-  nextConfig,
-  {
-    // For all available options, see:
-    // https://github.com/getsentry/sentry-webpack-plugin#options
-
-    // Suppresses source map uploading logs during build
-    silent: true,
-    org: process.env.SENTRY_ORG,
-    project: process.env.SENTRY_PROJECT,
-  },
-  {
-    // For all available options, see:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
-    // Hides source maps from generated client bundles
-    hideSourceMaps: true,
-
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
-    disableLogger: true,
-
-    // Enables automatic instrumentation of Vercel Cron Monitors.
-    // See the following for more information:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
-    automaticVercelMonitors: true,
+try {
+  if (process.env.SENTRY_ORG && process.env.SENTRY_PROJECT) {
+    const { withSentryConfig } = require("@sentry/nextjs");
+    finalConfig = withSentryConfig(
+      nextConfig,
+      {
+        silent: true,
+        org: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+      },
+      {
+        hideSourceMaps: true,
+        disableLogger: true,
+        automaticVercelMonitors: true,
+      }
+    );
   }
-);
+} catch (error) {
+  console.warn('Sentry configuration skipped:', error.message);
+}
+
+module.exports = finalConfig;
