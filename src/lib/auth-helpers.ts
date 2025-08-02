@@ -112,7 +112,7 @@ export async function getAuthContext() {
             userEmail: user.email,
         });
         
-        throw new Error("Authorization failed: Could not verify user's company association. Please try signing out and in again.");
+        throw new Error("Authorization failed: User is not associated with a company.");
     }
 
     return { userId: user.id, companyId };
