@@ -1,4 +1,5 @@
 
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -401,29 +402,29 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
 
 export const DashboardMetricsSchema = z.object({
-  total_revenue: z.number(),
-  revenue_change: z.number(),
-  total_orders: z.number(),
-  orders_change: z.number(),
-  new_customers: z.number(),
-  customers_change: z.number(),
-  dead_stock_value: z.number(),
+  total_revenue: z.number().default(0),
+  revenue_change: z.number().default(0),
+  total_orders: z.number().default(0),
+  orders_change: z.number().default(0),
+  new_customers: z.number().default(0),
+  customers_change: z.number().default(0),
+  dead_stock_value: z.number().default(0),
   sales_over_time: z.array(z.object({
     date: z.string(),
     revenue: z.number(),
-  })),
+  })).default([]),
   top_selling_products: z.array(z.object({
     product_name: z.string(),
     image_url: z.string().url().nullable(),
     total_revenue: z.number(),
     quantity_sold: z.number(),
-  })),
+  })).default([]),
   inventory_summary: z.object({
-    total_value: z.number(),
-    in_stock_value: z.number(),
-    low_stock_value: z.number(),
-    dead_stock_value: z.number(),
-  }),
+    total_value: z.number().default(0),
+    in_stock_value: z.number().default(0),
+    low_stock_value: z.number().default(0),
+    dead_stock_value: z.number().default(0),
+  })
 }).passthrough();
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
@@ -564,3 +565,5 @@ export const FeedbackSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
+
+    
