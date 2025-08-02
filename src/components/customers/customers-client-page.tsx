@@ -28,6 +28,7 @@ import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 import { ExportButton } from '@/components/ui/export-button';
 import { useTableState } from '@/hooks/use-table-state';
 import Link from 'next/link';
+import { formatCentsAsCurrency } from '@/lib/utils';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
@@ -36,15 +37,6 @@ interface CustomersClientPageProps {
   analyticsData: CustomerAnalytics;
   exportAction: (params: {query: string}) => Promise<{ success: boolean; data?: string; error?: string }>;
 }
-
-const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format(value);
-};
 
 const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: string, icon: React.ElementType }) => (
     <Card>
@@ -72,7 +64,7 @@ const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: strin
                     {data.map((customer, index) => (
                         <li key={index} className="flex items-center justify-between text-sm">
                             <span className="font-medium truncate pr-4">{customer.name}</span>
-                            <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCurrency(customer.value)}</span>
+                            <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCentsAsCurrency(customer.value)}</span>
                         </li>
                     ))}
                 </ul>
@@ -196,7 +188,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <AnalyticsCard title="Total Customers" value={analyticsData.total_customers.toLocaleString()} icon={Users} />
-            <AnalyticsCard title="Avg. Lifetime Value" value={formatCurrency(analyticsData.average_lifetime_value)} icon={DollarSign} />
+            <AnalyticsCard title="Avg. Lifetime Value" value={formatCentsAsCurrency(analyticsData.average_lifetime_value)} icon={DollarSign} />
             <AnalyticsCard title="New Customers (30d)" value={analyticsData.new_customers_last_30_days.toLocaleString()} icon={UserPlus} />
             <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.repeat_customer_rate * 100).toFixed(1)}%`} icon={Repeat} />
         </div>
@@ -257,7 +249,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                                 </div>
                             </TableCell>
                             <TableCell className="text-right">{customer.total_orders}</TableCell>
-                            <TableCell className="text-right font-medium">${(customer.total_spent / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCentsAsCurrency(customer.total_spent)}</TableCell>
                             <TableCell className="text-center">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -299,4 +291,3 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     </div>
   );
 }
-

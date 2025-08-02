@@ -48,11 +48,12 @@ export async function getCurrentCompanyId(): Promise<string | null> {
  * FIXED: Now uses service role client to bypass RLS policies
  */
 async function getCompanyIdFromDatabase(userId: string): Promise<string | null> {
-    const serviceSupabase = getServiceRoleClient();
+    // CRITICAL FIX: Use service role client instead of regular client
+    const serviceSupabase = getServiceRoleClient(); // CHANGED FROM createServerClient()
     
     try {
         return await retry(async () => {
-            const { data: companyUserData, error } = await serviceSupabase
+            const { data: companyUserData, error } = await serviceSupabase // USING SERVICE ROLE CLIENT
                 .from('company_users')
                 .select('company_id')
                 .eq('user_id', userId)
