@@ -9,12 +9,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { updatePassword } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
-import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function SubmitButton({ disabled }: { disabled?: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-        <Button type="submit" className="w-full" disabled={disabled || pending}>
+        <Button type="submit" className="w-full" disabled={pending}>
             {pending ? <Loader2 className="animate-spin" /> : 'Update Password'}
         </Button>
     );
@@ -26,12 +25,7 @@ interface UpdatePasswordFormProps {
 
 export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormProps) {
     const [error, setError] = useState(initialError);
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
-
-    useEffect(() => {
-      generateAndSetCsrfToken(setCsrfToken);
-    }, []);
 
     useEffect(() => {
         setError(initialError);
@@ -47,14 +41,13 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
     };
     
     const formAction = (formData: FormData) => {
-        startTransition(() => {
-            updatePassword(formData);
+        startTransition(async () => {
+            await updatePassword(formData);
         });
     }
 
   return (
     <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
-        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="grid gap-2">
           <Label htmlFor="password">New Password</Label>
            <PasswordInput
@@ -82,7 +75,7 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        <SubmitButton disabled={!csrfToken || isPending} />
+        <SubmitButton />
     </form>
   );
 }

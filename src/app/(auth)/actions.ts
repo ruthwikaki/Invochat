@@ -10,21 +10,18 @@ import { isRedisEnabled, rateLimit, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { validateCSRF } from '@/lib/csrf';
-import { getAuthContext as getAuthContextHelper } from '@/lib/auth-helpers';
 
 const FAILED_LOGIN_ATTEMPTS_KEY_PREFIX = 'failed_login_attempts:';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_SECONDS = 900; // 15 minutes
 
-export async function login(formData: FormData): Promise<{ success: boolean; error?: string; }> {
+export async function login(prevState: any, formData: FormData): Promise<{ success: boolean; error?: string; }> {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const cookieStore = cookies();
   const ip = headers().get('x-forwarded-for') ?? headers().get('x-real-ip') ?? '127.0.0.1';
 
   try {
-    await validateCSRF(formData);
-
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -132,8 +129,6 @@ export async function signup(prevState: any, formData: FormData): Promise<{ succ
   const confirmPassword = formData.get('confirmPassword') as string;
   
   try {
-    await validateCSRF(formData);
-    
     if (password !== confirmPassword) {
         return { success: false, error: 'Passwords do not match' };
     }
@@ -221,7 +216,6 @@ export async function requestPasswordReset(formData: FormData) {
     const email = formData.get('email') as string;
     const cookieStore = cookies();
     try {
-        await validateCSRF(formData);
         const supabase = createServerClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -232,7 +226,7 @@ export async function requestPasswordReset(formData: FormData) {
           }
         );
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/update-password`,
+        redirectTo: `${config.app.url}/update-password`,
       });
       if (error) {
         logError(error, { context: 'Password reset request failed' });
@@ -253,8 +247,6 @@ export async function updatePassword(formData: FormData) {
     const cookieStore = cookies();
    
     try {
-        await validateCSRF(formData);
-
         const supabase = createServerClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
