@@ -104,7 +104,9 @@ export function AppSidebar() {
         <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
                 <AIventoryLogo className="h-8 w-8 text-primary" />
-                <span className="text-lg font-semibold">AIventory</span>
+                <span className="text-lg font-semibold">
+                    <span className="text-primary">AI</span><span className="text-foreground">ventory</span>
+                </span>
             </div>
              <div className="flex items-center gap-1">
                 <AlertCenter />
