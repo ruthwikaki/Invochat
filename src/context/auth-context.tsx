@@ -5,7 +5,6 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { createBrowserClient } from '@supabase/ssr';
 import type { User, Session, SupabaseClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
-import { logError } from '@/lib/error-handler';
 
 interface AuthContextType {
   user: User | null;
@@ -23,30 +22,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const [supabase] = useState(() => 
-    createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-  );
+  const [supabase] = useState(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !anonKey) {
+      console.error('Supabase environment variables are missing');
+      // Return a mock client to prevent crashes
+      return {} as SupabaseClient;
+    }
+    
+    return createBrowserClient(supabaseUrl, anonKey);
+  });
 
   useEffect(() => {
+    // Skip if supabase client is not properly initialized
+    if (!supabase.auth) {
+      setLoading(false);
+      return;
+    }
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        // This logic was simplified to prevent complex re-rendering issues.
-        // The middleware is now the primary source of truth for redirects.
       }
     );
 
-    // Check the initial session state when the provider mounts
     const getInitialSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) {
+                console.warn('Error getting initial session:', error.message);
+            }
+            setSession(session);
+            setUser(session?.user ?? null);
+        } catch (error) {
+            console.error('Failed to get initial session:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     getInitialSession();
@@ -57,7 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, router]);
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    if (supabase.auth) {
+      await supabase.auth.signOut();
+    }
   };
 
   const value = {

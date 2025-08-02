@@ -5,27 +5,24 @@ import { config, envValidation } from '@/config/app-config';
 import type { Database } from '@/types/database.types';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-
 let supabaseAdmin: SupabaseClient<Database> | null = null;
 
-// This function is now responsible for initializing the admin client.
-// It is only ever called on the server, ensuring the service key is never in a client-accessible scope.
 function getSupabaseAdmin() {
     if (supabaseAdmin) {
         return supabaseAdmin;
     }
 
-    if (!envValidation.success) {
-        throw new Error('Supabase admin client cannot be initialized due to missing environment variables.');
-    }
+    // Use fallback values if validation failed but env vars exist
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     
-    if (!envValidation.data.NEXT_PUBLIC_SUPABASE_URL || !envValidation.data.SUPABASE_SERVICE_ROLE_KEY) {
+    if (!supabaseUrl || !serviceRoleKey) {
         throw new Error('Supabase URL or Service Role Key is missing from environment variables for admin client.');
     }
 
     supabaseAdmin = createClient<Database>(
-        envValidation.data.NEXT_PUBLIC_SUPABASE_URL,
-        envValidation.data.SUPABASE_SERVICE_ROLE_KEY,
+        supabaseUrl,
+        serviceRoleKey,
         {
             auth: {
                 autoRefreshToken: false,
@@ -43,44 +40,43 @@ function getSupabaseAdmin() {
     return supabaseAdmin;
 }
 
-
 export function getServiceRoleClient(): SupabaseClient<Database> {
-  // Lazily initialize the client on first use.
-  return getSupabaseAdmin();
+    return getSupabaseAdmin();
 }
 
-// Re-export createServerClient for use in server components/actions
 export function createServerClient() {
-  const cookieStore = cookies()
+    const cookieStore = cookies()
 
-  if (!envValidation.success) {
-     const errorMessage = `Supabase client cannot be initialized due to missing environment variables.`;
-     throw new Error(errorMessage);
-  }
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  return createServerClientOriginal<Database>(
-    envValidation.data.NEXT_PUBLIC_SUPABASE_URL,
-    envValidation.data.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch (error) {
-            // The `set` method was called from a Server Component.
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
-            // The `delete` method was called from a Server Component.
-          }
-        },
-      },
+    if (!supabaseUrl || !anonKey) {
+        throw new Error('Supabase URL or Anon Key is missing from environment variables.');
     }
-  )
+
+    return createServerClientOriginal<Database>(
+        supabaseUrl,
+        anonKey,
+        {
+            cookies: {
+                get(name: string) {
+                    return cookieStore.get(name)?.value
+                },
+                set(name: string, value: string, options: CookieOptions) {
+                    try {
+                        cookieStore.set({ name, value, ...options })
+                    } catch (error) {
+                        // The `set` method was called from a Server Component.
+                    }
+                },
+                remove(name: string, options: CookieOptions) {
+                    try {
+                        cookieStore.set({ name, value: '', ...options })
+                    } catch (error) {
+                        // The `delete` method was called from a Server Component.
+                    }
+                },
+            },
+        }
+    )
 }
