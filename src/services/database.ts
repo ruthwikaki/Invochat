@@ -38,7 +38,7 @@ export async function checkUserPermission(userId: string, requiredRole: 'Admin' 
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.rpc('check_user_permission', { 
         p_user_id: userId, 
-        p_required_role: requiredRole
+        p_required_role: requiredRole as any
     });
     
     if (error) {
@@ -899,5 +899,3 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     
     return data;
 }
-
-    

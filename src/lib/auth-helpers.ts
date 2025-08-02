@@ -2,7 +2,7 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase/admin';
-import { getServiceRoleClient } from '@/lib/supabase/admin'; // ADD THIS IMPORT
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@/types';
 import { logError } from './error-handler';
 import { retry } from './async-utils';
@@ -48,12 +48,11 @@ export async function getCurrentCompanyId(): Promise<string | null> {
  * FIXED: Now uses service role client to bypass RLS policies
  */
 async function getCompanyIdFromDatabase(userId: string): Promise<string | null> {
-    // CRITICAL FIX: Use service role client instead of regular client
-    const serviceSupabase = getServiceRoleClient(); // CHANGED FROM createServerClient()
+    const serviceSupabase = getServiceRoleClient();
     
     try {
         return await retry(async () => {
-            const { data: companyUserData, error } = await serviceSupabase // USING SERVICE ROLE CLIENT
+            const { data: companyUserData, error } = await serviceSupabase
                 .from('company_users')
                 .select('company_id')
                 .eq('user_id', userId)
@@ -94,20 +93,15 @@ export async function getAuthContext() {
         throw new Error("Authentication required: No user session found.");
     }
     
-    // The company_id from the JWT's app_metadata is the primary source of truth.
-    // The new database trigger makes this highly reliable.
     let companyId = user.app_metadata.company_id;
     
-    // If, for some reason (extreme race condition), the JWT is not updated,
-    // we have a simple, robust fallback.
     if (!companyId) {
         companyId = await getCompanyIdFromDatabase(user.id);
     }
     
     if (!companyId) {
-        // If after all checks there is no company ID, authorization fails.
-        logError(new Error("No company association found"), { 
-            context: 'getAuthContext: Complete failure',
+        logError(new Error("No company association found for user."), { 
+            context: 'getAuthContext authorization failure',
             userId: user.id,
             userEmail: user.email,
         });
@@ -121,7 +115,6 @@ export async function getAuthContext() {
 
 /**
  * Enhanced function for debugging auth issues during development
- * FIXED: Now uses service role client to avoid RLS issues
  */
 export async function debugAuthContext() {
     if (process.env.NODE_ENV === 'production') {
@@ -135,17 +128,14 @@ export async function debugAuthContext() {
         return { error: 'No user found' };
     }
     
-    // FIXED: Use service role client for debugging to bypass RLS
     const serviceSupabase = getServiceRoleClient();
     
-    // Check company_users table
-    const { data: companyData, error: companyError } = await serviceSupabase // USING SERVICE ROLE
+    const { data: companyData, error: companyError } = await serviceSupabase
         .from('company_users')
         .select('*')
         .eq('user_id', user.id);
     
-    // Check companies table
-    const { data: companiesData, error: companiesError } = await serviceSupabase // USING SERVICE ROLE
+    const { data: companiesData, error: companiesError } = await serviceSupabase
         .from('companies')
         .select('*')
         .eq('owner_id', user.id);

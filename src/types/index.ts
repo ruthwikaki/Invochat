@@ -58,6 +58,11 @@ export const ProductVariantSchema = z.object({
   external_variant_id: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
+  reserved_quantity: z.number().int().default(0),
+  in_transit_quantity: z.number().int().default(0),
+  supplier_id: z.string().uuid().nullable(),
+  reorder_point: z.number().int().nullable(),
+  reorder_quantity: z.number().int().nullable(),
 });
 export type ProductVariant = z.infer<typeof ProductVariantSchema>;
 
@@ -222,7 +227,6 @@ export type PurchaseOrderWithItemsAndSupplier = z.infer<typeof PurchaseOrderWith
 
 
 export const CompanySettingsSchema = z.object({
-  company_id: z.string().uuid(),
   dead_stock_days: z.coerce.number().int().positive().default(90),
   fast_moving_days: z.coerce.number().int().positive().default(30),
   overstock_multiplier: z.coerce.number().positive().default(3),
@@ -231,8 +235,14 @@ export const CompanySettingsSchema = z.object({
   currency: z.string().default('USD'),
   tax_rate: z.number().nonnegative().default(0),
   timezone: z.string().default('UTC'),
-  created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
+  subscription_status: z.string().default('trial'),
+  subscription_plan: z.string().default('starter'),
+  subscription_expires_at: z.string().datetime({ offset: true }).nullable(),
+  stripe_customer_id: z.string().nullable(),
+  stripe_subscription_id: z.string().nullable(),
+  promo_sales_lift_multiplier: z.number().default(2.5),
+  alert_settings: z.record(z.unknown()).default({}),
 });
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 
@@ -541,5 +551,3 @@ export const FeedbackSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
-
-    
