@@ -22,8 +22,6 @@ function SubmitButton() {
 
 const initialState = {
   error: undefined,
-  message: undefined,
-  success: false,
 };
 
 export function SignupForm({ error: initialError }: { error: string | null; }) {
