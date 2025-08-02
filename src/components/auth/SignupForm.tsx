@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
+import React, 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
@@ -28,16 +28,16 @@ interface SignupFormProps {
 }
 
 export function SignupForm({ error: initialError }: SignupFormProps) {
-    const [error, setError] = useState(initialError);
-    const [isPending, startTransition] = useTransition();
-    const [csrfToken, setCsrfToken] = useState<string | null>(null);
+    const [error, setError] = React.useState(initialError);
+    const [isPending, startTransition] = React.useTransition();
+    const [csrfToken, setCsrfToken] = React.useState<string | null>(null);
     const router = useRouter();
 
-    useEffect(() => {
+    React.useEffect(() => {
       generateAndSetCsrfToken(setCsrfToken);
     }, []);
     
-    useEffect(() => {
+    React.useEffect(() => {
         setError(initialError);
         if (initialError) {
             const url = new URL(window.location.href);
@@ -50,7 +50,10 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
         if (error) setError(null);
     };
 
-    const handleSubmit = (formData: FormData) => {
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const formData = new FormData(e.currentTarget);
+      
       if (!csrfToken) {
         setError('A required security token was not found. Please refresh the page and try again.');
         return;
@@ -75,7 +78,7 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
     };
 
     return (
-        <form action={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
+        <form onSubmit={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
             <div className="grid gap-2">
                 <Label htmlFor="companyName">Company Name</Label>
                 <Input
