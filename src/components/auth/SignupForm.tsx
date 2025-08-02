@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
-import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,30 +22,18 @@ function SubmitButton() {
 }
 
 const initialState = {
-  error: null,
-  message: null,
+  error: undefined,
+  message: undefined,
   success: false,
 };
 
 export function SignupForm({ error: initialError }: { error: string | null; }) {
     const [state, formAction] = useFormState(signup, initialState);
     const [csrfToken, setCsrfToken] = useState<string | null>(null);
-    const router = useRouter();
 
     useEffect(() => {
       generateAndSetCsrfToken(setCsrfToken);
     }, []);
-
-    useEffect(() => {
-        if (state.success) {
-            if (state.message) {
-                router.push(`/login?message=${encodeURIComponent(state.message)}`);
-            } else {
-                router.push('/dashboard');
-            }
-            router.refresh();
-        }
-    }, [state.success, state.message, router]);
 
     return (
         <form action={formAction} className="grid gap-4">
@@ -94,7 +81,7 @@ export function SignupForm({ error: initialError }: { error: string | null; }) {
                     minLength={8}
                 />
             </div>
-            {state.error && (
+            {state?.error && (
               <Alert variant="destructive">
                  <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>{state.error}</AlertDescription>

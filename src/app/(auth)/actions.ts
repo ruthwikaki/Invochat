@@ -125,7 +125,7 @@ export async function login(formData: FormData): Promise<{ success: boolean; err
 }
 
 
-export async function signup(formData: FormData): Promise<{ success: boolean; error?: string; message?: string }> {
+export async function signup(prevState: any, formData: FormData): Promise<{ success: boolean; error?: string; message?: string }> {
   const companyName = formData.get('companyName') as string;
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
@@ -177,11 +177,11 @@ export async function signup(formData: FormData): Promise<{ success: boolean; er
     }
 
     if (data.user && !data.user.email_confirmed_at && data.user.confirmation_sent_at) {
-      return { success: true, message: 'Check your email to confirm your account and continue.' };
+      redirect('/login?message=Check your email to confirm your account and continue.');
     }
     
     revalidatePath('/', 'layout');
-    return { success: true };
+    redirect('/dashboard');
 
   } catch (e) {
     const message = getErrorMessage(e);
