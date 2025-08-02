@@ -1,11 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  // Remove all complex configurations temporarily
   experimental: {
-    serverComponentsExternalPackages: [
-      '@supabase/supabase-js',
-    ],
+    serverActions: true,
+    appDir: true,
   },
 };
 
