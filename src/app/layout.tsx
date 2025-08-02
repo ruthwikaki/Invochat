@@ -23,13 +23,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  console.log('🏗️ RootLayout rendering');
-  console.log('🔧 Env validation success:', envValidation.success);
-  
-  if (!envValidation.success) {
-    console.error('❌ Env validation failed:', envValidation.error.flatten());
-  }
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn('font-sans antialiased', inter.variable)}>
