@@ -14,12 +14,12 @@ import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function LoginSubmitButton() {
+function LoginSubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
     return (
         <Button 
             type="submit" 
-            disabled={pending} 
+            disabled={disabled || pending} 
             className="w-full h-12 text-base font-semibold"
         >
             {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
@@ -88,7 +88,7 @@ export function LoginForm({ initialError }: { initialError: string | null; }) {
         )}
         
         <div className="pt-2">
-            <LoginSubmitButton />
+            <LoginSubmitButton disabled={!csrfToken} />
         </div>
     </form>
   );

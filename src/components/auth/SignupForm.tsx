@@ -12,10 +12,10 @@ import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
+      <Button type="submit" className="w-full h-12 text-base" disabled={disabled || pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
@@ -88,7 +88,7 @@ export function SignupForm({ error: initialError }: { error: string | null; }) {
               </Alert>
             )}
             <div className="pt-2">
-                <SubmitButton />
+                <SubmitButton disabled={!csrfToken} />
             </div>
         </form>
     );
