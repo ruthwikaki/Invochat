@@ -77,15 +77,6 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/login', req.url));
     }
   }
-  
-  // Re-authenticate on the server-side to ensure session validity for protected routes.
-  // This is the core of the fix for insufficient session validation.
-  if (!isPublicRoute && !isLandingPage) {
-      const { error } = await supabase.auth.getUser();
-      if (error) {
-          return NextResponse.redirect(new URL('/login?error=Your session has expired. Please sign in again.', req.url));
-      }
-  }
 
   return response;
 }
