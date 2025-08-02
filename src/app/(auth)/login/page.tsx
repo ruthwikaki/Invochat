@@ -19,7 +19,9 @@ export default async function LoginPage({
         <CardHeader className="p-0 text-center">
           <Link href="/" className="mb-4 flex items-center justify-center gap-3">
             <AIventoryLogo className="h-10 w-10 text-primary" />
-            <h1 className="bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-4xl font-bold tracking-tight text-transparent">AIventory</h1>
+            <h1 className="text-4xl font-bold tracking-tight">
+                <span className="text-primary">AI</span><span className="text-foreground">ventory</span>
+            </h1>
           </Link>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
           <CardDescription>
