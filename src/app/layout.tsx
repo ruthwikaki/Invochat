@@ -6,8 +6,6 @@ import { cn } from '@/lib/utils';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/context/auth-context';
-import { AppInitializer } from '@/components/app-initializer';
-import { envValidation } from '@/config/app-config';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -34,9 +32,7 @@ export default function RootLayout({
             disableTransitionOnChange
         >
           <AuthProvider>
-            <AppInitializer validationResult={envValidation}>
-              {children}
-            </AppInitializer>
+            {children}
             <Toaster />
           </AuthProvider>
         </ThemeProvider>
