@@ -1,8 +1,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useTransition } from 'react';
-import { useFormStatus } from 'react-dom';
+import React, { useState, useEffect } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
@@ -14,27 +14,26 @@ import { login } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function LoginSubmitButton({ isPending, disabled }: { isPending: boolean, disabled: boolean }) {
+function LoginSubmitButton() {
     const { pending } = useFormStatus();
-    const isDisabled = isPending || pending || disabled;
     return (
         <Button 
             type="submit" 
-            disabled={isDisabled} 
+            disabled={pending} 
             className="w-full h-12 text-base font-semibold"
         >
-            {isDisabled ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
+            {pending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign In'}
         </Button>
     )
 }
 
-interface LoginFormProps {
-    initialError: string | null;
-}
+const initialState = {
+    error: null,
+    success: false,
+};
 
-export function LoginForm({ initialError }: LoginFormProps) {
-  const [error, setError] = useState(initialError);
-  const [isPending, startTransition] = useTransition();
+export function LoginForm({ initialError }: { initialError: string | null; }) {
+  const [state, formAction] = useFormState(login, initialState);
   const router = useRouter();
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
 
@@ -43,41 +42,15 @@ export function LoginForm({ initialError }: LoginFormProps) {
   }, []);
 
   useEffect(() => {
-    setError(initialError);
-    if (initialError) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('error');
-        window.history.replaceState({}, '', url.toString());
+    if (state.success) {
+      router.push('/dashboard');
+      router.refresh();
     }
-  }, [initialError]);
+  }, [state.success, router]);
 
-  const handleInteraction = () => {
-    if (error) setError(null);
-  };
-  
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    if (!csrfToken) {
-        setError('A required security token was not found. Please refresh the page and try again.');
-        return;
-    }
-    formData.append(CSRF_FORM_NAME, csrfToken);
-    
-    setError(null);
-    startTransition(async () => {
-      const result = await login(formData);
-      if (result?.success) {
-        router.push('/dashboard');
-        router.refresh();
-      } else {
-        setError(result?.error || 'An unexpected error occurred.');
-      }
-    });
-  };
-  
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" onChange={handleInteraction}>
+    <form action={formAction} className="space-y-4">
+        {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
         <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -107,15 +80,15 @@ export function LoginForm({ initialError }: LoginFormProps) {
             />
         </div>
         
-        {error && (
+        {state.error && (
             <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{state.error}</AlertDescription>
             </Alert>
         )}
         
         <div className="pt-2">
-            <LoginSubmitButton isPending={isPending} disabled={!csrfToken} />
+            <LoginSubmitButton />
         </div>
     </form>
   );
