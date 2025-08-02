@@ -9,13 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { requestPasswordReset } from '@/app/(auth)/actions';
-import { CSRF_FORM_NAME } from '@/lib/csrf-client';
-import { generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function SubmitButton({ disabled }: { disabled?: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-      <Button type="submit" className="w-full" disabled={disabled || pending}>
+      <Button type="submit" className="w-full" disabled={pending}>
         {pending ? <Loader2 className="animate-spin" /> : 'Send Password Reset Email'}
       </Button>
     );
@@ -23,16 +21,13 @@ function SubmitButton({ disabled }: { disabled?: boolean }) {
 
 interface ForgotPasswordFormProps {
     error: string | null;
+    success: boolean;
 }
 
-export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormProps) {
+export function ForgotPasswordForm({ error: initialError, success: initialSuccess }: ForgotPasswordFormProps) {
   const [error, setError] = useState(initialError);
-  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [success, setSuccess] = useState(initialSuccess);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    generateAndSetCsrfToken(setCsrfToken);
-  }, []);
 
   useEffect(() => {
     setError(initialError);
@@ -42,20 +37,30 @@ export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormPr
         window.history.replaceState({}, '', url.toString());
     }
   }, [initialError]);
+  
+    useEffect(() => {
+    setSuccess(initialSuccess);
+    if (initialSuccess) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('success');
+        window.history.replaceState({}, '', url.toString());
+    }
+  }, [initialSuccess]);
+
 
   const handleInteraction = () => {
     if (error) setError(null);
+    if (success) setSuccess(false);
   };
   
   const formAction = (formData: FormData) => {
-    startTransition(() => {
-        requestPasswordReset(formData);
+    startTransition(async () => {
+        await requestPasswordReset(formData);
     })
   }
 
   return (
     <form action={formAction} className="grid gap-4" onChange={handleInteraction}>
-      {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
       <div className="grid gap-2">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -73,7 +78,12 @@ export function ForgotPasswordForm({ error: initialError }: ForgotPasswordFormPr
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      <SubmitButton disabled={!csrfToken || isPending} />
+       {success && (
+        <Alert variant="default" className="bg-success/10 border-success/20 text-success-foreground">
+          <AlertDescription>If an account exists for that email, a password reset link has been sent.</AlertDescription>
+        </Alert>
+      )}
+      <SubmitButton />
     </form>
   );
 }
