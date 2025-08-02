@@ -1,8 +1,8 @@
 
 'use client';
 
-import React from 'react';
-import { useFormStatus } from 'react-dom';
+import React, { useState, useEffect } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,72 +13,44 @@ import { signup } from '@/app/(auth)/actions';
 import { PasswordInput } from './PasswordInput';
 import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
-function SubmitButton({ isPending, disabled }: { isPending: boolean, disabled: boolean }) {
+function SubmitButton() {
     const { pending } = useFormStatus();
-    const isDisabled = isPending || pending || disabled;
     return (
-      <Button type="submit" className="w-full h-12 text-base" disabled={isDisabled}>
-        {isDisabled ? <Loader2 className="animate-spin" /> : 'Create Account'}
+      <Button type="submit" className="w-full h-12 text-base" disabled={pending}>
+        {pending ? <Loader2 className="animate-spin" /> : 'Create Account'}
       </Button>
     );
 }
 
-interface SignupFormProps {
-    error: string | null;
-}
+const initialState = {
+  error: null,
+  message: null,
+  success: false,
+};
 
-export function SignupForm({ error: initialError }: SignupFormProps) {
-    const [error, setError] = React.useState(initialError);
-    const [isPending, startTransition] = React.useTransition();
-    const [csrfToken, setCsrfToken] = React.useState<string | null>(null);
+export function SignupForm({ error: initialError }: { error: string | null; }) {
+    const [state, formAction] = useFormState(signup, initialState);
+    const [csrfToken, setCsrfToken] = useState<string | null>(null);
     const router = useRouter();
 
-    React.useEffect(() => {
+    useEffect(() => {
       generateAndSetCsrfToken(setCsrfToken);
     }, []);
-    
-    React.useEffect(() => {
-        setError(initialError);
-        if (initialError) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('error');
-            window.history.replaceState({}, '', url.toString());
+
+    useEffect(() => {
+        if (state.success) {
+            if (state.message) {
+                router.push(`/login?message=${encodeURIComponent(state.message)}`);
+            } else {
+                router.push('/dashboard');
+            }
+            router.refresh();
         }
-    }, [initialError]);
-
-    const handleInteraction = () => {
-        if (error) setError(null);
-    };
-
-    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const formData = new FormData(e.currentTarget);
-      
-      if (!csrfToken) {
-        setError('A required security token was not found. Please refresh the page and try again.');
-        return;
-      }
-      formData.append(CSRF_FORM_NAME, csrfToken);
-
-      setError(null);
-      startTransition(async () => {
-        const result = await signup(formData);
-        if (result.success) {
-          if (result.message) {
-            router.push(`/login?message=${encodeURIComponent(result.message)}`);
-          } else {
-            // A direct sign up without email confirmation will land here
-            router.push('/dashboard');
-          }
-          router.refresh(); // Important to update the auth state for the layout
-        } else {
-          setError(result.error || 'An unexpected error occurred.');
-        }
-      });
-    };
+    }, [state.success, state.message, router]);
 
     return (
-        <form onSubmit={handleSubmit} className="grid gap-4" onChange={handleInteraction}>
+        <form action={formAction} className="grid gap-4">
+            {csrfToken && <input type="hidden" name={CSRF_FORM_NAME} value={csrfToken} />}
             <div className="grid gap-2">
                 <Label htmlFor="companyName">Company Name</Label>
                 <Input
@@ -122,14 +94,14 @@ export function SignupForm({ error: initialError }: SignupFormProps) {
                     minLength={8}
                 />
             </div>
-            {error && (
+            {state.error && (
               <Alert variant="destructive">
                  <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{state.error}</AlertDescription>
               </Alert>
             )}
             <div className="pt-2">
-                <SubmitButton isPending={isPending} disabled={!csrfToken} />
+                <SubmitButton />
             </div>
         </form>
     );
