@@ -320,15 +320,33 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
     }
 }
 
-export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) { 
+export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) {
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
-    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
+    
+    // Use raw table query since we need to create the view
+    let query = supabase.from('customers').select(`
+        id,
+        company_id,
+        customer_name,
+        email,
+        total_orders,
+        total_spent,
+        first_order_date,
+        created_at,
+        deleted_at
+    `, {count: 'exact'}).eq('company_id', companyId).is('deleted_at', null);
+    
     if(validatedParams.query) {
+        // Fix: Use correct column name from database
         query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
+    
     const limit = Math.min(validatedParams.limit || 25, 100);
-    const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
+    const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
+    
     if(error) throw error;
     return {items: data || [], totalCount: count || 0};
 }
