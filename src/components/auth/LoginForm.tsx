@@ -4,7 +4,6 @@
 import React from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,20 +26,11 @@ function LoginSubmitButton() {
 }
 
 const initialState = {
-    error: null,
-    success: false,
+    error: undefined,
 };
 
 export function LoginForm({ initialError }: { initialError: string | null; }) {
   const [state, formAction] = useFormState(login, initialState);
-  const router = useRouter();
-
-  React.useEffect(() => {
-    if (state.success) {
-      router.push('/dashboard');
-      router.refresh();
-    }
-  }, [state.success, router]);
 
   return (
     <form action={formAction} className="space-y-4">
