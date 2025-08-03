@@ -424,7 +424,7 @@ export const DashboardMetricsSchema = z.object({
     in_stock_value: z.number().default(0),
     low_stock_value: z.number().default(0),
     dead_stock_value: z.number().default(0),
-  })
+  }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 })
 }).passthrough();
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
@@ -565,5 +565,3 @@ export const FeedbackSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
-
-    
