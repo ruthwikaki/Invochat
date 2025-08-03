@@ -1,21 +1,14 @@
+
 import { test, expect } from '@playwright/test';
 import { getAuthedRequest } from './api-helpers';
+import { createServerClient } from '@/lib/supabase/admin';
 
 test.describe('Authentication API', () => {
 
-  test('GET /api/auth/user should return user data for authenticated requests', async ({ request }) => {
-    const authedRequest = await getAuthedRequest(request);
-    const response = await authedRequest.get('/api/auth/user');
-
-    expect(response.ok()).toBeTruthy();
-    const { user } = await response.json();
-    expect(user).toHaveProperty('id');
-    expect(user.email).toBe(process.env.TEST_USER_EMAIL || 'test@example.com');
-  });
-
-  test('GET /api/auth/user should return 401 for unauthenticated requests', async ({ request }) => {
+  test('GET /api/auth/user should not exist', async ({ request }) => {
+    // This endpoint should not exist as user data should be retrieved through the session on the server
     const response = await request.get('/api/auth/user');
-    expect(response.status()).toBe(401);
+    expect(response.status()).toBe(404);
   });
   
 });

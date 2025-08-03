@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@supabase/supabase-js';
@@ -21,8 +22,9 @@ test.beforeAll(async () => {
     testUser = user;
 
     // Create a second company that this user should NOT have access to
-     const { data: company } = await supabase.from('companies').insert({ name: 'Other Test Company', owner_id: user!.id }).select('id').single();
-     otherCompanyId = company!.id;
+     const { data: company } = await supabase.from('companies').insert({ name: 'Other Test Company'}).select('id').single();
+     if(!company) throw new Error('Failed to create other test company');
+     otherCompanyId = company.id;
 });
 
 test.describe('Security and Authorization', () => {
@@ -61,7 +63,7 @@ test.describe('Security and Authorization', () => {
     // related to 'otherCompanyId'. Since we can't directly query the DB here, we ensure
     // the main user's data loads, but no errors of unauthorized access appear.
     await expect(page.getByText('Suppliers')).toBeVisible();
-    await expect(page.getByText('No suppliers found.')).toBeVisible(); // Assuming test user has no suppliers
+    await expect(page.getByText('No Suppliers Found')).toBeVisible(); // Assuming test user has no suppliers
   });
 
 });

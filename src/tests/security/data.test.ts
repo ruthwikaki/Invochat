@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { getAuthedRequest } from '../api/api-helpers';
@@ -15,10 +16,12 @@ test.describe('Data Security & Multi-Tenancy', () => {
         // Create two separate companies and a supplier in the first one
         const { data: comp1 } = await supabase.from('companies').insert({ name: 'Security Test Co 1' }).select().single();
         const { data: comp2 } = await supabase.from('companies').insert({ name: 'Security Test Co 2' }).select().single();
+        if(!comp1 || !comp2) throw new Error('Failed to create test companies');
         company1Id = comp1.id;
         company2Id = comp2.id;
         
         const { data: supplier } = await supabase.from('suppliers').insert({ name: 'Company 1 Supplier', company_id: company1Id }).select().single();
+        if(!supplier) throw new Error('Failed to create test supplier');
         supplierFromCompany1Id = supplier.id;
     });
 
@@ -27,11 +30,11 @@ test.describe('Data Security & Multi-Tenancy', () => {
         // to use a test user that we can associate with Company 2 for this test.
         const supabase = getServiceRoleClient();
         const {data: {users}} = await supabase.auth.admin.listUsers();
-        const testUser = users.find(u => u.email === process.env.TEST_USER_EMAIL);
+        const testUser = users.find(u => u.email === (process.env.TEST_USER_EMAIL || 'test@example.com'));
         if (!testUser) throw new Error('Test user not found');
 
         // Temporarily assign the test user to Company 2
-        await supabase.from('company_users').upsert({ user_id: testUser.id, company_id: company2Id, role: 'Owner' });
+        await supabase.from('company_users').upsert({ user_id: testUser.id, company_id: company2Id, role: 'Owner' }, { onConflict: 'user_id' });
 
         const authedRequest = await getAuthedRequest();
         
