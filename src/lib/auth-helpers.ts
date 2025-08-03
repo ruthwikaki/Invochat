@@ -45,15 +45,13 @@ export async function getCurrentCompanyId(): Promise<string | null> {
 
 /**
  * Helper function to get company ID from database with retry logic
- * FIXED: Now uses service role client to bypass RLS policies
  */
 async function getCompanyIdFromDatabase(userId: string): Promise<string | null> {
-    // CRITICAL FIX: Use service role client instead of regular client
-    const serviceSupabase = getServiceRoleClient(); // CHANGED FROM createServerClient()
+    const serviceSupabase = getServiceRoleClient();
     
     try {
         return await retry(async () => {
-            const { data: companyUserData, error } = await serviceSupabase // USING SERVICE ROLE CLIENT
+            const { data: companyUserData, error } = await serviceSupabase
                 .from('company_users')
                 .select('company_id')
                 .eq('user_id', userId)

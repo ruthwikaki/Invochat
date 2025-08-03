@@ -38,7 +38,6 @@ export const ProductSchema = z.object({
 });
 export type Product = z.infer<typeof ProductSchema>;
 
-// Fix: Add missing fields that exist in your database
 export const ProductVariantSchema = z.object({
   id: z.string().uuid(),
   product_id: z.string().uuid(),
@@ -60,13 +59,8 @@ export const ProductVariantSchema = z.object({
   external_variant_id: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
-  deleted_at: z.string().datetime({ offset: true }).nullable(),
-  version: z.number().int().default(1),
   reorder_point: z.number().int().nullable(),
   reorder_quantity: z.number().int().nullable(),
-  // ADD THESE MISSING FIELDS FROM YOUR DB:
-  reserved_quantity: z.number().int().default(0),
-  in_transit_quantity: z.number().int().default(0),
   supplier_id: z.string().uuid().nullable(),
 });
 export type ProductVariant = z.infer<typeof ProductVariantSchema>;
@@ -86,7 +80,6 @@ export const OrderSchema = z.object({
   order_number: z.string(),
   external_order_id: z.string().nullable(),
   customer_id: z.string().uuid().nullable(),
-  customer_email: z.string().email().nullable(),
   financial_status: z.string().nullable(),
   fulfillment_status: z.string().nullable(),
   currency: z.string().nullable(),
@@ -134,15 +127,14 @@ export const RefundSchema = z.object({
 export type Refund = z.infer<typeof RefundSchema>;
 
 
-// Fix: Update CustomerSchema to match actual database
 export const CustomerSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
-  customer_name: z.string(), // This matches your DB column name
+  name: z.string().nullable(), // name is nullable in db
   email: z.string().email().nullable(),
   total_orders: z.number().int().default(0),
   total_spent: z.number().int().default(0),
-  first_order_date: z.string().date().nullable(),
+  first_order_date: z.string().datetime({ offset: true }).nullable(),
   deleted_at: z.string().datetime({ offset: true }).nullable(),
   created_at: z.string().datetime({ offset: true }),
 });
@@ -234,7 +226,6 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
 export type PurchaseOrderWithItemsAndSupplier = z.infer<typeof PurchaseOrderWithItemsAndSupplierSchema>;
 
 
-// Fix: Add all missing subscription and billing fields
 export const CompanySettingsSchema = z.object({
   company_id: z.string().uuid(),
   dead_stock_days: z.number().int().positive().default(90),
@@ -243,18 +234,10 @@ export const CompanySettingsSchema = z.object({
   currency: z.string().default('USD'),
   timezone: z.string().default('UTC'),
   tax_rate: z.number().nonnegative().default(0),
-  custom_rules: z.record(z.unknown()).nullable(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
-  // ADD THESE MISSING FIELDS FROM YOUR DB:
-  subscription_status: z.string().default('trial'),
-  subscription_plan: z.string().default('starter'),
-  subscription_expires_at: z.string().datetime({ offset: true }).nullable(),
-  stripe_customer_id: z.string().nullable(),
-  stripe_subscription_id: z.string().nullable(),
-  promo_sales_lift_multiplier: z.number().default(2.5),
   overstock_multiplier: z.number().int().default(3),
-  high_value_threshold: z.number().int().default(1000),
+  high_value_threshold: z.number().int().default(100000),
   alert_settings: z.record(z.unknown()).default({}),
 });
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
@@ -448,8 +431,8 @@ export const CustomerAnalyticsSchema = z.object({
     new_customers_last_30_days: z.number().int(),
     repeat_customer_rate: z.number(),
     average_lifetime_value: z.number().int(),
-    top_customers_by_spend: z.array(z.object({ name: z.string(), value: z.number().int() })),
-    top_customers_by_sales: z.array(z.object({ name: z.string(), value: z.number().int() })),
+    top_customers_by_spend: z.array(z.object({ name: z.string().nullable(), value: z.number().int() })),
+    top_customers_by_sales: z.array(z.object({ name: z.string().nullable(), value: z.number().int() })),
 });
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
@@ -461,13 +444,12 @@ export type Anomaly = z.infer<typeof AnomalySchema>;
 export type AnomalyExplanationInput = z.infer<typeof AnomalyExplanationInputSchema>;
 export type AnomalyExplanationOutput = z.infer<typeof AnomalyExplanationOutputSchema>;
 
-// Fix: Channel fees use numeric type, not integer
 export const ChannelFeeSchema = z.object({
   id: z.string().uuid().optional(),
   company_id: z.string().uuid().optional(),
   channel_name: z.string(),
-  percentage_fee: z.number().nullable(), // Changed from int to number
-  fixed_fee: z.number().nullable(),      // Changed from int to number
+  percentage_fee: z.number().nullable(),
+  fixed_fee: z.number().nullable(),
   created_at: z.string().datetime({ offset: true }).optional(),
   updated_at: z.string().datetime({ offset: true }).nullable().optional(),
 });

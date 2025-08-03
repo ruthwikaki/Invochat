@@ -50,7 +50,7 @@ const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: str
     </Card>
 );
 
-const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: string, data: { name: string, value: number }[], icon: React.ElementType, valueLabel: string }) => (
+const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: string, data: { name: string | null, value: number }[], icon: React.ElementType, valueLabel: string }) => (
     <Card className="flex-1">
         <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -63,7 +63,7 @@ const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: strin
                 <ul className="space-y-3">
                     {data.map((customer, index) => (
                         <li key={index} className="flex items-center justify-between text-sm">
-                            <span className="font-medium truncate pr-4">{customer.name}</span>
+                            <span className="font-medium truncate pr-4">{customer.name || 'Unknown'}</span>
                             <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCentsAsCurrency(customer.value)}</span>
                         </li>
                     ))}
@@ -171,7 +171,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
 
       const result = await deleteCustomer(formData);
       if (result.success) {
-        toast({ title: "Customer Deleted", description: `Customer ${customerToDelete.customer_name} has been removed.` });
+        toast({ title: "Customer Deleted", description: `Customer ${customerToDelete.name} has been removed.` });
         router.refresh();
       } else {
         toast({ variant: 'destructive', title: "Error Deleting Customer", description: result.error });
@@ -240,10 +240,10 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                             <TableCell>
                                 <div className="flex items-center gap-3">
                                     <Avatar className="h-9 w-9">
-                                        <AvatarFallback>{customer.customer_name?.charAt(0) || '?'}</AvatarFallback>
+                                        <AvatarFallback>{customer.name?.charAt(0) || '?'}</AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <div className="font-medium">{customer.customer_name}</div>
+                                        <div className="font-medium">{customer.name}</div>
                                         <div className="text-xs text-muted-foreground">{customer.email}</div>
                                     </div>
                                 </div>
@@ -276,7 +276,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will permanently delete {customerToDelete?.customer_name || 'this customer'}. If the customer has existing orders, their record will be preserved but marked as deleted (soft-delete). This action cannot be undone.
+                    This will permanently delete {customerToDelete?.name || 'this customer'}. If the customer has existing orders, their record will be preserved but marked as deleted (soft-delete). This action cannot be undone.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
