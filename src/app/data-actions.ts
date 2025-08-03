@@ -795,9 +795,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
-export async function refreshData() {
-    const { companyId } = await getAuthContext();
-    await refreshMaterializedViews(companyId);
-    await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock', 'inventory', 'suppliers']);
-}
