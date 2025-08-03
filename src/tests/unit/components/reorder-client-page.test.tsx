@@ -1,11 +1,9 @@
-
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
 import type { ReorderSuggestion } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import * as dataActions from '@/app/data-actions';
+import * as dataActions from '@/app/(app)/analytics/reordering/actions';
 import * as csrf from '@/lib/csrf-client';
 
 // Mock dependencies
@@ -22,7 +20,7 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-vi.mock('@/app/data-actions');
+vi.mock('@/app/(app)/analytics/reordering/actions');
 vi.mock('@/lib/csrf-client');
 
 
@@ -64,7 +62,7 @@ describe('Component: ReorderClientPage', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        (csrf.getCookie as vi.Mock).mockReturnValue('test-csrf-token');
+        (csrf.generateAndSetCsrfToken as vi.Mock).mockImplementation((setter) => setter('test-csrf-token'));
     });
 
     it('should render the table with initial suggestions', () => {
@@ -75,7 +73,7 @@ describe('Component: ReorderClientPage', () => {
         expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     });
 
-    it('should show the action bar when items are selected, and hide it when all are deselected', async () => {
+    it('should show the action bar when an item is selected, and hide it when all are deselected', async () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
         const checkboxes = screen.getAllByRole('checkbox');
         const selectAllCheckbox = checkboxes[0];
@@ -84,7 +82,7 @@ describe('Component: ReorderClientPage', () => {
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
         // Select all items
-        fireEvent.click(selectAllCheckbox);
+        await fireEvent.click(selectAllCheckbox);
         
         // Wait for state update and action bar to appear
         await waitFor(() => {
@@ -92,7 +90,7 @@ describe('Component: ReorderClientPage', () => {
         });
 
         // Unselect all items
-        fireEvent.click(selectAllCheckbox);
+        await fireEvent.click(selectAllCheckbox);
         
         // Wait for state update and action bar to disappear
         await waitFor(() => {
@@ -100,7 +98,7 @@ describe('Component: ReorderClientPage', () => {
         });
 
         // Check one item to ensure individual selection still works
-        fireEvent.click(checkboxes[1]);
+        await fireEvent.click(checkboxes[1]);
         await waitFor(() => {
           expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
         });

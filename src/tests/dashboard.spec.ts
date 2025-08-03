@@ -7,7 +7,7 @@ test.describe('Dashboard Page', () => {
 
     test('should load all dashboard cards', async ({ page }) => {
         await expect(page.getByText('Total Revenue')).toBeVisible();
-        await expect(page.getByText('Total Sales')).toBeVisible();
+        await expect(page.getByText('Total Orders')).toBeVisible();
         await expect(page.getByText('New Customers')).toBeVisible();
         await expect(page.getByText('Dead Stock Value')).toBeVisible();
         await expect(page.getByText('Sales Overview')).toBeVisible();

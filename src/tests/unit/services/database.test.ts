@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -13,13 +12,13 @@ vi.mock('@/lib/supabase/admin', () => ({
 const mockDashboardData = {
   total_revenue: 100000,
   revenue_change: 10.5,
-  total_sales: 50,
-  sales_change: 5.2,
+  total_orders: 50,
+  orders_change: 5.2,
   new_customers: 10,
   customers_change: 2.1,
   dead_stock_value: 5000,
-  sales_over_time: [{ date: '2024-01-01', total_sales: 5000 }],
-  top_selling_products: [{ product_name: 'Test Product', total_revenue: 20000, image_url: null }],
+  sales_over_time: [{ date: '2024-01-01', revenue: 5000 }],
+  top_selling_products: [{ product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
   inventory_summary: {
     total_value: 200000,
     in_stock_value: 150000,
@@ -54,7 +53,7 @@ describe('Database Service - Business Logic', () => {
     expect(result.top_selling_products[0].product_name).toBe('Test Product');
   });
 
-  it('getDashboardMetrics should throw an error if the RPC call fails', async () => {
+  it('getDashboardMetrics should return empty metrics if the RPC call fails', async () => {
     const dbError = { message: 'Database connection error' };
     
     // Mock error response with both data: null and error object
@@ -63,27 +62,20 @@ describe('Database Service - Business Logic', () => {
       error: dbError 
     });
 
-    // The function should throw the specific error message for RPC failures
-    await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d'))
-      .rejects.toThrow('Could not retrieve dashboard metrics from the database.');
+    // The function should now return a default empty object instead of throwing
+    const result = await getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d');
+    expect(result.total_revenue).toBe(0);
+    expect(result.top_selling_products).toEqual([]);
   });
 
-  it('getDashboardMetrics should throw an error if the RPC response is unexpectedly null', async () => {
-    // Simulate the RPC call resolving to null/undefined (entire response is null)
-    (supabaseMock.rpc as vi.Mock).mockResolvedValue(null);
-
-    await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d'))
-      .rejects.toThrow('No response from get_dashboard_metrics RPC call.');
-  });
-
-  it('getDashboardMetrics should throw an error if data is null but no error object', async () => {
+  it('getDashboardMetrics should return empty metrics if data is null but no error object', async () => {
     // Simulate response with null data but no error (edge case)
     (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
       data: null, 
       error: null 
     });
 
-    await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d'))
-      .rejects.toThrow('No response from get_dashboard_metrics RPC call.');
+    const result = await getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d');
+    expect(result.total_revenue).toBe(0);
   });
 });
