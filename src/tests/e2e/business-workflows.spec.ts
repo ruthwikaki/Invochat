@@ -42,11 +42,12 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     const firstRow = page.locator('table > tbody > tr').first();
     if (await firstRow.isVisible()) {
         const checkbox = firstRow.locator('input[type="checkbox"]');
+        await checkbox.check();
         await expect(checkbox).toBeChecked();
         await checkbox.uncheck();
         await expect(checkbox).not.toBeChecked();
     } else {
-        await expect(page.getByText('No Reorder Suggestions')).toBeVisible();
+        await expect(page.getByText('All Good! No Reorders Needed')).toBeVisible();
     }
   });
 });

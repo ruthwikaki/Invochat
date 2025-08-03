@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getAuthContext, getCurrentUser, getCurrentCompanyId } from '@/lib/auth-helpers';
-import { createServerClient } from '@/lib/supabase/admin';
+import { createServerClient, getServiceRoleClient } from '@/lib/supabase/admin';
 
 // Mock the createServerClient function
 vi.mock('@/lib/supabase/admin', () => ({
   createServerClient: vi.fn(),
+  getServiceRoleClient: vi.fn(),
 }));
 
 const mockUser = {
@@ -25,6 +26,12 @@ describe('Auth Helpers', () => {
       },
     };
     (createServerClient as vi.Mock).mockReturnValue(supabaseMock);
+    (getServiceRoleClient as vi.Mock).mockReturnValue({
+        from: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { company_id: 'company-456' }, error: null }),
+    });
     vi.clearAllMocks();
   });
 
@@ -49,17 +56,17 @@ describe('Auth Helpers', () => {
   });
 
   describe('getCurrentCompanyId', () => {
-    it('should return company ID for an authenticated user', async () => {
+    it('should return company ID for an authenticated user from JWT', async () => {
         supabaseMock.auth.getUser.mockResolvedValue({ data: { user: mockUser }, error: null });
         const companyId = await getCurrentCompanyId();
         expect(companyId).toBe('company-456');
     });
 
-    it('should return null if user has no company ID', async () => {
+    it('should return company ID from database if not in JWT', async () => {
         const userWithoutCompany = { ...mockUser, app_metadata: {} };
         supabaseMock.auth.getUser.mockResolvedValue({ data: { user: userWithoutCompany }, error: null });
         const companyId = await getCurrentCompanyId();
-        expect(companyId).toBeNull();
+        expect(companyId).toBe('company-456');
     });
   });
 
@@ -75,9 +82,11 @@ describe('Auth Helpers', () => {
         await expect(getAuthContext()).rejects.toThrow('Authentication required: No user session found.');
     });
 
-     it('should throw error if company ID is missing', async () => {
+     it('should throw error if company ID is missing from JWT and DB', async () => {
         const userWithoutCompany = { ...mockUser, app_metadata: {} };
         supabaseMock.auth.getUser.mockResolvedValue({ data: { user: userWithoutCompany }, error: null });
+        // Mock the db call to also fail
+        (getServiceRoleClient().single as vi.Mock).mockResolvedValue({data: null, error: new Error('Not found')});
         await expect(getAuthContext()).rejects.toThrow('Authorization failed: User is not associated with a company.');
     });
   });
