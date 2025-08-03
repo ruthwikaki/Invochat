@@ -328,10 +328,10 @@ export async function getCustomersFromDB(companyId: string, params: { query?: st
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
     
-    let query = supabase.from('customers_view').select('*', {count: 'exact'}).eq('company_id', companyId);
+    let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId).is('deleted_at', null);
     
     if(validatedParams.query) {
-        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     
     const limit = Math.min(validatedParams.limit || 25, 100);
@@ -360,9 +360,9 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
-            query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
+            query = query.or(`order_number.ilike.%${validatedParams.query}%`);
         }
         const limit = Math.min(validatedParams.limit || 25, 100);
         const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);
