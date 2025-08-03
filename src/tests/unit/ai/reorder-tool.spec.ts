@@ -1,10 +1,8 @@
-
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import * as database from '@/services/database';
 import * as genkit from '@/ai/genkit';
-import type { ReorderSuggestion } from '@/types';
+import type { ReorderSuggestion, ReorderSuggestionBase } from '@/types';
 
 // Mock database and AI calls
 vi.mock('@/services/database');
@@ -15,7 +13,7 @@ vi.mock('@/ai/genkit', () => ({
   },
 }));
 
-const mockBaseSuggestions: ReorderSuggestion[] = [
+const mockBaseSuggestions: ReorderSuggestionBase[] = [
   {
     variant_id: 'v1',
     product_id: 'p1',
@@ -29,7 +27,7 @@ const mockBaseSuggestions: ReorderSuggestion[] = [
   },
 ];
 
-const mockAiRefinedSuggestions = [
+const mockAiRefinedSuggestions: ReorderSuggestion[] = [
   {
     ...mockBaseSuggestions[0],
     base_quantity: 50,
@@ -52,7 +50,7 @@ describe('Reorder Tool', () => {
 
   it('should return AI-refined reorder suggestions', async () => {
     // Setup mocks for database functions
-    vi.spyOn(database, 'getReorderSuggestionsFromDB').mockResolvedValue(mockBaseSuggestions as any);
+    vi.spyOn(database, 'getReorderSuggestionsFromDB').mockResolvedValue(mockBaseSuggestions);
     vi.spyOn(database, 'getHistoricalSalesForSkus').mockResolvedValue([]);
     vi.spyOn(database, 'getSettings').mockResolvedValue({ timezone: 'UTC' } as any);
 
@@ -71,7 +69,7 @@ describe('Reorder Tool', () => {
   it('should return base suggestions if AI refinement fails', async () => {
     // Mock AI to fail
     reorderRefinementPrompt.mockResolvedValue({ output: null });
-    vi.spyOn(database, 'getReorderSuggestionsFromDB').mockResolvedValue(mockBaseSuggestions as any);
+    vi.spyOn(database, 'getReorderSuggestionsFromDB').mockResolvedValue(mockBaseSuggestions);
     vi.spyOn(database, 'getHistoricalSalesForSkus').mockResolvedValue([]);
     vi.spyOn(database, 'getSettings').mockResolvedValue({ timezone: 'UTC' } as any);
 

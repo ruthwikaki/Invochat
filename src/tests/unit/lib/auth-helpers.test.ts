@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getAuthContext, getCurrentUser, getCurrentCompanyId } from '@/lib/auth-helpers';
 import { createServerClient, getServiceRoleClient } from '@/lib/supabase/admin';
+import { retry } from '@/lib/async-utils';
 
-// Mock the createServerClient function
-vi.mock('@/lib/supabase/admin', () => ({
-  createServerClient: vi.fn(),
-  getServiceRoleClient: vi.fn(),
-}));
+// Mock dependencies
+vi.mock('@/lib/supabase/admin');
+vi.mock('@/lib/async-utils');
 
 const mockUser = {
   id: 'user-123',
@@ -18,6 +17,7 @@ const mockUser = {
 
 describe('Auth Helpers', () => {
   let supabaseMock: any;
+  let serviceSupabaseMock: any;
 
   beforeEach(() => {
     supabaseMock = {
@@ -25,13 +25,15 @@ describe('Auth Helpers', () => {
         getUser: vi.fn(),
       },
     };
-    (createServerClient as vi.Mock).mockReturnValue(supabaseMock);
-    (getServiceRoleClient as vi.Mock).mockReturnValue({
+    serviceSupabaseMock = {
         from: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: { company_id: 'company-456' }, error: null }),
-    });
+        single: vi.fn().mockResolvedValue({ data: { company_id: 'company-db-fallback' }, error: null }),
+    };
+    (createServerClient as vi.Mock).mockReturnValue(supabaseMock);
+    (getServiceRoleClient as vi.Mock).mockReturnValue(serviceSupabaseMock);
+    (retry as vi.Mock).mockImplementation((fn) => fn());
     vi.clearAllMocks();
   });
 
@@ -56,17 +58,19 @@ describe('Auth Helpers', () => {
   });
 
   describe('getCurrentCompanyId', () => {
-    it('should return company ID for an authenticated user from JWT', async () => {
+    it('should return company ID from JWT if present', async () => {
         supabaseMock.auth.getUser.mockResolvedValue({ data: { user: mockUser }, error: null });
         const companyId = await getCurrentCompanyId();
         expect(companyId).toBe('company-456');
+        expect(serviceSupabaseMock.from).not.toHaveBeenCalled();
     });
 
-    it('should return company ID from database if not in JWT', async () => {
-        const userWithoutCompany = { ...mockUser, app_metadata: {} };
-        supabaseMock.auth.getUser.mockResolvedValue({ data: { user: userWithoutCompany }, error: null });
+    it('should return company ID from database as a fallback if not in JWT', async () => {
+        const userWithoutCompanyInJWT = { ...mockUser, app_metadata: {} };
+        supabaseMock.auth.getUser.mockResolvedValue({ data: { user: userWithoutCompanyInJWT }, error: null });
         const companyId = await getCurrentCompanyId();
-        expect(companyId).toBe('company-456');
+        expect(companyId).toBe('company-db-fallback');
+        expect(serviceSupabaseMock.from).toHaveBeenCalledWith('company_users');
     });
   });
 
@@ -82,11 +86,11 @@ describe('Auth Helpers', () => {
         await expect(getAuthContext()).rejects.toThrow('Authentication required: No user session found.');
     });
 
-     it('should throw error if company ID is missing from JWT and DB', async () => {
+     it('should throw error if company ID is missing from JWT and DB fallback fails', async () => {
         const userWithoutCompany = { ...mockUser, app_metadata: {} };
         supabaseMock.auth.getUser.mockResolvedValue({ data: { user: userWithoutCompany }, error: null });
         // Mock the db call to also fail
-        (getServiceRoleClient().single as vi.Mock).mockResolvedValue({data: null, error: new Error('Not found')});
+        (retry as vi.Mock).mockRejectedValue(new Error("Failed after retries"));
         await expect(getAuthContext()).rejects.toThrow('Authorization failed: User is not associated with a company.');
     });
   });
