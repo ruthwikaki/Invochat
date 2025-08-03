@@ -796,4 +796,8 @@ export async function getFeedbackData(params: {
     }
 }
 
-    
+export async function refreshData() {
+    const { companyId } = await getAuthContext();
+    await refreshMaterializedViews(companyId);
+    await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock', 'inventory', 'suppliers']);
+}
