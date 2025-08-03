@@ -1,0 +1,24 @@
+# Core Testing Framework
+pytest>=7.4.0
+pytest-html>=3.2.0
+pytest-json-report>=1.5.0
+
+# HTTP Requests & API Testing
+requests>=2.31.0
+
+# Database Testing
+supabase>=1.0.4
+
+# Browser Automation
+selenium>=4.15.0
+webdriver-manager>=4.0.1
+
+# Data Processing
+pandas>=2.1.1
+faker>=19.6.2
+
+# Environment & Configuration
+python-dotenv>=1.0.0
+
+# Utilities
+python-dateutil>=2.8.2
