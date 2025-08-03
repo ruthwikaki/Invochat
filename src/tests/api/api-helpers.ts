@@ -91,6 +91,9 @@ export async function getAuthedRequest(playwrightRequest?: APIRequestContext): P
     }
 
     const response = await request.newContext().post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      headers: {
+        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      },
       data: {
         email: TEST_USER_EMAIL,
         password: TEST_USER_PASSWORD,
