@@ -4,15 +4,15 @@ import { test, expect } from '@playwright/test';
 test.describe('Reordering Page', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/login');
-        await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-        await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+        await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
+        await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
         await page.click('button[type="submit"]');
         await page.waitForURL('/dashboard');
         await page.goto('/analytics/reordering');
     });
 
     test('should load reorder suggestions and allow selection', async ({ page }) => {
-        await expect(page.getByText('Reorder Suggestions')).toBeVisible();
+        await expect(page.getByText('AI-Enhanced Reorder Suggestions')).toBeVisible();
 
         // Check if there are any suggestions to test with or if the empty state is shown
         const noSuggestions = page.getByText('All Good! No Reorders Needed');
@@ -47,18 +47,39 @@ test.describe('Reordering Page', () => {
         }
     });
 
-    test('should show AI reasoning in a tooltip', async ({ page }) => {
-        const aiReasoningCell = page.getByText('AI Adjusted').first();
+    test('should show AI reasoning and validate quantity adjustment', async ({ page }) => {
+        // Wait for the table to load
+        const firstRow = page.locator('table > tbody > tr').first();
+        if (!await firstRow.isVisible({ timeout: 5000 })) {
+            console.log('Skipping AI reasoning test, no reorder suggestions found.');
+            return;
+        }
+
+        const aiReasoningCell = page.locator('td:has-text("AI Adjusted")').first();
         
         if (await aiReasoningCell.isVisible()) {
+            // 1. Validate the tooltip appears
             await aiReasoningCell.hover();
-            // The tooltip is rendered in a portal, so we find it at the body level
             const tooltip = page.locator('[role="tooltip"]');
             await expect(tooltip).toBeVisible();
             await expect(tooltip).toContainText('AI Analysis');
             await expect(tooltip).toContainText('Confidence');
+
+            // 2. Validate the business logic: AI-adjusted quantity should differ from the base quantity
+            const parentRow = aiReasoningCell.locator('xpath=./../..');
+            const baseQtyElement = parentRow.locator('td').nth(4); // 5th column
+            const adjustedQtyElement = parentRow.locator('td').nth(5); // 6th column
+
+            const baseQty = Number(await baseQtyElement.textContent());
+            const adjustedQty = Number(await adjustedQtyElement.textContent());
+
+            console.log(`Validating AI adjustment: Base Qty=${baseQty}, Adjusted Qty=${adjustedQty}`);
+            
+            // Assert that the AI has actually made an adjustment
+            expect(adjustedQty).not.toEqual(baseQty);
+            
         } else {
-            console.log('Skipping AI reasoning test, no adjusted items found.');
+            console.log('Skipping AI reasoning validation, no AI-adjusted items found on the first page.');
         }
     });
 });
