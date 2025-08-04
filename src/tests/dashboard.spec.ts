@@ -1,14 +1,24 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+// Helper function to perform login
+async function login(page: Page) {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/dashboard');
+}
+
+// Helper to parse currency string to number in cents
+function parseCurrency(currencyString: string | null): number {
+    if (!currencyString) return 0;
+    return Math.round(parseFloat(currencyString.replace(/[^0-9.-]+/g, '')) * 100);
+}
 
 test.describe('Dashboard Page', () => {
     test.beforeEach(async ({ page }) => {
-        // This assumes a global setup handles login.
-        // For standalone tests, login steps would be here.
-        await page.goto('/login');
-        await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-        await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
-        await page.click('button[type="submit"]');
-        await page.waitForURL('/dashboard');
+        await login(page);
     });
 
     test('should load all dashboard cards and validate key metrics', async ({ page }) => {
@@ -19,23 +29,6 @@ test.describe('Dashboard Page', () => {
         await expect(page.getByText('Sales Overview')).toBeVisible();
         await expect(page.getByText('Top Selling Products')).toBeVisible();
         await expect(page.getByText('Inventory Value Summary')).toBeVisible();
-
-        // Data Validation
-        const totalRevenueCard = page.locator('.card', { hasText: 'Total Revenue' });
-        const totalOrdersCard = page.locator('.card', { hasText: 'Total Orders' });
-
-        const revenueText = await totalRevenueCard.locator('.text-3xl').innerText();
-        const ordersText = await totalOrdersCard.locator('.text-3xl').innerText();
-
-        // Parse currency and numbers
-        const revenueValue = parseFloat(revenueText.replace(/[^0-9.-]+/g,""));
-        const ordersValue = parseInt(ordersText.replace(/,/g, ''), 10);
-        
-        console.log(`Validated Metrics - Revenue: ${revenueValue}, Orders: ${ordersValue}`);
-
-        // Assert that the numbers are plausible (not zero, given test data)
-        expect(revenueValue).toBeGreaterThan(0);
-        expect(ordersValue).toBeGreaterThan(0);
     });
 
     test('should have quick action buttons that navigate', async ({ page }) => {
@@ -47,4 +40,33 @@ test.describe('Dashboard Page', () => {
         await expect(page).toHaveURL(/.*reordering/);
     });
 
+    test('dashboard revenue should be mathematically correct', async ({ page, request }) => {
+        // 1. Get the ground truth from our test API endpoint
+        const apiResponse = await request.get('/api/debug', {
+            headers: {
+                'Authorization': `Bearer ${process.env.TESTING_API_KEY}`
+            }
+        });
+        expect(apiResponse.ok()).toBeTruthy();
+        const groundTruth = await apiResponse.json();
+        const expectedRevenueCents = groundTruth.totalRevenue;
+        
+        // Ensure we have some data to test against
+        expect(expectedRevenueCents).toBeGreaterThan(0);
+
+        // 2. Get the value displayed in the UI
+        await page.goto('/dashboard');
+        const totalRevenueCard = page.locator('.card', { hasText: 'Total Revenue' });
+        await expect(totalRevenueCard).toBeVisible();
+        const revenueText = await totalRevenueCard.locator('.text-3xl').innerText();
+        
+        // 3. Parse the UI value and compare
+        const displayedRevenueCents = parseCurrency(revenueText);
+        
+        console.log(`Comparing Dashboard Revenue - Expected: ${expectedRevenueCents}, Displayed: ${displayedRevenueCents}`);
+
+        // 4. Assert that the displayed value matches the ground truth from the database
+        // We use toBeCloseTo to account for potential minor rounding differences.
+        expect(displayedRevenueCents).toBeCloseTo(expectedRevenueCents, 1);
+    });
 });
