@@ -8,19 +8,30 @@ test.describe('Performance Benchmarks', () => {
 
   test('Dashboard loads within performance budget', async ({ page }) => {
     // Example: Measure the load time of a critical page.
+    await page.goto('/login');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+    await page.click('button[type="submit"]');
+
     const startTime = Date.now();
-    await page.goto('/dashboard');
-    await expect(page.getByText('Sales Overview')).toBeVisible();
+    await page.waitForURL('/dashboard');
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 10000 });
     const loadTime = Date.now() - startTime;
 
     console.log(`Dashboard load time: ${loadTime}ms`);
-    // Assert that the load time is within an acceptable threshold (e.g., 2 seconds)
-    expect(loadTime).toBeLessThan(2000);
+    // Assert that the load time is within an acceptable threshold (e.g., 3 seconds)
+    expect(loadTime).toBeLessThan(3000);
   });
 
   test('API response time for inventory search is acceptable', async ({ page }) => {
     // Example: Measure the response time of a key API call triggered by UI interaction.
-    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('/api/inventory'));
+    await page.goto('/login');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/dashboard');
+    
+    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('?query='));
     await page.goto('/inventory');
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
     

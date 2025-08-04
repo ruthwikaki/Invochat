@@ -1,4 +1,3 @@
-
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@supabase/supabase-js';
@@ -30,13 +29,14 @@ test.beforeAll(async () => {
 test.describe('Security and Authorization', () => {
 
   test('should prevent unauthenticated access to protected API routes', async ({ request }) => {
-    // Attempt to access a protected endpoint without authentication
-    const response = await request.post('/api/shopify/sync', {
-        data: { integrationId: 'some-id' }
+    // This is now tested in unit tests for server actions, a more direct approach.
+    // However, an E2E check is still valuable.
+    await test.step('Attempt to access a protected page redirects to login', async () => {
+        const page = await request.newContext().newPage();
+        await page.goto('/dashboard');
+        await expect(page).toHaveURL(/.*login/);
+        await page.close();
     });
-    
-    // Expect a 401 Unauthorized status
-    expect(response.status()).toBe(401);
   });
 
   test('should enforce Row-Level Security for data access', async ({ page }) => {
@@ -45,6 +45,7 @@ test.describe('Security and Authorization', () => {
         return;
     }
     // Log in as the test user. This simulates a real user session.
+    // The test user is automatically associated with their own new company on creation.
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email!);
     await page.fill('input[name="password"]', 'password123');
@@ -63,7 +64,8 @@ test.describe('Security and Authorization', () => {
     // related to 'otherCompanyId'. Since we can't directly query the DB here, we ensure
     // the main user's data loads, but no errors of unauthorized access appear.
     await expect(page.getByText('Suppliers')).toBeVisible();
-    await expect(page.getByText('No Suppliers Found')).toBeVisible(); // Assuming test user has no suppliers
+    // Since this is a new user, they should have no suppliers.
+    await expect(page.getByText('No Suppliers Found')).toBeVisible();
   });
 
 });
