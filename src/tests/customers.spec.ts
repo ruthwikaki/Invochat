@@ -1,14 +1,19 @@
 
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+async function login(page: Page) {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/dashboard');
+}
 
 test.describe('Customers Page', () => {
   test.beforeEach(async ({ page }) => {
     // Assuming login is handled globally or via a stored state
-    await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
+    await login(page);
     await page.goto('/customers');
   });
 
@@ -29,7 +34,7 @@ test.describe('Customers Page', () => {
 
   test('should filter customers by name', async ({ page }) => {
     // This test assumes a known customer exists in the test data
-    const hasData = await page.locator('table > tbody > tr').first().isVisible();
+    const hasData = await page.locator('table > tbody > tr').first().isVisible({timeout: 5000}).catch(() => false);
     if (!hasData) {
       console.log('Skipping filter test, no customer data available.');
       return;

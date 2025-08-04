@@ -4,8 +4,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Inventory Page', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
     await page.goto('/inventory');
@@ -44,7 +44,7 @@ test.describe('Inventory Page', () => {
 
   test('should expand a product to show variants', async ({ page }) => {
     const firstRow = page.locator('table > tbody > tr').first();
-    if (!await firstRow.isVisible()) {
+    if (!await firstRow.isVisible({timeout: 5000})) {
       console.log('Skipping expand test, no inventory data available.');
       return;
     }
@@ -60,5 +60,22 @@ test.describe('Inventory Page', () => {
     // Check that the variant table is now visible
     await expect(variantTable).toBeVisible();
     await expect(variantTable.locator('tbody tr').first().or(page.getByText('No variants'))).toBeVisible();
+  });
+
+  test('should trigger a file download when Export is clicked', async ({ page }) => {
+    // Start waiting for the download before clicking the button
+    const downloadPromise = page.waitForEvent('download');
+    
+    await page.getByRole('button', { name: 'Export' }).click();
+    
+    const download = await downloadPromise;
+    
+    // Check that the download is for a CSV file
+    expect(download.suggestedFilename()).toContain('.csv');
+    
+    // Verify the file is not empty
+    const stream = await download.createReadStream();
+    const fileContent = (await stream.read()).toString();
+    expect(fileContent).toContain('product_title,variant_title,sku');
   });
 });

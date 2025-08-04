@@ -1,13 +1,18 @@
 
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+async function login(page: Page) {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/dashboard');
+}
 
 test.describe('Sales Page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
+    await login(page);
     await page.goto('/sales');
   });
 
