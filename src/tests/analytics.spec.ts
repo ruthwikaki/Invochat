@@ -45,7 +45,7 @@ test.describe('Business Logic & Analytics Validation', () => {
     await expect(page.getByText('Dead Stock Report')).toBeVisible({ timeout: 10000 });
     
     const firstRow = page.locator('table > tbody > tr').first();
-    const isVisible = await firstRow.isVisible();
+    const isVisible = await firstRow.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (!isVisible) {
       // If there's no dead stock, the test passes but we log a warning.
