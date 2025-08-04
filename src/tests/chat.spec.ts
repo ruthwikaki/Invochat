@@ -1,11 +1,21 @@
 
+
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+// Helper function to perform login
+async function login(page: Page) {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/dashboard', { timeout: 15000 });
+}
+
 
 test.describe('AI Chat Interface', () => {
     test.beforeEach(async ({ page }) => {
-        // For chat tests, we might need a logged-in state.
-        // This would typically be handled by a global setup file that logs in once.
-        // For now, let's assume we can visit the page directly if the test environment allows.
+        await login(page);
         await page.goto('/chat');
     });
 
@@ -21,11 +31,11 @@ test.describe('AI Chat Interface', () => {
         await expect(page.getByText('What is my most profitable item?')).toBeVisible();
 
         // Wait for the AI's response to appear (could be a loading indicator first)
-        const assistantMessage = page.locator('div[role="assistant"]').first();
-        await expect(assistantMessage).toBeVisible({ timeout: 20000 });
+        const assistantMessageContainer = page.locator('.flex.items-start.gap-3.w-full.justify-start').last();
+        await expect(assistantMessageContainer).toBeVisible({ timeout: 20000 });
 
         // Check for a non-error response. The exact text will vary.
-        await expect(assistantMessage).not.toContainText('An unexpected error occurred');
+        await expect(assistantMessageContainer).not.toContainText('An unexpected error occurred');
     });
 
     test('should trigger a tool and render the correct UI component', async ({ page }) => {
@@ -36,13 +46,15 @@ test.describe('AI Chat Interface', () => {
 
         // Wait for the assistant's response. It should render the DeadStockTable component,
         // which has a specific card title. This is a much stronger assertion than checking for text.
-        const deadStockTable = page.locator('div[role="assistant"] h3:has-text("Dead Stock Report")');
-        await expect(deadStockTable).toBeVisible({ timeout: 20000 });
+        const assistantMessageContainer = page.locator('.flex.items-start.gap-3.w-full.justify-start').last();
+        const deadStockTableTitle = assistantMessageContainer.locator('h3:has-text("Dead Stock Report")');
+        
+        await expect(deadStockTableTitle).toBeVisible({ timeout: 20000 });
     });
 
     test('should handle AI service error gracefully', async ({ page, context }) => {
         // Intercept the AI response and return an error
-        await context.route('**/api/chat', async route => {
+        await context.route('**/api/chat/message', async route => {
             await route.fulfill({
                 status: 500,
                 contentType: 'application/json',
