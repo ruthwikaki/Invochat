@@ -79,4 +79,21 @@ test.describe('Dashboard Page', () => {
         // We use toBeCloseTo to account for potential minor rounding differences.
         expect(displayedRevenueCents).toBeCloseTo(expectedRevenueCents, 1);
     });
+    
+    test('dashboard inventory value should be a plausible number', async ({ page }) => {
+        await page.goto('/dashboard');
+        const inventorySummaryCard = page.locator('.card', { hasText: 'Inventory Value Summary' });
+        await expect(inventorySummaryCard).toBeVisible();
+
+        const healthyStockItem = inventorySummaryCard.locator('div > div:has-text("Healthy Stock")');
+        const valueText = await healthyStockItem.locator('span').last().innerText();
+        
+        const inventoryValueCents = parseCurrency(valueText);
+        
+        console.log(`Validating Inventory Value: Displayed Value = ${inventoryValueCents} cents`);
+
+        // Assert that the value is a number and greater than zero, confirming it's not a placeholder.
+        expect(typeof inventoryValueCents).toBe('number');
+        expect(inventoryValueCents).toBeGreaterThan(0);
+    });
 });
