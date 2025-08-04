@@ -65,7 +65,7 @@ test.describe('Business Logic & Analytics Validation', () => {
     expect(displayedValueText).not.toBeNull();
 
     // Clean and parse the currency value from the UI
-    const displayedValueCents = parseFloat(displayedValueText!.replace(/[^0-9.-]+/g, '')) * 100;
+    const displayedValueCents = Math.round(parseFloat(displayedValueText!.replace(/[^0-9.-]+/g, '')) * 100);
     
     // Calculate the expected value using our helper against the database
     const expectedValueCents = await calculateExpectedDeadStockValue(sku!);
