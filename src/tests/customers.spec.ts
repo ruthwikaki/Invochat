@@ -11,9 +11,15 @@ test.describe('Customers Page', () => {
     await page.goto('/customers');
   });
 
-  test('should load customer analytics and table', async ({ page }) => {
+  test('should load customer analytics and validate data', async ({ page }) => {
     await expect(page.getByText('Total Customers')).toBeVisible();
     await expect(page.getByText('All Customers')).toBeVisible();
+
+    // Validate analytics data
+    const totalCustomersCard = page.locator('.card', { hasText: 'Total Customers' });
+    const customersText = await totalCustomersCard.locator('.text-2xl').innerText();
+    const customersValue = parseInt(customersText.replace(/,/g, ''), 10);
+    expect(customersValue).toBeGreaterThan(0);
 
     // Check if the table has rows or shows the empty state
     const tableRows = page.locator('table > tbody > tr');
