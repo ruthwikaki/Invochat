@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 
 test.describe('Inventory Page', () => {
@@ -13,6 +14,11 @@ test.describe('Inventory Page', () => {
   test('should load inventory analytics and table', async ({ page }) => {
     await expect(page.getByText('Total Inventory Value')).toBeVisible();
     await expect(page.getByText('Total Products')).toBeVisible();
+
+    const totalValueCard = page.locator('.card', { hasText: 'Total Inventory Value' });
+    const valueText = await totalValueCard.locator('.text-2xl').innerText();
+    const inventoryValue = parseFloat(valueText.replace(/[^0-9.-]+/g,""));
+    expect(inventoryValue).toBeGreaterThan(0);
 
     const tableRows = page.locator('table > tbody > tr');
     // It's okay if the table is empty, we just need to know it loaded.
@@ -43,7 +49,7 @@ test.describe('Inventory Page', () => {
       return;
     }
     
-    const expandButton = firstRow.locator('button[aria-label*="Expand"]'); // More robust selector
+    const expandButton = firstRow.getByRole('button');
     
     // Check that variants are initially hidden
     const variantTable = page.locator('table table'); // Nested table for variants
