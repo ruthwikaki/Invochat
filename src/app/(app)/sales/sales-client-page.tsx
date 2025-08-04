@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Input } from '@/components/ui/input';
@@ -185,3 +186,5 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
 }
 
     
+
+
