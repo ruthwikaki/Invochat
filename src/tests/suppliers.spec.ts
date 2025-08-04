@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 
 test.describe('Supplier Management', () => {
@@ -31,7 +32,7 @@ test.describe('Supplier Management', () => {
 
     // 3. Update the supplier
     const supplierRow = page.locator('tr', { hasText: newSupplierName });
-    await supplierRow.locator('button[aria-haspopup="menu"]').click();
+    await supplierRow.getByRole('button').click();
     await page.click('div[role="menuitem"]:has-text("Edit")');
     
     await expect(page.getByText(`Edit ${newSupplierName}`)).toBeVisible();
@@ -46,7 +47,7 @@ test.describe('Supplier Management', () => {
 
     // 5. Delete the supplier
     const updatedRow = page.locator('tr', { hasText: updatedName });
-    await updatedRow.locator('button[aria-haspopup="menu"]').click();
+    await updatedRow.getByRole('button').click();
     await page.click('div[role="menuitem"]:has-text("Delete")');
 
     await expect(page.getByText('Are you sure?')).toBeVisible();

@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 
 test.describe('Reordering Page', () => {
@@ -43,6 +44,21 @@ test.describe('Reordering Page', () => {
         } else {
             console.log('No reorder suggestions to test, verifying empty state.');
             await expect(noSuggestions).toBeVisible();
+        }
+    });
+
+    test('should show AI reasoning in a tooltip', async ({ page }) => {
+        const aiReasoningCell = page.getByText('AI Adjusted').first();
+        
+        if (await aiReasoningCell.isVisible()) {
+            await aiReasoningCell.hover();
+            // The tooltip is rendered in a portal, so we find it at the body level
+            const tooltip = page.locator('[role="tooltip"]');
+            await expect(tooltip).toBeVisible();
+            await expect(tooltip).toContainText('AI Analysis');
+            await expect(tooltip).toContainText('Confidence');
+        } else {
+            console.log('Skipping AI reasoning test, no adjusted items found.');
         }
     });
 });
