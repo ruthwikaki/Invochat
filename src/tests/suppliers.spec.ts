@@ -5,6 +5,11 @@ test.describe('Supplier Management', () => {
   const newSupplierEmail = `test-${Date.now()}@example.com`;
 
   test.beforeEach(async ({ page }) => {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
+    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/dashboard');
     await page.goto('/suppliers');
   });
 
@@ -19,6 +24,7 @@ test.describe('Supplier Management', () => {
     await page.click('button[type="submit"]');
 
     // 2. Verify the supplier was created and is in the list
+    await page.waitForURL('/suppliers');
     await expect(page.getByText(newSupplierName)).toBeVisible();
     await expect(page.getByText(newSupplierEmail)).toBeVisible();
     await expect(page.getByText('14 days')).toBeVisible();
@@ -34,6 +40,7 @@ test.describe('Supplier Management', () => {
     await page.click('button[type="submit"]');
 
     // 4. Verify the update
+    await page.waitForURL('/suppliers');
     await expect(page.getByText(updatedName)).toBeVisible();
     await expect(page.getByText(newSupplierName)).not.toBeVisible();
 
