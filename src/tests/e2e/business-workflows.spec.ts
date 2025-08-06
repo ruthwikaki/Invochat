@@ -1,4 +1,8 @@
+
 import { test, expect } from '@playwright/test';
+import credentials from '../../../tests/test_data/test_credentials.json';
+
+const testUser = credentials.test_users[0]; // Use the first user for tests
 
 // This E2E test simulates a full "Day in the Life" workflow for a user.
 // It combines multiple features to ensure they work together seamlessly.
@@ -8,8 +12,8 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
   test.beforeEach(async ({ page }) => {
     // Start by logging in
     await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+    await page.fill('input[name="email"]', testUser.email);
+    await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
   });

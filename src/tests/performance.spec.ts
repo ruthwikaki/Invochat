@@ -1,4 +1,8 @@
+
 import { test, expect } from '@playwright/test';
+import credentials from '../../tests/test_data/test_credentials.json';
+
+const testUser = credentials.test_users[0]; // Use the first user for tests
 
 // This file serves as a placeholder for performance tests.
 // In a real-world scenario, these tests would use tools like Artillery.io, k6, or
@@ -9,8 +13,8 @@ test.describe('Performance Benchmarks', () => {
   test('Dashboard loads within performance budget', async ({ page }) => {
     // Example: Measure the load time of a critical page.
     await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+    await page.fill('input[name="email"]', testUser.email);
+    await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
 
     const startTime = Date.now();
@@ -26,8 +30,8 @@ test.describe('Performance Benchmarks', () => {
   test('API response time for inventory search is acceptable', async ({ page }) => {
     // Example: Measure the response time of a key API call triggered by UI interaction.
     await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'password');
+    await page.fill('input[name="email"]', testUser.email);
+    await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
     

@@ -1,11 +1,14 @@
 
 import { test, expect } from '@playwright/test';
+import credentials from '../../tests/test_data/test_credentials.json';
+
+const testUser = credentials.test_users[0]; // Use the first user for tests
 
 test.describe('Inventory Page', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
+    await page.fill('input[name="email"]', testUser.email);
+    await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
     await page.goto('/inventory');

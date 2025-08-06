@@ -1,13 +1,17 @@
+
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import credentials from '../../tests/test_data/test_credentials.json';
+
+const testUser = credentials.test_users[0]; // Use the first user for tests
 
 // This E2E test simulates a full "Day in the Life" workflow for a user.
 // It combines multiple features to ensure they work together seamlessly.
 
 async function login(page: Page) {
     await page.goto('/login');
-    await page.fill('input[name="email"]', process.env.TEST_USER_EMAIL || 'owner_stylehub@test.com');
-    await page.fill('input[name="password"]', process.env.TEST_USER_PASSWORD || 'StyleHub2024!');
+    await page.fill('input[name="email"]', testUser.email);
+    await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
 }
@@ -46,7 +50,7 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
     await page.getByRole('button', { name: 'Add Item' }).click();
     await page.getByRole('button', { name: 'Select a product' }).click();
     // Select the first available product in the command list
-    await page.locator('.command-item').first().click();
+    await page.locator('.cmdk-item').first().click();
     await page.fill('input[name="line_items.0.quantity"]', '10');
 
     // 6. Create the purchase order
