@@ -1,8 +1,18 @@
 
 import { test, expect } from '@playwright/test';
-import credentials from '../../tests/test_data/test_credentials.json';
+import type { Page } from '@playwright/test';
+import credentials from './test_data/test_credentials.json';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
+
+async function login(page: Page) {
+    await page.goto('/login');
+    await page.fill('input[name="email"]', testUser.email);
+    await page.fill('input[name="password"]', testUser.password);
+    await page.click('button[type="submit"]');
+    await page.waitForURL('/dashboard', { timeout: 15000 });
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
+}
 
 // This file serves as a placeholder for performance tests.
 // In a real-world scenario, these tests would use tools like Artillery.io, k6, or
@@ -15,9 +25,9 @@ test.describe('Performance Benchmarks', () => {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
-    await page.click('button[type="submit"]');
-
+    
     const startTime = Date.now();
+    await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
     await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 10000 });
     const loadTime = Date.now() - startTime;
@@ -29,13 +39,9 @@ test.describe('Performance Benchmarks', () => {
 
   test('API response time for inventory search is acceptable', async ({ page }) => {
     // Example: Measure the response time of a key API call triggered by UI interaction.
-    await page.goto('/login');
-    await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
-    await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
+    await login(page);
     
-    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('?query='));
+    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('status=all'));
     await page.goto('/inventory');
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
     

@@ -13,6 +13,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 15000 });
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
 }
 
 // Helper function to calculate expected dead stock value from the database

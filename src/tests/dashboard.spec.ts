@@ -11,7 +11,9 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
+    // Wait for a specific element that indicates the dashboard is fully loaded
+    await page.waitForURL('/dashboard', { timeout: 15000 });
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
 }
 
 // Helper to parse currency string to number in cents
@@ -68,7 +70,6 @@ test.describe('Dashboard Page', () => {
         }
 
         // 2. Get the value displayed in the UI
-        await page.goto('/dashboard');
         const totalRevenueCard = page.locator('.card', { hasText: 'Total Revenue' });
         await expect(totalRevenueCard).toBeVisible();
         const revenueText = await totalRevenueCard.locator('.text-3xl').innerText();
@@ -84,7 +85,6 @@ test.describe('Dashboard Page', () => {
     });
     
     test('dashboard inventory value should be a plausible number', async ({ page }) => {
-        await page.goto('/dashboard');
         const inventorySummaryCard = page.locator('.card', { hasText: 'Inventory Value Summary' });
         await expect(inventorySummaryCard).toBeVisible();
 

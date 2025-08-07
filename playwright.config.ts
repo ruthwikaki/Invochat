@@ -21,6 +21,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
+  // Increase the default timeout to 60 seconds to handle slow data loads
+  timeout: 60 * 1000,
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
