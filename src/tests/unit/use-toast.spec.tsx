@@ -8,10 +8,10 @@ import React from 'react';
 
 // Wrapper component to provide the necessary context for the toast hook
 const ToastWrapper = ({ children }: { children: React.ReactNode }) => (
-  <>
+  <React.Fragment>
     {children}
     <Toaster />
-  </>
+  </React.Fragment>
 );
 
 
