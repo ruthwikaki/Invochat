@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@supabase/supabase-js';
@@ -29,7 +30,7 @@ test.beforeAll(async () => {
 
 test.describe('Security and Authorization', () => {
 
-  test('should prevent unauthenticated access to protected API routes', async ({ request, page }) => {
+  test('should prevent unauthenticated access to protected API routes', async ({ page }) => {
     // This is now tested in unit tests for server actions, a more direct approach.
     // However, an E2E check is still valuable.
     await test.step('Attempt to access a protected page redirects to login', async () => {
@@ -57,6 +58,7 @@ test.describe('Security and Authorization', () => {
     // For this test, we'll simulate this by trying to load the suppliers page and checking
     // that no data from 'otherCompanyId' is present.
     await page.goto('/suppliers');
+    await page.waitForURL('/suppliers');
     
     // The RLS policy should prevent any suppliers from the "other" company from loading.
     // We can verify this by checking that the page does not contain any sensitive data

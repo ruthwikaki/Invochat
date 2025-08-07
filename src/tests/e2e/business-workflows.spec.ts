@@ -1,6 +1,7 @@
 
+
 import { test, expect } from '@playwright/test';
-import credentials from '../../../tests/test_data/test_credentials.json';
+import credentials from '../test_data/test_credentials.json';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
 
@@ -21,6 +22,7 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
   test('should allow a user to check the dashboard, ask AI, and check reorders', async ({ page }) => {
     // 1. Check Dashboard
     await page.goto('/dashboard');
+    await page.waitForURL('/dashboard');
     await expect(page.getByText('Sales Overview')).toBeVisible();
 
     // 2. Ask the AI a question from the dashboard quick actions

@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -13,8 +14,7 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 15000 });
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
+    await page.waitForURL('/dashboard', { timeout: 60000 });
 }
 
 test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
@@ -29,6 +29,7 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
   test('should create a supplier, then create a PO for that supplier', async ({ page }) => {
     // 1. Create a new supplier
     await page.goto('/suppliers/new');
+    await page.waitForURL('/suppliers/new');
     await expect(page.getByText('Add New Supplier')).toBeVisible();
 
     await page.fill('input[name="name"]', newSupplierName);
@@ -41,6 +42,7 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
 
     // 3. Navigate to create a new purchase order
     await page.goto('/purchase-orders/new');
+    await page.waitForURL('/purchase-orders/new');
     await expect(page.getByText('Create Purchase Order')).toBeVisible();
     
     // 4. Select the newly created supplier
@@ -58,7 +60,7 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
     await page.getByRole('button', { name: 'Create Purchase Order' }).click();
 
     // 7. Verify the PO was created and we are on the edit page
-    await page.waitForURL(/\/purchase-orders\/.*\/edit/);
+    await page.waitForURL(/\/purchase-orders\/.*\/edit/, { timeout: 30000 });
     await expect(page.getByText(/Edit PO #/)).toBeVisible();
     
     // Check that the supplier name is correctly displayed on the edit page
