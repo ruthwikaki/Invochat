@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@supabase/supabase-js';
@@ -28,14 +29,12 @@ test.beforeAll(async () => {
 
 test.describe('Security and Authorization', () => {
 
-  test('should prevent unauthenticated access to protected API routes', async ({ request }) => {
+  test('should prevent unauthenticated access to protected API routes', async ({ request, page }) => {
     // This is now tested in unit tests for server actions, a more direct approach.
     // However, an E2E check is still valuable.
     await test.step('Attempt to access a protected page redirects to login', async () => {
-        const page = await request.newContext().newPage();
         await page.goto('/dashboard');
         await expect(page).toHaveURL(/.*login/);
-        await page.close();
     });
   });
 

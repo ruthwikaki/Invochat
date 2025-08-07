@@ -13,6 +13,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 15000 });
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
 }
 
 
@@ -20,6 +21,7 @@ test.describe('AI Chat Interface', () => {
     test.beforeEach(async ({ page }) => {
         await login(page);
         await page.goto('/chat');
+        await page.waitForURL('/chat');
     });
 
     test('should send a message and receive a text response', async ({ page }) => {
