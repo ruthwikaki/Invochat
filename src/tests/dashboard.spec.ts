@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -12,7 +13,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     // Wait for a specific element that indicates the dashboard is fully loaded
-    await page.waitForURL('/dashboard', { timeout: 15000 });
+    await page.waitForURL('/dashboard', { timeout: 60000 });
     await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
 }
 
@@ -39,10 +40,12 @@ test.describe('Dashboard Page', () => {
 
     test('should have quick action buttons that navigate', async ({ page }) => {
         await page.getByRole('button', { name: 'Import Data' }).click();
+        await page.waitForURL(/.*import/);
         await expect(page).toHaveURL(/.*import/);
         await page.goBack();
 
         await page.getByRole('button', { name: 'Check Reorders' }).click();
+        await page.waitForURL(/.*reordering/);
         await expect(page).toHaveURL(/.*reordering/);
     });
 

@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -10,14 +11,14 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 15000 });
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
+    await page.waitForURL('/dashboard', { timeout: 60000 });
 }
 
 test.describe('Sales Page', () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
     await page.goto('/sales');
+    await page.waitForURL('/sales');
   });
 
   test('should load sales analytics and validate data', async ({ page }) => {

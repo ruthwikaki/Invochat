@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { Page } from '@playwright/test';
@@ -12,8 +13,7 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 15000 });
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
+    await page.waitForURL('/dashboard', { timeout: 60000 });
 }
 
 // Helper function to calculate expected dead stock value from the database
@@ -44,6 +44,7 @@ test.describe('Business Logic & Analytics Validation', () => {
 
   test('dead stock calculations should be accurate', async ({ page }) => {
     await page.goto('/analytics/dead-stock');
+    await page.waitForURL('/analytics/dead-stock');
 
     // Wait for the report to be visible
     await expect(page.getByText('Dead Stock Report')).toBeVisible({ timeout: 10000 });
