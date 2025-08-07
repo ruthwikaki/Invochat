@@ -1,6 +1,6 @@
 
 import { test, expect } from '@playwright/test';
-import credentials from '../../tests/test_data/test_credentials.json';
+import credentials from './test_data/test_credentials.json';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
 

@@ -1,3 +1,4 @@
+
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
@@ -9,7 +10,7 @@ export default defineConfig({
   // Only include files with .spec.ts for Playwright E2E tests
   testMatch: '**/*.spec.ts',
   // Exclude unit tests from Playwright runs
-  testIgnore: '**/unit/**/*.test.{ts,tsx}',
+  testIgnore: '**/unit/**',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */

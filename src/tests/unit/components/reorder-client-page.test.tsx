@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
@@ -5,6 +6,7 @@ import type { ReorderSuggestion } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import * as dataActions from '@/app/(app)/analytics/reordering/actions';
 import * as csrf from '@/lib/csrf-client';
+import React from 'react';
 
 // Mock dependencies
 vi.mock('@/hooks/use-toast', () => ({
@@ -71,6 +73,12 @@ describe('Component: ReorderClientPage', () => {
         expect(screen.getByText('Test Product 1')).toBeInTheDocument();
         expect(screen.getByText('Test Product 2')).toBeInTheDocument();
         expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    });
+
+    it('should show the empty state when no suggestions are provided', () => {
+        render(<ReorderClientPage initialSuggestions={[]} />);
+
+        expect(screen.getByText('All Good! No Reorders Needed')).toBeInTheDocument();
     });
 
     it('should show the action bar when an item is selected, and hide it when all are deselected', async () => {

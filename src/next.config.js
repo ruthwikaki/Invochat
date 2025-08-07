@@ -62,17 +62,6 @@ const nextConfig = defineNextConfig({
       },
     ],
   },
-  experimental: {
-    appDir: true,
-    serverComponentsExternalPackages: [
-      '@opentelemetry/instrumentation',
-      '@opentelemetry/exporter-jaeger',
-      'handlebars',
-      '@supabase/supabase-js',
-      '@supabase/realtime-js',
-      'ioredis',
-    ],
-  },
 });
 
 // Initialize a variable to hold the final config.
