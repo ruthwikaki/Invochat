@@ -59,4 +59,3 @@ test.describe('Integrations Page', () => {
     });
 
 });
-

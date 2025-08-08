@@ -89,4 +89,3 @@ test.describe('Inventory Page', () => {
     expect(fileContent).toContain('product_title,variant_title,sku');
   });
 });
-

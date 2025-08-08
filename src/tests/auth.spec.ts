@@ -29,7 +29,7 @@ test.describe('Authentication and Authorization', () => {
   test('should redirect unauthenticated user from protected page', async ({ page }) => {
     await page.goto('/dashboard');
     // Expect to be redirected to the login page
+    await page.waitForURL(/.*login/);
     await expect(page).toHaveURL(/.*login/);
   });
 });
-

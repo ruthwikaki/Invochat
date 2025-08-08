@@ -35,6 +35,7 @@ test.describe('Security and Authorization', () => {
     // However, an E2E check is still valuable.
     await test.step('Attempt to access a protected page redirects to login', async () => {
         await page.goto('/dashboard');
+        await page.waitForURL(/.*login/);
         await expect(page).toHaveURL(/.*login/);
     });
   });
@@ -80,4 +81,3 @@ test.afterAll(async () => {
         }
     }
 });
-
