@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -58,6 +59,7 @@ test.describe('Dashboard Page', () => {
         await page.waitForURL(/.*import/);
         await expect(page).toHaveURL(/.*import/);
         await page.goBack();
+        await page.waitForURL(/.*dashboard/);
 
         await page.getByRole('button', { name: 'Check Reorders' }).click();
         await page.waitForURL(/.*reordering/);

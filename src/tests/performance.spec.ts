@@ -40,10 +40,10 @@ test.describe('Performance Benchmarks', () => {
   test('API response time for inventory search is acceptable', async ({ page }) => {
     // Example: Measure the response time of a key API call triggered by UI interaction.
     await login(page);
-    
-    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('status=all'));
     await page.goto('/inventory');
     await page.waitForURL('/inventory');
+    
+    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('status=all'));
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
     
     const response = await inventoryPromise;
