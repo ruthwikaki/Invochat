@@ -1,41 +1,67 @@
 import { test, expect } from '@playwright/test';
 
 test('debug environment', async ({ page }) => {
-  // Go to a page that will trigger Next.js to load
-  await page.goto('/');
-  
-  // Check if the page loads at all
-  const response = await page.goto('/login');
-  console.log('Login page status:', response?.status());
-  
-  // Try to check what's in the browser console
+  // Enable console logging
   page.on('console', msg => console.log('Browser console:', msg.text()));
   page.on('pageerror', err => console.log('Page error:', err.message));
   
-  // Check if Supabase is initialized
-  const supabaseCheck = await page.evaluate(() => {
-    return {
-      hasWindow: typeof window !== 'undefined',
-      url: window.location.href,
-      // Check if any Supabase-related errors in the page
-      bodyText: document.body.innerText.substring(0, 500)
-    };
+  // Add response logging
+  page.on('response', response => {
+    if (response.url().includes('/login') || response.url().includes('/dashboard')) {
+      console.log(`Response: ${response.status()} ${response.url()}`);
+    }
   });
+
+  await page.goto('/login');
+  console.log('At login page:', page.url());
   
-  console.log('Page check:', supabaseCheck);
-  
-  // Try the actual login
+  // Fill in the form
   await page.fill('input[name="email"]', 'testowner1@example.com');
   await page.fill('input[name="password"]', 'TestPass123!');
   
   // Take a screenshot before clicking
   await page.screenshot({ path: 'before-click.png' });
   
-  await page.click('button[type="submit"]');
+  // Click and wait for either navigation or error
+  const submitButton = page.getByRole('button', { name: 'Sign In' });
   
-  // Wait a bit and take another screenshot
-  await page.waitForTimeout(3000);
-  await page.screenshot({ path: 'after-click.png' });
+  // Start waiting for navigation before clicking
+  const navigationPromise = page.waitForURL('/dashboard', { 
+    timeout: 30000 
+  }).catch(e => {
+    console.log('Navigation to dashboard failed:', e.message);
+    return null;
+  });
   
-  console.log('Final URL:', page.url());
+  await submitButton.click();
+  console.log('Clicked submit button');
+  
+  // Wait a bit to see what happens
+  await page.waitForTimeout(5000);
+  
+  // Check current URL
+  console.log('Current URL after 5 seconds:', page.url());
+  
+  // Take a screenshot after waiting
+  await page.screenshot({ path: 'after-wait.png' });
+  
+  // Check for any error messages
+  const alerts = await page.locator('[role="alert"]').count();
+  if (alerts > 0) {
+    const alertTexts = await page.locator('[role="alert"]').allTextContents();
+    console.log('Alerts found:', alertTexts);
+  }
+  
+  // Check cookies
+  const cookies = await page.context().cookies();
+  const authCookies = cookies.filter(c => c.name.includes('auth') || c.name.includes('supabase'));
+  console.log('Auth-related cookies:', authCookies.map(c => ({ name: c.name, value: c.value ? 'set' : 'not-set' })));
+  
+  // Wait for navigation result
+  const navResult = await navigationPromise;
+  if (navResult === null) {
+    console.log('Failed to navigate to dashboard');
+  } else {
+    console.log('Successfully navigated to dashboard');
+  }
 });
