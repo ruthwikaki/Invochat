@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 
 test.describe('Authentication and Authorization', () => {
@@ -9,9 +10,8 @@ test.describe('Authentication and Authorization', () => {
     await page.fill('input[name="password"]', 'wrongpassword');
     await page.click('button[type="submit"]');
 
-    const errorMessage = page.locator('[role="alert"]');
+    const errorMessage = page.locator('[role="alert"]:has-text("Invalid login credentials")');
     await expect(errorMessage).toBeVisible();
-    await expect(errorMessage).toContainText('Invalid login credentials');
   });
 
   test('should show validation errors for signup', async ({ page }) => {
@@ -32,3 +32,4 @@ test.describe('Authentication and Authorization', () => {
     await expect(page).toHaveURL(/.*login/);
   });
 });
+

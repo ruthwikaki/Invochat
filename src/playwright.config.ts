@@ -1,3 +1,4 @@
+
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
@@ -9,7 +10,7 @@ export default defineConfig({
   // Only include files with .spec.ts for Playwright E2E tests
   testMatch: '**/*.spec.ts',
   // Exclude unit tests from Playwright runs
-  testIgnore: '**/unit/**/*.test.{ts,tsx}',
+  testIgnore: '**/unit/**',
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -20,6 +21,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
+  // Increase the default timeout to 60 seconds to handle slow data loads
+  timeout: 60 * 1000,
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
