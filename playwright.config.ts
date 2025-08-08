@@ -53,6 +53,7 @@ export default defineConfig({
     timeout: 120000,
     env: {
         ...process.env, // This passes all env vars to the test server
+        TESTING: 'true', // Explicitly set TESTING env var for the test server
     }
   },
 });
