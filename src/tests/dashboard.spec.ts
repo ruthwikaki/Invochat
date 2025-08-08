@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -9,10 +8,27 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 // Helper function to perform login
 async function login(page: Page) {
     await page.goto('/login');
+    
+    // Wait for the page to be fully loaded
+    await page.waitForLoadState('networkidle');
+    
+    // Make sure the form is ready
+    await page.waitForSelector('input[name="email"]', { state: 'visible' });
+    await page.waitForSelector('input[name="password"]', { state: 'visible' });
+    await page.waitForSelector('button[type="submit"]', { state: 'visible' });
+    
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
+    
+    // Small delay to ensure form is filled
+    await page.waitForTimeout(500);
+    
     await page.click('button[type="submit"]');
-    // Wait for a specific element that indicates the dashboard is fully loaded
+    
+    // Wait for navigation with a longer timeout
+    await page.waitForURL('/dashboard', { timeout: 60000 });
+    
+    // Then wait for the Sales Overview text
     await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
 }
 
