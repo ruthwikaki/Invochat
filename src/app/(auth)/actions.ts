@@ -55,10 +55,11 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
 
     // --- Corrected Account Lockout Logic ---
     const serviceSupabase = getServiceRoleClient();
-    const { data: { user: existingUser }, error: userFetchError } = await serviceSupabase.auth.admin.getUserByEmail(email);
+    const { data: { users }, error: userFetchError } = await serviceSupabase.auth.admin.listUsers();
+    const existingUser = users?.find(u => u.email === email) || null;
     
     // Don't throw an error if user not found, just proceed to login which will fail.
-    if (userFetchError && !userFetchError.message.includes('User not found')) {
+    if (userFetchError) {
       logError(userFetchError, { context: 'Failed to fetch user by email for lockout check' });
     }
 
