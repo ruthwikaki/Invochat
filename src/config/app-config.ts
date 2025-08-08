@@ -57,11 +57,11 @@ export const config = {
     queryTimeout: parseIntWithDefault(process.env.DB_QUERY_TIMEOUT_MS, 15000),
   },
   ratelimit: {
-    auth: process.env.TESTING === 'true' ? 1000 : parseIntWithDefault(process.env.RATELIMIT_AUTH, 10),
-    ai: parseIntWithDefault(process.env.RATELIMIT_AI, 20),
-    import: parseIntWithDefault(process.env.RATELIMIT_IMPORT, 10),
-    sync: parseIntWithDefault(process.env.RATELIMIT_SYNC, 10),
-    connect: parseIntWithDefault(process.env.RATELIMIT_CONNECT, 5),
+    auth: process.env.TESTING === 'true' ? 1000 : parseIntWithDefault(process.env.RATELIMIT_AUTH, 100),
+    ai: parseIntWithDefault(process.env.RATELIMIT_AI, 100),
+    import: parseIntWithDefault(process.env.RATELIMIT_IMPORT, 50),
+    sync: parseIntWithDefault(process.env.RATELIMIT_SYNC, 50),
+    connect: parseIntWithDefault(process.env.RATELIMIT_CONNECT, 20),
   },
   import: {
     maxFileSizeMB: parseIntWithDefault(process.env.IMPORT_MAX_FILE_SIZE_MB, 10),
