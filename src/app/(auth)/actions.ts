@@ -55,8 +55,13 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
 
     // --- Corrected Account Lockout Logic ---
     const serviceSupabase = getServiceRoleClient();
-    const { data: { user: existingUser } } = await serviceSupabase.auth.admin.getUserByEmail(email);
+    const { data: { user: existingUser }, error: userFetchError } = await serviceSupabase.auth.admin.getUserByEmail(email);
     
+    // Don't throw an error if user not found, just proceed to login which will fail.
+    if (userFetchError && !userFetchError.message.includes('User not found')) {
+      logError(userFetchError, { context: 'Failed to fetch user by email for lockout check' });
+    }
+
     const lockoutIdentifier = existingUser ? `user:${existingUser.id}` : `ip:${ip}`;
     const failedAttemptsKey = `${FAILED_LOGIN_ATTEMPTS_KEY_PREFIX}${lockoutIdentifier}`;
 
@@ -77,23 +82,22 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
     });
     
     if (authError) {
-        if (isRedisEnabled) {
+        if (isRedisEnabled && existingUser) {
             const failedAttempts = await redisClient.incr(failedAttemptsKey);
             await redisClient.expire(failedAttemptsKey, LOCKOUT_DURATION_SECONDS);
 
             if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
                 await redisClient.setex(`${failedAttemptsKey}:locked`, LOCKOUT_DURATION_SECONDS, 'true');
                 
-                if (existingUser) {
-                    try {
-                        await serviceSupabase.auth.admin.updateUserById(existingUser.id, {
-                           banned_until: new Date(Date.now() + LOCKOUT_DURATION_SECONDS * 1000).toISOString(),
-                        });
-                        logError(new Error(`Account locked for user ${existingUser.id}`), { context: 'Account Lockout Triggered' });
-                    } catch (banError) {
-                        logError(banError, { context: 'Failed to set Supabase ban', userId: existingUser.id });
-                    }
+                try {
+                    await serviceSupabase.auth.admin.updateUserById(existingUser.id, {
+                       banned_until: new Date(Date.now() + LOCKOUT_DURATION_SECONDS * 1000).toISOString(),
+                    });
+                    logError(new Error(`Account locked for user ${existingUser.id}`), { context: 'Account Lockout Triggered' });
+                } catch (banError) {
+                    logError(banError, { context: 'Failed to set Supabase ban', userId: existingUser.id });
                 }
+                
                 return { 
                     error: 'Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes.' 
                 };
@@ -274,3 +278,5 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
+
+    
