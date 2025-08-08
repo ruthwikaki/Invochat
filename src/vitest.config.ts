@@ -12,7 +12,7 @@ export default defineConfig({
     include: ['src/tests/unit/**/*.test.{ts,tsx}'],
     // Exclude all other tests (like Playwright .spec files)
     exclude: [
-      'node_modules/**',
+      'node_modules/',
       'src/tests/**/*.{spec}.{ts,tsx}',
       'src/tests/e2e/**'
     ],

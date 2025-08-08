@@ -59,4 +59,3 @@ test.describe('Customers Page', () => {
     await expect(page.locator('table > tbody > tr').first()).toBeVisible();
   });
 });
-

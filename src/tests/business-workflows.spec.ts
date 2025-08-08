@@ -69,4 +69,3 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
     await expect(supplierInput).toContainText(newSupplierName);
   });
 });
-

@@ -91,4 +91,3 @@ test.describe('AI Chat Interface', () => {
         await expect(page.getByText('AI service is currently unavailable.')).toBeVisible();
     });
 });
-

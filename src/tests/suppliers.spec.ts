@@ -69,4 +69,3 @@ test.describe('Supplier Management', () => {
     await expect(page.getByText('Supplier Deleted')).toBeVisible(); // Toast message
   });
 });
-
