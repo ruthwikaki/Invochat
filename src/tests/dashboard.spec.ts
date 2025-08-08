@@ -13,8 +13,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     // Wait for a specific element that indicates the dashboard is fully loaded
-    await page.waitForURL('/dashboard', { timeout: 60000 });
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
 }
 
 // Helper to parse currency string to number in cents
@@ -103,3 +102,4 @@ test.describe('Dashboard Page', () => {
         expect(inventoryValueCents).toBeGreaterThan(0);
     });
 });
+

@@ -2,21 +2,27 @@
 
 import { test, expect } from '@playwright/test';
 import credentials from '../test_data/test_credentials.json';
+import type { Page } from '@playwright/test';
+
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
 
 // This E2E test simulates a full "Day in the Life" workflow for a user.
 // It combines multiple features to ensure they work together seamlessly.
 
-test.describe('E2E Business Workflow: Daily Operations', () => {
-
-  test.beforeEach(async ({ page }) => {
-    // Start by logging in
+async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
+}
+
+test.describe('E2E Business Workflow: Daily Operations', () => {
+
+  test.beforeEach(async ({ page }) => {
+    // Start by logging in
+    await login(page);
   });
 
   test('should allow a user to check the dashboard, ask AI, and check reorders', async ({ page }) => {
@@ -57,3 +63,4 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     }
   });
 });
+

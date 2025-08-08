@@ -11,7 +11,7 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 60000 });
+    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
 }
 
 // This file serves as a placeholder for performance tests.
@@ -77,3 +77,4 @@ test.describe('Performance Benchmarks', () => {
   });
 
 });
+

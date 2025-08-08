@@ -1,13 +1,16 @@
+
 import { test, expect } from '@playwright/test';
+import * as crypto from 'crypto';
+
+// This test simulates a webhook trigger from Shopify.
+// It's a pure API test and does not require a browser or user login.
 
 test.describe('Data Synchronization Service', () => {
+    const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || 'test_secret_for_ci';
 
     test('should handle a Shopify webhook sync trigger', async ({ request }) => {
         // This test simulates a webhook trigger from Shopify.
         // We need to construct a valid HMAC signature for the request.
-        // In a real test suite, the secret would come from a test environment variable.
-        const shopifyWebhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || 'test_secret';
-        const crypto = require('crypto');
         
         const requestBody = JSON.stringify({ integrationId: 'a-fake-id-from-webhook' });
         
@@ -46,3 +49,4 @@ test.describe('Data Synchronization Service', () => {
         expect(response.status()).toBe(401);
     });
 });
+
