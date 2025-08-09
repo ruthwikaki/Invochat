@@ -168,7 +168,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                             <TableRow key={order.id}>
                                 <TableCell className="font-medium">{order.order_number}</TableCell>
                                 <TableCell>{format(new Date(order.created_at), 'MMM d, yyyy')}</TableCell>
-                                <TableCell>{order.customer_email || 'N/A'}</TableCell>
+                                <TableCell>{order.customer_id || 'N/A'}</TableCell>
                                 <TableCell>
                                     <Badge variant={order.financial_status === 'paid' ? 'secondary' : 'outline'}>{order.financial_status || 'N/A'}</Badge>
                                 </TableCell>

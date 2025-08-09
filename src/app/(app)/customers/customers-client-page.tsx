@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -28,6 +29,7 @@ import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 import { ExportButton } from '@/components/ui/export-button';
 import { useTableState } from '@/hooks/use-table-state';
 import Link from 'next/link';
+import { formatCentsAsCurrency } from '@/lib/utils';
 
 interface CustomersClientPageProps {
   initialCustomers: Customer[];
@@ -36,15 +38,6 @@ interface CustomersClientPageProps {
   analyticsData: CustomerAnalytics;
   exportAction: (params: {query: string}) => Promise<{ success: boolean; data?: string; error?: string }>;
 }
-
-const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format(value);
-};
 
 const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: string, icon: React.ElementType }) => (
     <Card>
@@ -58,7 +51,7 @@ const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: str
     </Card>
 );
 
-const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: string, data: { name: string, value: number }[], icon: React.ElementType, valueLabel: string }) => (
+const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: string, data: { name: string | null, value: number }[], icon: React.ElementType, valueLabel: string }) => (
     <Card className="flex-1">
         <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -67,18 +60,18 @@ const TopCustomerList = ({ title, data, icon: Icon, valueLabel }: { title: strin
             </CardTitle>
         </CardHeader>
         <CardContent>
-            {data && data.length > 0 ? (
+             {data && data.length > 0 ? (
                 <ul className="space-y-3">
                     {data.map((customer, index) => (
                         <li key={index} className="flex items-center justify-between text-sm">
-                            <span className="font-medium truncate pr-4">{customer.name}</span>
-                            <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCurrency(customer.value)}</span>
+                            <span className="font-medium truncate pr-4">{customer.name || 'Unknown'}</span>
+                            <span className="font-semibold text-muted-foreground">{valueLabel === 'orders' ? customer.value : formatCentsAsCurrency(customer.value)}</span>
                         </li>
                     ))}
                 </ul>
-            ) : (
+             ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">No customer data to display.</p>
-            )}
+             )}
         </CardContent>
     </Card>
 );
@@ -179,7 +172,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
 
       const result = await deleteCustomer(formData);
       if (result.success) {
-        toast({ title: "Customer Deleted", description: `Customer ${customerToDelete.customer_name} has been removed.` });
+        toast({ title: "Customer Deleted", description: `Customer ${customerToDelete.name} has been removed.` });
         router.refresh();
       } else {
         toast({ variant: 'destructive', title: "Error Deleting Customer", description: result.error });
@@ -196,7 +189,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <AnalyticsCard title="Total Customers" value={analyticsData.total_customers.toLocaleString()} icon={Users} />
-            <AnalyticsCard title="Avg. Lifetime Value" value={formatCurrency(analyticsData.average_lifetime_value)} icon={DollarSign} />
+            <AnalyticsCard title="Avg. Lifetime Value" value={formatCentsAsCurrency(analyticsData.average_lifetime_value)} icon={DollarSign} />
             <AnalyticsCard title="New Customers (30d)" value={analyticsData.new_customers_last_30_days.toLocaleString()} icon={UserPlus} />
             <AnalyticsCard title="Repeat Customer Rate" value={`${(analyticsData.repeat_customer_rate * 100).toFixed(1)}%`} icon={Repeat} />
         </div>
@@ -248,16 +241,16 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                             <TableCell>
                                 <div className="flex items-center gap-3">
                                     <Avatar className="h-9 w-9">
-                                        <AvatarFallback>{customer.customer_name?.charAt(0) || '?'}</AvatarFallback>
+                                        <AvatarFallback>{customer.name?.charAt(0) || '?'}</AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <div className="font-medium">{customer.customer_name}</div>
+                                        <div className="font-medium">{customer.name}</div>
                                         <div className="text-xs text-muted-foreground">{customer.email}</div>
                                     </div>
                                 </div>
                             </TableCell>
                             <TableCell className="text-right">{customer.total_orders}</TableCell>
-                            <TableCell className="text-right font-medium">${(customer.total_spent).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCentsAsCurrency(customer.total_spent)}</TableCell>
                             <TableCell className="text-center">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -284,7 +277,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
             <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will permanently delete {customerToDelete?.customer_name || 'this customer'}. If the customer has existing orders, their record will be preserved but marked as deleted (soft-delete). This action cannot be undone.
+                    This will permanently delete {customerToDelete?.name || 'this customer'}. If the customer has existing orders, their record will be preserved but marked as deleted (soft-delete). This action cannot be undone.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
