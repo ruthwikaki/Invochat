@@ -680,20 +680,6 @@ export async function logUserFeedbackInDb(params: { subjectId: string, subjectTy
     }
 }
 
-export async function getReorderReport(): Promise<ReorderSuggestion[]> {
-    try {
-        const { companyId } = await getAuthContext();
-        return await getReorderSuggestions({ companyId });
-    } catch (error) {
-        // Log the error for debugging but don't throw it
-        logError(error, { context: 'getReorderReport failed' });
-        
-        // Return empty array instead of throwing error
-        // This allows the UI to show the empty state
-        return [];
-    }
-}
-
 export async function getDeadStockReport() {
     try {
         const { companyId } = await getAuthContext();
