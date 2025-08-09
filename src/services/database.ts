@@ -4,7 +4,7 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionBaseSchema, SupplierFormSchema } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionBaseSchema, SupplierFormSchema, ReorderSuggestionSchema } from '@/types';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -321,17 +321,17 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
     }
 }
 
-export async function getCustomersFromDB(companyId: string, params: { query?: string; offset: number, limit: number }) {
+export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid Company ID format');
     }
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
     
-    let query = supabase.from('customers').select('*', {count: 'exact'}).eq('company_id', companyId).is('deleted_at', null);
+    let query = supabase.from('customers_view').select(`*`, {count: 'exact'}).eq('company_id', companyId);
     
     if(validatedParams.query) {
-        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     
     const limit = Math.min(validatedParams.limit || 25, 100);
@@ -360,9 +360,9 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
         const supabase = getServiceRoleClient();
-        let query = supabase.from('orders').select('*', { count: 'exact' }).eq('company_id', companyId);
+        let query = supabase.from('orders_view').select('*', { count: 'exact' }).eq('company_id', companyId);
         if (validatedParams.query) {
-            query = query.or(`order_number.ilike.%${validatedParams.query}%`);
+            query = query.or(`order_number.ilike.%${validatedParams.query}%,customer_email.ilike.%${validatedParams.query}%`);
         }
         const limit = Math.min(validatedParams.limit || 25, 100);
         const { data, error, count } = await query.order('created_at', { ascending: false }).range(validatedParams.offset || 0, (validatedParams.offset || 0) + limit - 1);

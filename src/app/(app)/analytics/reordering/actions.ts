@@ -4,7 +4,7 @@
 import { getAuthContext } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { createPurchaseOrdersFromSuggestions as createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
+import { createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
 import type { ReorderSuggestion } from '@/types';
 import Papa from 'papaparse';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
@@ -12,6 +12,7 @@ import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     try {
         const { companyId } = await getAuthContext();
+        // The getReorderSuggestions flow already returns the fully enhanced suggestion object
         return await getReorderSuggestions({ companyId });
     } catch (error) {
         // Log the error for debugging but don't throw it
