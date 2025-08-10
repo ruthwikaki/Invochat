@@ -10,7 +10,7 @@ test.describe('Analytics API', () => {
     expect(response.ok()).toBeTruthy();
     const data = await response.json();
     expect(data).toHaveProperty('total_revenue');
-    expect(data).toHaveProperty('top_selling_products');
+    expect(data).toHaveProperty('top_products');
   });
 
   test('should reject unauthorized access to dashboard analytics', async ({ request }) => {
