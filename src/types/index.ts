@@ -149,7 +149,7 @@ export const SupplierSchema = z.object({
     default_lead_time_days: z.number().int().nullable(),
     notes: z.string().nullable(),
     created_at: z.string().datetime({ offset: true }),
-    updated_at: z.string().datetime({ offset: true }).nullable(),
+    updated_at: z.string().datetime({ offset: true }).optional().nullable(),
     company_id: z.string().uuid(),
 });
 export type Supplier = z.infer<typeof SupplierSchema>;
