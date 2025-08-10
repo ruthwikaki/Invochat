@@ -537,7 +537,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         }
         return data;
     } catch (e) {
-        logError(e, { context: 'Failed to fetch dashboard data' });
+        logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
         // Return a schema-compliant empty object to prevent frontend crashes
         return {
             total_revenue: 0,

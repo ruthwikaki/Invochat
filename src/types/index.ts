@@ -397,10 +397,11 @@ export const DashboardMetricsSchema = z.object({
     revenue: z.number().int(),
   })).default([]),
   top_selling_products: z.array(z.object({
+    product_id: z.string().uuid(),
     product_name: z.string(),
     image_url: z.string().url().nullable(),
-    total_revenue: z.number().int(),
     quantity_sold: z.number().int(),
+    total_revenue: z.number().int(),
   })).default([]),
   inventory_summary: z.object({
     total_value: z.number().int().default(0),
@@ -480,7 +481,7 @@ export const CsvMappingInputSchema = z.object({
     sampleRows: z.array(z.record(z.string(), z.unknown())),
     expectedDbFields: z.array(z.string()),
 });
-export type CsvMappingInput = z.infer<typeof CsvMappingInputSchema>;
+export type CsvMappingInput = z.infer<typeof CsvMappingInput>;
 
 export const CsvMappingOutputSchema = z.object({
     mappings: z.array(z.object({
