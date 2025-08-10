@@ -1,13 +1,14 @@
 
 import { request, APIRequestContext } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
+import credentials from '../test_data/test_credentials.json';
 
 // NOTE: This helper uses environment variables and should only be run in a secure test environment.
 // It uses the service role key to directly sign in a user for testing purposes.
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL || 'test@example.com';
-const TEST_USER_PASSWORD = process.env.TEST_USER_PASSWORD || 'password';
+const TEST_USER_EMAIL = credentials.test_users[0].email;
+const TEST_USER_PASSWORD = credentials.test_users[0].password;
 
 let accessToken: string | null = null;
 
@@ -72,7 +73,7 @@ export async function createTestUser(
  * @param playwrightRequest The `request` object from a Playwright test.
  * @returns An authenticated APIRequestContext.
  */
-export async function getAuthedRequest(playwrightRequest?: APIRequestContext): Promise<APIRequestContext> {
+export async function getAuthedRequest(playwrightRequest: APIRequestContext): Promise<APIRequestContext> {
   if (!accessToken) {
     const supabase = getServiceRoleClient();
     
@@ -90,7 +91,7 @@ export async function getAuthedRequest(playwrightRequest?: APIRequestContext): P
         if(createError) throw new Error(`Failed to create test user: ${createError.message}`);
     }
 
-    const response = await request.newContext().post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    const response = await playwrightRequest.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       headers: {
         'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       },
@@ -107,19 +108,10 @@ export async function getAuthedRequest(playwrightRequest?: APIRequestContext): P
     accessToken = authData.access_token;
   }
   
-  const client = playwrightRequest || await request.newContext();
+  // Set the authorization header for all subsequent requests on this context
+  playwrightRequest.storageState().then(state => {
+      state.headers = { ...state.headers, Authorization: `Bearer ${accessToken}` };
+  });
 
-  // Return a new context with the Authorization header set
-  return new Proxy(client, {
-    get(target, prop, receiver) {
-        const originalMethod = (target as any)[prop];
-        if (typeof originalMethod === 'function' && ['get', 'post', 'put', 'delete', 'patch', 'head'].includes(String(prop))) {
-            return (url: string, options: any = {}) => {
-                const headers = { ...options.headers, Authorization: `Bearer ${accessToken}` };
-                return originalMethod.call(target, url, { ...options, headers });
-            };
-        }
-        return Reflect.get(target, prop, receiver);
-    }
-  }) as APIRequestContext;
+  return playwrightRequest;
 }
