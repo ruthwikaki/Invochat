@@ -40,7 +40,8 @@ prev_filtered_orders AS (
   FROM public.orders o
   JOIN time_window w ON true
   WHERE o.company_id = p_company_id
-    AND o.created_at >= w.prev_start_at AND o.created_at < w.prev_end_at
+    AND o.created_at >= w.prev_start_at
+    AND o.created_at < w.prev_end_at
     AND o.cancelled_at IS NULL
 ),
 day_series AS (
@@ -51,7 +52,7 @@ day_series AS (
   GROUP BY 1
   ORDER BY 1
 ),
-top_products AS (
+top_products_cte AS (
   SELECT
     p.id                                  AS product_id,
     p.title                               AS product_name,
@@ -92,7 +93,7 @@ variant_last_sale AS (
 ),
 dead_stock AS (
   SELECT
-    COALESCE(SUM((v.inventory_quantity::bigint) * (v.cost::bigint)), 0)::bigint AS value
+    SUM((v.inventory_quantity::bigint) * (v.cost::bigint))::bigint AS value
   FROM public.product_variants v
   LEFT JOIN variant_last_sale ls ON ls.variant_id = v.id
   LEFT JOIN public.company_settings cs ON cs.company_id = v.company_id
@@ -138,7 +139,7 @@ SELECT
     FROM day_series
   ), '[]'::jsonb) AS sales_series,
 
-  COALESCE((SELECT jsonb_agg(to_jsonb(tp)) FROM top_products tp), '[]'::jsonb) AS top_products,
+  COALESCE((SELECT jsonb_agg(to_jsonb(tp)) FROM top_products_cte tp), '[]'::jsonb) AS top_products,
 
   jsonb_build_object(
     'total_value',     COALESCE((SELECT total_value     FROM inventory_values), 0),
@@ -187,10 +188,10 @@ CREATE INDEX IF NOT EXISTS idx_products_company
 
 CREATE INDEX IF NOT EXISTS idx_variants_company
   ON public.product_variants(company_id);
-  
-CREATE INDEX IF NOT EXISTS idx_variants_company_not_deleted
-  ON public.product_variants(company_id)
-  WHERE deleted_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_customers_company
   ON public.customers(company_id);
+
+CREATE INDEX IF NOT EXISTS idx_variants_company_not_deleted
+  ON public.product_variants(company_id)
+  WHERE deleted_at IS NULL;
