@@ -515,48 +515,49 @@ export async function reconcileInventory(integrationId: string) {
 }
 
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
-    const { companyId } = await getAuthContext();
-    const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
-    if (isRedisEnabled) {
-        try {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
-                return JSON.parse(cached);
-            }
-            logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
-        } catch (e) {
-            logError(e, { context: 'Redis cache get failed for dashboard' });
-        }
-    }
+  const { companyId } = await getAuthContext();
+  const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
 
-    try {
-        const data = await getDashboardMetricsFromDb(companyId, dateRange);
-        if (isRedisEnabled && data) {
-          await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
-        }
-        return data;
-    } catch (e) {
-        logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
-        // Return a schema-compliant empty object to prevent frontend crashes
-        return {
-            total_revenue: 0,
-            revenue_change: 0,
-            total_orders: 0,
-            orders_change: 0,
-            new_customers: 0,
-            customers_change: 0,
-            dead_stock_value: 0,
-            sales_over_time: [],
-            top_selling_products: [],
-            inventory_summary: {
-                total_value: 0,
-                in_stock_value: 0,
-                low_stock_value: 0,
-                dead_stock_value: 0,
-            },
-        };
-    }
+  if (isRedisEnabled) {
+      try {
+          const cached = await redisClient.get(cacheKey);
+          if (cached) {
+              logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+              return JSON.parse(cached);
+          }
+          logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+      } catch (e) {
+          logError(e, { context: 'Redis cache get failed for dashboard' });
+      }
+  }
+
+  try {
+      const data = await getDashboardMetricsFromDb(companyId, dateRange);
+      if (isRedisEnabled && data) {
+        await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
+      }
+      return data;
+  } catch (e) {
+      logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
+      // Return a schema-compliant empty object to prevent frontend crashes
+      return {
+          total_revenue: 0,
+          revenue_change: 0,
+          total_orders: 0,
+          orders_change: 0,
+          new_customers: 0,
+          customers_change: 0,
+          dead_stock_value: 0,
+          sales_over_time: [],
+          top_selling_products: [],
+          inventory_summary: {
+              total_value: 0,
+              in_stock_value: 0,
+              low_stock_value: 0,
+              dead_stock_value: 0,
+          },
+      };
+  }
 }
 
 export async function getMorningBriefing(dateRange: string) {
