@@ -389,7 +389,7 @@ export const DashboardMetricsSchema = z.object({
   total_revenue: z.number().int().default(0),
   total_customers: z.number().int().default(0),
   inventory_count: z.number().int().default(0),
-  sales_series: z.array(z.object({ date: z.string(), revenue: z.number() })).default([]),
+  sales_series: z.array(z.object({ date: z.string(), revenue: z.number(), orders: z.number() })).default([]),
   top_products: z.array(z.object({
     product_id: z.string().uuid(),
     product_name: z.string(),
