@@ -548,8 +548,8 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
           new_customers: 0,
           customers_change: 0,
           dead_stock_value: 0,
-          sales_over_time: [],
-          top_selling_products: [],
+          sales_series: [],
+          top_products: [],
           inventory_summary: {
               total_value: 0,
               in_stock_value: 0,
