@@ -415,20 +415,19 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
     return { deadStockItems, totalValue, totalUnits };
 }
 
-export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestionBase[]> {
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid Company ID');
     }
     try {
         const supabase = getServiceRoleClient();
         const { data, error } = await supabase.rpc('get_reorder_suggestions', { p_company_id: companyId });
-
+        
         if (error) {
-            logError(error, { context: 'getReorderSuggestionsFromDB failed' });
             throw error;
         }
 
-        return z.array(ReorderSuggestionBaseSchema).parse(data || []);
+        return z.array(ReorderSuggestionSchema).parse(data || []);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });

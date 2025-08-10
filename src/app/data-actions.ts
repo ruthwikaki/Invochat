@@ -1,5 +1,4 @@
 
-
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
@@ -539,7 +538,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         return data;
     } catch (e) {
         logError(e, { context: 'Failed to fetch dashboard data' });
-        // Return a safe, empty object to prevent frontend crashes
+        // Return a schema-compliant empty object to prevent frontend crashes
         return {
             total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_selling_products: [],
             inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 },
