@@ -45,8 +45,7 @@ prev_filtered_orders AS (
 ),
 day_series AS (
   SELECT date_trunc('day', o.created_at) AS day,
-         SUM(o.total_amount)::bigint     AS revenue,
-         COUNT(*)::int                   AS orders
+         SUM(o.total_amount)::bigint     AS revenue
   FROM filtered_orders o
   GROUP BY 1
   ORDER BY 1
@@ -135,7 +134,7 @@ SELECT
     FROM day_series
   ), '[]'::jsonb) AS sales_series,
 
-  COALESCE((SELECT jsonb_agg(to_jsonb(tp)) FROM top_products), '[]'::jsonb) AS top_products,
+  COALESCE((SELECT jsonb_agg(top_products) FROM top_products), '[]'::jsonb) AS top_products,
 
   jsonb_build_object(
     'total_value',     COALESCE((SELECT total_value     FROM inventory_values), 0),
