@@ -45,12 +45,13 @@ prev_filtered_orders AS (
 ),
 day_series AS (
   SELECT date_trunc('day', o.created_at) AS day,
-         SUM(o.total_amount)::bigint     AS revenue
+         SUM(o.total_amount)::bigint     AS revenue,
+         COUNT(*)::int                   AS orders
   FROM filtered_orders o
   GROUP BY 1
   ORDER BY 1
 ),
-top_products AS (
+top_products_cte AS (
   SELECT
     p.id                                  AS product_id,
     p.title                               AS product_name,
@@ -96,6 +97,7 @@ dead_stock AS (
   LEFT JOIN public.company_settings cs ON cs.company_id = v.company_id
   WHERE v.company_id = p_company_id
     AND v.cost IS NOT NULL
+    AND v.inventory_quantity > 0
     AND (
       ls.last_sale_at IS NULL
       OR ls.last_sale_at < (now() - make_interval(days => COALESCE(cs.dead_stock_days, 90)))
@@ -128,13 +130,13 @@ SELECT
 
   COALESCE((
     SELECT jsonb_agg(
-      jsonb_build_object('date', to_char(day, 'YYYY-MM-DD'), 'revenue', revenue)
+      jsonb_build_object('date', to_char(day, 'YYYY-MM-DD'), 'revenue', revenue, 'orders', orders)
       ORDER BY day
     )
     FROM day_series
   ), '[]'::jsonb) AS sales_series,
 
-  COALESCE((SELECT jsonb_agg(top_products) FROM top_products), '[]'::jsonb) AS top_products,
+  COALESCE((SELECT jsonb_agg(to_jsonb(tp)) FROM top_products_cte tp), '[]'::jsonb) AS top_products,
 
   jsonb_build_object(
     'total_value',     COALESCE((SELECT total_value     FROM inventory_values), 0),
