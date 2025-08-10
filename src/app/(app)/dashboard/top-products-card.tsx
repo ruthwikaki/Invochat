@@ -8,9 +8,10 @@ import { motion } from 'framer-motion';
 
 interface TopProductsCardProps {
   data: {
-    sku: string;
+    product_id: string;
     product_name: string;
-    revenue: number;
+    total_revenue: number;
+    image_url: string | null;
     quantity_sold: number;
   }[];
   currency: string;
@@ -30,13 +31,14 @@ export function TopProductsCard({ data, currency }: TopProductsCardProps) {
           <ul className="space-y-4">
             {data.map((product, index) => (
               <motion.li 
-                key={product.sku} 
+                key={product.product_id} 
                 className="flex items-center gap-4"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.1 }}
               >
                 <Avatar className="h-10 w-10 rounded-md">
+                  <AvatarImage src={product.image_url || undefined} alt={product.product_name} />
                   <AvatarFallback className="rounded-md bg-muted text-muted-foreground">
                     <Package className="h-5 w-5" />
                   </AvatarFallback>
@@ -45,7 +47,7 @@ export function TopProductsCard({ data, currency }: TopProductsCardProps) {
                   <p className="font-medium">{product.product_name}</p>
                   <p className="text-xs text-muted-foreground">{product.quantity_sold} units sold</p>
                 </div>
-                <div className="font-semibold font-tabular">{formatCentsAsCurrency(product.revenue, currency)}</div>
+                <div className="font-semibold font-tabular">{formatCentsAsCurrency(product.total_revenue, currency)}</div>
               </motion.li>
             ))}
           </ul>

@@ -385,18 +385,12 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
 
 export const DashboardMetricsSchema = z.object({
-  total_revenue: z.number().int().default(0),
-  revenue_change: z.number().default(0),
   total_orders: z.number().int().default(0),
-  orders_change: z.number().default(0),
-  new_customers: z.number().int().default(0),
-  customers_change: z.number().default(0),
-  dead_stock_value: z.number().int().default(0),
-  sales_over_time: z.array(z.object({
-    date: z.string(),
-    revenue: z.number().int(),
-  })).default([]),
-  top_selling_products: z.array(z.object({
+  total_revenue: z.number().int().default(0),
+  total_customers: z.number().int().default(0),
+  inventory_count: z.number().int().default(0),
+  sales_series: z.array(z.object({ date: z.string(), revenue: z.number() })).default([]),
+  top_products: z.array(z.object({
     product_id: z.string().uuid(),
     product_name: z.string(),
     image_url: z.string().url().nullable(),
@@ -408,7 +402,11 @@ export const DashboardMetricsSchema = z.object({
     in_stock_value: z.number().int().default(0),
     low_stock_value: z.number().int().default(0),
     dead_stock_value: z.number().int().default(0),
-  }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 })
+  }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }),
+  revenue_change: z.number().default(0),
+  orders_change: z.number().default(0),
+  customers_change: z.number().default(0),
+  dead_stock_value: z.number().int().default(0),
 }).passthrough();
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
