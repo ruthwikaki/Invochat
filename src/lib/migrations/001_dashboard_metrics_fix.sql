@@ -51,13 +51,13 @@ day_series AS (
   GROUP BY 1
   ORDER BY 1
 ),
-top_products_cte AS (
+top_products AS (
   SELECT
     p.id                                  AS product_id,
     p.title                               AS product_name,
     p.image_url,
     SUM(li.quantity)::int                 AS quantity_sold,
-    SUM(li.price * li.quantity)::bigint   AS total_revenue
+    SUM((li.price::bigint) * (li.quantity::bigint))   AS total_revenue
   FROM public.order_line_items li
   JOIN public.orders o   ON o.id = li.order_id
   LEFT JOIN public.products p ON p.id = li.product_id
@@ -70,16 +70,16 @@ top_products_cte AS (
 ),
 inventory_values AS (
   SELECT
-    SUM(v.inventory_quantity * v.cost)::bigint AS total_value,
+    SUM((v.inventory_quantity::bigint) * (v.cost::bigint)) AS total_value,
     SUM(CASE WHEN v.reorder_point IS NULL OR v.inventory_quantity > v.reorder_point
-             THEN v.inventory_quantity * v.cost ELSE 0 END)::bigint AS in_stock_value,
+             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END) AS in_stock_value,
     SUM(CASE WHEN v.reorder_point IS NOT NULL
                AND v.inventory_quantity <= v.reorder_point
                AND v.inventory_quantity > 0
-             THEN v.inventory_quantity * v.cost ELSE 0 END)::bigint AS low_stock_value
+             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END) AS low_stock_value
   FROM public.product_variants v
   WHERE v.company_id = p_company_id
-    AND v.cost IS NOT NULL
+    AND v.cost IS NOT NULL AND v.deleted_at IS NULL
 ),
 variant_last_sale AS (
   SELECT li.variant_id, MAX(o.created_at) AS last_sale_at
@@ -91,13 +91,13 @@ variant_last_sale AS (
 ),
 dead_stock AS (
   SELECT
-    SUM(v.inventory_quantity * v.cost)::bigint AS value
+    SUM((v.inventory_quantity::bigint) * (v.cost::bigint)) AS value
   FROM public.product_variants v
   LEFT JOIN variant_last_sale ls ON ls.variant_id = v.id
   LEFT JOIN public.company_settings cs ON cs.company_id = v.company_id
   WHERE v.company_id = p_company_id
     AND v.cost IS NOT NULL
-    AND v.inventory_quantity > 0
+    AND v.deleted_at IS NULL
     AND (
       ls.last_sale_at IS NULL
       OR ls.last_sale_at < (now() - make_interval(days => COALESCE(cs.dead_stock_days, 90)))
@@ -125,18 +125,22 @@ SELECT
   COALESCE((
     SELECT SUM(pv.inventory_quantity)
     FROM public.product_variants pv
-    WHERE pv.company_id = p_company_id
+    WHERE pv.company_id = p_company_id AND pv.deleted_at IS NULL
   ), 0)::bigint AS inventory_count,
 
   COALESCE((
     SELECT jsonb_agg(
-      jsonb_build_object('date', to_char(day, 'YYYY-MM-DD'), 'revenue', revenue, 'orders', orders)
+      jsonb_build_object(
+        'date', to_char(day, 'YYYY-MM-DD'),
+        'revenue', revenue,
+        'orders', orders
+      )
       ORDER BY day
     )
     FROM day_series
   ), '[]'::jsonb) AS sales_series,
 
-  COALESCE((SELECT jsonb_agg(to_jsonb(tp)) FROM top_products_cte tp), '[]'::jsonb) AS top_products,
+  COALESCE((SELECT jsonb_agg(to_jsonb(tp)) FROM top_products tp), '[]'::jsonb) AS top_products,
 
   jsonb_build_object(
     'total_value',     COALESCE((SELECT total_value     FROM inventory_values), 0),
@@ -149,19 +153,19 @@ SELECT
        THEN 0.0
        ELSE (((SELECT revenue FROM current_period)::float
              - (SELECT revenue FROM previous_period)::float)
-             / (SELECT revenue FROM previous_period)::float) * 100
+             / NULLIF((SELECT revenue FROM previous_period)::float, 0)) * 100
   END AS revenue_change,
   CASE WHEN (SELECT orders FROM previous_period) = 0
        THEN 0.0
        ELSE (((SELECT orders FROM current_period)::float
              - (SELECT orders FROM previous_period)::float)
-             / (SELECT orders FROM previous_period)::float) * 100
+             / NULLIF((SELECT orders FROM previous_period)::float, 0)) * 100
   END AS orders_change,
   CASE WHEN (SELECT customers FROM previous_period) = 0
        THEN 0.0
        ELSE (((SELECT customers FROM current_period)::float
              - (SELECT customers FROM previous_period)::float)
-             / (SELECT customers FROM previous_period)::float) * 100
+             / NULLIF((SELECT customers FROM previous_period)::float, 0)) * 100
   END AS customers_change,
 
   COALESCE((SELECT value FROM dead_stock), 0)::bigint AS dead_stock_value;
