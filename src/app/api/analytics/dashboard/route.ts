@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const days = parseRangeToDays(url.searchParams.get('range'));
+    console.log('AUTH', req.headers.get('authorization'));
 
     // Try Bearer first (works in Playwright/API tests)
     const authHeader =
