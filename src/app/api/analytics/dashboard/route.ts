@@ -1,3 +1,4 @@
+
 // src/app/api/analytics/dashboard/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
@@ -13,12 +14,14 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const days = parseRangeToDays(url.searchParams.get('range'));
   const auth = req.headers.get('authorization');
+  console.log('AUTH HEADER SEEN?', !!auth);
 
   if (!auth?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  console.log('SUPABASE_URL in route:', SUPABASE_URL);
   const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
   const ures = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -62,5 +65,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 
-  return NextResponse.json(metrics ?? {});
+  const payload = Array.isArray(metrics) ? (metrics[0] ?? {}) : (metrics ?? {});
+  return NextResponse.json(payload);
 }
