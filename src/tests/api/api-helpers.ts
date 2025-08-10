@@ -106,12 +106,21 @@ export async function getAuthedRequest(request: APIRequestContext): Promise<APIR
     }
     const authData = await response.json();
     accessToken = authData.access_token;
+
+    // 🔍 sanity check
+    const tmp = await pwRequest.newContext();
+    const verify = await tmp.get(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${accessToken}` },
+    });
+    console.log('VERIFY /auth/v1/user', verify.status(), await verify.text());
   }
   
   // Set the authorization header for all subsequent requests on this context
-  request.storageState().then(state => {
-      state.extraHTTPHeaders = { ...state.extraHTTPHeaders, Authorization: `Bearer ${accessToken}` };
+  const authedContext = await pwRequest.newContext({
+    extraHTTPHeaders: {
+        Authorization: `Bearer ${accessToken}`,
+    },
   });
 
-  return request;
+  return authedContext;
 }
