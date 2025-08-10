@@ -1,5 +1,4 @@
-
-import { request, APIRequestContext } from '@playwright/test';
+import { request as pwRequest, APIRequestContext } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import credentials from '../test_data/test_credentials.json';
 
@@ -7,6 +6,7 @@ import credentials from '../test_data/test_credentials.json';
 // It uses the service role key to directly sign in a user for testing purposes.
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const TEST_USER_EMAIL = credentials.test_users[0].email;
 const TEST_USER_PASSWORD = credentials.test_users[0].password;
 
@@ -70,10 +70,10 @@ export async function createTestUser(
 /**
  * Gets an authenticated APIRequestContext for making requests as a test user.
  * It will sign in the user once and reuse the token for subsequent requests.
- * @param playwrightRequest The `request` object from a Playwright test.
+ * @param request The `request` object from a Playwright test.
  * @returns An authenticated APIRequestContext.
  */
-export async function getAuthedRequest(playwrightRequest: APIRequestContext): Promise<APIRequestContext> {
+export async function getAuthedRequest(request: APIRequestContext): Promise<APIRequestContext> {
   if (!accessToken) {
     const supabase = getServiceRoleClient();
     
@@ -91,9 +91,9 @@ export async function getAuthedRequest(playwrightRequest: APIRequestContext): Pr
         if(createError) throw new Error(`Failed to create test user: ${createError.message}`);
     }
 
-    const response = await playwrightRequest.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    const response = await request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       headers: {
-        'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        'apikey': ANON_KEY,
       },
       data: {
         email: TEST_USER_EMAIL,
@@ -109,9 +109,9 @@ export async function getAuthedRequest(playwrightRequest: APIRequestContext): Pr
   }
   
   // Set the authorization header for all subsequent requests on this context
-  playwrightRequest.storageState().then(state => {
-      state.headers = { ...state.headers, Authorization: `Bearer ${accessToken}` };
+  request.storageState().then(state => {
+      state.extraHTTPHeaders = { ...state.extraHTTPHeaders, Authorization: `Bearer ${accessToken}` };
   });
 
-  return playwrightRequest;
+  return request;
 }
