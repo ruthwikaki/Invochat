@@ -40,7 +40,7 @@ prev_filtered_orders AS (
   FROM public.orders o
   JOIN time_window w ON true
   WHERE o.company_id = p_company_id
-    AND o.created_at BETWEEN w.prev_start_at AND w.prev_end_at
+    AND o.created_at >= w.prev_start_at AND o.created_at < w.prev_end_at
     AND o.cancelled_at IS NULL
 ),
 day_series AS (
@@ -57,7 +57,7 @@ top_products AS (
     p.title                               AS product_name,
     p.image_url,
     SUM(li.quantity)::int                 AS quantity_sold,
-    SUM((li.price::bigint) * (li.quantity::bigint))   AS total_revenue
+    SUM((li.price::bigint) * (li.quantity::bigint))::bigint AS total_revenue
   FROM public.order_line_items li
   JOIN public.orders o   ON o.id = li.order_id
   LEFT JOIN public.products p ON p.id = li.product_id
@@ -70,16 +70,17 @@ top_products AS (
 ),
 inventory_values AS (
   SELECT
-    SUM((v.inventory_quantity::bigint) * (v.cost::bigint)) AS total_value,
+    SUM((v.inventory_quantity::bigint) * (v.cost::bigint))::bigint AS total_value,
     SUM(CASE WHEN v.reorder_point IS NULL OR v.inventory_quantity > v.reorder_point
-             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END) AS in_stock_value,
+             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END)::bigint AS in_stock_value,
     SUM(CASE WHEN v.reorder_point IS NOT NULL
                AND v.inventory_quantity <= v.reorder_point
                AND v.inventory_quantity > 0
-             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END) AS low_stock_value
+             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END)::bigint AS low_stock_value
   FROM public.product_variants v
   WHERE v.company_id = p_company_id
-    AND v.cost IS NOT NULL AND v.deleted_at IS NULL
+    AND v.cost IS NOT NULL
+    AND v.deleted_at IS NULL
 ),
 variant_last_sale AS (
   SELECT li.variant_id, MAX(o.created_at) AS last_sale_at
@@ -91,13 +92,14 @@ variant_last_sale AS (
 ),
 dead_stock AS (
   SELECT
-    SUM((v.inventory_quantity::bigint) * (v.cost::bigint)) AS value
+    COALESCE(SUM((v.inventory_quantity::bigint) * (v.cost::bigint)), 0)::bigint AS value
   FROM public.product_variants v
   LEFT JOIN variant_last_sale ls ON ls.variant_id = v.id
   LEFT JOIN public.company_settings cs ON cs.company_id = v.company_id
   WHERE v.company_id = p_company_id
     AND v.cost IS NOT NULL
     AND v.deleted_at IS NULL
+    AND v.inventory_quantity > 0
     AND (
       ls.last_sale_at IS NULL
       OR ls.last_sale_at < (now() - make_interval(days => COALESCE(cs.dead_stock_days, 90)))
@@ -130,11 +132,7 @@ SELECT
 
   COALESCE((
     SELECT jsonb_agg(
-      jsonb_build_object(
-        'date', to_char(day, 'YYYY-MM-DD'),
-        'revenue', revenue,
-        'orders', orders
-      )
+      jsonb_build_object('date', to_char(day, 'YYYY-MM-DD'), 'revenue', revenue, 'orders', orders)
       ORDER BY day
     )
     FROM day_series
@@ -153,19 +151,19 @@ SELECT
        THEN 0.0
        ELSE (((SELECT revenue FROM current_period)::float
              - (SELECT revenue FROM previous_period)::float)
-             / NULLIF((SELECT revenue FROM previous_period)::float, 0)) * 100
+             / (SELECT revenue FROM previous_period)::float) * 100
   END AS revenue_change,
   CASE WHEN (SELECT orders FROM previous_period) = 0
        THEN 0.0
        ELSE (((SELECT orders FROM current_period)::float
              - (SELECT orders FROM previous_period)::float)
-             / NULLIF((SELECT orders FROM previous_period)::float, 0)) * 100
+             / (SELECT orders FROM previous_period)::float) * 100
   END AS orders_change,
   CASE WHEN (SELECT customers FROM previous_period) = 0
        THEN 0.0
        ELSE (((SELECT customers FROM current_period)::float
              - (SELECT customers FROM previous_period)::float)
-             / NULLIF((SELECT customers FROM previous_period)::float, 0)) * 100
+             / (SELECT customers FROM previous_period)::float) * 100
   END AS customers_change,
 
   COALESCE((SELECT value FROM dead_stock), 0)::bigint AS dead_stock_value;
@@ -189,6 +187,10 @@ CREATE INDEX IF NOT EXISTS idx_products_company
 
 CREATE INDEX IF NOT EXISTS idx_variants_company
   ON public.product_variants(company_id);
+  
+CREATE INDEX IF NOT EXISTS idx_variants_company_not_deleted
+  ON public.product_variants(company_id)
+  WHERE deleted_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_customers_company
   ON public.customers(company_id);
