@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
-import { ReorderSuggestionBaseSchema } from '@/types';
+import { ReorderSuggestionBaseSchema, EnhancedReorderSuggestionSchema } from '@/types';
 import { config } from '@/config/app-config';
 
 // The input for the AI refinement prompt
@@ -24,13 +24,6 @@ const ReorderRefinementInputSchema = z.object({
   })),
   currentDate: z.string().describe("The current date in YYYY-MM-DD format, to provide context for seasonality."),
   timezone: z.string().describe("The business's timezone, e.g., 'America/New_York'.")
-});
-
-const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
-    base_quantity: z.number().int().describe("The initial, simple calculated reorder quantity before AI adjustment."),
-    adjustment_reason: z.string().describe("A concise explanation for why the reorder quantity was adjusted."),
-    seasonality_factor: z.number().describe("A factor from ~0.5 (low season) to ~1.5 (high season) that influenced the adjustment."),
-    confidence: z.number().min(0).max(1).describe("The AI's confidence in its seasonal adjustment."),
 });
 
 export const reorderRefinementPrompt = ai.definePrompt({
@@ -131,10 +124,24 @@ export const getReorderSuggestions = ai.defineTool(
                 confidence: 0.1,
             }));
         }
+        
+        const validatedOutput = z.array(EnhancedReorderSuggestionSchema).safeParse(output);
+        if(!validatedOutput.success) {
+            logError(validatedOutput.error, { context: 'AI output failed validation for reorder suggestions' });
+            // Fallback to base suggestions if AI output is malformed
+            return baseSuggestions.map(s => ({
+                ...s,
+                base_quantity: s.suggested_reorder_quantity,
+                adjustment_reason: 'AI output was malformed, using base calculation.',
+                seasonality_factor: 1.0,
+                confidence: 0.0,
+            }));
+        }
+
 
         logger.info(`[Reorder Tool] AI refinement complete. Applying post-processing guards.`);
         // Post-processing guardrail: ensure we don't suggest ordering less than a 30-day supply.
-        const finalSuggestions = output.map(suggestion => {
+        const finalSuggestions = validatedOutput.data.map(suggestion => {
             const salesRecord = (historicalSales as any[]).find(s => s.sku === suggestion.sku);
             if (salesRecord && salesRecord.monthly_sales && salesRecord.monthly_sales.length > 0) {
                 // Approximate 30-day supply from the most recent month's sales
@@ -155,3 +162,5 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
+    

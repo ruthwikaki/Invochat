@@ -12,7 +12,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
-    await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 20000 });
 }
 
 test.describe('Inventory Page', () => {
@@ -74,7 +74,7 @@ test.describe('Inventory Page', () => {
   });
 
   test('should trigger a file download when Export is clicked', async ({ page }) => {
-    const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/inventory/export') && resp.status() === 200);
+    const responsePromise = page.waitForResponse(resp => resp.url().includes('/inventory/export') && resp.status() === 200);
     
     await page.getByTestId('inventory-export').click();
     

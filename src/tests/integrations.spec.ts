@@ -37,7 +37,7 @@ test.describe('Integrations Page', () => {
         
         await connectButton.click();
         
-        await expect(page.getByText('Connect Your Shopify Store')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Connect Your Shopify Store' })).toBeVisible();
         await expect(page.getByLabel('Shopify Store URL')).toBeVisible();
         
         await page.getByRole('button', { name: 'Cancel' }).click();

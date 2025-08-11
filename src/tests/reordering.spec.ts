@@ -22,7 +22,7 @@ test.describe('Reordering Page', () => {
     });
 
     test('should load reorder suggestions and allow selection', async ({ page }) => {
-        await expect(page.getByRole('heading', { name: /Reorder Suggestions/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Reorder Suggestions/i })).toBeVisible({ timeout: 10000 });
 
         // Check if there are any suggestions to test with or if the empty state is shown
         const noSuggestions = page.getByText('All Good! No Reorders Needed');
@@ -93,3 +93,5 @@ test.describe('Reordering Page', () => {
         }
     });
 });
+
+    

@@ -117,6 +117,7 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="space-y-6"
+            data-testid="dashboard-root"
         >
             <div className="flex flex-col md:flex-row items-start justify-between gap-4">
                 <div>
