@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     });
     if (error) throw error;
 
-    // data is already { deadStockItems, totalValue }
+    // The RPC function now correctly returns a single JSON object with the expected keys.
     return NextResponse.json(data ?? { deadStockItems: [], totalValue: 0 });
   } catch (e: any) {
     const status = e instanceof ApiError ? e.status : 500;

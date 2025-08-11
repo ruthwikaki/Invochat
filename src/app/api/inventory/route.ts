@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    // Items
+    // Items - Corrected to use the detailed view
     const { data: items, error: itemsErr } = await supabase
       .from('product_variants_with_details') // Using the detailed view
       .select('*')
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     if (itemsErr) throw itemsErr;
 
-    // Count
+    // Count - Corrected to use the detailed view
     const { count, error: countErr } = await supabase
       .from('product_variants_with_details')
       .select('*', { count: 'exact', head: true })
