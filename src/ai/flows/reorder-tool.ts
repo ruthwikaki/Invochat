@@ -9,12 +9,13 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
-import { ReorderSuggestionBaseSchema, EnhancedReorderSuggestionSchema } from '@/types';
+import type { ReorderSuggestionBase } from '@/types';
+import { EnhancedReorderSuggestionSchema } from '@/schemas/reorder';
 import { config } from '@/config/app-config';
 
 // The input for the AI refinement prompt
 const ReorderRefinementInputSchema = z.object({
-  suggestions: z.array(ReorderSuggestionBaseSchema),
+  suggestions: z.array(z.custom<ReorderSuggestionBase>()),
   historicalSales: z.array(z.object({
       sku: z.string(),
       monthly_sales: z.array(z.object({
@@ -162,5 +163,3 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
-
-    

@@ -59,5 +59,3 @@ test.describe('Sales Page', () => {
     await expect(page.getByText('No sales orders found matching your search.')).toBeVisible();
   });
 });
-
-    

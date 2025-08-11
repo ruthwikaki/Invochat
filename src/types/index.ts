@@ -1,9 +1,8 @@
 
-'use client';
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
+import type { ReorderSuggestionBase, ReorderSuggestion } from '@/schemas/reorder';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -313,42 +312,7 @@ export const ProductUpdateSchema = z.object({
 export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
 
 
-export const ReorderSuggestionBaseSchema = z.object({
-    variant_id: z.string().uuid(),
-    product_id: z.string().uuid(),
-    sku: z.string(),
-    product_name: z.string(),
-    supplier_name: z.string().nullable(),
-    supplier_id: z.string().uuid().nullable(),
-    current_quantity: z.number().int(),
-    suggested_reorder_quantity: z.number().int(),
-    unit_cost: z.number().int().nullable(),
-}).passthrough();
-export type ReorderSuggestionBase = z.infer<typeof ReorderSuggestionBaseSchema>;
-
-export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
-    base_quantity: z.number().int(),
-    adjustment_reason: z.string().nullable(),
-    seasonality_factor: z.number().nullable(),
-    confidence: z.number().min(0).max(1).nullable(),
-}).passthrough();
-export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
-
-export const EnhancedReorderSuggestionSchema = z.object({
-    variant_id: z.string().uuid(),
-    product_id: z.string().uuid(),
-    sku: z.string(),
-    product_name: z.string(),
-    supplier_name: z.string().nullable(),
-    supplier_id: z.string().uuid().nullable(),
-    current_quantity: z.number().int(),
-    suggested_reorder_quantity: z.number().int(),
-    unit_cost: z.number().int().nullable(),
-    base_quantity: z.number().int().describe("The initial, simple calculated reorder quantity before AI adjustment."),
-    adjustment_reason: z.string().describe("A concise explanation for why the reorder quantity was adjusted."),
-    seasonality_factor: z.number().describe("A factor from ~0.5 (low season) to ~1.5 (high season) that influenced the adjustment."),
-    confidence: z.number().min(0).max(1).describe("The AI's confidence in its seasonal adjustment."),
-}).passthrough();
+export type { ReorderSuggestion, ReorderSuggestionBase };
 
 
 export const InventoryAgingReportItemSchema = z.object({
@@ -563,5 +527,3 @@ export const FeedbackSchema = z.object({
 
 export const FeedbackWithMessagesSchema = FeedbackSchema;
 export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
-
-    

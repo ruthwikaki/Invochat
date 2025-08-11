@@ -83,5 +83,3 @@ test.describe('Inventory Page', () => {
     expect(response.headers()['content-disposition']).toContain('attachment');
   });
 });
-
-    
