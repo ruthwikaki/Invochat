@@ -348,7 +348,6 @@ export const InventoryRiskItemSchema = z.object({
     sku: z.string(),
     product_name: z.string(),
     inventory_quantity: z.number(),
-    total_value: z.number().int(),
     risk_score: z.number(),
 });
 export type InventoryRiskItem = z.infer<typeof InventoryRiskItemSchema>;
@@ -547,5 +546,3 @@ export const FeedbackWithMessagesSchema = z.object({
     assistant_message_content: z.string().nullable(),
 });
 export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
-
-    

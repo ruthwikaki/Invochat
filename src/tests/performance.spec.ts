@@ -43,7 +43,7 @@ test.describe('Performance Benchmarks', () => {
     await page.goto('/inventory');
     await page.waitForURL('/inventory');
     
-    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('/api/inventory'));
+    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('/api/inventory') && resp.status() === 200);
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
     
     const response = await inventoryPromise;
