@@ -54,7 +54,7 @@ export function ReorderList({ data: items }: ReorderListProps) {
   }
 
   return (
-    <Card>
+    <Card data-testid="reorder-list">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5 text-primary"/>

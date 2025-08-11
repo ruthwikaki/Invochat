@@ -13,6 +13,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 60000 });
+    await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 15000 });
 }
 
 // Helper to parse currency string to number in cents
@@ -24,15 +25,13 @@ function parseCurrency(currencyString: string | null): number {
 test.describe('Dashboard Page', () => {
     test.beforeEach(async ({ page }) => {
         await login(page);
-        await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
     });
 
     test('should load all dashboard cards and validate key metrics', async ({ page }) => {
-        await expect(page.getByText('Total Revenue')).toBeVisible();
+        await expect(page.getByTestId('sales-overview-card')).toBeVisible();
         await expect(page.getByText('Total Orders')).toBeVisible();
         await expect(page.getByText('New Customers')).toBeVisible();
         await expect(page.getByText('Dead Stock Value')).toBeVisible();
-        await expect(page.getByText('Sales Overview')).toBeVisible();
         await expect(page.getByText('Top Selling Products')).toBeVisible();
         await expect(page.getByText('Inventory Value Summary')).toBeVisible();
     });

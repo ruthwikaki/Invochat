@@ -13,6 +13,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 60000 });
+    await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 15000 });
 }
 
 
@@ -47,13 +48,8 @@ test.describe('AI Chat Interface', () => {
 
         // Check that the user message appears
         await expect(page.getByText('Show me my dead stock report')).toBeVisible();
-
-        // Wait for the assistant's response. It should render the DeadStockTable component,
-        // which has a specific card title. This is a much stronger assertion than checking for text.
-        const assistantMessageContainer = page.locator('.flex.flex-col.gap-3').last();
-        const deadStockTableTitle = assistantMessageContainer.locator('h3:has-text("Dead Stock Report")');
         
-        await expect(deadStockTableTitle).toBeVisible({ timeout: 20000 });
+        await expect(page.getByTestId('dead-stock-table')).toBeVisible({ timeout: 20000 });
     });
     
     test('should trigger reorder tool and render the correct UI component', async ({ page }) => {
@@ -64,11 +60,7 @@ test.describe('AI Chat Interface', () => {
         // Check that the user message appears
         await expect(page.getByText('What should I reorder?')).toBeVisible();
 
-        // Wait for the assistant's response, which should contain the ReorderList component.
-        const assistantMessageContainer = page.locator('.flex.flex-col.gap-3').last();
-        const reorderListTitle = assistantMessageContainer.locator('h3:has-text("Reorder Suggestions")');
-        
-        await expect(reorderListTitle).toBeVisible({ timeout: 20000 });
+        await expect(page.getByTestId('reorder-list')).toBeVisible({ timeout: 20000 });
     });
 
     test('should handle AI service error gracefully', async ({ page, context }) => {

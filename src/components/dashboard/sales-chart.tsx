@@ -14,7 +14,7 @@ interface SalesChartProps {
 
 export function SalesChart({ data, currency }: SalesChartProps) {
   return (
-    <Card>
+    <Card data-testid="sales-overview-card">
       <CardHeader>
         <CardTitle>Sales Overview</CardTitle>
         <CardDescription>
@@ -72,5 +72,3 @@ export function SalesChart({ data, currency }: SalesChartProps) {
     </Card>
   );
 }
-
-    

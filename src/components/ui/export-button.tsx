@@ -7,12 +7,12 @@ import { Button } from './button';
 import { Download, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
-interface ExportButtonProps {
+interface ExportButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   exportAction: () => Promise<{ success: boolean; data?: string; error?: string }>;
   filename: string;
 }
 
-export function ExportButton({ exportAction, filename }: ExportButtonProps) {
+export function ExportButton({ exportAction, filename, ...props }: ExportButtonProps) {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
@@ -42,7 +42,7 @@ export function ExportButton({ exportAction, filename }: ExportButtonProps) {
   };
 
   return (
-    <Button variant="outline" onClick={handleExport} disabled={isPending}>
+    <Button variant="outline" onClick={handleExport} disabled={isPending} {...props}>
       {isPending ? (
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : (

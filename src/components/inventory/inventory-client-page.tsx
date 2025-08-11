@@ -224,6 +224,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
         <div className="relative flex-1 w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
+                data-testid="inventory-search"
                 placeholder="Search by product title or SKU..."
                 onChange={(e) => handleSearch(e.target.value)}
                 defaultValue={searchQuery}
@@ -242,7 +243,7 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                 <SelectItem value="archived">Archived</SelectItem>
               </SelectContent>
             </Select>
-            <ExportButton exportAction={handleExport} filename="inventory.csv" />
+            <ExportButton data-testid="inventory-export" exportAction={handleExport} filename="inventory.csv" />
         </div>
       </div>
       
@@ -346,5 +347,3 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     </>
   );
 }
-
-    
