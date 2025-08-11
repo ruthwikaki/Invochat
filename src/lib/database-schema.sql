@@ -1,260 +1,307 @@
--- This is the single source of truth for the database schema.
--- It is used to generate the TypeScript types for the application.
---
--- To use this file, from the Supabase dashboard, navigate to:
--- SQL Editor > New Query
---
--- Then, copy and paste the entire contents of this file and click "Run".
---
--- For more information, see: https://supabase.com/docs/guides/database/tables#managing-tables-with-sql
+-- src/lib/database-schema.sql
 
--- 1. Enum Definitions
--- These define sets of allowed values for specific columns.
-create type "public"."company_role" as enum ('Owner', 'Admin', 'Member');
-create type "public"."feedback_type" as enum ('helpful', 'unhelpful');
-create type "public"."integration_platform" as enum ('shopify', 'woocommerce', 'amazon_fba');
-create type "public"."message_role" as enum ('user', 'assistant', 'tool');
+-- Drop existing tables and types if they exist, for a clean slate
+DROP VIEW IF EXISTS public.orders_view, public.customers_view, public.product_variants_with_details, public.purchase_orders_view, public.audit_log_view, public.feedback_view CASCADE;
+DROP TABLE IF EXISTS public.order_line_items, public.orders, public.customers, public.inventory_ledger, public.purchase_order_line_items, public.purchase_orders, public.product_variants, public.suppliers, public.products, public.company_users, public.companies, public.integrations, public.webhook_events, public.messages, public.conversations, public.feedback, public.channel_fees, public.export_jobs, public.audit_log, public.company_settings CASCADE;
+DROP TYPE IF EXISTS public.company_role, public.integration_platform, public.message_role, public.feedback_type CASCADE;
+DROP FUNCTION IF EXISTS public.handle_new_user, public.get_company_id_for_user, public.check_user_permission, public.record_order_from_platform, public.get_sales_analytics, public.get_customer_analytics, public.get_inventory_analytics, public.get_dashboard_metrics, public.get_dead_stock_report, public.get_reorder_suggestions, public.get_supplier_performance_report, public.get_inventory_turnover, public.get_users_for_company, public.remove_user_from_company, public.update_user_role_in_company, public.adjust_inventory_quantity, public.create_full_purchase_order, public.update_full_purchase_order, public.refresh_all_matviews, public.get_historical_sales_for_sku, public.get_historical_sales_for_skus, public.get_abc_analysis, public.get_gross_margin_analysis, public.get_margin_trends, public.get_net_margin_by_channel, public.forecast_demand, public.get_sales_velocity, public.get_financial_impact_of_promotion, public.reconcile_inventory_from_integration CASCADE;
 
--- 2. Table Definitions
--- These create the tables that store your application's data.
+-- Create ENUM types
+CREATE TYPE public.company_role AS ENUM ('Owner', 'Admin', 'Member');
+CREATE TYPE public.integration_platform AS ENUM ('shopify', 'woocommerce', 'amazon_fba');
+CREATE TYPE public.message_role AS ENUM ('user', 'assistant');
+CREATE TYPE public.feedback_type AS ENUM ('helpful', 'unhelpful');
 
--- Companies Table: Stores basic information about each company.
-create table "public"."companies" (
-    "id" uuid not null default gen_random_uuid(),
-    "created_at" timestamp with time zone not null default now(),
-    "name" text not null,
-    "owner_id" uuid not null
+-- Create Tables
+CREATE TABLE public.companies (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL,
+    owner_id uuid NOT NULL REFERENCES auth.users(id),
+    created_at timestamptz NOT NULL DEFAULT now()
 );
-alter table "public"."companies" enable row level security;
-CREATE UNIQUE INDEX companies_pkey ON public.companies USING btree (id);
-alter table "public"."companies" add constraint "companies_pkey" PRIMARY KEY using index "companies_pkey";
-alter table "public"."companies" add constraint "companies_owner_id_fkey" FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
-alter table "public"."companies" validate constraint "companies_owner_id_fkey";
-grant delete on table "public"."companies" to "anon";
-grant insert on table "public"."companies" to "anon";
-grant references on table "public"."companies" to "anon";
-grant select on table "public"."companies" to "anon";
-grant trigger on table "public"."companies" to "anon";
-grant truncate on table "public"."companies" to "anon";
-grant update on table "public"."companies" to "anon";
-grant delete on table "public"."companies" to "authenticated";
-grant insert on table "public"."companies" to "authenticated";
-grant references on table "public"."companies" to "authenticated";
-grant select on table "public"."companies" to "authenticated";
-grant trigger on table "public"."companies" to "authenticated";
-grant truncate on table "public"."companies" to "authenticated";
-grant update on table "public"."companies" to "authenticated";
-grant delete on table "public"."companies" to "service_role";
-grant insert on table "public"."companies" to "service_role";
-grant references on table "public"."companies" to "service_role";
-grant select on table "public"."companies" to "service_role";
-grant trigger on table "public"."companies" to "service_role";
-grant truncate on table "public"."companies" to "service_role";
-grant update on table "public"."companies" to "service_role";
 
--- Company Users Table: Links users to companies with specific roles.
-create table "public"."company_users" (
-    "user_id" uuid not null,
-    "company_id" uuid not null,
-    "role" company_role not null default 'Member'::company_role
+CREATE TABLE public.company_users (
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    role public.company_role NOT NULL DEFAULT 'Member',
+    PRIMARY KEY (company_id, user_id)
 );
-alter table "public"."company_users" enable row level security;
-CREATE UNIQUE INDEX company_users_pkey ON public.company_users USING btree (user_id, company_id);
-alter table "public"."company_users" add constraint "company_users_pkey" PRIMARY KEY using index "company_users_pkey";
-alter table "public"."company_users" add constraint "company_users_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE not valid;
-alter table "public"."company_users" validate constraint "company_users_company_id_fkey";
-alter table "public"."company_users" add constraint "company_users_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
-alter table "public"."company_users" validate constraint "company_users_user_id_fkey";
-grant delete on table "public"."company_users" to "anon";
-grant insert on table "public"."company_users" to "anon";
-grant references on table "public"."company_users" to "anon";
-grant select on table "public"."company_users" to "anon";
-grant trigger on table "public"."company_users" to "anon";
-grant truncate on table "public"."company_users" to "anon";
-grant update on table "public"."company_users" to "anon";
-grant delete on table "public"."company_users" to "authenticated";
-grant insert on table "public"."company_users" to "authenticated";
-grant references on table "public"."company_users" to "authenticated";
-grant select on table "public"."company_users" to "authenticated";
-grant trigger on table "public"."company_users" to "authenticated";
-grant truncate on table "public"."company_users" to "authenticated";
-grant update on table "public"."company_users" to "authenticated";
-grant delete on table "public"."company_users" to "service_role";
-grant insert on table "public"."company_users" to "service_role";
-grant references on table "public"."company_users" to "service_role";
-grant select on table "public"."company_users" to "service_role";
-grant trigger on table "public"."company_users" to "service_role";
-grant truncate on table "public"."company_users" to "service_role";
-grant update on table "public"."company_users" to "service_role";
 
--- Conversations Table: Stores metadata about AI chat conversations.
-create table "public"."conversations" (
-    "id" uuid not null default gen_random_uuid(),
-    "user_id" uuid not null,
-    "company_id" uuid not null,
-    "created_at" timestamp with time zone not null default now(),
-    "title" text not null,
-    "last_accessed_at" timestamp with time zone not null default now(),
-    "is_starred" boolean not null default false
+CREATE TABLE public.company_settings (
+    company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
+    dead_stock_days integer NOT NULL DEFAULT 90,
+    fast_moving_days integer NOT NULL DEFAULT 30,
+    predictive_stock_days integer NOT NULL DEFAULT 7,
+    currency text NOT NULL DEFAULT 'USD',
+    timezone text NOT NULL DEFAULT 'UTC',
+    tax_rate numeric(5,4) NOT NULL DEFAULT 0.0,
+    overstock_multiplier numeric(4,2) NOT NULL DEFAULT 3.0,
+    high_value_threshold integer NOT NULL DEFAULT 100000, -- in cents
+    alert_settings jsonb NOT NULL DEFAULT '{}'::jsonb,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
 );
-alter table "public"."conversations" enable row level security;
-CREATE UNIQUE INDEX conversations_pkey ON public.conversations USING btree (id);
-alter table "public"."conversations" add constraint "conversations_pkey" PRIMARY KEY using index "conversations_pkey";
-alter table "public"."conversations" add constraint "conversations_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE not valid;
-alter table "public"."conversations" validate constraint "conversations_company_id_fkey";
-alter table "public"."conversations" add constraint "conversations_user_id_fkey" FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE not valid;
-alter table "public"."conversations" validate constraint "conversations_user_id_fkey";
-grant delete on table "public"."conversations" to "anon";
-grant insert on table "public"."conversations" to "anon";
-grant references on table "public"."conversations" to "anon";
-grant select on table "public"."conversations" to "anon";
-grant trigger on table "public"."conversations" to "anon";
-grant truncate on table "public"."conversations" to "anon";
-grant update on table "public"."conversations" to "anon";
-grant delete on table "public"."conversations" to "authenticated";
-grant insert on table "public"."conversations" to "authenticated";
-grant references on table "public"."conversations" to "authenticated";
-grant select on table "public"."conversations" to "authenticated";
-grant trigger on table "public"."conversations" to "authenticated";
-grant truncate on table "public"."conversations" to "authenticated";
-grant update on table "public"."conversations" to "authenticated";
-grant delete on table "public"."conversations" to "service_role";
-grant insert on table "public"."conversations" to "service_role";
-grant references on table "public"."conversations" to "service_role";
-grant select on table "public"."conversations" to "service_role";
-grant trigger on table "public"."conversations" to "service_role";
-grant truncate on table "public"."conversations" to "service_role";
-grant update on table "public"."conversations" to "service_role";
 
--- Messages Table: Stores individual messages within a conversation.
-create table "public"."messages" (
-    "id" uuid not null default gen_random_uuid(),
-    "conversation_id" uuid not null,
-    "company_id" uuid not null,
-    "created_at" timestamp with time zone not null default now(),
-    "role" message_role not null,
-    "content" text not null,
-    "visualization" jsonb,
-    "confidence" double precision,
-    "assumptions" text[],
-    "isError" boolean,
-    "component" text,
-    "componentProps" jsonb
+CREATE TABLE public.products (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text,
+    handle text,
+    product_type text,
+    tags text[],
+    status text,
+    image_url text,
+    external_product_id text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    UNIQUE (company_id, external_product_id)
 );
-alter table "public"."messages" enable row level security;
-CREATE UNIQUE INDEX messages_pkey ON public.messages USING btree (id);
-alter table "public"."messages" add constraint "messages_pkey" PRIMARY KEY using index "messages_pkey";
-alter table "public"."messages" add constraint "messages_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE not valid;
-alter table "public"."messages" validate constraint "messages_company_id_fkey";
-alter table "public"."messages" add constraint "messages_conversation_id_fkey" FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE not valid;
-alter table "public"."messages" validate constraint "messages_conversation_id_fkey";
-grant delete on table "public"."messages" to "anon";
-grant insert on table "public"."messages" to "anon";
-grant references on table "public"."messages" to "anon";
-grant select on table "public"."messages" to "anon";
-grant trigger on table "public"."messages" to "anon";
-grant truncate on table "public"."messages" to "anon";
-grant update on table "public"."messages" to "anon";
-grant delete on table "public"."messages" to "authenticated";
-grant insert on table "public"."messages" to "authenticated";
-grant references on table "public"."messages" to "authenticated";
-grant select on table "public"."messages" to "authenticated";
-grant trigger on table "public"."messages" to "authenticated";
-grant truncate on table "public"."messages" to "authenticated";
-grant update on table "public"."messages" to "authenticated";
-grant delete on table "public"."messages" to "service_role";
-grant insert on table "public"."messages" to "service_role";
-grant references on table "public"."messages" to "service_role";
-grant select on table "public"."messages" to "service_role";
-grant trigger on table "public"."messages" to "service_role";
-grant truncate on table "public"."messages" to "service_role";
-grant update on table "public"."messages" to "service_role";
 
--- Add other tables similarly...
--- (Omitting the rest of the tables for brevity, as they are unchanged)
--- ... (rest of the schema file) ...
--- Add other tables (products, orders, etc.) here, keeping their definitions the same.
--- It's crucial that the rest of the file content remains unchanged.
+CREATE TABLE public.suppliers (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    email text,
+    phone text,
+    default_lead_time_days integer,
+    notes text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
+);
 
--- 3. Row Level Security (RLS) Policies
--- These policies control which users can access which rows in a table.
+CREATE TABLE public.product_variants (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    sku text NOT NULL,
+    title text,
+    option1_name text,
+    option1_value text,
+    option2_name text,
+    option2_value text,
+    option3_name text,
+    option3_value text,
+    barcode text,
+    price integer, -- in cents
+    compare_at_price integer, -- in cents
+    cost integer, -- in cents
+    inventory_quantity integer NOT NULL DEFAULT 0,
+    location text,
+    reorder_point integer,
+    reorder_quantity integer,
+    supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL,
+    external_variant_id text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    UNIQUE(company_id, sku),
+    UNIQUE(company_id, external_variant_id)
+);
 
--- RLS Policy for Companies
-drop policy if exists "Enable all access for company owners" on "public"."companies";
-create policy "Enable all access for company owners" on "public"."companies"
-as permissive for all
-to public
-using ((auth.uid() = owner_id))
-with check ((auth.uid() = owner_id));
+CREATE TABLE public.customers (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    name text,
+    email text,
+    phone text,
+    external_customer_id text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    deleted_at timestamptz
+);
 
--- RLS Policy for Company Users
-drop policy if exists "Enable read access for company members" on "public"."company_users";
-create policy "Enable read access for company members" on "public"."company_users"
-as permissive for select
-to public
-using (company_id IN (SELECT get_company_id_for_user(auth.uid())));
+CREATE TABLE public.orders (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    order_number text NOT NULL,
+    external_order_id text,
+    customer_id uuid REFERENCES public.customers(id),
+    financial_status text,
+    fulfillment_status text,
+    currency text,
+    subtotal integer NOT NULL,
+    total_tax integer,
+    total_shipping integer,
+    total_discounts integer,
+    total_amount integer NOT NULL,
+    source_platform text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    UNIQUE(company_id, external_order_id)
+);
 
--- 4. Database Functions
--- These are custom SQL functions that can be called from the application.
+CREATE TABLE public.order_line_items (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    variant_id uuid REFERENCES public.product_variants(id),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_name text,
+    variant_title text,
+    sku text,
+    quantity integer NOT NULL,
+    price integer NOT NULL, -- in cents
+    total_discount integer,
+    tax_amount integer,
+    cost_at_time integer,
+    external_line_item_id text,
+    UNIQUE(order_id, external_line_item_id)
+);
 
--- Function to get the company ID for a given user.
-create or replace function public.get_company_id_for_user(user_id uuid)
-returns uuid
-language sql
-security definer
-as $$
-  select company_id from public.company_users where user_id = $1 limit 1;
-$$;
+CREATE TABLE public.purchase_orders (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    supplier_id uuid REFERENCES public.suppliers(id),
+    status text NOT NULL DEFAULT 'Draft',
+    po_number text NOT NULL,
+    total_cost integer NOT NULL,
+    expected_arrival_date date,
+    notes text,
+    idempotency_key uuid UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz
+);
 
--- 5. Database Triggers
--- These automatically run a function when a specific event occurs.
+CREATE TABLE public.purchase_order_line_items (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    purchase_order_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    quantity integer NOT NULL,
+    cost integer NOT NULL -- in cents
+);
 
--- Trigger to create a company for a new user upon signup.
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-as $$
-declare
-  company_id uuid;
-  company_name text;
-begin
-  -- Create a new company for the user
-  company_name := new.raw_user_meta_data->>'company_name';
-  insert into public.companies (name, owner_id)
-  values (company_name, new.id)
-  returning id into company_id;
+CREATE TABLE public.inventory_ledger (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id) ON DELETE CASCADE,
+    change_type text NOT NULL, -- e.g., 'sale', 'purchase_order', 'reconciliation', 'manual_adjustment'
+    quantity_change integer NOT NULL,
+    new_quantity integer NOT NULL,
+    related_id uuid,
+    notes text,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
 
-  -- Link the user to the new company as 'Owner'
-  insert into public.company_users (user_id, company_id, role)
-  values (new.id, company_id, 'Owner');
-  
-  -- Update the user's app_metadata with the company_id
-  update auth.users
-  set app_metadata = app_metadata || jsonb_build_object('company_id', company_id)
-  where id = new.id;
-  
-  return new;
-end;
-$$;
+CREATE TABLE public.integrations (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  platform public.integration_platform NOT NULL,
+  shop_domain text,
+  shop_name text,
+  is_active boolean NOT NULL DEFAULT TRUE,
+  last_sync_at timestamptz,
+  sync_status text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz,
+  UNIQUE(company_id, platform)
+);
 
--- Attach the trigger to the users table.
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+CREATE TABLE public.webhook_events (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    integration_id uuid NOT NULL REFERENCES public.integrations(id) ON DELETE CASCADE,
+    webhook_id text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE(webhook_id)
+);
 
--- Dummy RPC function for testing
-create or replace function public.hello_world()
-returns text
-language plpgsql
-as $$
-begin
-  return 'Hello, world!';
-end;
-$$;
+CREATE TABLE public.conversations (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    last_accessed_at timestamptz NOT NULL DEFAULT now(),
+    is_starred boolean NOT NULL DEFAULT false
+);
 
--- Function to get dead stock report (if not already present or needs updating)
+CREATE TABLE public.messages (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    role public.message_role NOT NULL,
+    content text NOT NULL,
+    visualization jsonb,
+    component text,
+    confidence real CHECK (confidence >= 0 AND confidence <= 1),
+    assumptions text[],
+    created_at timestamptz NOT NULL DEFAULT now(),
+    isError boolean DEFAULT false
+);
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS component_props jsonb;
+
+CREATE TABLE public.feedback (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES auth.users(id),
+    company_id uuid NOT NULL REFERENCES public.companies(id),
+    subject_id text NOT NULL,
+    subject_type text NOT NULL,
+    feedback public.feedback_type NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE public.channel_fees (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    channel_name text NOT NULL,
+    percentage_fee numeric,
+    fixed_fee integer, -- in cents
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz,
+    UNIQUE(company_id, channel_name)
+);
+
+CREATE TABLE public.export_jobs (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    requested_by_user_id uuid NOT NULL REFERENCES auth.users(id),
+    status text NOT NULL DEFAULT 'queued',
+    download_url text,
+    expires_at timestamptz,
+    error_message text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    completed_at timestamptz
+);
+
+CREATE TABLE public.audit_log (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+  user_id uuid REFERENCES auth.users(id),
+  action text NOT NULL,
+  details jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+
+-- DB Functions
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+DECLARE
+    company_id_var uuid;
+    company_name_var text;
+BEGIN
+    company_name_var := new.raw_user_meta_data->>'company_name';
+
+    INSERT INTO public.companies (name, owner_id)
+    VALUES (company_name_var, new.id)
+    RETURNING id INTO company_id_var;
+
+    INSERT INTO public.company_users (company_id, user_id, role)
+    VALUES (company_id_var, new.id, 'Owner');
+    
+    UPDATE auth.users
+    SET raw_user_meta_data = new.raw_user_meta_data || jsonb_build_object('company_id', company_id_var)
+    WHERE id = new.id;
+
+    RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger for new user creation
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create dead stock report function
 CREATE OR REPLACE FUNCTION public.get_dead_stock_report(
   p_company_id uuid,
   p_days int DEFAULT 90
@@ -279,26 +326,26 @@ params AS (
 ),
 dead AS (
   SELECT
-    v.id AS variant_id,
+    v.id                             AS variant_id,
     v.product_id,
-    v.title AS variant_title,
+    v.title                          AS variant_name,
+    p.title                          AS product_name,
     v.sku,
-    v.inventory_quantity,
-    v.cost,
-    ls.last_sale_at,
-    p.title as product_title,
-    (v.inventory_quantity * v.cost) as total_value
+    v.inventory_quantity as quantity,
+    v.cost::bigint                   AS total_value,
+    ls.last_sale_at
   FROM public.product_variants v
   LEFT JOIN variant_last_sale ls ON ls.variant_id = v.id
-  JOIN public.products p ON p.id = v.product_id
+  JOIN public.products p on p.id = v.product_id
   CROSS JOIN params
   WHERE v.company_id = p_company_id
     AND v.inventory_quantity > 0
+    AND v.cost IS NOT NULL
     AND (ls.last_sale_at IS NULL OR ls.last_sale_at < (now() - make_interval(days => params.ds_days)))
 )
 SELECT jsonb_build_object(
   'deadStockItems', COALESCE(jsonb_agg(to_jsonb(dead)), '[]'::jsonb),
-  'totalValue', COALESCE(SUM(dead.total_value), 0)
+  'totalValue',     COALESCE(SUM(dead.total_value), 0)
 )
 FROM dead;
 $$;
