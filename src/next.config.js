@@ -47,7 +47,7 @@ const nextConfig = defineNextConfig({
     config.externals.push({
       '@opentelemetry/instrumentation': 'commonjs2 @opentelemetry/instrumentation',
       'require-in-the-middle': 'commonjs2 require-in-the-middle',
-      'handlebars': 'commonjs2 handlebars',
+      'handlebars': 'commonjs handlebars',
     });
     
     config.ignoreWarnings = [

@@ -22,7 +22,7 @@ test.describe('Reordering Page', () => {
     });
 
     test('should load reorder suggestions and allow selection', async ({ page }) => {
-        await expect(page.getByText('AI-Enhanced Reorder Suggestions')).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Reorder Suggestions/i })).toBeVisible();
 
         // Check if there are any suggestions to test with or if the empty state is shown
         const noSuggestions = page.getByText('All Good! No Reorders Needed');

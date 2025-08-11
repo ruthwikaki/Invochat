@@ -1,4 +1,5 @@
 
+'use client';
 
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -413,7 +414,7 @@ export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int(),
     total_orders: z.number().int(),
-    average_order_value: z.number().int(),
+    average_order_value: z.number(),
 });
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
