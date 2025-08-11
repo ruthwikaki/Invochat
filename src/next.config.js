@@ -23,6 +23,11 @@ const nextConfig = defineNextConfig({
     config.resolve.symlinks = false;
 
     if (!isServer) {
+        config.resolve.fallback = {
+            ...config.resolve.fallback,
+            fs: false, net: false, tls: false,
+        };
+
         config.plugins.push(
             new webpack.ContextReplacementPlugin(
                 /@opentelemetry\/instrumentation/,
@@ -38,11 +43,17 @@ const nextConfig = defineNextConfig({
         )
     }
 
-    // This is the correct way to suppress the specific, known warnings from Sentry/Supabase.
-    // It prevents the build log from being cluttered with non-actionable "Critical dependency" messages.
+    config.externals = config.externals || [];
     config.externals.push({
-        '@opentelemetry/instrumentation': 'commonjs @opentelemetry/instrumentation',
+      '@opentelemetry/instrumentation': 'commonjs2 @opentelemetry/instrumentation',
+      'require-in-the-middle': 'commonjs2 require-in-the-middle',
+      'handlebars': 'commonjs2 handlebars',
     });
+    
+    config.ignoreWarnings = [
+      { module: /@supabase\/realtime-js/ },
+      { module: /handlebars/, message: /require\.extensions/ },
+    ];
 
     config.module.rules.push({
       test: /realtime-js/,

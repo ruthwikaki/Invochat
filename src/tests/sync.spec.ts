@@ -13,11 +13,11 @@ test.describe('Data Synchronization Service', () => {
         // This test simulates a webhook trigger from Shopify.
         // We need to construct a valid HMAC signature for the request.
         
-        const requestBody = JSON.stringify({ integrationId: 'a-fake-id-from-webhook' });
+        const body = JSON.stringify({ integrationId: '00000000-0000-0000-0000-000000000000' });
         
         const hmac = crypto
             .createHmac('sha256', shopifyWebhookSecret)
-            .update(requestBody)
+            .update(body)
             .digest('base64');
 
         const response = await request.post('/api/shopify/sync', {
@@ -26,8 +26,9 @@ test.describe('Data Synchronization Service', () => {
                 'x-shopify-request-timestamp': String(Math.floor(Date.now() / 1000)),
                 'x-shopify-shop-domain': 'test-shop.myshopify.com',
                 'Content-Type': 'application/json',
+                'x-shopify-webhook-id': 'test-webhook-id'
             },
-            data: requestBody
+            data: body
         });
 
         // Since the webhook is valid, but the integrationId doesn't exist, we expect an error
