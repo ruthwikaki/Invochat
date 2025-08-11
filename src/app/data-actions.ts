@@ -374,12 +374,12 @@ export async function getCustomerAnalytics() {
 
         // Transform snake_case to camelCase
         const transformedAnalytics = {
-            total_customers: analyticsData.total_customers ?? 0,
-            new_customers_last_30_days: analyticsData.new_customers_last_30_days ?? 0,
-            repeat_customer_rate: analyticsData.repeat_customer_rate ?? 0,
-            average_lifetime_value: analyticsData.average_lifetime_value ?? 0,
-            top_customers_by_spend: analyticsData.top_customers_by_spend ?? [],
-            top_customers_by_sales: analyticsData.top_customers_by_sales ?? [],
+            totalCustomers: analyticsData.total_customers ?? 0,
+            newCustomers: analyticsData.new_customers_last_30_days ?? 0,
+            repeatCustomerRate: analyticsData.repeat_customer_rate ?? 0,
+            averageLifetimeValue: analyticsData.average_lifetime_value ?? 0,
+            topCustomersBySpend: analyticsData.top_customers_by_spend ?? [],
+            topCustomersBySales: analyticsData.top_customers_by_sales ?? [],
         };
         
         if(isRedisEnabled) {
@@ -389,7 +389,7 @@ export async function getCustomerAnalytics() {
         return transformedAnalytics;
     } catch (e) {
         logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
-        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
+        return { totalCustomers: 0, newCustomers: 0, repeatCustomerRate: 0, averageLifetimeValue: 0, topCustomersBySpend: [], topCustomersBySales: [] };
     }
 }
 
@@ -433,7 +433,22 @@ export async function getPurchaseOrders() {
 
 export async function getPurchaseOrderById(id: string) {
     const { companyId } = await getAuthContext();
-    return getPurchaseOrderByIdFromDB(id, companyId);
+    const po = await getPurchaseOrderByIdFromDB(id, companyId);
+    if (!po) return null;
+
+    // Manually map to camelCase for the form
+    return {
+        ...po,
+        supplier_id: po.supplier_id,
+        po_number: po.po_number,
+        total_cost: po.total_cost,
+        expected_arrival_date: po.expected_arrival_date,
+        line_items: po.line_items.map(item => ({
+            variant_id: item.variant_id,
+            quantity: item.quantity,
+            cost: item.cost,
+        }))
+    }
 }
 
 export async function createPurchaseOrder(formData: FormData) {
@@ -541,49 +556,47 @@ export async function reconcileInventory(integrationId: string) {
 }
 
 export async function getDashboardData(dateRange: string): Promise<DashboardMetrics> {
-  const { companyId } = await getAuthContext();
-  const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
+    const { companyId } = await getAuthContext();
+    const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
 
-  if (isRedisEnabled) {
-      try {
-          const cached = await redisClient.get(cacheKey);
-          if (cached) {
-              logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
-              return JSON.parse(cached);
-          }
-          logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
-      } catch (e) {
-          logError(e, { context: 'Redis cache get failed for dashboard' });
-      }
-  }
+    if (isRedisEnabled) {
+        try {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
+                return JSON.parse(cached);
+            }
+            logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+        } catch (e) {
+            logError(e, { context: 'Redis cache get failed for dashboard' });
+        }
+    }
 
-  try {
-      const data = await getDashboardMetricsFromDb(companyId, dateRange);
-      if (isRedisEnabled && data) {
-        await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
-      }
-      return data;
-  } catch (e) {
-      logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
-      // Return a schema-compliant empty object to prevent frontend crashes
-      return {
-          total_revenue: 0,
-          revenue_change: 0,
-          total_orders: 0,
-          orders_change: 0,
-          new_customers: 0,
-          customers_change: 0,
-          dead_stock_value: 0,
-          sales_series: [],
-          top_products: [],
-          inventory_summary: {
-              total_value: 0,
-              in_stock_value: 0,
-              low_stock_value: 0,
-              dead_stock_value: 0,
-          },
-      };
-  }
+    try {
+        const data = await getDashboardMetricsFromDb(companyId, dateRange);
+        if (!data) return {} as DashboardMetrics;
+        // Transform to camelCase
+        const transformedData = {
+            totalRevenue: data.total_revenue,
+            revenueChange: data.revenue_change,
+            totalOrders: data.total_orders,
+            ordersChange: data.orders_change,
+            newCustomers: data.new_customers,
+            customersChange: data.customers_change,
+            deadStockValue: data.dead_stock_value,
+            salesOverTime: data.sales_over_time,
+            topSellingProducts: data.top_selling_products,
+            inventorySummary: data.inventory_summary,
+        };
+
+        if (isRedisEnabled && transformedData) {
+          await redisClient.set(cacheKey, JSON.stringify(transformedData), 'EX', config.redis.ttl.dashboard);
+        }
+        return transformedData as DashboardMetrics;
+    } catch (e) {
+        logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
+        return {} as DashboardMetrics;
+    }
 }
 
 export async function getMorningBriefing(dateRange: string) {
@@ -635,7 +648,20 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select(`
+            id,
+            conversation_id,
+            company_id,
+            role,
+            content,
+            visualization,
+            component,
+            component_props:componentProps,
+            confidence,
+            assumptions,
+            created_at,
+            isError
+        `)
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
     
@@ -829,4 +855,7 @@ export async function getFeedbackData(params: {
         const offset = (params.page - 1) * params.limit;
         return getFeedbackFromDB(companyId, { ...params, offset });
     } catch (error) {
-        logError
+        logError(error, { context: 'getFeedbackData failed' });
+        return { items: [], totalCount: 0 };
+    }
+}

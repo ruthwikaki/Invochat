@@ -909,22 +909,3 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     
     return data;
 }
-
-```
-- src/app/(app)/customers/page.tsx
-- src/app/(app)/sales/sales-client-page.tsx
-- src/services/database.ts
-- src/app/(app)/dashboard/dashboard-client-page.tsx
-- src/tests/unit/services/database.test.ts
-- src/app/(app)/sales/page.tsx
-- src/app/(app)/dashboard/top-products-card.tsx
-- src/tests/dashboard.spec.ts
-- src/tests/unit/components/reorder-client-page.spec.tsx
-- src/app/(app)/analytics/reordering/reorder-client-page.tsx
-- src/tests/unit/components/reorder-client-page.test.tsx
-- src/app/(app)/analytics/reordering/actions.ts
-- src/app/(app)/purchase-orders/purchase-orders-client-page.tsx
-- src/types/index.ts
-- src/tests/customers.spec.ts
-- src/components/customers/customers-client-page.tsx
-```
