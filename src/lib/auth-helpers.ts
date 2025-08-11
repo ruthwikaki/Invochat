@@ -26,54 +26,40 @@ export async function getCurrentUser(): Promise<User | null> {
 }
 
 /**
- * Gets the company ID for the current user.
- * @returns The company ID (UUID string) or null if not found.
- */
-export async function getCurrentCompanyId(): Promise<string | null> {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  
-  // The JWT is the primary source of truth.
-  const companyIdFromJWT = user?.app_metadata?.company_id;
-  if (companyIdFromJWT) {
-    return companyIdFromJWT;
-  }
-  
-  // The database trigger should prevent this, but as a fallback, check the DB.
-  logError(new Error("JWT missing company_id, attempting DB fallback."), { userId: user.id });
-  return await getCompanyIdFromDatabase(user.id);
-}
-
-/**
- * Helper function to get company ID from database with retry logic
+ * Helper function to get company ID from database with retry logic.
+ * This function will poll the database if the company ID is not immediately available.
  */
 async function getCompanyIdFromDatabase(userId: string): Promise<string | null> {
     const serviceSupabase = getServiceRoleClient();
     
     try {
         return await retry(async () => {
-            const { data: companyUserData, error } = await serviceSupabase
+            const { data, error } = await serviceSupabase
                 .from('company_users')
                 .select('company_id')
                 .eq('user_id', userId)
                 .single();
             
             if (error) {
-                // Throw to trigger a retry
-                throw new Error(`Fallback DB check failed for user ${userId}: ${error.message}`);
+                // If no rows are found, it's a valid retry case, otherwise throw.
+                if (error.code === 'PGRST116') {
+                    throw new Error(`Company association not yet found for user ${userId}. Retrying...`);
+                }
+                throw new Error(`Database query failed: ${error.message}`);
             }
-            if (!companyUserData?.company_id) {
-                // Throw to trigger a retry, as the record may not have been created yet
+            
+            if (!data?.company_id) {
                 throw new Error(`Company association not yet found in database for user ${userId}.`);
             }
-            return companyUserData.company_id;
+            
+            return data.company_id;
         }, { 
-            maxAttempts: 3, 
+            maxAttempts: 5, 
             delayMs: 300,
-            onRetry: (e, attempt) => logError(e, { context: `getCompanyIdFromDatabase fallback retry attempt ${attempt}` })
+            onRetry: (e, attempt) => logger.debug(`getCompanyIdFromDatabase retry attempt ${attempt} for user ${userId}: ${e.message}`)
         });
     } catch(e) {
-        logError(e, { context: 'getCompanyIdFromDatabase failed after all retries.' });
+        logError(e, { context: 'getCompanyIdFromDatabase failed after all retries.', userId });
         return null; // Return null if all retries fail
     }
 }
