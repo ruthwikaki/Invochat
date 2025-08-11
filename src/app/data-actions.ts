@@ -669,8 +669,21 @@ export async function handleUserMessage(params: { content: string, conversationI
         confidence: aiResponse.confidence,
         assumptions: aiResponse.assumptions,
         component: aiResponse.toolName,
-        componentProps: { data: aiResponse.data }
-    }).select().single();
+        component_props: { data: aiResponse.data }
+    }).select(`
+      id,
+      conversation_id,
+      company_id,
+      role,
+      content,
+      visualization,
+      component,
+      component_props:componentProps,
+      confidence,
+      assumptions,
+      created_at,
+      isError
+    `).single();
     
     if (messageError) throw messageError;
 

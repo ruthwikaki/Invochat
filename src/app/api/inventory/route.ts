@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, requireUser, requireCompanyId } from '@/lib/api-auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const { supabase, user } = await requireUser(req);
@@ -15,21 +17,19 @@ export async function GET(req: NextRequest) {
 
     // Items
     const { data: items, error: itemsErr } = await supabase
-      .from('product_variants') // adjust if you use a view
+      .from('product_variants_with_details') // Using the detailed view
       .select('*')
       .eq('company_id', companyId)
-      .is('deleted_at', null)
-      .order('updated_at', { ascending: false })
+      .order('product_title', { ascending: true })
       .range(from, to);
 
     if (itemsErr) throw itemsErr;
 
     // Count
     const { count, error: countErr } = await supabase
-      .from('product_variants')
+      .from('product_variants_with_details')
       .select('*', { count: 'exact', head: true })
-      .eq('company_id', companyId)
-      .is('deleted_at', null);
+      .eq('company_id', companyId);
 
     if (countErr) throw countErr;
 
