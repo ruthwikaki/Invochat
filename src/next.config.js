@@ -1,4 +1,3 @@
-
 // @ts-check
 
 /**
@@ -6,10 +5,9 @@
  * @param {T} config
  * @returns {T}
  */
-function defineNextConfig(config) {
-  return config;
+function defineNextConfig (config) {
+  return config
 }
-
 
 /** @type {import('next').NextConfig} */
 const nextConfig = defineNextConfig({
@@ -20,70 +18,72 @@ const nextConfig = defineNextConfig({
   webpack: (config, { isServer, webpack }) => {
     // This setting can help resolve strange build issues on Windows,
     // especially when the project is in a cloud-synced directory like OneDrive.
-    config.resolve.symlinks = false;
+    config.resolve.symlinks = false
 
     if (!isServer) {
-        config.resolve.fallback = {
-            ...config.resolve.fallback,
-            fs: false, net: false, tls: false,
-        };
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false
+      }
 
-        config.plugins.push(
-            new webpack.ContextReplacementPlugin(
-                /@opentelemetry\/instrumentation/,
-                (data) => {
-                    for (const dependency of data.dependencies) {
-                        if (dependency.request === './platform/node') {
-                            dependency.request = './platform/browser';
-                        }
-                    }
-                    return data;
-                }
-            )
+      config.plugins.push(
+        new webpack.ContextReplacementPlugin(
+          /@opentelemetry\/instrumentation/,
+          (data) => {
+            for (const dependency of data.dependencies) {
+              if (dependency.request === './platform/node') {
+                dependency.request = './platform/browser'
+              }
+            }
+            return data
+          }
         )
+      )
     }
 
-    config.externals = config.externals || [];
+    config.externals = config.externals || []
     config.externals.push({
       '@opentelemetry/instrumentation': 'commonjs2 @opentelemetry/instrumentation',
       'require-in-the-middle': 'commonjs2 require-in-the-middle',
-      'handlebars': 'commonjs2 handlebars',
-    });
-    
+      handlebars: 'commonjs2 handlebars'
+    })
+
     config.ignoreWarnings = [
       { module: /@supabase\/realtime-js/ },
-      { module: /handlebars/, message: /require\.extensions/ },
-    ];
+      { module: /handlebars/, message: /require\.extensions/ }
+    ]
 
     config.module.rules.push({
       test: /realtime-js/,
       loader: 'string-replace-loader',
       options: {
         search: 'Ably from "ably"',
-        replace: 'Ably from "ably/browser/core"',
+        replace: 'Ably from "ably/browser/core"'
       }
-    });
+    })
 
-    return config;
+    return config
   },
   images: {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'placehold.co',
-      },
-    ],
-  },
-});
+        hostname: 'placehold.co'
+      }
+    ]
+  }
+})
 
 // Initialize a variable to hold the final config.
-let finalConfig = nextConfig;
+let finalConfig = nextConfig
 
 // Only wrap with Sentry if the required environment variables are present.
 // This prevents the application from crashing at startup if Sentry is not configured.
 if (process.env.SENTRY_ORG && process.env.SENTRY_PROJECT && process.env.SENTRY_DSN) {
   try {
-    const { withSentryConfig } = require("@sentry/nextjs");
+    const { withSentryConfig } = require('@sentry/nextjs')
     finalConfig = withSentryConfig(
       nextConfig,
       {
@@ -93,7 +93,7 @@ if (process.env.SENTRY_ORG && process.env.SENTRY_PROJECT && process.env.SENTRY_D
         // Suppresses source map uploading logs during build
         silent: true,
         org: process.env.SENTRY_ORG,
-        project: process.env.SENTRY_PROJECT,
+        project: process.env.SENTRY_PROJECT
       },
       {
         // For all available options, see:
@@ -108,15 +108,14 @@ if (process.env.SENTRY_ORG && process.env.SENTRY_PROJECT && process.env.SENTRY_D
         // Enables automatic instrumentation of Vercel Cron Monitors.
         // See the following for more information:
         // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/integrations/vercel-cron-monitors/
-        automaticVercelMonitors: true,
+        automaticVercelMonitors: true
       }
-    );
+    )
   } catch (e) {
-      console.warn("Sentry configuration failed to load. Skipping Sentry.", e);
+    console.warn('Sentry configuration failed to load. Skipping Sentry.', e)
   }
 } else {
-    console.warn("Sentry environment variables (SENTRY_ORG, SENTRY_PROJECT, SENTRY_DSN) not found. Skipping Sentry configuration.");
+  console.warn('Sentry environment variables (SENTRY_ORG, SENTRY_PROJECT, SENTRY_DSN) not found. Skipping Sentry configuration.')
 }
 
-
-module.exports = finalConfig;
+module.exports = finalConfig
