@@ -35,7 +35,7 @@ test.describe('Data Synchronization Service', () => {
         // A 401 would mean the webhook validation failed.
         expect(response.status()).toBe(404); 
         const jsonResponse = await response.json();
-        expect(jsonResponse.error).toContain('Integration not found');
+        expect(jsonResponse.error).toContain('Integration not found for webhook.');
     });
 
     test('should reject a Shopify webhook with an invalid signature', async ({ request }) => {

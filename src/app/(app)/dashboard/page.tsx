@@ -54,7 +54,7 @@ export default async function DashboardPage({
         const settings = await getCompanySettings();
         const briefing = { greeting: 'Welcome!', summary: 'This is a test summary.', cta: { text: 'View Report', link: '#' } };
         return (
-             <AppPage>
+             <>
                 <AppPageHeader
                     title="Dashboard"
                     description="Here's a high-level overview of your business performance."
@@ -66,7 +66,7 @@ export default async function DashboardPage({
                         initialBriefing={briefing}
                     />
                 </div>
-            </AppPage>
+            </>
         );
     }
     
