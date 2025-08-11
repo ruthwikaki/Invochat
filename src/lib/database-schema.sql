@@ -1,359 +1,451 @@
--- supabase/seed.sql
--- This file is executed by Supabase when the database is created.
--- It's a good place to define your initial schema, tables, and RLS policies.
--- For more information, see: https://supabase.com/docs/guides/database/managing-tables
+-- src/lib/database-schema.sql
 
--- Set up Row Level Security
+-- Drop existing functions to ensure a clean slate
+DROP FUNCTION IF EXISTS public.handle_new_user();
+DROP FUNCTION IF EXISTS public.get_company_id_for_user(uuid);
+DROP FUNCTION IF EXISTS public.check_user_permission(uuid, company_role);
+DROP FUNCTION IF EXISTS public.record_order_from_platform(uuid, jsonb, text);
+DROP FUNCTION IF EXISTS public.get_dashboard_metrics(uuid, int);
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create ENUM types for roles and platforms
+CREATE TYPE public.company_role AS ENUM ('Owner', 'Admin', 'Member');
+CREATE TYPE public.integration_platform AS ENUM ('shopify', 'woocommerce', 'amazon_fba');
+CREATE TYPE public.message_role AS ENUM ('user', 'assistant', 'tool');
+CREATE TYPE public.feedback_type AS ENUM ('helpful', 'unhelpful');
+
+
+-- Companies Table: Stores company information
+CREATE TABLE public.companies (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name text NOT NULL,
+    owner_id uuid NOT NULL REFERENCES auth.users(id),
+    created_at timestamptz DEFAULT now() NOT NULL
+);
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can see their own company" ON public.companies FOR SELECT USING (id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Company Users Table: Links users to companies with roles
+CREATE TABLE public.company_users (
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    role public.company_role DEFAULT 'Member'::public.company_role NOT NULL,
+    PRIMARY KEY (user_id, company_id)
+);
 ALTER TABLE public.company_users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can see their own company memberships" ON public.company_users FOR SELECT USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Company Settings Table
+CREATE TABLE public.company_settings (
+    company_id uuid PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
+    dead_stock_days integer DEFAULT 90 NOT NULL CHECK (dead_stock_days > 0),
+    fast_moving_days integer DEFAULT 30 NOT NULL CHECK (fast_moving_days > 0),
+    predictive_stock_days integer DEFAULT 7 NOT NULL CHECK (predictive_stock_days > 0),
+    currency text DEFAULT 'USD' NOT NULL,
+    timezone text DEFAULT 'UTC' NOT NULL,
+    overstock_multiplier numeric DEFAULT 3 NOT NULL,
+    high_value_threshold integer DEFAULT 100000 NOT NULL,
+    tax_rate numeric(5,4) DEFAULT 0.0 NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz
+);
+ALTER TABLE public.company_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage their own company settings" ON public.company_settings FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Products Table
+CREATE TABLE public.products (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text,
+    handle text,
+    product_type text,
+    tags text[],
+    status text,
+    image_url text,
+    external_product_id text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz,
+    UNIQUE(company_id, external_product_id)
+);
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage products in their own company" ON public.products FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Suppliers Table
+CREATE TABLE public.suppliers (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    email text,
+    phone text,
+    default_lead_time_days integer,
+    notes text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz
+);
 ALTER TABLE public.suppliers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage suppliers in their own company" ON public.suppliers FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Product Variants Table
+CREATE TABLE public.product_variants (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    sku text NOT NULL,
+    title text,
+    option1_name text,
+    option1_value text,
+    option2_name text,
+    option2_value text,
+    option3_name text,
+    option3_value text,
+    barcode text,
+    price integer, -- in cents
+    compare_at_price integer, -- in cents
+    cost integer, -- in cents
+    inventory_quantity integer DEFAULT 0 NOT NULL,
+    location text,
+    supplier_id uuid REFERENCES public.suppliers(id),
+    reorder_point integer,
+    reorder_quantity integer,
+    external_variant_id text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz,
+    UNIQUE(company_id, sku)
+);
+ALTER TABLE public.product_variants ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage variants in their own company" ON public.product_variants FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Customers Table
+CREATE TABLE public.customers (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    name text,
+    email text,
+    phone text,
+    external_customer_id text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz,
+    deleted_at timestamptz,
+    UNIQUE(company_id, external_customer_id)
+);
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage customers in their own company" ON public.customers FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Orders Table
+CREATE TABLE public.orders (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    order_number text NOT NULL,
+    external_order_id text,
+    customer_id uuid REFERENCES public.customers(id),
+    financial_status text,
+    fulfillment_status text,
+    currency text,
+    subtotal integer NOT NULL,
+    total_tax integer,
+    total_shipping integer,
+    total_discounts integer,
+    total_amount integer NOT NULL,
+    source_platform text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz,
+    UNIQUE(company_id, external_order_id)
+);
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage orders in their own company" ON public.orders FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+
+-- Order Line Items Table
+CREATE TABLE public.order_line_items (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    variant_id uuid REFERENCES public.product_variants(id),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    product_name text,
+    variant_title text,
+    sku text,
+    quantity integer NOT NULL,
+    price integer NOT NULL, -- in cents
+    total_discount integer,
+    tax_amount integer,
+    cost_at_time integer,
+    external_line_item_id text
+);
+ALTER TABLE public.order_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage line items in their own company" ON public.order_line_items FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Purchase Orders Table
+CREATE TABLE public.purchase_orders (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    supplier_id uuid REFERENCES public.suppliers(id),
+    status text DEFAULT 'Draft' NOT NULL,
+    po_number text NOT NULL,
+    total_cost integer NOT NULL,
+    expected_arrival_date date,
+    idempotency_key uuid,
+    notes text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz
+);
 ALTER TABLE public.purchase_orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage POs in their own company" ON public.purchase_orders FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Purchase Order Line Items Table
+CREATE TABLE public.purchase_order_line_items (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    purchase_order_id uuid NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id),
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    quantity integer NOT NULL,
+    cost integer NOT NULL -- in cents
+);
 ALTER TABLE public.purchase_order_line_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage PO line items in their own company" ON public.purchase_order_line_items FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Inventory Ledger Table
+CREATE TABLE public.inventory_ledger (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    variant_id uuid NOT NULL REFERENCES public.product_variants(id),
+    change_type text NOT NULL,
+    quantity_change integer NOT NULL,
+    new_quantity integer NOT NULL,
+    related_id uuid,
+    notes text,
+    created_at timestamptz DEFAULT now() NOT NULL
+);
+ALTER TABLE public.inventory_ledger ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view inventory ledger in their own company" ON public.inventory_ledger FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
+
+-- Integrations Table
+CREATE TABLE public.integrations (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id uuid NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
+    platform public.integration_platform NOT NULL,
+    shop_domain text,
+    shop_name text,
+    is_active boolean DEFAULT true NOT NULL,
+    last_sync_at timestamptz,
+    sync_status text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz,
+    UNIQUE (company_id, platform)
+);
 ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.channel_fees ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.feedback ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.export_jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage integrations in their own company" ON public.integrations FOR ALL USING (company_id IN (SELECT public.get_company_id_for_user(auth.uid())));
 
--- Create the auth.company_id() function that RLS policies need
-CREATE OR REPLACE FUNCTION auth.company_id()
-RETURNS UUID AS $$
-DECLARE
-    company_id_val UUID;
+-- Helper function to get a user's company ID
+CREATE OR REPLACE FUNCTION public.get_company_id_for_user(p_user_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 BEGIN
-    -- Get company_id from JWT token
-    company_id_val := NULLIF(current_setting('request.jwt.claims', true)::JSONB -> 'app_metadata' ->> 'company_id', '')::UUID;
-    
-    -- If not found, get from users table as a fallback (e.g., during tests)
-    IF company_id_val IS NULL THEN
-        SELECT (raw_app_meta_data ->> 'company_id')::UUID
-        INTO company_id_val
-        FROM auth.users
-        WHERE id = auth.uid();
-    END IF;
-    
-    RETURN company_id_val;
-END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
-
--- Grant usage on the function to authenticated users
-GRANT EXECUTE ON FUNCTION auth.company_id() TO authenticated;
-
-
--- RLS Policies
--- Companies: Users can only see the company they belong to.
-CREATE POLICY "Users can view their own company"
-ON public.companies FOR SELECT
-USING (id = auth.company_id());
-
--- Company Users: Users can see other members of their own company.
-CREATE POLICY "Users can view members of their own company"
-ON public.company_users FOR SELECT
-USING (company_id = auth.company_id());
-
--- Generic RLS Policy for all tables with a company_id column
-DO $$
-DECLARE
-    t TEXT;
-BEGIN
-    FOR t IN 
-        SELECT table_name FROM information_schema.columns WHERE column_name = 'company_id' AND table_schema = 'public'
-    LOOP
-        EXECUTE format('CREATE POLICY "Users can only access their own company data" ON public.%I FOR ALL USING (company_id = auth.company_id());', t);
-    END LOOP;
+  RETURN (
+    SELECT company_id
+    FROM public.company_users
+    WHERE user_id = p_user_id
+    LIMIT 1
+  );
 END;
 $$;
 
-
--- A trigger to automatically create a company for a new user and link them.
+-- Function to create a company and link it to the owner on new user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
-    new_company_id UUID;
-    user_company_name TEXT;
+  company_id_val uuid;
 BEGIN
-    -- Extract company_name from metadata, default if not present
-    user_company_name := COALESCE(new.raw_user_meta_data ->> 'company_name', 'My New Company');
+  -- Create a new company for the new user
+  INSERT INTO public.companies (name, owner_id)
+  VALUES (new.raw_user_meta_data->>'company_name', new.id)
+  RETURNING id INTO company_id_val;
 
-    -- Create a new company for the user
-    INSERT INTO public.companies (name, owner_id)
-    VALUES (user_company_name, new.id)
-    RETURNING id INTO new_company_id;
-
-    -- Link the user to the new company as an Owner
-    INSERT INTO public.company_users (user_id, company_id, role)
-    VALUES (new.id, new_company_id, 'Owner');
-    
-    -- Update the user's app_metadata with the new company_id
-    UPDATE auth.users
-    SET raw_app_meta_data = raw_app_meta_data || jsonb_build_object('company_id', new_company_id)
-    WHERE id = new.id;
-
-    RETURN new;
+  -- Link the new user to their new company as an Owner
+  INSERT INTO public.company_users (user_id, company_id, role)
+  VALUES (new.id, company_id_val, 'Owner');
+  
+  -- Update the user's app_metadata with the company_id
+  UPDATE auth.users
+  SET app_metadata = jsonb_set(app_metadata, '{company_id}', to_jsonb(company_id_val))
+  WHERE id = new.id;
+  
+  RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
--- Create the trigger on the auth.users table
+-- Trigger to call handle_new_user on new user creation in auth.users
 CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
--- Create materialized views for performance
+-- Indexes for performance
+CREATE INDEX idx_products_company_id ON public.products(company_id);
+CREATE INDEX idx_variants_product_id ON public.product_variants(product_id);
+CREATE INDEX idx_variants_company_sku ON public.product_variants(company_id, sku);
+CREATE INDEX idx_orders_company_date ON public.orders(company_id, created_at DESC);
+CREATE INDEX idx_line_items_order_id ON public.order_line_items(order_id);
+CREATE INDEX idx_line_items_variant_id ON public.order_line_items(variant_id);
+
+-- Function to check user permissions
+CREATE OR REPLACE FUNCTION public.check_user_permission(p_user_id uuid, p_required_role public.company_role)
+RETURNS boolean
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    user_role public.company_role;
+BEGIN
+    SELECT role INTO user_role FROM public.company_users WHERE user_id = p_user_id;
+
+    IF user_role IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
+    IF p_required_role = 'Owner' AND user_role = 'Owner' THEN
+        RETURN TRUE;
+    ELSIF p_required_role = 'Admin' AND (user_role = 'Owner' OR user_role = 'Admin') THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END;
+$$;
+
+-- Materialized View for Customers (to offload aggregation)
 CREATE MATERIALIZED VIEW public.customers_view AS
 SELECT
     c.id,
     c.company_id,
-    c.name AS customer_name,
+    c.name as customer_name,
     c.email,
-    COUNT(o.id) AS total_orders,
-    COALESCE(SUM(o.total_amount), 0) AS total_spent,
-    MIN(o.created_at) AS first_order_date,
-    c.created_at
-FROM
-    public.customers c
-LEFT JOIN
-    public.orders o ON c.id = o.customer_id AND o.company_id = c.company_id
+    c.created_at,
+    COUNT(o.id) as total_orders,
+    COALESCE(SUM(o.total_amount), 0) as total_spent,
+    MIN(o.created_at) as first_order_date
+FROM public.customers c
+LEFT JOIN public.orders o ON c.id = o.customer_id
 WHERE c.deleted_at IS NULL
-GROUP BY
-    c.id, c.company_id;
+GROUP BY c.id;
+
 CREATE UNIQUE INDEX ON public.customers_view (id);
 
+-- Materialized View for Product Variants with Details
 CREATE MATERIALIZED VIEW public.product_variants_with_details AS
 SELECT
-    pv.*,
+    v.*,
     p.title as product_title,
     p.status as product_status,
     p.image_url,
     p.product_type
-FROM
-    public.product_variants pv
-JOIN
-    public.products p ON pv.product_id = p.id;
+FROM public.product_variants v
+JOIN public.products p ON v.product_id = p.id;
+
 CREATE UNIQUE INDEX ON public.product_variants_with_details (id);
 
+-- Materialized View for Orders with Customer Details
 CREATE MATERIALIZED VIEW public.orders_view AS
 SELECT
     o.*,
     c.email as customer_email
-FROM
-    public.orders o
-LEFT JOIN
-    public.customers c ON o.customer_id = c.id;
+FROM public.orders o
+LEFT JOIN public.customers c ON o.customer_id = c.id;
+
 CREATE UNIQUE INDEX ON public.orders_view (id);
 
-CREATE OR REPLACE FUNCTION refresh_all_matviews(p_company_id UUID)
-RETURNS void
+-- RPC function to get dashboard metrics
+CREATE OR REPLACE FUNCTION public.get_dashboard_metrics(p_company_id uuid, p_days int)
+RETURNS json
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    metrics json;
 BEGIN
-  -- Refresh views that depend on base tables
-  REFRESH MATERIALIZED VIEW CONCURRENTLY customers_view;
-  REFRESH MATERIALIZED VIEW CONCURRENTLY product_variants_with_details;
-  REFRESH MATERIALIZED VIEW CONCURRENTLY orders_view;
+    SELECT json_build_object(
+        'total_revenue', COALESCE(SUM(total_amount), 0),
+        'total_orders', COUNT(id),
+        'top_products', (
+            SELECT json_agg(p)
+            FROM (
+                SELECT p.product_title, p.image_url, SUM(li.quantity) as quantity_sold, SUM(li.price * li.quantity) as total_revenue
+                FROM public.order_line_items li
+                JOIN public.product_variants_with_details p ON li.variant_id = p.id
+                WHERE li.company_id = p_company_id AND li.created_at >= NOW() - (p_days || ' days')::interval
+                GROUP BY p.product_title, p.image_url
+                ORDER BY total_revenue DESC
+                LIMIT 5
+            ) p
+        )
+    )
+    INTO metrics
+    FROM public.orders_view
+    WHERE company_id = p_company_id AND created_at >= NOW() - (p_days || ' days')::interval;
+    RETURN metrics;
 END;
 $$;
 
--- 1) Replace existing function
-DROP FUNCTION IF EXISTS public.get_dashboard_metrics(uuid, integer);
-
-CREATE OR REPLACE FUNCTION public.get_dashboard_metrics(
-  p_company_id uuid,
-  p_days int DEFAULT 30
-)
+-- Function to get dead stock report
+CREATE OR REPLACE FUNCTION public.get_dead_stock_report(p_company_id uuid)
 RETURNS TABLE (
-  total_orders bigint,
-  total_revenue bigint,
-  total_customers bigint,
-  inventory_count bigint,
-  sales_series jsonb,
-  top_products jsonb,
-  inventory_summary jsonb,
-  revenue_change double precision,
-  orders_change double precision,
-  customers_change double precision,
-  dead_stock_value bigint
+  variant_id uuid,
+  product_id uuid,
+  sku text,
+  product_name text,
+  inventory_quantity int,
+  cost bigint,
+  total_value bigint,
+  last_sale_date timestamptz
 )
 LANGUAGE sql
 STABLE
 AS $$
-WITH time_window AS (
-  SELECT
-    now() - make_interval(days => p_days)            AS start_at,
-    now() - make_interval(days => p_days * 2)        AS prev_start_at,
-    now() - make_interval(days => p_days)            AS prev_end_at
-),
-filtered_orders AS (
-  SELECT o.*
-  FROM public.orders o
-  JOIN time_window w ON true
-  WHERE o.company_id = p_company_id
-    AND o.created_at >= w.start_at
-    AND o.cancelled_at IS NULL
-),
-prev_filtered_orders AS (
-  SELECT o.*
-  FROM public.orders o
-  JOIN time_window w ON true
-  WHERE o.company_id = p_company_id
-    AND o.created_at >= w.prev_start_at
-    AND o.created_at < w.prev_end_at
-    AND o.cancelled_at IS NULL
-),
-day_series AS (
-  SELECT date_trunc('day', o.created_at) AS day,
-         SUM(o.total_amount)::bigint     AS revenue,
-         COUNT(*)::int                   AS orders
-  FROM filtered_orders o
-  GROUP BY 1
-  ORDER BY 1
-),
-top_products_cte AS (
-  SELECT
-    p.id                                    AS product_id,
-    p.title                                 AS product_name,
-    p.image_url,
-    SUM(li.quantity)::int                   AS quantity_sold,
-    SUM((li.price::bigint) * (li.quantity::bigint))::bigint AS total_revenue
-  FROM public.order_line_items li
-  JOIN public.orders o   ON o.id = li.order_id
-  LEFT JOIN public.products p ON p.id = li.product_id
-  WHERE o.company_id = p_company_id
-    AND o.cancelled_at IS NULL
-    AND o.created_at >= (SELECT start_at FROM time_window)
-  GROUP BY 1,2,3
-  ORDER BY total_revenue DESC
-  LIMIT 5
-),
-inventory_values AS (
-  SELECT
-    SUM((v.inventory_quantity::bigint) * (v.cost::bigint))::bigint AS total_value,
-    SUM(CASE WHEN v.reorder_point IS NULL OR v.inventory_quantity > v.reorder_point
-             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END)::bigint AS in_stock_value,
-    SUM(CASE WHEN v.reorder_point IS NOT NULL
-               AND v.inventory_quantity <= v.reorder_point
-               AND v.inventory_quantity > 0
-             THEN (v.inventory_quantity::bigint) * (v.cost::bigint) ELSE 0 END)::bigint AS low_stock_value
-  FROM public.product_variants v
-  WHERE v.company_id = p_company_id
-    AND v.cost IS NOT NULL
-    AND v.deleted_at IS NULL
-),
-variant_last_sale AS (
+WITH variant_last_sale AS (
   SELECT li.variant_id, MAX(o.created_at) AS last_sale_at
   FROM public.order_line_items li
   JOIN public.orders o ON o.id = li.order_id
   WHERE o.company_id = p_company_id
-    AND o.cancelled_at IS NULL
   GROUP BY li.variant_id
 ),
-dead_stock AS (
-  SELECT
-    SUM((v.inventory_quantity::bigint) * (v.cost::bigint))::bigint AS value
-  FROM public.product_variants v
-  LEFT JOIN variant_last_sale ls ON ls.variant_id = v.id
-  LEFT JOIN public.company_settings cs ON cs.company_id = v.company_id
-  WHERE v.company_id = p_company_id
-    AND v.cost IS NOT NULL
-    AND v.deleted_at IS NULL
-    AND v.inventory_quantity > 0
-    AND (
-      ls.last_sale_at IS NULL
-      OR ls.last_sale_at < (now() - make_interval(days => COALESCE(cs.dead_stock_days, 90)))
-    )
-),
-current_period AS (
-  SELECT
-    COALESCE(COUNT(*), 0)::bigint                      AS orders,
-    COALESCE(SUM(total_amount), 0)::bigint             AS revenue,
-    COALESCE(COUNT(DISTINCT customer_id), 0)::bigint   AS customers
-  FROM filtered_orders
-),
-previous_period AS (
-  SELECT
-    COALESCE(COUNT(*), 0)::bigint                      AS orders,
-    COALESCE(SUM(total_amount), 0)::bigint             AS revenue,
-    COALESCE(COUNT(DISTINCT customer_id), 0)::bigint   AS customers
-  FROM prev_filtered_orders
+settings AS (
+  SELECT COALESCE(cs.dead_stock_days, 90) AS days
+  FROM public.company_settings cs
+  WHERE cs.company_id = p_company_id
 )
 SELECT
-  (SELECT orders    FROM current_period) AS total_orders,
-  (SELECT revenue   FROM current_period) AS total_revenue,
-  (SELECT customers FROM current_period) AS total_customers,
-
-  COALESCE((
-    SELECT SUM(pv.inventory_quantity)
-    FROM public.product_variants pv
-    WHERE pv.company_id = p_company_id AND pv.deleted_at IS NULL
-  ), 0)::bigint AS inventory_count,
-
-  COALESCE((
-    SELECT jsonb_agg(
-      jsonb_build_object('date', to_char(day, 'YYYY-MM-DD'), 'revenue', revenue, 'orders', orders)
-      ORDER BY day
-    )
-    FROM day_series
-  ), '[]'::jsonb) AS sales_series,
-
-  COALESCE((SELECT jsonb_agg(to_jsonb(tp)) FROM top_products_cte tp), '[]'::jsonb) AS top_products,
-
-  jsonb_build_object(
-    'total_value',     COALESCE((SELECT total_value     FROM inventory_values), 0),
-    'in_stock_value',  COALESCE((SELECT in_stock_value  FROM inventory_values), 0),
-    'low_stock_value', COALESCE((SELECT low_stock_value FROM inventory_values), 0),
-    'dead_stock_value',COALESCE((SELECT value           FROM dead_stock), 0)
-  ) AS inventory_summary,
-
-  CASE WHEN (SELECT revenue FROM previous_period) = 0
-       THEN 0.0
-       ELSE (((SELECT revenue FROM current_period)::float
-             - (SELECT revenue FROM previous_period)::float)
-             / (SELECT revenue FROM previous_period)::float) * 100
-  END AS revenue_change,
-  CASE WHEN (SELECT orders FROM previous_period) = 0
-       THEN 0.0
-       ELSE (((SELECT orders FROM current_period)::float
-             - (SELECT orders FROM previous_period)::float)
-             / (SELECT orders FROM previous_period)::float) * 100
-  END AS orders_change,
-  CASE WHEN (SELECT customers FROM previous_period) = 0
-       THEN 0.0
-       ELSE (((SELECT customers FROM current_period)::float
-             - (SELECT customers FROM previous_period)::float)
-             / (SELECT customers FROM previous_period)::float) * 100
-  END AS customers_change,
-
-  COALESCE((SELECT value FROM dead_stock), 0)::bigint AS dead_stock_value;
+  v.id,
+  v.product_id,
+  v.sku,
+  p.title as product_name,
+  v.inventory_quantity,
+  (v.cost)::bigint,
+  (v.inventory_quantity::bigint * v.cost) as total_value,
+  ls.last_sale_at
+FROM public.product_variants v
+LEFT JOIN variant_last_sale ls ON ls.variant_id = v.id
+JOIN public.products p ON p.id = v.product_id
+CROSS JOIN settings s
+WHERE v.company_id = p_company_id
+  AND v.inventory_quantity > 0
+  AND (ls.last_sale_at IS NULL OR ls.last_sale_at < (now() - make_interval(days => s.days)));
 $$;
 
--- 2) Helpful indexes (idempotent)
-CREATE INDEX IF NOT EXISTS idx_orders_company_created
-  ON public.orders(company_id, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_orders_company_not_cancelled
-  ON public.orders(company_id) WHERE cancelled_at IS NULL;
+-- Grant usage on the schema to the anon and authenticated roles
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
-CREATE INDEX IF NOT EXISTS idx_olis_order
-  ON public.order_line_items(order_id);
+-- Grant select on all tables to anon and authenticated roles
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon, authenticated;
 
-CREATE INDEX IF NOT EXISTS idx_olis_company_variant
-  ON public.order_line_items(company_id, variant_id);
+-- Grant execute on all functions to anon and authenticated roles
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
 
-CREATE INDEX IF NOT EXISTS idx_products_company
-  ON public.products(company_id);
-
-CREATE INDEX IF NOT EXISTS idx_variants_company
-  ON public.product_variants(company_id);
-
-CREATE INDEX IF NOT EXISTS idx_customers_company
-  ON public.customers(company_id);
-  
-CREATE INDEX IF NOT EXISTS idx_variants_company_not_deleted
-  ON public.product_variants(company_id)
-  WHERE deleted_at IS NULL;
+-- Grant all privileges to the service_role for migrations and admin tasks
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO service_role;
