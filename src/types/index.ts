@@ -71,7 +71,7 @@ export const UnifiedInventoryItemSchema = ProductVariantSchema.extend({
   product_status: z.string().nullable(),
   image_url: z.string().url().nullable(),
   product_type: z.string().nullable(),
-});
+}).passthrough();
 export type UnifiedInventoryItem = z.infer<typeof UnifiedInventoryItemSchema>;
 
 
@@ -92,7 +92,7 @@ export const OrderSchema = z.object({
   source_platform: z.string().nullable(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).nullable(),
-});
+}).passthrough();
 export type Order = z.infer<typeof OrderSchema>;
 
 export const OrderLineItemSchema = z.object({
@@ -138,7 +138,7 @@ export const CustomerSchema = z.object({
   first_order_date: z.string().datetime({ offset: true }).nullable(),
   deleted_at: z.string().datetime({ offset: true }).nullable(),
   created_at: z.string().datetime({ offset: true }),
-});
+}).passthrough();
 export type Customer = z.infer<typeof CustomerSchema>;
 
 
@@ -323,16 +323,32 @@ export const ReorderSuggestionBaseSchema = z.object({
     current_quantity: z.number().int(),
     suggested_reorder_quantity: z.number().int(),
     unit_cost: z.number().int().nullable(),
-});
+}).passthrough();
 export type ReorderSuggestionBase = z.infer<typeof ReorderSuggestionBaseSchema>;
 
 export const ReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
     base_quantity: z.number().int(),
-    adjustment_reason: z.string(),
-    seasonality_factor: z.number(),
-    confidence: z.number().min(0).max(1),
-});
+    adjustment_reason: z.string().nullable(),
+    seasonality_factor: z.number().nullable(),
+    confidence: z.number().min(0).max(1).nullable(),
+}).passthrough();
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+
+export const EnhancedReorderSuggestionSchema = z.object({
+    variant_id: z.string().uuid(),
+    product_id: z.string().uuid(),
+    sku: z.string(),
+    product_name: z.string(),
+    supplier_name: z.string().nullable(),
+    supplier_id: z.string().uuid().nullable(),
+    current_quantity: z.number().int(),
+    suggested_reorder_quantity: z.number().int(),
+    unit_cost: z.number().int().nullable(),
+    base_quantity: z.number().int().describe("The initial, simple calculated reorder quantity before AI adjustment."),
+    adjustment_reason: z.string().describe("A concise explanation for why the reorder quantity was adjusted."),
+    seasonality_factor: z.number().describe("A factor from ~0.5 (low season) to ~1.5 (high season) that influenced the adjustment."),
+    confidence: z.number().min(0).max(1).describe("The AI's confidence in its seasonal adjustment."),
+}).passthrough();
 
 
 export const InventoryAgingReportItemSchema = z.object({
@@ -342,7 +358,7 @@ export const InventoryAgingReportItemSchema = z.object({
   total_value: z.number().int(),
   days_since_last_sale: z.number(),
 });
-export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItem>;
+export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
 
 export const InventoryRiskItemSchema = z.object({
     sku: z.string(),
@@ -385,28 +401,27 @@ export const CustomerSegmentAnalysisItemSchema = z.object({
 export type CustomerSegmentAnalysisItem = z.infer<typeof CustomerSegmentAnalysisItemSchema>;
 
 export const DashboardMetricsSchema = z.object({
-  total_orders: z.number().int().default(0),
-  total_revenue: z.number().int().default(0),
-  total_customers: z.number().int().default(0),
-  inventory_count: z.number().int().default(0),
-  sales_series: z.array(z.object({ date: z.string(), revenue: z.number(), orders: z.number() })).default([]),
-  top_products: z.array(z.object({
-    product_id: z.string().uuid(),
-    product_name: z.string(),
-    image_url: z.string().url().nullable(),
-    quantity_sold: z.number().int(),
-    total_revenue: z.number().int(),
-  })).default([]),
-  inventory_summary: z.object({
-    total_value: z.number().int().default(0),
-    in_stock_value: z.number().int().default(0),
-    low_stock_value: z.number().int().default(0),
+    total_revenue: z.number().int().default(0),
+    revenue_change: z.number().default(0),
+    total_orders: z.number().int().default(0),
+    orders_change: z.number().default(0),
+    new_customers: z.number().int().default(0),
+    customers_change: z.number().default(0),
     dead_stock_value: z.number().int().default(0),
-  }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }),
-  revenue_change: z.number().default(0),
-  orders_change: z.number().default(0),
-  customers_change: z.number().default(0),
-  dead_stock_value: z.number().int().default(0),
+    sales_over_time: z.array(z.object({ date: z.string(), revenue: z.number() })).default([]),
+    top_selling_products: z.array(z.object({
+      product_id: z.string().uuid(),
+      product_name: z.string(),
+      image_url: z.string().url().nullable(),
+      quantity_sold: z.number().int(),
+      total_revenue: z.number().int(),
+    })).default([]),
+    inventory_summary: z.object({
+      total_value: z.number().int().default(0),
+      in_stock_value: z.number().int().default(0),
+      low_stock_value: z.number().int().default(0),
+      dead_stock_value: z.number().int().default(0),
+    }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }),
 }).passthrough();
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
@@ -414,7 +429,7 @@ export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int(),
     total_orders: z.number().int(),
     average_order_value: z.number(),
-});
+}).passthrough();
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
 export const InventoryAnalyticsSchema = z.object({
@@ -422,7 +437,7 @@ export const InventoryAnalyticsSchema = z.object({
     total_products: z.number().int(),
     total_variants: z.number().int(),
     low_stock_items: z.number().int(),
-});
+}).passthrough();
 export type InventoryAnalytics = z.infer<typeof InventoryAnalyticsSchema>;
 
 export const CustomerAnalyticsSchema = z.object({
@@ -432,7 +447,7 @@ export const CustomerAnalyticsSchema = z.object({
     average_lifetime_value: z.number().int(),
     top_customers_by_spend: z.array(z.object({ name: z.string().nullable(), value: z.number().int() })),
     top_customers_by_sales: z.array(z.object({ name: z.string().nullable(), value: z.number().int() })),
-});
+}).passthrough();
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
 export { HealthCheckResultSchema };
@@ -497,7 +512,7 @@ export const DeadStockItemSchema = z.object({
   quantity: z.number().int(),
   total_value: z.number(),
   last_sale_date: z.string().nullable(),
-});
+}).passthrough();
 export type DeadStockItem = z.infer<typeof DeadStockItemSchema>;
 
 
@@ -513,7 +528,7 @@ export const SupplierPerformanceReportSchema = z.object({
     on_time_delivery_rate: z.number(),
     average_lead_time_days: z.number().nullable(),
     total_completed_orders: z.number(),
-});
+}).passthrough();
 export type SupplierPerformanceReport = z.infer<typeof SupplierPerformanceReportSchema>;
 
 export const AlertSchema = z.object({
@@ -534,15 +549,19 @@ export const AuditLogEntrySchema = z.object({
     user_email: z.string().email().nullable(),
     action: z.string(),
     details: z.record(z.string(), z.unknown()).nullable(),
-});
+}).passthrough();
 export type AuditLogEntry = z.infer<typeof AuditLogEntrySchema>;
 
-export const FeedbackWithMessagesSchema = z.object({
+export const FeedbackSchema = z.object({
     id: z.string().uuid(),
     created_at: z.string().datetime({ offset: true }),
     feedback: z.enum(['helpful', 'unhelpful']),
     user_email: z.string().email().nullable(),
     user_message_content: z.string().nullable(),
     assistant_message_content: z.string().nullable(),
-});
+}).passthrough();
+
+export const FeedbackWithMessagesSchema = FeedbackSchema;
 export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
+
+    

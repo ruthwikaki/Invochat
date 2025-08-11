@@ -25,14 +25,14 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     // Start by logging in
     await login(page);
     // After login, explicitly wait for a key element on the dashboard to ensure it's loaded.
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
+    await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 60000 });
   });
 
   test('should allow a user to check the dashboard, ask AI, and check reorders', async ({ page }) => {
     // 1. Check Dashboard
     await page.goto('/dashboard');
     await page.waitForURL('/dashboard');
-    await expect(page.getByText('Sales Overview')).toBeVisible();
+    await expect(page.getByTestId('dashboard-root')).toBeVisible();
 
     // 2. Ask the AI a question from the dashboard quick actions
     await page.getByRole('button', { name: 'Ask AI' }).click();
@@ -51,7 +51,7 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     await page.waitForURL('/analytics/reordering');
     
     // 4. Interact with the reordering page
-    await expect(page.getByText('AI-Enhanced Reorder Suggestions')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Reorder Suggestions' })).toBeVisible();
     
     // Check if there are suggestions, if so, interact with the first one
     const firstRow = page.locator('table > tbody > tr').first();
@@ -66,3 +66,5 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     }
   });
 });
+
+    
