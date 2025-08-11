@@ -95,13 +95,12 @@ const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { 
 
 export function DashboardClientPage({ initialMetrics, settings, initialBriefing }: DashboardClientPageProps) {
     const router = useRouter();
-    const TEST = process.env.NEXT_PUBLIC_TEST_MODE === 'true' || process.env.TEST_MODE === 'true';
 
     const handleDateChange = (value: string) => {
         router.push(`/dashboard?range=${value}`);
     };
     
-    const hasData = TEST ? true : initialMetrics.total_revenue > 0 || initialMetrics.total_orders > 0;
+    const hasData = initialMetrics.total_revenue > 0 || initialMetrics.total_orders > 0;
 
     if (!hasData) {
         return (
@@ -156,4 +155,3 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         </motion.div>
     );
 }
-

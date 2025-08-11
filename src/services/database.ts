@@ -228,7 +228,7 @@ export async function getInventoryAnalyticsFromDB(companyId: string): Promise<In
             logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
             throw new Error('Failed to retrieve inventory analytics');
         }
-        return InventoryAnalyticsSchema.parse(data);
+        return InventoryAnalyticsSchema.parse(data[0]);
     } catch (error) {
         logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
         throw error;
@@ -380,7 +380,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    return SalesAnalyticsSchema.parse(data);
+    return SalesAnalyticsSchema.parse(data[0]);
 }
 
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
@@ -391,7 +391,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return CustomerAnalyticsSchema.parse(data);
+    return CustomerAnalyticsSchema.parse(data[0]);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -452,7 +452,7 @@ export async function getInventoryTurnoverFromDB(companyId: string, days: number
         logError(error, { context: 'getInventoryTurnoverFromDB failed, returning null'});
         return null
     };
-    return data; 
+    return data[0]; 
 }
 
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
@@ -750,7 +750,7 @@ export async function getNetMarginByChannelFromDB(companyId: string, channelName
         logError(error, { context: 'getNetMarginByChannelFromDB failed' });
         throw error;
     }
-    return data; 
+    return data[0]; 
 }
 export async function getSalesVelocityFromDB(companyId: string, days: number, limit: number) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
@@ -760,7 +760,7 @@ export async function getSalesVelocityFromDB(companyId: string, days: number, li
         logError(error, { context: 'getSalesVelocityFromDB failed' });
         throw error;
     }
-    return data; 
+    return data[0]; 
 }
 export async function getDemandForecastFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
@@ -790,7 +790,7 @@ export async function getGrossMarginAnalysisFromDB(companyId: string) {
         logError(error, { context: 'getGrossMarginAnalysisFromDB failed' });
         throw error;
     }
-    return data; 
+    return data[0]; 
 }
 export async function getMarginTrendsFromDB(companyId: string) { 
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
@@ -810,7 +810,7 @@ export async function getFinancialImpactOfPromotionFromDB(companyId: string, sku
         logError(error, { context: 'getFinancialImpactOfPromotionFromDB failed' });
         throw error;
     }
-    return data; 
+    return data[0]; 
 }
 
 export async function adjustInventoryQuantityInDb(companyId: string, userId: string, variantId: string, newQuantity: number, reason: string) {
