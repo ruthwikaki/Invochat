@@ -44,7 +44,7 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     await page.locator('button[type="submit"]').click();
 
     // Wait for the AI to respond, potentially with a reorder list component
-    await expect(page.getByText('Reorder Suggestions')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Reorder Suggestions' })).toBeVisible({ timeout: 15000 });
 
     // 3. Navigate to the reordering page from the sidebar
     await page.locator('a[href="/analytics/reordering"]').click();
@@ -66,5 +66,3 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     }
   });
 });
-
-    
