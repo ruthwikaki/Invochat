@@ -1,3 +1,4 @@
+
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
@@ -24,9 +25,11 @@ test.describe('Multi-Platform Synchronization', () => {
     test('should display and allow syncing for multiple connected platforms', async ({ page }) => {
         await page.goto('/settings/integrations');
 
+        const connectedSection = page.getByTestId('integrations-connected');
+        
         // Verify both integration cards are visible
-        const shopifyCard = page.locator('.card', { hasText: 'Test Shopify for Multi-Sync' });
-        const wooCard = page.locator('.card', { hasText: 'Test Woo for Multi-Sync' });
+        const shopifyCard = connectedSection.locator('.card', { hasText: 'Test Shopify for Multi-Sync' });
+        const wooCard = connectedSection.locator('.card', { hasText: 'Test Woo for Multi-Sync' });
 
         await expect(shopifyCard).toBeVisible();
         await expect(wooCard).toBeVisible();

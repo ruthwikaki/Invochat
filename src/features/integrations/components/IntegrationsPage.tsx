@@ -191,7 +191,7 @@ export function IntegrationsClientPage() {
                 onClose={() => { setIsAmazonModalOpen(false); }}
             />
             
-            <div>
+            <section data-testid="integrations-connected">
                 <h2 className="text-xl font-semibold mb-4">Connected Integrations</h2>
                 <div className="space-y-4">
                     {integrations.length > 0 ? (
@@ -210,7 +210,7 @@ export function IntegrationsClientPage() {
                         </Card>
                     )}
                 </div>
-            </div>
+            </section>
 
              {integrations.length > 0 && (
                 <div>
@@ -219,7 +219,7 @@ export function IntegrationsClientPage() {
                 </div>
             )}
             
-            <div>
+            <section data-testid="integrations-available">
                 <h2 className="text-xl font-semibold mb-4">Available Integrations</h2>
                 <div className="space-y-4">
                     {!connectedPlatforms.has('shopify') && (
@@ -244,7 +244,7 @@ export function IntegrationsClientPage() {
                          />
                     )}
                 </div>
-            </div>
+            </section>
         </div>
     );
 }
