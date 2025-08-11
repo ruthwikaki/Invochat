@@ -342,7 +342,7 @@ export const InventoryAgingReportItemSchema = z.object({
   total_value: z.number().int(),
   days_since_last_sale: z.number(),
 });
-export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItemSchema>;
+export type InventoryAgingReportItem = z.infer<typeof InventoryAgingReportItem>;
 
 export const InventoryRiskItemSchema = z.object({
     sku: z.string(),

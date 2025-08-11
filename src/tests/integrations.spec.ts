@@ -22,7 +22,7 @@ test.describe('Integrations Page', () => {
     });
 
     test('should load available and connected integrations', async ({ page }) => {
-        await expect(page.getByRole('heading', { name: /Integrations/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Integrations & Data/i })).toBeVisible();
     });
 
     test('should open and close the Shopify connect modal', async ({ page }) => {
