@@ -17,7 +17,7 @@ import { invalidateCompanyCache } from '@/lib/redis';
 const DatabaseQueryParamsSchema = z.object({
   query: z.string().optional(),
   page: z.number().min(1).max(1000).optional(),
-  limit: z.number().min(1).max(100).optional(),
+  limit: z.number().min(1).max(10000).optional(),
   offset: z.number().min(0).max(10000).optional(),
   status: z.string().optional(),
   sortBy: z.string().max(50).optional(),
@@ -141,7 +141,7 @@ export async function getUnifiedInventoryFromDB(companyId: string, params: { que
             query = query.eq('product_status', validatedParams.status);
         }
 
-        const limit = Math.min(validatedParams.limit || 50, 100);
+        const limit = Math.min(validatedParams.limit || 50, 10000);
         const sortBy = validatedParams.sortBy || 'product_title';
         const sortDirection = validatedParams.sortDirection === 'desc' ? 'desc' : 'asc';
         

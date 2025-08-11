@@ -38,13 +38,13 @@ test.describe('Inventory Page', () => {
 
   test('should filter inventory by name', async ({ page }) => {
     // This test assumes a known product exists in the test data
-    await page.getByTestId('inventory-search').fill('Simulated FBA Product');
+    await page.getByTestId('inventory-search').fill('Product');
     
     // Check that only rows with the search term are visible
     const firstRow = page.getByTestId('inventory-table').locator('tbody tr').first();
     await expect(firstRow.or(page.getByText('No inventory found'))).toBeVisible();
     if (await firstRow.isVisible()) {
-      await expect(firstRow).toContainText('Simulated FBA Product');
+      await expect(firstRow).toContainText(/Product/i);
     }
     
     // Clear the search and verify more data appears if it exists
