@@ -356,11 +356,37 @@ export async function getCustomerAnalytics() {
         const cacheKey = `cache:customer-analytics:${companyId}`;
         if(isRedisEnabled) {
             const cached = await redisClient.get(cacheKey);
-            if(cached) return JSON.parse(cached);
+            if(cached) {
+                logger.info(`[Cache] HIT for customer analytics: ${cacheKey}`);
+                return JSON.parse(cached);
+            }
+             logger.info(`[Cache] MISS for customer analytics: ${cacheKey}`);
         }
-        const analytics = await getCustomerAnalyticsFromDB(companyId);
-        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', config.redis.ttl.dashboard);
-        return analytics;
+        
+        const rawAnalytics = await getCustomerAnalyticsFromDB(companyId);
+        
+        // The RPC returns a single-element array, so we unwrap it.
+        const analyticsData = Array.isArray(rawAnalytics) ? rawAnalytics[0] : rawAnalytics;
+
+        if (!analyticsData) {
+            throw new Error("Customer analytics data is null or undefined after DB call.");
+        }
+
+        // Transform snake_case to camelCase
+        const transformedAnalytics = {
+            total_customers: analyticsData.total_customers ?? 0,
+            new_customers_last_30_days: analyticsData.new_customers_last_30_days ?? 0,
+            repeat_customer_rate: analyticsData.repeat_customer_rate ?? 0,
+            average_lifetime_value: analyticsData.average_lifetime_value ?? 0,
+            top_customers_by_spend: analyticsData.top_customers_by_spend ?? [],
+            top_customers_by_sales: analyticsData.top_customers_by_sales ?? [],
+        };
+        
+        if(isRedisEnabled) {
+            await redisClient.set(cacheKey, JSON.stringify(transformedAnalytics), 'EX', config.redis.ttl.dashboard);
+        }
+        
+        return transformedAnalytics;
     } catch (e) {
         logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
         return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
@@ -669,7 +695,7 @@ export async function handleUserMessage(params: { content: string, conversationI
         confidence: aiResponse.confidence,
         assumptions: aiResponse.assumptions,
         component: aiResponse.toolName,
-        component_props: { data: aiResponse.data }
+        component_props: aiResponse.data
     }).select(`
       id,
       conversation_id,
@@ -803,7 +829,4 @@ export async function getFeedbackData(params: {
         const offset = (params.page - 1) * params.limit;
         return getFeedbackFromDB(companyId, { ...params, offset });
     } catch (error) {
-        logError(error, { context: 'getFeedbackData failed' });
-        return { items: [], totalCount: 0 };
-    }
-}
+        logError
