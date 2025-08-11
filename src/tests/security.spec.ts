@@ -65,7 +65,7 @@ test.describe('Security and Authorization', () => {
     // We can verify this by checking that the page does not contain any sensitive data
     // related to 'otherCompanyId'. Since we can't directly query the DB here, we ensure
     // the main user's data loads, but no errors of unauthorized access appear.
-    await expect(page.getByText('Suppliers')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Suppliers', exact: true })).toBeVisible();
     // Since this is a new user, they should have no suppliers.
     await expect(page.getByText('No Suppliers Found')).toBeVisible();
   });

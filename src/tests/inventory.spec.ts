@@ -1,4 +1,5 @@
 
+
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -10,7 +11,7 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard', { timeout: 60000 });
+    await page.waitForURL('/dashboard');
     await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 15000 });
 }
 
