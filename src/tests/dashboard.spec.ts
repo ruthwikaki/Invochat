@@ -28,9 +28,6 @@ async function login(page: Page) {
     
     // Wait for navigation with a longer timeout
     await page.waitForURL('/dashboard', { timeout: 60000 });
-    
-    // Then wait for the Sales Overview text
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
 }
 
 // Helper to parse currency string to number in cents
@@ -42,6 +39,7 @@ function parseCurrency(currencyString: string | null): number {
 test.describe('Dashboard Page', () => {
     test.beforeEach(async ({ page }) => {
         await login(page);
+        await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 60000 });
     });
 
     test('should load all dashboard cards and validate key metrics', async ({ page }) => {
