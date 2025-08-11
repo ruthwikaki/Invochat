@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { createServerClient } from '@/lib/supabase/admin';
@@ -94,6 +95,8 @@ export async function getAuthContext() {
     
     let companyId = user.app_metadata.company_id;
     
+    // If companyId is not in the JWT metadata, poll the database with retries.
+    // This handles the small delay between user creation and the trigger populating the data.
     if (!companyId) {
         companyId = await getCompanyIdFromDatabase(user.id);
     }
