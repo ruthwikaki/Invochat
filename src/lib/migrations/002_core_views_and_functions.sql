@@ -1,27 +1,10 @@
--- Migration: Core Views and Functions
--- Description: This script creates essential views and functions for inventory and sales analytics.
 
-BEGIN;
-
--- 1. Add supplier_id to product_variants if it doesn't exist
+-- Add a foreign key for supplier_id to product_variants
 ALTER TABLE public.product_variants
-ADD COLUMN IF NOT EXISTS supplier_id uuid NULL;
+ADD COLUMN IF NOT EXISTS supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL;
 
--- 2. Add foreign key constraint for supplier_id
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'product_variants_supplier_id_fkey'
-  ) THEN
-    ALTER TABLE public.product_variants
-      ADD CONSTRAINT product_variants_supplier_id_fkey
-      FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id)
-      ON DELETE SET NULL;
-  END IF;
-END$$;
-
--- 3. Create the inventory view
+-- Create a view for a unified inventory list
+DROP VIEW IF EXISTS public.inventory;
 CREATE OR REPLACE VIEW public.inventory AS
 SELECT
   pv.id AS variant_id,
@@ -44,7 +27,8 @@ SELECT
 FROM public.product_variants pv
 JOIN public.products p ON p.id = pv.product_id;
 
--- 4. Create the product_variants_with_details view
+-- Create a more detailed view for product variants
+DROP VIEW IF EXISTS public.product_variants_with_details;
 CREATE OR REPLACE VIEW public.product_variants_with_details AS
 SELECT
   pv.*,
@@ -59,56 +43,53 @@ FROM public.product_variants pv
 JOIN public.products p ON p.id = pv.product_id
 LEFT JOIN public.suppliers s ON s.id = pv.supplier_id;
 
--- 5. Create the sales view
+-- Create a view for sales data for easier analytics
+DROP VIEW IF EXISTS public.sales;
 CREATE OR REPLACE VIEW public.sales AS
 SELECT
-  o.id AS order_id,
+  o.id as order_id,
   o.company_id,
   o.order_number,
-  o.created_at AS order_date,
-  o.source_platform AS channel,
+  o.created_at,
   o.customer_id,
   o.total_amount,
   o.financial_status AS status,
-  'unknown'::text AS payment_method, -- Placeholder
-  oi.id as line_item_id,
-  oi.product_id,
-  oi.variant_id,
-  oi.quantity,
-  oi.price,
-  oi.tax_amount,
-  oi.total_discount,
-  ((oi.price * oi.quantity) - COALESCE(oi.total_discount,0) + COALESCE(oi.tax_amount,0)) AS line_total
+  'unknown'::text as payment_method,
+  oli.id as line_item_id,
+  oli.variant_id,
+  oli.quantity,
+  oli.price
 FROM public.orders o
-JOIN public.order_line_items oi ON oi.order_id = o.id;
+JOIN public.order_line_items oli ON oli.order_id = o.id;
 
--- 6. Drop old functions if they exist
+-- Drop old, potentially conflicting functions
 DROP FUNCTION IF EXISTS public.get_inventory_analytics(uuid);
 DROP FUNCTION IF EXISTS public.get_sales_analytics(uuid);
 
--- 7. Create lightweight analytics functions
+-- Create a simplified inventory analytics function
 CREATE OR REPLACE FUNCTION public.get_inventory_analytics(p_company_id uuid)
 RETURNS jsonb
 LANGUAGE sql STABLE
 AS $$
   SELECT jsonb_build_object(
-    'total_products', (SELECT count(*) FROM public.products p WHERE p.company_id = p_company_id),
-    'total_variants', (SELECT count(*) FROM public.product_variants pv WHERE pv.company_id = p_company_id),
-    'total_inventory_value', (SELECT COALESCE(sum(pv.cost * pv.inventory_quantity), 0) FROM public.product_variants pv WHERE pv.company_id = p_company_id),
-    'low_stock_items', (SELECT count(*) FROM public.product_variants pv WHERE pv.company_id = p_company_id AND pv.inventory_quantity > 0 AND pv.inventory_quantity <= pv.reorder_point)
+    'total_products', (SELECT count(DISTINCT product_id) FROM public.product_variants WHERE company_id = p_company_id),
+    'total_variants', (SELECT count(*) FROM public.product_variants WHERE company_id = p_company_id),
+    'total_inventory_value', (SELECT coalesce(sum(cost * inventory_quantity), 0) FROM public.product_variants WHERE company_id = p_company_id),
+    'low_stock_items', (SELECT count(*) FROM public.product_variants WHERE company_id = p_company_id AND inventory_quantity <= reorder_point AND reorder_point > 0)
   )
 $$;
 
+-- Create a simplified sales analytics function
 CREATE OR REPLACE FUNCTION public.get_sales_analytics(p_company_id uuid)
 RETURNS jsonb
 LANGUAGE sql STABLE
 AS $$
+  WITH s AS (
+    SELECT * FROM public.sales WHERE company_id = p_company_id
+  )
   SELECT jsonb_build_object(
-    'total_revenue', (SELECT COALESCE(sum(s.total_amount),0) FROM public.sales s WHERE s.company_id = p_company_id),
-    'total_orders', (SELECT count(DISTINCT s.order_id) FROM public.sales s WHERE s.company_id = p_company_id),
-    'average_order_value', (SELECT COALESCE(avg(s.total_amount),0) FROM public.sales s WHERE s.company_id = p_company_id)
+    'total_revenue', (SELECT coalesce(sum(total_amount), 0) FROM public.orders WHERE company_id = p_company_id AND status = 'paid'),
+    'total_orders', (SELECT count(*) FROM public.orders WHERE company_id = p_company_id),
+    'average_order_value', (SELECT coalesce(avg(total_amount), 0) FROM public.orders WHERE company_id = p_company_id AND status = 'paid')
   )
 $$;
-
-
-COMMIT;
