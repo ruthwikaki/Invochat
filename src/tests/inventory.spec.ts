@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -31,7 +30,7 @@ test.describe('Inventory Page', () => {
     const inventoryValue = parseFloat(valueText.replace(/[^0-9.-]+/g,""));
     expect(inventoryValue).toBeGreaterThan(0);
 
-    const tableRows = page.locator('table > tbody > tr');
+    const tableRows = page.getByTestId('inventory-table').locator('tbody tr');
     // It's okay if the table is empty, we just need to know it loaded.
     await expect(tableRows.first().or(page.getByText('No inventory found'))).toBeVisible();
   });
@@ -41,7 +40,7 @@ test.describe('Inventory Page', () => {
     await page.getByTestId('inventory-search').fill('Simulated FBA Product');
     
     // Check that only rows with the search term are visible
-    const firstRow = page.locator('table > tbody > tr').first();
+    const firstRow = page.getByTestId('inventory-table').locator('tbody tr').first();
     await expect(firstRow.or(page.getByText('No inventory found'))).toBeVisible();
     if (await firstRow.isVisible()) {
       await expect(firstRow).toContainText('Simulated FBA Product');
@@ -49,12 +48,12 @@ test.describe('Inventory Page', () => {
     
     // Clear the search and verify more data appears if it exists
     await page.getByTestId('inventory-search').fill('');
-    const firstRowAfterClear = page.locator('table > tbody > tr').first();
+    const firstRowAfterClear = page.getByTestId('inventory-table').locator('tbody tr').first();
     await expect(firstRowAfterClear.or(page.getByText('No inventory found'))).toBeVisible();
   });
 
   test('should expand a product to show variants', async ({ page }) => {
-    const firstRow = page.locator('table > tbody > tr').first();
+    const firstRow = page.getByTestId('inventory-table').locator('tbody tr').first();
     if (!await firstRow.isVisible({timeout: 5000})) {
       console.log('Skipping expand test, no inventory data available.');
       return;
@@ -74,7 +73,6 @@ test.describe('Inventory Page', () => {
   });
 
   test('should trigger a file download when Export is clicked', async ({ page }) => {
-    // Start waiting for the download before clicking the button
     const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/inventory/export') && resp.status() === 200);
     
     await page.getByTestId('inventory-export').click();
