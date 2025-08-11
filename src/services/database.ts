@@ -198,7 +198,7 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
   const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
   const supabase = getServiceRoleClient();
   try {
-      const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days }).single();
+      const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
       if (error) {
           logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
           throw new Error('Could not retrieve dashboard metrics from the database.');
@@ -322,16 +322,13 @@ export async function deleteSupplierFromDb(id: string, companyId: string) {
 }
 
 export async function getCustomersFromDB(companyId: string, params: { query?: string, offset: number, limit: number }) {
-    if (!z.string().uuid().safeParse(companyId).success) {
-        throw new Error('Invalid Company ID format');
-    }
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     const supabase = getServiceRoleClient();
     
     let query = supabase.from('customers_view').select(`*`, {count: 'exact'}).eq('company_id', companyId);
     
     if(validatedParams.query) {
-        query = query.or(`name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
+        query = query.or(`customer_name.ilike.%${validatedParams.query}%,email.ilike.%${validatedParams.query}%`);
     }
     
     const limit = Math.min(validatedParams.limit || 25, 100);
