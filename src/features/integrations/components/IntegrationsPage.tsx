@@ -19,6 +19,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '@/lib/error-handler';
+import { useRouter } from 'next/navigation';
 
 function PlatformConnectCard({
     platform,
@@ -51,6 +52,7 @@ function PlatformConnectCard({
 
 function ReconciliationCard({ integrationId }: { integrationId: string | undefined }) {
     const { toast } = useToast();
+    const router = useRouter();
     const [isReconciling, startReconciliation] = useState(false);
 
     if (!integrationId) return null;
@@ -61,8 +63,9 @@ function ReconciliationCard({ integrationId }: { integrationId: string | undefin
         if (result.success) {
             toast({
                 title: 'Reconciliation Started',
-                description: 'Inventory levels are being updated from the platform. This may take a moment.',
+                description: 'Inventory levels are being updated. The page will now refresh.',
             });
+            router.refresh();
         } else {
             toast({
                 title: 'Reconciliation Failed',
@@ -107,6 +110,7 @@ export function IntegrationsClientPage() {
     const [isAmazonModalOpen, setIsAmazonModalOpen] = useState(false);
     const { toast } = useToast();
     const queryClient = useQueryClient();
+    const router = useRouter();
 
     const { integrations, loading, error } = useIntegrations();
     
@@ -132,6 +136,14 @@ export function IntegrationsClientPage() {
             );
             toast({ title: 'Sync Started', description: 'Your data will be updated shortly.'});
             return { previousIntegrations };
+        },
+        onSuccess: () => {
+            toast({
+                title: 'Sync Complete!',
+                description: 'Your data has been updated. The page will now refresh.',
+            });
+            // After a successful sync, refresh server components to show new data
+            router.refresh();
         },
         onError: (err, _variables, context) => {
             // Rollback on error
