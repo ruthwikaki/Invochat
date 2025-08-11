@@ -195,25 +195,25 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
 }
 
 export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
-    const supabase = getServiceRoleClient();
-    try {
-        const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days }).returns<DashboardMetrics>().single();
-        if (error) {
-            logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
-            throw new Error('Could not retrieve dashboard metrics from the database.');
-        }
-        // If data is null (e.g., new user with no data), return a valid empty object.
-        if (data == null) {
-            logger.warn('[RPC] get_dashboard_metrics returned null, returning default empty metrics.');
-            return DashboardMetricsSchema.parse({}); 
-        }
-        return DashboardMetricsSchema.parse(data);
-    } catch (e) {
-        logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-        // Return a schema-compliant empty object on any failure
-        return DashboardMetricsSchema.parse({});
-    }
+  const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
+  const supabase = getServiceRoleClient();
+  try {
+      const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days }).single();
+      if (error) {
+          logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
+          throw new Error('Could not retrieve dashboard metrics from the database.');
+      }
+      // If data is null (e.g., new user with no data), return a valid empty object.
+      if (data == null) {
+          logger.warn('[RPC] get_dashboard_metrics returned null, returning default empty metrics.');
+          return DashboardMetricsSchema.parse({}); 
+      }
+      return DashboardMetricsSchema.parse(data);
+  } catch (e) {
+      logError(e, { context: 'getDashboardMetrics failed', companyId, period });
+      // Return a schema-compliant empty object on any failure
+      return DashboardMetricsSchema.parse({});
+  }
 }
 
 
@@ -407,11 +407,13 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
         return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
     }
     
-    const deadStockItems = DeadStockItemSchema.array().parse(data || []);
-    
-    const totalValue = deadStockItems.reduce((sum, item) => sum + item.total_value, 0);
+    // The new function returns a single JSONB object, not an array of items.
+    const reportData = data || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
+
+    const deadStockItems = DeadStockItemSchema.array().parse(reportData.deadStockItems || []);
+    const totalValue = reportData.totalValue || 0;
     const totalUnits = deadStockItems.reduce((sum, item) => sum + item.quantity, 0);
-    
+
     return { deadStockItems, totalValue, totalUnits };
 }
 
@@ -594,8 +596,7 @@ export async function createExportJobInDb(companyId: string, userId: string) {
 export async function refreshMaterializedViews(companyId: string) {
     if (!z.string().uuid().safeParse(companyId).success) return;
     logger.info(`[DB] Refreshing materialized views for company ${companyId}`);
-    const supabase = getServiceRoleClient();
-    const { error } = await supabase.rpc('refresh_all_matviews', { p_company_id: companyId });
+    const { error } = await getServiceRoleClient().rpc('refresh_all_matviews', { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'Failed to refresh materialized views', companyId });
     } else {
@@ -908,3 +909,22 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     
     return data;
 }
+
+```
+- src/app/(app)/customers/page.tsx
+- src/app/(app)/sales/sales-client-page.tsx
+- src/services/database.ts
+- src/app/(app)/dashboard/dashboard-client-page.tsx
+- src/tests/unit/services/database.test.ts
+- src/app/(app)/sales/page.tsx
+- src/app/(app)/dashboard/top-products-card.tsx
+- src/tests/dashboard.spec.ts
+- src/tests/unit/components/reorder-client-page.spec.tsx
+- src/app/(app)/analytics/reordering/reorder-client-page.tsx
+- src/tests/unit/components/reorder-client-page.test.tsx
+- src/app/(app)/analytics/reordering/actions.ts
+- src/app/(app)/purchase-orders/purchase-orders-client-page.tsx
+- src/types/index.ts
+- src/tests/customers.spec.ts
+- src/components/customers/customers-client-page.tsx
+```
