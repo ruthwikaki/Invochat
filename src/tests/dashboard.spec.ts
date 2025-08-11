@@ -9,24 +9,9 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 // Helper function to perform login
 async function login(page: Page) {
     await page.goto('/login');
-    
-    // Wait for the page to be fully loaded
-    await page.waitForLoadState('networkidle');
-    
-    // Make sure the form is ready
-    await page.waitForSelector('input[name="email"]', { state: 'visible' });
-    await page.waitForSelector('input[name="password"]', { state: 'visible' });
-    await page.waitForSelector('button[type="submit"]', { state: 'visible' });
-    
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
-    
-    // Small delay to ensure form is filled
-    await page.waitForTimeout(500);
-    
     await page.click('button[type="submit"]');
-    
-    // Wait for navigation with a longer timeout
     await page.waitForURL('/dashboard', { timeout: 60000 });
 }
 
