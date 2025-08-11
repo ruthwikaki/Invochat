@@ -12,6 +12,7 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 60000 });
+    await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 15000 });
 }
 
 test.describe('Sales Page', () => {
@@ -44,17 +45,22 @@ test.describe('Sales Page', () => {
       console.log('Skipping filter test, no sales data available.');
       return;
     }
-
-    await page.fill('input[placeholder*="Search by order number"]', 'FBA-SIM-ORD');
     
-    const tableBody = page.locator('table > tbody');
+    const salesTable = page.getByTestId('sales-table');
+    const firstRowText = await salesTable.locator('tbody tr').first().innerText();
+    const inferredOrder = (firstRowText.match(/ORD-\w+-\d+/)?.[0]);
+    expect(inferredOrder).toBeDefined();
+
+    await page.getByTestId('sales-search').fill(inferredOrder!.slice(0, 8));
+    
+    const tableBody = salesTable.locator('tbody');
     await expect(tableBody.locator('tr').first().or(page.getByText('No matching results'))).toBeVisible();
     
     if (await tableBody.locator('tr').first().isVisible()) {
-        await expect(tableBody.locator('tr').first()).toContainText('FBA-SIM-ORD');
+        await expect(tableBody.locator('tr').first()).toContainText(inferredOrder!.slice(0, 8));
     }
     
-    await page.fill('input[placeholder*="Search by order number"]', 'NONEXISTENT_ORDER_12345');
+    await page.getByTestId('sales-search').fill('NONEXISTENT_ORDER_12345');
     await expect(page.getByText('No sales orders found matching your search.')).toBeVisible();
   });
 });

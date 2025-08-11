@@ -29,7 +29,7 @@ export const QuickActions = () => {
                 <Upload className="h-5 w-5" />
                 <span>Import Data</span>
             </Button>
-            <Button variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => router.push('/chat')}>
+            <Button data-testid="ask-ai-button" variant="outline" className="h-auto flex-col gap-2 p-4" onClick={() => router.push('/chat')}>
                 <MessageSquare className="h-5 w-5" />
                 <span>Ask AI</span>
             </Button>

@@ -138,6 +138,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                 <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
+                        data-testid="sales-search"
                         placeholder="Search by order number or customer email..."
                         onChange={(e) => handleSearch(e.target.value)}
                         defaultValue={searchQuery}
@@ -147,7 +148,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
             </CardHeader>
             <CardContent className="p-0">
                 <div className="max-h-[65vh] overflow-auto">
-                    <Table>
+                    <Table data-testid="sales-table">
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                         <TableRow>
                             <TableHead>Order #</TableHead>
@@ -168,7 +169,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                             <TableRow key={order.id}>
                                 <TableCell className="font-medium">{order.order_number}</TableCell>
                                 <TableCell>{format(new Date(order.created_at), 'MMM d, yyyy')}</TableCell>
-                                <TableCell>{order.customer_id || 'N/A'}</TableCell>
+                                <TableCell>N/A</TableCell>
                                 <TableCell>
                                     <Badge variant={order.financial_status === 'paid' ? 'secondary' : 'outline'}>{order.financial_status || 'N/A'}</Badge>
                                 </TableCell>
@@ -184,7 +185,3 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
     </div>
   );
 }
-
-    
-
-

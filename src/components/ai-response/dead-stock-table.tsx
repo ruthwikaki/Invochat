@@ -32,7 +32,7 @@ export function DeadStockTable({ data }: DeadStockTableProps) {
   }
 
   return (
-    <Card>
+    <Card data-testid="dead-stock-table">
         <CardHeader>
             <CardTitle className="flex items-center gap-2">
                 <TrendingDown className="h-5 w-5 text-destructive" />
