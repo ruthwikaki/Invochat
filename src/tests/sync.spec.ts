@@ -25,6 +25,7 @@ test.describe('Data Synchronization Service', () => {
                 'x-shopify-hmac-sha256': hmac,
                 'x-shopify-request-timestamp': String(Math.floor(Date.now() / 1000)),
                 'x-shopify-shop-domain': 'test-shop.myshopify.com',
+                'Content-Type': 'application/json',
             },
             data: requestBody
         });

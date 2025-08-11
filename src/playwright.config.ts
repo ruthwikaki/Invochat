@@ -1,6 +1,12 @@
-
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
 import path from 'path';
+
+// Load your local environment variables
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: path.resolve(__dirname, '.env') });
+}
+
 
 /**
  * @see https://playwright.dev/docs/test-configuration
@@ -44,5 +50,13 @@ export default defineConfig({
     command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+    env: {
+        NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        MOCK_AI: 'true',
+        SHOPIFY_WEBHOOK_SECRET: 'test_secret_for_ci',
+    }
   },
 });
