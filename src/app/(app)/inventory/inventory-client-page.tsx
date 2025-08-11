@@ -19,7 +19,7 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useTableState } from '@/hooks/use-table-state';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
@@ -160,6 +160,8 @@ const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }
 export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const {
       searchQuery,
@@ -171,16 +173,14 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
       handlePageChange
   } = useTableState<SortableColumn>({ defaultSortColumn: 'product_title' });
 
-  const router = useRouter();
-
   const handleStatusChange = (newStatus: string) => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     params.set('status', newStatus);
     params.set('page', '1');
-    router.replace(`${window.location.pathname}?${params.toString()}`);
+    router.replace(`?${params.toString()}`);
   };
 
-  const status = new URLSearchParams(window.location.search).get('status') || 'all';
+  const status = searchParams.get('status') || 'all';
 
   const toggleExpandProduct = (productId: string) => {
     setExpandedProducts(prev => {

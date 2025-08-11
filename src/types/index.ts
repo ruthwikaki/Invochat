@@ -61,7 +61,7 @@ export const ProductVariantSchema = z.object({
   updated_at: z.string().datetime({ offset: true }).nullable(),
   reorder_point: z.number().int().nullable(),
   reorder_quantity: z.number().int().nullable(),
-  supplier_id: z.string().uuid().nullable(),
+  supplier_id: z.string().uuid().nullable().optional(),
 });
 export type ProductVariant = z.infer<typeof ProductVariantSchema>;
 
