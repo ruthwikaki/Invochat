@@ -538,7 +538,7 @@ export const AuditLogEntrySchema = z.object({
 });
 export type AuditLogEntry = z.infer<typeof AuditLogEntrySchema>;
 
-export const FeedbackSchema = z.object({
+export const FeedbackWithMessagesSchema = z.object({
     id: z.string().uuid(),
     created_at: z.string().datetime({ offset: true }),
     feedback: z.enum(['helpful', 'unhelpful']),
@@ -546,4 +546,6 @@ export const FeedbackSchema = z.object({
     user_message_content: z.string().nullable(),
     assistant_message_content: z.string().nullable(),
 });
-export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
+export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
+
+    

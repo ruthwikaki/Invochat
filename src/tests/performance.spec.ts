@@ -29,7 +29,7 @@ test.describe('Performance Benchmarks', () => {
     const startTime = Date.now();
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 20000 });
+    await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 20000 });
     const loadTime = Date.now() - startTime;
 
     console.log(`Dashboard load time: ${loadTime}ms`);
@@ -43,7 +43,7 @@ test.describe('Performance Benchmarks', () => {
     await page.goto('/inventory');
     await page.waitForURL('/inventory');
     
-    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('status=all'));
+    const inventoryPromise = page.waitForResponse(resp => resp.url().includes('/api/inventory'));
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
     
     const response = await inventoryPromise;
@@ -77,3 +77,5 @@ test.describe('Performance Benchmarks', () => {
   });
 
 });
+
+    
