@@ -4,6 +4,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
 import { getAuthedRequest } from './api/api-helpers';
+import * as crypto from 'crypto';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
 
@@ -31,8 +32,8 @@ test.describe('AI Chat Interface', () => {
 
         const response = await authedRequest.post('/api/chat/message', {
             data: {
-              conversationId: null,
               content: "What is my most profitable item?",
+              conversationId: null,
             }
         });
 

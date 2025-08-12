@@ -1,6 +1,7 @@
 
 import { test, expect } from '@playwright/test';
 import { getAuthedRequest } from './api-helpers';
+import * as crypto from 'crypto';
 
 test.describe('Chat API', () => {
 
@@ -8,8 +9,8 @@ test.describe('Chat API', () => {
     const authedRequest = await getAuthedRequest(request);
     const response = await authedRequest.post('/api/chat/message', {
       data: {
-        conversationId: null,
-        content: "What is my most profitable item?",
+        content: "What is my most profitable item?", // Corrected from 'message'
+        conversationId: null, // Allow the backend to create a new one
       }
     });
 
