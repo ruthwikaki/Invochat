@@ -38,13 +38,13 @@ test.describe('Inventory Page', () => {
 
   test('should filter inventory by name', async ({ page }) => {
     // This test assumes a known product exists in the test data
-    await page.getByTestId('inventory-search').fill('Product');
+    await page.getByTestId('inventory-search').fill('4K Smart TV');
     
     // Check that only rows with the search term are visible
     const firstRow = page.getByTestId('inventory-table').locator('tbody tr').first();
     await expect(firstRow.or(page.getByText('No inventory found'))).toBeVisible();
     if (await firstRow.isVisible()) {
-      await expect(firstRow).toContainText(/Product/i);
+      await expect(firstRow).toContainText(/4K Smart TV/i);
     }
     
     // Clear the search and verify more data appears if it exists
@@ -74,12 +74,11 @@ test.describe('Inventory Page', () => {
   });
 
   test('should trigger a file download when Export is clicked', async ({ page }) => {
-    const responsePromise = page.waitForResponse(resp => resp.url().includes('/inventory/export') && resp.status() === 200);
     
+    const downloadPromise = page.waitForEvent('download');
     await page.getByTestId('inventory-export').click();
+    const download = await downloadPromise;
     
-    const response = await responsePromise;
-    
-    expect(response.headers()['content-disposition']).toContain('attachment');
+    expect(download.suggestedFilename()).toContain('inventory-export');
   });
 });
