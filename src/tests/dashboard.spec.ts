@@ -88,4 +88,3 @@ test.describe('Dashboard Page', () => {
         expect(inventoryValueCents).toBeGreaterThanOrEqual(0);
     });
 });
-

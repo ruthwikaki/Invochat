@@ -1,6 +1,7 @@
 // src/lib/api-auth.ts
 import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import type { User } from '@/types';
 
 export class ApiError extends Error {
   status: number;
@@ -37,7 +38,7 @@ export function makeSupabaseForReq(req: NextRequest) {
   );
 }
 
-export async function requireUser(req: NextRequest) {
+export async function requireUser(req: NextRequest): Promise<{ supabase: any; user: User }> {
   const supabase = makeSupabaseForReq(req);
   const bearer = getBearer(req);
 
@@ -46,7 +47,7 @@ export async function requireUser(req: NextRequest) {
     : await supabase.auth.getUser();
 
   if (error || !data?.user) throw new ApiError(401, 'Unauthorized');
-  return { supabase, user: data.user };
+  return { supabase, user: data.user as User };
 }
 
 export function requireCompanyId(user: any) {

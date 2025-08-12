@@ -157,7 +157,6 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
   } = useTableState({ defaultSortColumn: 'created_at' });
   
   const showEmptyState = totalCount === 0 && !searchQuery;
-  const showNoResultsState = totalCount === 0 && searchQuery;
 
   const handleDelete = () => {
     if (!customerToDelete || !csrfToken) {
@@ -230,7 +229,7 @@ export function CustomersClientPage({ initialCustomers, totalCount, itemsPerPage
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {showNoResultsState ? (
+                        {initialCustomers.length === 0 ? (
                             <TableRow>
                             <TableCell colSpan={4} className="h-24 text-center">
                                 No customers found matching your search.
