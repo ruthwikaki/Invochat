@@ -3,9 +3,10 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
+import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema } from '@/types';
 import { ReorderSuggestionSchema } from '@/schemas/reorder';
+import { SupplierSchema, SuppliersArraySchema, type Supplier, type SupplierFormData, SupplierFormSchema } from '@/schemas/suppliers';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -251,7 +252,7 @@ export async function getSuppliersDataFromDB(companyId: string): Promise<Supplie
             logError(error, { context: 'getSuppliersDataFromDB failed', companyId });
             throw new Error('Failed to retrieve suppliers');
         }
-        return z.array(SupplierSchema).parse(data || []);
+        return SuppliersArraySchema.parse(data || []);
     } catch (error) {
         logError(error, { context: 'getSuppliersDataFromDB unexpected error', companyId });
         throw error;
@@ -916,5 +917,3 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     
     return data;
 }
-
-    
