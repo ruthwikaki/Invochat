@@ -130,23 +130,18 @@ export const getReorderSuggestions = ai.defineTool(
 
         const mergedSuggestions = baseSuggestions.map(base => {
             const refinement = refinedSuggestionsMap.get(base.sku);
-            if (refinement) {
-                return {
-                    ...base,
-                    base_quantity: base.suggested_reorder_quantity,
-                    suggested_reorder_quantity: refinement.suggested_reorder_quantity,
-                    adjustment_reason: refinement.adjustment_reason,
-                    seasonality_factor: refinement.seasonality_factor,
-                    confidence: refinement.confidence,
-                };
-            }
-            // If no refinement, return the base suggestion with default values
+            const seasonality = refinement?.seasonality_factor ?? 1;
+            const confidence = refinement?.confidence ?? 0.5;
+            const reason = refinement?.adjustment_reason ?? "Using baseline heuristic.";
+            const rawQty = Math.round(
+                (refinement?.suggested_reorder_quantity ?? base.suggested_reorder_quantity) * seasonality
+            );
             return {
                 ...base,
-                base_quantity: base.suggested_reorder_quantity,
-                adjustment_reason: 'No AI adjustment was made.',
-                seasonality_factor: 1.0,
-                confidence: 0.5,
+                suggested_reorder_quantity: rawQty,
+                seasonality_factor: seasonality,
+                confidence,
+                adjustment_reason: reason,
             };
         });
         
@@ -172,5 +167,3 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
-
-    
