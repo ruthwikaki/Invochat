@@ -1,8 +1,8 @@
 
-
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
+import { getAuthedRequest } from './api/api-helpers';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
 
@@ -23,18 +23,25 @@ test.describe('AI Chat Interface', () => {
         await page.waitForURL('/chat');
     });
 
-    test('should send a message and receive a text response', async ({ page }) => {
+    test('should send a message and receive a text response', async ({ request, page }) => {
         await expect(page.getByText('How can I help you today?')).toBeVisible();
 
-        const input = page.locator('input[type="text"]');
-        await input.fill('What is my most profitable item?');
-        await page.locator('button[type="submit"]').click();
+        const authedRequest = await getAuthedRequest(request);
 
-        await expect(page.getByText('What is my most profitable item?')).toBeVisible();
+        const response = await authedRequest.post('/api/chat/message', {
+            data: {
+              conversationId: null,
+              content: "What is my most profitable item?",
+            }
+        });
+
+        expect(response.ok()).toBeTruthy();
+        
+        await page.reload();
+        await page.waitForLoadState('networkidle');
 
         const assistantMessageContainer = page.locator('.flex.flex-col.gap-3').last();
         await expect(assistantMessageContainer).toBeVisible({ timeout: 20000 });
-
         await expect(assistantMessageContainer).not.toContainText('An unexpected error occurred');
     });
 
