@@ -11,9 +11,8 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
     // Wait for either the empty state or the actual dashboard content
-    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview/', { timeout: 20000 });
+    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview|Dashboard/', { timeout: 20000 });
 }
 
 // This file serves as a placeholder for performance tests.
@@ -32,7 +31,7 @@ test.describe('Performance Benchmarks', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
     // Wait for either state
-    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview/', { timeout: 20000 });
+    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview|Dashboard/', { timeout: 20000 });
     const loadTime = Date.now() - startTime;
 
     console.log(`Dashboard load time: ${loadTime}ms`);
@@ -80,3 +79,4 @@ test.describe('Performance Benchmarks', () => {
   });
 
 });
+

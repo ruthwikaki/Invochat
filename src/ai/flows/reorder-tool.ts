@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
-import type { ReorderSuggestion } from '@/types';
+import type { ReorderSuggestion } from '@/schemas/reorder';
 import { EnhancedReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/schemas/reorder';
 import { config } from '@/config/app-config';
 
@@ -164,3 +164,4 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
