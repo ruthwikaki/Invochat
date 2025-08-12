@@ -13,8 +13,8 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    // Wait for either the empty state or the actual dashboard content
-    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview|Dashboard/', { timeout: 20000 });
+    await page.waitForURL('/dashboard', { timeout: 30000 });
+    await page.waitForLoadState('networkidle');
 }
 
 // Helper function to calculate expected dead stock value from the database
@@ -81,4 +81,3 @@ test.describe('Business Logic & Analytics Validation', () => {
   });
 
 });
-

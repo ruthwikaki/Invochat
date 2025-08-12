@@ -622,6 +622,16 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
     return data || [];
 }
 
+export async function getHistoricalSalesForSkus(
+  companyId: string, 
+  skus: string[]
+): Promise<any[]> {
+  const results = await Promise.all(
+    skus.map(sku => getHistoricalSalesForSingleSkuFromDB(companyId, sku))
+  );
+  return results.filter(r => r !== null);
+}
+
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(integrationId).success || !z.string().uuid().safeParse(userId).success) throw new Error('Invalid ID format');
     const supabase = getServiceRoleClient();
