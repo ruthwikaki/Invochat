@@ -1,8 +1,11 @@
 
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
-import type { ReorderSuggestion, ReorderSuggestionBase } from '@/schemas/reorder';
+import type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, EnhancedReorderSuggestionSchema } from '@/schemas/reorder';
+import type { Supplier, SupplierFormData } from '@/schemas/suppliers';
+
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -139,20 +142,6 @@ export const CustomerSchema = z.object({
   created_at: z.string().datetime({ offset: true }),
 }).passthrough();
 export type Customer = z.infer<typeof CustomerSchema>;
-
-
-export const SupplierSchema = z.object({
-    id: z.string().uuid(),
-    name: z.string().min(1),
-    email: z.string().email().nullable(),
-    phone: z.string().nullable(),
-    default_lead_time_days: z.number().int().nullable(),
-    notes: z.string().nullable(),
-    created_at: z.string().datetime({ offset: true }),
-    updated_at: z.string().datetime({ offset: true }).optional().nullable(),
-    company_id: z.string().uuid(),
-});
-export type Supplier = z.infer<typeof SupplierSchema>;
 
 export const PurchaseOrderLineItemSchema = z.object({
   id: z.string().uuid(),
@@ -295,24 +284,8 @@ export const MessageSchema = z.object({
 });
 export type Message = z.infer<typeof MessageSchema>;
 
-
-export const SupplierFormSchema = z.object({
-    name: z.string().min(2, "Supplier name must be at least 2 characters."),
-    email: z.string().email({ message: "Please enter a valid email address."}).nullable().optional().or(z.literal('')),
-    phone: z.string().optional().nullable(),
-    default_lead_time_days: z.coerce.number().int().optional().nullable(),
-    notes: z.string().optional().nullable(),
-});
-export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
-
-export const ProductUpdateSchema = z.object({
-  title: z.string().min(1, 'Product Title is required.'),
-  product_type: z.string().optional().nullable(),
-});
-export type ProductUpdateData = z.infer<typeof ProductUpdateSchema>;
-
-
-export type { ReorderSuggestion, ReorderSuggestionBase };
+export type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier, SupplierFormData };
+export { ReorderSuggestionSchema, EnhancedReorderSuggestionSchema };
 
 
 export const InventoryAgingReportItemSchema = z.object({
@@ -393,7 +366,7 @@ export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int().default(0),
     total_orders: z.number().int().default(0),
     average_order_value: z.number().default(0),
-}).passthrough();
+}).passthrough().optional();
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
 export const InventoryAnalyticsSchema = z.object({

@@ -26,7 +26,7 @@ test.describe('Supplier Management', () => {
 
   test('should create, update, and delete a supplier', async ({ page }) => {
     // 1. Create a new supplier
-    await page.click('a[href="/suppliers/new"]');
+    await page.getByRole('link', { name: 'Add Supplier' }).click();
     await page.waitForURL('/suppliers/new');
     await expect(page.getByText('Add New Supplier')).toBeVisible();
 

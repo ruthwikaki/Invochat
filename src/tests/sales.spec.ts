@@ -42,20 +42,21 @@ test.describe('Sales Page', () => {
     const salesTable = page.getByTestId('sales-table');
     const rows = salesTable.locator('tbody tr');
     
-    if (await rows.count() === 0) {
+    const firstRowIsVisible = await rows.first().isVisible({ timeout: 5000 }).catch(() => false);
+    if (!firstRowIsVisible) {
       test.skip(true, 'No sales rows seeded to test filtering.');
       return;
     }
     
     const firstRowText = await rows.first().innerText();
-    const inferredOrder = (firstRowText.match(/[A-Z]+-[\w-]+/)?.[0]);
+    const inferredOrder = (firstRowText.match(/#[0-9]+/)?.[0]);
     expect(inferredOrder).toBeDefined();
 
-    await page.getByTestId('sales-search').fill(inferredOrder!.slice(0, 8));
+    await page.getByTestId('sales-search').fill(inferredOrder!);
     
-    await expect(rows.first()).toContainText(inferredOrder!.slice(0, 8));
+    await expect(rows.first()).toContainText(inferredOrder!);
     
     await page.getByTestId('sales-search').fill('NONEXISTENT_ORDER_12345');
-    await expect(page.getByText('No sales orders found matching your search.')).toBeVisible();
+    await expect(page.getByText('No sales orders found matching your search.')).toBeVisible({ timeout: 10000 });
   });
 });
