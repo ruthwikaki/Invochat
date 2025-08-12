@@ -252,7 +252,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
                 visualization: { type: 'none', title: '', data: [] },
                 confidence: 0.0,
                 assumptions: ['The AI service is unavailable.'],
-                isError: true,
+                is_error: true,
             };
         }
 
@@ -262,7 +262,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
             visualization: { type: 'none', title: '', data: [] },
             confidence: 0.0,
             assumptions: ['An unexpected error occurred in the AI processing flow.'],
-            isError: true,
+            is_error: true,
         };
     }
   }

@@ -10,6 +10,38 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      alert_history: {
+        Row: {
+          alert_id: string
+          company_id: string
+          dismissed_at: string | null
+          read_at: string | null
+          status: string
+        }
+        Insert: {
+          alert_id: string
+          company_id: string
+          dismissed_at?: string | null
+          read_at?: string | null
+          status: string
+        }
+        Update: {
+          alert_id?: string
+          company_id?: string
+          dismissed_at?: string | null
+          read_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -121,6 +153,7 @@ export interface Database {
       }
       company_settings: {
         Row: {
+          alert_settings: Json | null
           company_id: string
           created_at: string
           currency: string
@@ -134,6 +167,7 @@ export interface Database {
           updated_at: string | null
         }
         Insert: {
+          alert_settings?: Json | null
           company_id: string
           created_at?: string
           currency?: string
@@ -147,6 +181,7 @@ export interface Database {
           updated_at?: string | null
         }
         Update: {
+          alert_settings?: Json | null
           company_id?: string
           created_at?: string
           currency?: string
@@ -553,13 +588,13 @@ export interface Database {
           assumptions: string[] | null
           company_id: string
           component: string | null
-          componentProps: Json | null
+          component_props: Json | null
           confidence: number | null
           content: string
           conversation_id: string
           created_at: string
           id: string
-          isError: boolean | null
+          is_error: boolean | null
           role: Database["public"]["Enums"]["message_role"]
           visualization: Json | null
         }
@@ -567,13 +602,13 @@ export interface Database {
           assumptions?: string[] | null
           company_id: string
           component?: string | null
-          componentProps?: Json | null
+          component_props?: Json | null
           confidence?: number | null
           content: string
           conversation_id: string
           created_at?: string
           id?: string
-          isError?: boolean | null
+          is_error?: boolean | null
           role: Database["public"]["Enums"]["message_role"]
           visualization?: Json | null
         }
@@ -581,13 +616,13 @@ export interface Database {
           assumptions?: string[] | null
           company_id?: string
           component?: string | null
-          componentProps?: Json | null
+          component_props?: Json | null
           confidence?: number | null
           content?: string
           conversation_id?: string
           created_at?: string
           id?: string
-          isError?: boolean | null
+          is_error?: boolean | null
           role?: Database["public"]["Enums"]["message_role"]
           visualization?: Json | null
         }
@@ -613,6 +648,7 @@ export interface Database {
           company_id: string
           cost_at_time: number | null
           external_line_item_id: string | null
+          fulfillment_status: string | null
           id: string
           order_id: string
           price: number
@@ -628,6 +664,7 @@ export interface Database {
           company_id: string
           cost_at_time?: number | null
           external_line_item_id?: string | null
+          fulfillment_status?: string | null
           id?: string
           order_id: string
           price: number
@@ -643,6 +680,7 @@ export interface Database {
           company_id?: string
           cost_at_time?: number | null
           external_line_item_id?: string | null
+          fulfillment_status?: string | null
           id?: string
           order_id?: string
           price?: number
@@ -757,9 +795,12 @@ export interface Database {
           compare_at_price: number | null
           cost: number | null
           created_at: string
+          deleted_at: string | null
           external_variant_id: string | null
           id: string
+          in_transit_quantity: number
           inventory_quantity: number
+          lead_time_days: number | null
           location: string | null
           option1_name: string | null
           option1_value: string | null
@@ -771,10 +812,12 @@ export interface Database {
           product_id: string
           reorder_point: number | null
           reorder_quantity: number | null
+          reserved_quantity: number
           sku: string
           supplier_id: string | null
           title: string | null
           updated_at: string | null
+          version: number
         }
         Insert: {
           barcode?: string | null
@@ -782,9 +825,12 @@ export interface Database {
           compare_at_price?: number | null
           cost?: number | null
           created_at?: string
+          deleted_at?: string | null
           external_variant_id?: string | null
           id?: string
+          in_transit_quantity?: number
           inventory_quantity?: number
+          lead_time_days?: number | null
           location?: string | null
           option1_name?: string | null
           option1_value?: string | null
@@ -796,10 +842,12 @@ export interface Database {
           product_id: string
           reorder_point?: number | null
           reorder_quantity?: number | null
+          reserved_quantity?: number
           sku: string
           supplier_id?: string | null
           title?: string | null
           updated_at?: string | null
+          version?: number
         }
         Update: {
           barcode?: string | null
@@ -807,9 +855,12 @@ export interface Database {
           compare_at_price?: number | null
           cost?: number | null
           created_at?: string
+          deleted_at?: string | null
           external_variant_id?: string | null
           id?: string
+          in_transit_quantity?: number
           inventory_quantity?: number
+          lead_time_days?: number | null
           location?: string | null
           option1_name?: string | null
           option1_value?: string | null
@@ -821,10 +872,12 @@ export interface Database {
           product_id?: string
           reorder_point?: number | null
           reorder_quantity?: number | null
+          reserved_quantity?: number
           sku?: string
           supplier_id?: string | null
           title?: string | null
           updated_at?: string | null
+          version?: number
         }
         Relationships: [
           {
@@ -854,6 +907,7 @@ export interface Database {
         Row: {
           company_id: string
           created_at: string
+          deleted_at: string | null
           description: string | null
           external_product_id: string | null
           handle: string | null
@@ -864,10 +918,12 @@ export interface Database {
           tags: string[] | null
           title: string
           updated_at: string | null
+          version: number
         }
         Insert: {
           company_id: string
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           external_product_id?: string | null
           handle?: string | null
@@ -878,10 +934,12 @@ export interface Database {
           tags?: string[] | null
           title: string
           updated_at?: string | null
+          version?: number
         }
         Update: {
           company_id?: string
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           external_product_id?: string | null
           handle?: string | null
@@ -892,6 +950,7 @@ export interface Database {
           tags?: string[] | null
           title?: string
           updated_at?: string | null
+          version?: number
         }
         Relationships: [
           {
@@ -1148,6 +1207,25 @@ export interface Database {
       }
     }
     Views: {
+      audit_log_view: {
+        Row: {
+          action: string | null
+          company_id: string | null
+          created_at: string | null
+          details: Json | null
+          id: string | null
+          user_email: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       customers_view: {
         Row: {
           company_id: string | null
@@ -1162,6 +1240,26 @@ export interface Database {
         Relationships: [
           {
             foreignKeyName: "customers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      feedback_view: {
+        Row: {
+          assistant_message_content: string | null
+          company_id: string | null
+          created_at: string | null
+          feedback: Database["public"]["Enums"]["feedback_type"] | null
+          id: string | null
+          user_email: string | null
+          user_message_content: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -1260,8 +1358,41 @@ export interface Database {
           }
         ]
       }
+      purchase_orders_view: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          expected_arrival_date: string | null
+          id: string | null
+          line_items: Json | null
+          notes: string | null
+          po_number: string | null
+          status: string | null
+          supplier_name: string | null
+          total_cost: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Functions: {
+      adjust_inventory_quantity: {
+        Args: {
+          p_company_id: string
+          p_variant_id: string
+          p_new_quantity: number
+          p_change_reason: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       check_user_permission: {
         Args: {
           p_user_id: string
@@ -1269,12 +1400,26 @@ export interface Database {
         }
         Returns: boolean
       }
+      create_full_purchase_order: {
+        Args: {
+          p_company_id: string
+          p_user_id: string
+          p_supplier_id: string
+          p_status: string
+          p_notes: string
+          p_expected_arrival: string
+          p_line_items: Json
+        }
+        Returns: {
+          id: string
+          po_number: string
+        }[]
+      }
       create_purchase_orders_from_suggestions: {
         Args: {
           p_company_id: string
           p_user_id: string
           p_suggestions: Json
-          p_idempotency_key: string
         }
         Returns: number
       }
@@ -1290,11 +1435,23 @@ export interface Database {
           deviation_percentage: number
         }[]
       }
-      get_alerts: {
+      forecast_demand: {
         Args: {
           p_company_id: string
         }
-        Returns: Json[]
+        Returns: Json
+      }
+      get_abc_analysis: {
+        Args: {
+          p_company_id: string
+        }
+        Returns: Json
+      }
+      get_alerts_with_status: {
+        Args: {
+          p_company_id: string
+        }
+        Returns: Json
       }
       get_company_id_for_user: {
         Args: {
@@ -1332,13 +1489,22 @@ export interface Database {
         Args: {
           p_company_id: string
         }
-        Returns: {
-          sku: string
-          product_name: string
-          quantity: number
-          total_value: number
-          last_sale_date: string
-        }[]
+        Returns: Json
+      }
+      get_financial_impact_of_promotion: {
+        Args: {
+          p_company_id: string
+          p_skus: string[]
+          p_discount_percentage: number
+          p_duration_days: number
+        }
+        Returns: Json
+      }
+      get_gross_margin_analysis: {
+        Args: {
+          p_company_id: string
+        }
+        Returns: Json
       }
       get_historical_sales_for_sku: {
         Args: {
@@ -1382,25 +1548,30 @@ export interface Database {
         }
         Returns: Json
       }
+      get_margin_trends: {
+        Args: {
+          p_company_id: string
+        }
+        Returns: Json
+      }
+      get_net_margin_by_channel: {
+        Args: {
+          p_company_id: string
+          p_channel_name: string
+        }
+        Returns: Json
+      }
       get_reorder_suggestions: {
         Args: {
           p_company_id: string
         }
-        Returns: {
-          variant_id: string
-          product_id: string
-          sku: string
-          product_name: string
-          supplier_name: string
-          supplier_id: string
-          current_quantity: number
-          suggested_reorder_quantity: number
-          unit_cost: number
-        }[]
+        Returns: Json
       }
-      get_sales_analytics: {
+      get_sales_velocity: {
         Args: {
           p_company_id: string
+          p_days: number
+          p_limit: number
         }
         Returns: Json
       }
@@ -1408,17 +1579,7 @@ export interface Database {
         Args: {
           p_company_id: string
         }
-        Returns: {
-          supplier_name: string
-          total_profit: number
-          total_sales_count: number
-          distinct_products_sold: number
-          average_margin: number
-          sell_through_rate: number
-          on_time_delivery_rate: number
-          average_lead_time_days: number
-          total_completed_orders: number
-        }[]
+        Returns: Json
       }
       get_users_for_company: {
         Args: {
@@ -1430,6 +1591,22 @@ export interface Database {
           role: Database["public"]["Enums"]["company_role"]
         }[]
       }
+      handle_new_user: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          aud: string
+          role: string
+          email: string
+          phone: string
+          app_metadata: Json
+          user_metadata: Json
+          created_at: string
+          updated_at: string
+          identities: Json
+          last_sign_in_at: string
+        }
+      }
       record_order_from_platform: {
         Args: {
           p_company_id: string
@@ -1438,10 +1615,37 @@ export interface Database {
         }
         Returns: string
       }
+      reconcile_inventory_from_integration: {
+        Args: {
+          p_company_id: string
+          p_integration_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      refresh_all_matviews: {
+        Args: {
+          p_company_id: string
+        }
+        Returns: undefined
+      }
       remove_user_from_company: {
         Args: {
           p_user_id: string
           p_company_id: string
+        }
+        Returns: undefined
+      }
+      update_full_purchase_order: {
+        Args: {
+          p_po_id: string
+          p_company_id: string
+          p_user_id: string
+          p_supplier_id: string
+          p_status: string
+          p_notes: string
+          p_expected_arrival: string
+          p_line_items: Json
         }
         Returns: undefined
       }
@@ -1538,7 +1742,7 @@ export type Enums<
     | keyof Database["public"]["Enums"]
     | { schema: keyof Database },
   EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof Database[PublicTableNameOrOptions["schema"]]["Enums"]
     : never = never
 > = PublicEnumNameOrOptions extends { schema: keyof Database }
   ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]

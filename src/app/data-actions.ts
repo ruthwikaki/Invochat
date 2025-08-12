@@ -585,7 +585,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
             customers_change: data.customers_change,
             dead_stock_value: data.dead_stock_value,
             sales_over_time: data.sales_over_time,
-            top_selling_products: data.top_selling_products,
+            top_products: data.top_products,
             inventory_summary: data.inventory_summary,
         };
 
@@ -657,7 +657,7 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
             confidence,
             assumptions,
             created_at,
-            isError
+            is_error
         `)
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
@@ -718,7 +718,8 @@ export async function handleUserMessage(params: { content: string, conversationI
         confidence: aiResponse.confidence,
         assumptions: aiResponse.assumptions,
         component: aiResponse.toolName,
-        component_props: aiResponse.data
+        component_props: aiResponse.data,
+        is_error: aiResponse.is_error,
     }).select(`
       id,
       conversation_id,
@@ -731,7 +732,7 @@ export async function handleUserMessage(params: { content: string, conversationI
       confidence,
       assumptions,
       created_at,
-      isError
+      is_error
     `).single();
     
     if (messageError) throw messageError;
