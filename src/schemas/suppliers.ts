@@ -1,3 +1,4 @@
+
 // src/schemas/suppliers.ts
 import { z } from "zod";
 
@@ -15,7 +16,7 @@ export const SupplierSchema = z.object({
 
 export const SupplierFormSchema = z.object({
     name: z.string().min(2, "Supplier name must be at least 2 characters."),
-    email: z.string().email({ message: "Please enter a valid email address."}).nullable().optional().or(z.literal('')),
+    email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
     phone: z.string().optional().nullable(),
     default_lead_time_days: z.coerce.number().int().optional().nullable(),
     notes: z.string().optional().nullable(),
