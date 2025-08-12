@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
-import type { ReorderSuggestionBase } from '@/types';
+import type { ReorderSuggestionBase } from '@/schemas/reorder';
 import { EnhancedReorderSuggestionSchema } from '@/schemas/reorder';
 import { config } from '@/config/app-config';
 

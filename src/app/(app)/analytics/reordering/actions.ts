@@ -5,7 +5,7 @@ import { getAuthContext } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
-import type { ReorderSuggestion } from '@/types';
+import type { ReorderSuggestion } from '@/schemas/reorder';
 import Papa from 'papaparse';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 

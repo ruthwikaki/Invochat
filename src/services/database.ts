@@ -3,8 +3,9 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, ReorderSuggestionSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestionBase } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema } from '@/types';
+import { ReorderSuggestionSchema } from '@/schemas/reorder';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -380,7 +381,11 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    return SalesAnalyticsSchema.parse(data[0]);
+    // Handle the case where the RPC returns null for a new company with no sales data.
+    if (!data) {
+        return SalesAnalyticsSchema.parse({});
+    }
+    return SalesAnalyticsSchema.parse(data);
 }
 
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
@@ -391,7 +396,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return CustomerAnalyticsSchema.parse(data[0]);
+    return CustomerAnalyticsSchema.parse(data);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -426,7 +431,12 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionBaseSchema).parse(data || []);
+        return z.array(ReorderSuggestionSchema.omit({
+            base_quantity: true,
+            adjustment_reason: true,
+            seasonality_factor: true,
+            confidence: true,
+        })).parse(data || []);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -452,7 +462,7 @@ export async function getInventoryTurnoverFromDB(companyId: string, days: number
         logError(error, { context: 'getInventoryTurnoverFromDB failed, returning null'});
         return null
     };
-    return data[0]; 
+    return data; 
 }
 
 export async function getIntegrationsByCompanyId(companyId: string): Promise<Integration[]> {
