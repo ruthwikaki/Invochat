@@ -1,4 +1,3 @@
-
 // @ts-check
 
 /**
@@ -18,38 +17,35 @@ const nextConfig = defineNextConfig({
   compress: true,
   poweredByHeader: false,
   webpack: (config, { isServer, webpack }) => {
-    // This setting can help resolve strange build issues on Windows,
-    // especially when the project is in a cloud-synced directory like OneDrive.
     config.resolve.symlinks = false;
 
     if (!isServer) {
-        config.resolve.fallback = {
-            ...config.resolve.fallback,
-            fs: false, net: false, tls: false,
-        };
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false, net: false, tls: false,
+      };
 
-        config.plugins.push(
-            new webpack.ContextReplacementPlugin(
-                /@opentelemetry\/instrumentation/,
-                (data) => {
-                    for (const dependency of data.dependencies) {
-                        if (dependency.request === './platform/node') {
-                            dependency.request = './platform/browser';
-                        }
-                    }
-                    return data;
-                }
-            )
-        )
+      config.plugins.push(
+          new webpack.ContextReplacementPlugin(
+              /@opentelemetry\/instrumentation/,
+              (data) => {
+                  for (const dependency of data.dependencies) {
+                      if (dependency.request === './platform/node') {
+                          dependency.request = './platform/browser';
+                      }
+                  }
+                  return data;
+              }
+          )
+      )
     }
 
     config.externals = config.externals || [];
     config.externals.push({
       '@opentelemetry/instrumentation': 'commonjs2 @opentelemetry/instrumentation',
       'require-in-the-middle': 'commonjs2 require-in-the-middle',
-      'handlebars': 'commonjs handlebars',
     });
-    
+
     config.ignoreWarnings = [
       { module: /@supabase\/realtime-js/ },
       { module: /handlebars/, message: /require\.extensions/ },

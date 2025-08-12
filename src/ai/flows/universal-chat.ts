@@ -159,7 +159,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
     try {
         const systemPrompt = {
             role: 'system' as const,
-            content: [{ text: `You are an AI assistant for a business. You must use the companyId provided in the tool arguments when calling any tool.`}]
+            content: [{ text: `You are an AI assistant for a business. The business's companyId is '${companyId}'. You must use this exact companyId when calling any tool that requires it.`}]
         };
 
         const genkitHistory = conversationHistory.map(msg => ({
