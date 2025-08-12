@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -110,7 +111,6 @@ export function AppSidebar() {
             </div>
              <div className="flex items-center gap-1">
                 <AlertCenter />
-                <SidebarTrigger className="md:hidden" />
              </div>
         </div>
       </SidebarHeader>
