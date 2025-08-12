@@ -76,7 +76,7 @@ const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { 
     const changeColor = changeType === 'increase' ? 'text-success' : changeType === 'decrease' ? 'text-destructive' : 'text-muted-foreground';
     
     return (
-        <Card className="relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm">
+        <Card className="card relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm">
             <div className={cn("absolute -top-1/4 -right-1/4 w-1/2 h-1/2 rounded-full opacity-10 blur-3xl", gradient)}></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{title}</CardTitle>

@@ -41,14 +41,12 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
                     </span>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs text-sm">
-                    <p className="font-semibold">AI Analysis:</p>
-                    <p className="mb-2">{suggestion.adjustment_reason}</p>
-                    {suggestion.confidence && (
-                         <p className="text-xs"><strong className={cn(confidenceColor)}>Confidence:</strong> {(suggestion.confidence * 100).toFixed(0)}%</p>
-                    )}
-                    {suggestion.seasonality_factor && (
-                         <p className="text-xs font-tabular"><strong>Seasonality Factor:</strong> {suggestion.seasonality_factor.toFixed(2)}x</p>
-                    )}
+                    <div className="space-y-1 text-xs">
+                        <div className="font-medium">AI Analysis:</div>
+                        <div>{suggestion.adjustment_reason}</div>
+                        <div>Confidence: {Math.round((suggestion.confidence ?? 0) * 100)}%</div>
+                        <div>Seasonality Factor: {(suggestion.seasonality_factor ?? 1).toFixed(2)}x</div>
+                    </div>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>

@@ -55,13 +55,13 @@ function EmptySalesState() {
 }
 
 const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: string, icon: React.ElementType }) => (
-    <Card>
+    <Card className="card">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
             <Icon className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{value}</div>
+            <div className="text-2xl font-semibold">{value}</div>
         </CardContent>
     </Card>
 );
@@ -138,6 +138,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
                 <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
+                        data-testid="sales-search"
                         placeholder="Search by order number or customer email..."
                         onChange={(e) => handleSearch(e.target.value)}
                         defaultValue={searchQuery}
@@ -147,7 +148,7 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
             </CardHeader>
             <CardContent className="p-0">
                 <div className="max-h-[65vh] overflow-auto">
-                    <Table>
+                    <Table data-testid="sales-table">
                         <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                         <TableRow>
                             <TableHead>Order #</TableHead>
