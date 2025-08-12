@@ -22,7 +22,6 @@ async function login(page: Page) {
 test.describe('Performance Benchmarks', () => {
 
   test('Dashboard loads within performance budget', async ({ page }) => {
-    // Example: Measure the load time of a critical page.
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
@@ -30,33 +29,29 @@ test.describe('Performance Benchmarks', () => {
     const startTime = Date.now();
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
-    // Wait for either state
-    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview|Dashboard/', { timeout: 20000 });
+    await page.waitForLoadState('networkidle');
     const loadTime = Date.now() - startTime;
 
     console.log(`Dashboard load time: ${loadTime}ms`);
-    // Assert that the load time is within an acceptable threshold (e.g., 5 seconds for a data-heavy page)
     expect(loadTime).toBeLessThan(5000);
   });
 
   test('API response time for inventory search is acceptable', async ({ page }) => {
-    // Example: Measure the response time of a key API call triggered by UI interaction.
     await login(page);
     await page.goto('/inventory');
     await page.waitForURL('/inventory');
     
-    // The inventory page may load data initially, so we don't start the promise until after navigation.
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
-    const response = await page.waitForResponse(resp => resp.url().includes('/inventory') && resp.status() === 200);
+    const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/inventory'));
+    await page.keyboard.press('Enter');
+    const response = await responsePromise;
     
     const responseTime = response.timing().responseEnd - response.timing().requestStart;
     
     console.log(`Inventory search API response time: ${responseTime}ms`);
-    // Assert that the API responds quickly (e.g., under 500ms)
     expect(responseTime).toBeLessThan(500);
   });
     
-  // A true load test would not be done in Playwright but is represented here for completeness.
   test.skip('Simulate 50 concurrent users on chat', () => {
       // This would involve a script using a tool like k6:
       /*

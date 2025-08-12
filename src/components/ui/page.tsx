@@ -2,7 +2,6 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { SidebarTrigger } from './sidebar';
 import type { ReactNode } from 'react';
 
 /**
@@ -31,7 +30,6 @@ export function AppPageHeader({
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex items-center gap-2 flex-1">
-            <SidebarTrigger className="md:hidden" />
             <div className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight lg:text-3xl">{title}</h1>
                 {description && <p className="text-sm text-muted-foreground">{description}</p>}

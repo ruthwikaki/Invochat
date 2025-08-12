@@ -27,14 +27,12 @@ test.describe('Sales Page', () => {
     await expect(page.getByText('Total Orders')).toBeVisible();
     await expect(page.getByText('Average Order Value')).toBeVisible();
 
-    // Validate data in analytics cards
     const totalRevenueCard = page.locator('.card', { hasText: 'Total Revenue' });
     const revenueText = await totalRevenueCard.locator('.text-2xl').innerText();
     const revenueValue = parseFloat(revenueText.replace(/[^0-9.-]+/g,""));
     expect(revenueValue).toBeGreaterThanOrEqual(0);
 
     const tableRows = page.getByTestId('sales-table').locator('tbody tr');
-    // Check if there's at least one row, or the "no results" message
     await expect(tableRows.first().or(page.getByText('No sales orders found'))).toBeVisible();
   });
 
@@ -47,8 +45,7 @@ test.describe('Sales Page', () => {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
     
-    // Look for any indication of no results
-    const noResults = await page.locator('text=/No.*found|No.*results|No.*data|Empty/i').isVisible();
+    const noResults = await page.locator('text=/No sales orders found matching your search/i').isVisible();
     expect(noResults).toBeTruthy();
   });
 });

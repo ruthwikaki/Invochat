@@ -25,42 +25,36 @@ test.describe('Inventory Page', () => {
   test('should load inventory analytics and table', async ({ page }) => {
     await page.waitForLoadState('networkidle');
   
-    // Check if page loaded
     const hasInventory = await page.locator('text=/Inventory Management|Products/').isVisible();
     expect(hasInventory).toBeTruthy();
     
-    // Only check values if not empty state
-    const hasEmptyState = await page.locator('text=/Your Inventory is Empty|Import Inventory/').isVisible().catch(() => false);
+    const hasEmptyState = await page.locator('text=/Your Inventory is Empty|Import Inventory/').isVisible({ timeout: 5000 }).catch(() => false);
     if (!hasEmptyState) {
       const valueCard = page.locator('.card').filter({ hasText: /Total.*Value/i });
       if (await valueCard.count() > 0) {
         const valueText = await valueCard.locator('.text-2xl').first().innerText();
-        // Just check it exists, don't validate the value
         expect(valueText).toBeDefined();
       }
     }
   });
 
   test('should filter inventory by name', async ({ page }) => {
-    const searchTerm = 'Test Product';
-    // This test assumes a known product exists in the test data
+    const searchTerm = 'Simulated FBA Product'; 
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill(searchTerm);
     
-    // Check that only rows with the search term are visible
-    const firstRow = page.getByTestId('inventory-table').locator('tbody tr').first();
+    const firstRow = page.locator('table > tbody > tr').first();
     await expect(firstRow.or(page.getByText('No inventory found'))).toBeVisible();
     if (await firstRow.isVisible()) {
       await expect(firstRow).toContainText(new RegExp(searchTerm, 'i'));
     }
     
-    // Clear the search and verify more data appears if it exists
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill('');
-    const firstRowAfterClear = page.getByTestId('inventory-table').locator('tbody tr').first();
+    const firstRowAfterClear = page.locator('table > tbody > tr').first();
     await expect(firstRowAfterClear.or(page.getByText('No inventory found'))).toBeVisible();
   });
 
   test('should expand a product to show variants', async ({ page }) => {
-    const firstRow = page.getByTestId('inventory-table').locator('tbody tr').first();
+    const firstRow = page.locator('table > tbody > tr').first();
     if (!await firstRow.isVisible({timeout: 5000})) {
       console.log('Skipping expand test, no inventory data available.');
       return;
@@ -68,19 +62,16 @@ test.describe('Inventory Page', () => {
     
     const expandButton = firstRow.getByRole('button');
     
-    // Check that variants are initially hidden
-    const variantTable = page.locator('table table'); // Nested table for variants
+    const variantTable = page.locator('table table'); 
     await expect(variantTable).not.toBeVisible();
     
     await expandButton.click();
     
-    // Check that the variant table is now visible
     await expect(variantTable).toBeVisible();
     await expect(variantTable.locator('tbody tr').first().or(page.getByText('No variants'))).toBeVisible();
   });
 
   test('should trigger a file download when Export is clicked', async ({ page }) => {
-    // Start waiting for the download before clicking.
     const downloadPromise = page.waitForEvent('download');
     
     await page.getByTestId('inventory-export').click();
