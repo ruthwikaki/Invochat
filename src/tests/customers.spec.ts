@@ -17,7 +17,6 @@ async function login(page: Page) {
 
 test.describe('Customers Page', () => {
   test.beforeEach(async ({ page }) => {
-    // Assuming login is handled globally or via a stored state
     await login(page);
     await page.goto('/customers');
     await page.waitForURL('/customers');
@@ -27,19 +26,16 @@ test.describe('Customers Page', () => {
     await expect(page.getByText('Total Customers')).toBeVisible();
     await expect(page.getByText('All Customers')).toBeVisible();
 
-    // Validate analytics data
     const totalCustomersCard = page.locator('.card', { hasText: 'Total Customers' });
     const customersText = await totalCustomersCard.locator('.text-2xl').innerText();
     const customersValue = parseInt(customersText.replace(/,/g, ''), 10);
     expect(customersValue).toBeGreaterThanOrEqual(0);
 
-    // Check if the table has rows or shows the empty state
     const tableRows = page.locator('table > tbody > tr');
     await expect(tableRows.first().or(page.getByText('No customers found'))).toBeVisible();
   });
 
   test('should filter customers by name', async ({ page }) => {
-    // This test assumes a known customer exists in the test data
     const hasData = await page.locator('table > tbody > tr').first().isVisible({timeout: 5000}).catch(() => false);
     if (!hasData) {
       console.log('Skipping filter test, no customer data available.');
@@ -47,7 +43,6 @@ test.describe('Customers Page', () => {
     }
     await page.fill('input[placeholder*="Search by customer name"]', 'Simulated Customer');
     
-    // Check that only rows with the search term are visible, or the no results message
     const tableBody = page.locator('table > tbody');
     await expect(tableBody.locator('tr').first().or(page.getByText('No customers found matching'))).toBeVisible();
     
@@ -55,7 +50,6 @@ test.describe('Customers Page', () => {
         await expect(tableBody).toContainText('Simulated Customer');
     }
     
-    // Clear search and verify original data returns
     await page.fill('input[placeholder*="Search by customer name"]', '');
     await expect(page.locator('table > tbody > tr').first()).toBeVisible();
   });

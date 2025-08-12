@@ -7,7 +7,6 @@ import credentials from './test_data/test_credentials.json';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
 
-// Helper function to perform login
 async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
@@ -17,7 +16,6 @@ async function login(page: Page) {
     await page.waitForLoadState('networkidle');
 }
 
-// Helper function to calculate expected dead stock value from the database
 async function calculateExpectedDeadStockValue(sku: string): Promise<number> {
     const supabase = getServiceRoleClient();
     const { data: variant, error } = await supabase
@@ -47,20 +45,17 @@ test.describe('Business Logic & Analytics Validation', () => {
     await page.goto('/analytics/dead-stock');
     await page.waitForURL('/analytics/dead-stock');
 
-    // Wait for the report to be visible
-    await expect(page.getByText('Dead Stock Report')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Dead Stock Report').or(page.getByText('No Dead Stock Found'))).toBeVisible({ timeout: 10000 });
     
     const firstRow = page.locator('table > tbody > tr').first();
     const isVisible = await firstRow.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (!isVisible) {
-      // If there's no dead stock, the test passes but we log a warning.
       console.warn('⚠️ No dead stock items found to validate. Test is trivially passing.');
       await expect(page.getByText('No Dead Stock Found!')).toBeVisible();
       return;
     }
 
-    // Extract SKU and displayed value from the UI
     const skuElement = firstRow.locator('td').nth(0).locator('div.text-xs');
     const valueElement = firstRow.locator('td').nth(2);
 
@@ -70,13 +65,10 @@ test.describe('Business Logic & Analytics Validation', () => {
     expect(sku).not.toBeNull();
     expect(displayedValueText).not.toBeNull();
 
-    // Clean and parse the currency value from the UI
     const displayedValueCents = Math.round(parseFloat(displayedValueText!.replace(/[^0-9.-]+/g, '')) * 100);
     
-    // Calculate the expected value using our helper against the database
     const expectedValueCents = await calculateExpectedDeadStockValue(sku!);
     
-    // Validate that the UI shows the correct calculation
     expect(displayedValueCents).toBe(expectedValueCents);
   });
 

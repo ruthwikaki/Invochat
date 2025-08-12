@@ -41,7 +41,6 @@ test.describe('Supplier Management', () => {
     const newRow = page.locator('tr', { hasText: newSupplierName });
     await expect(newRow).toBeVisible();
     await expect(newRow).toContainText(newSupplierEmail);
-    // **FIX**: Use a more specific locator to avoid matching other "14 days" on the page.
     await expect(newRow.locator('td', { hasText: '14 days' })).toBeVisible();
 
 

@@ -28,10 +28,9 @@ test.describe('Integrations Page', () => {
 
     test('should open and close the Shopify connect modal', async ({ page }) => {
         const shopifyCard = page.locator('.card', { hasText: 'Shopify' });
-        // This test assumes Shopify is not yet connected
         const connectButton = shopifyCard.getByRole('button', { name: 'Connect Store' });
         
-        if (!await connectButton.isVisible()) {
+        if (!await connectButton.isVisible({ timeout: 5000 })) {
             console.log('Shopify is already connected, skipping modal open test.');
             return;
         }
@@ -48,7 +47,7 @@ test.describe('Integrations Page', () => {
     test('should show validation errors in Shopify modal', async ({ page }) => {
         const shopifyCard = page.locator('.card', { hasText: 'Shopify' });
         const connectButton = shopifyCard.getByRole('button', { name: 'Connect Store' });
-        if (!await connectButton.isVisible()) return; // Skip if connected
+        if (!await connectButton.isVisible({ timeout: 5000 })) return; // Skip if connected
         await connectButton.click();
         
         const submitButton = page.getByRole('button', { name: 'Test & Connect' });
