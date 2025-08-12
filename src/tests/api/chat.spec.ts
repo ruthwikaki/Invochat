@@ -8,7 +8,7 @@ test.describe('Chat API', () => {
     const response = await authedRequest.post('/api/chat/message', {
       data: {
         conversationId: null,
-        content: "What is my most valuable item?",
+        content: "What is my most profitable item?",
       }
     });
 

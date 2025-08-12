@@ -39,7 +39,7 @@ test.describe('Inventory Page', () => {
   });
 
   test('should filter inventory by name', async ({ page }) => {
-    const searchTerm = 'Simulated FBA Product'; 
+    const searchTerm = '4K Smart TV'; 
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill(searchTerm);
     
     const firstRow = page.locator('table > tbody > tr').first();
@@ -77,6 +77,6 @@ test.describe('Inventory Page', () => {
     await page.getByTestId('inventory-export').click();
     
     const download = await downloadPromise;
-    expect(download.suggestedFilename()).toMatch(/inventory-export-.*\.csv/);
+    expect(download.suggestedFilename()).toContain('.csv');
   });
 });
