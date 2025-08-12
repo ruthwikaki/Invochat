@@ -156,7 +156,7 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
                 <TopProductsCard data={initialMetrics.top_products} currency={settings.currency} />
             </div>
             
-            <InventorySummaryCard data={initialMetrics.inventory_summary} currency={settings.currency} />
+            <InventorySummaryCard data-testid="inventory-value-summary-card" data={initialMetrics.inventory_summary} currency={settings.currency} />
         </motion.div>
     );
 }
