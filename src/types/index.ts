@@ -432,7 +432,7 @@ export const CsvMappingInputSchema = z.object({
     sampleRows: z.array(z.record(z.string(), z.unknown())),
     expectedDbFields: z.array(z.string()),
 });
-export type CsvMappingInput = z.infer<typeof CsvMappingInput>;
+export type CsvMappingInput = z.infer<typeof CsvMappingInputSchema>;
 
 export const CsvMappingOutputSchema = z.object({
     mappings: z.array(z.object({
