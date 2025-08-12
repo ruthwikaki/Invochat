@@ -1,10 +1,14 @@
 
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
-import type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion } from '@/schemas/reorder';
-import { EnhancedReorderSuggestionSchema } from '@/schemas/reorder';
+import {
+  ReorderSuggestionSchema,
+  EnhancedReorderSuggestionSchema,
+  type ReorderSuggestion,
+  type ReorderSuggestionBase,
+  type EnhancedReorderSuggestion,
+} from '@/schemas/reorder';
 import type { Supplier, SupplierFormData } from '@/schemas/suppliers';
 
 
@@ -286,7 +290,7 @@ export const MessageSchema = z.object({
 export type Message = z.infer<typeof MessageSchema>;
 
 export type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier, SupplierFormData };
-export { EnhancedReorderSuggestionSchema };
+export { ReorderSuggestionSchema, EnhancedReorderSuggestionSchema };
 
 
 export const InventoryAgingReportItemSchema = z.object({
@@ -347,7 +351,7 @@ export const DashboardMetricsSchema = z.object({
     customers_change: z.number().default(0),
     dead_stock_value: z.number().int().default(0),
     sales_over_time: z.array(z.object({ date: z.string(), revenue: z.number() })).default([]),
-    top_selling_products: z.array(z.object({
+    top_products: z.array(z.object({
       product_id: z.string().uuid(),
       product_name: z.string(),
       image_url: z.string().url().nullable(),

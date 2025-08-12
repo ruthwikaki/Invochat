@@ -35,7 +35,7 @@ test.describe('E2E Business Workflow: Daily Operations', () => {
     await expect(page.getByTestId('dashboard-root')).toBeVisible();
 
     // 2. Ask the AI a question from the dashboard quick actions
-    await page.getByRole('button', { name: 'Ask AI' }).click();
+    await page.getByTestId('ask-ai-button').click();
     await page.waitForURL(/.*chat/);
     await expect(page.getByText('How can I help you today?')).toBeVisible();
 
