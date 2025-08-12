@@ -3,8 +3,8 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
-  EnhancedReorderSuggestionSchema,
   ReorderSuggestionSchema,
+  EnhancedReorderSuggestionSchema,
   type ReorderSuggestion,
   type EnhancedReorderSuggestion,
   type ReorderSuggestionBase,
@@ -166,7 +166,7 @@ export const PurchaseOrderLineItemFormSchema = z.object({
 export const PurchaseOrderFormSchema = z.object({
     supplier_id: z.string().uuid("Please select a supplier."),
     status: z.string(),
-    expected_arrival_date: z.date().optional(),
+    expected_arrival_date: z.coerce.date().optional(),
     notes: z.string().optional().nullable(),
     line_items: z.array(PurchaseOrderLineItemFormSchema).min(1, "Purchase order must have at least one line item."),
 });
@@ -244,7 +244,7 @@ export const IntegrationSyncStatusSchema = z.enum(['syncing_products', 'syncing_
 export const IntegrationSchema = z.object({
   id: z.string().uuid(),
   company_id: z.string().uuid(),
-  platform: z.custom<Platform>(),
+  platform: z.enum(['shopify', 'woocommerce', 'amazon_fba']),
   shop_domain: z.string().nullable(),
   shop_name: z.string().nullable(),
   is_active: z.boolean(),
