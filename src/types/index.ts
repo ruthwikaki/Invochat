@@ -4,12 +4,13 @@ import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
   EnhancedReorderSuggestionSchema,
-  ReorderSuggestionSchema,
+  ReorderSuggestionSchema as ReorderSuggestionSchemaFromSchemaFile,
   type EnhancedReorderSuggestion,
   type ReorderSuggestion,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-import type { Supplier, SupplierFormData } from '@/schemas/suppliers';
+import type { Supplier } from '@/schemas/suppliers';
+import { SupplierFormSchema as SupplierFormSchemaFromSchemaFile } from '@/schemas/suppliers';
 
 
 export const UserSchema = z.custom<SupabaseUser>();
@@ -289,9 +290,8 @@ export const MessageSchema = z.object({
 });
 export type Message = z.infer<typeof MessageSchema>;
 
+export { EnhancedReorderSuggestionSchema, ReorderSuggestionSchemaFromSchemaFile as ReorderSuggestionSchema };
 export type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier, SupplierFormData };
-export { ReorderSuggestionSchema, EnhancedReorderSuggestionSchema };
-
 
 export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),
@@ -505,3 +505,6 @@ export const FeedbackSchema = z.object({
 
 export const FeedbackWithMessagesSchema = FeedbackSchema;
 export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
+
+export const SupplierFormSchema = SupplierFormSchemaFromSchemaFile;
+export type SupplierFormData = z.infer<typeof SupplierFormSchema>;

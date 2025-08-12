@@ -200,11 +200,14 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
   const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
   const supabase = getServiceRoleClient();
   try {
-      const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
+      const { data: rpcData, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
       if (error) {
           logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
           throw new Error('Could not retrieve dashboard metrics from the database.');
       }
+      // If the result is an array, take the first element, otherwise use the object directly.
+      const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+
       // If data is null (e.g., new user with no data), return a valid empty object.
       if (data == null) {
           logger.warn('[RPC] get_dashboard_metrics returned null, returning default empty metrics.');
