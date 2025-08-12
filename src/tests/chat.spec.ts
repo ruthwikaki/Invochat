@@ -48,8 +48,8 @@ test.describe('AI Chat Interface', () => {
   
         if (!hasQuickActions) {
             // Type the message instead
-            await page.getByPlaceholder(/ask anything/i).fill('Show me my dead stock report');
-            await page.getByRole('button', { name: /send/i }).click();
+            await page.locator('input[placeholder*="Ask anything"]').fill('Show me my dead stock report');
+            await page.getByRole('button', { name: 'Send message' }).click();
         } else {
             await page.getByRole('button', { name: 'Show me my dead stock report' }).click();
         }
@@ -65,8 +65,8 @@ test.describe('AI Chat Interface', () => {
         const hasQuickActions = await page.getByRole('button', { name: 'What should I order today?' }).isVisible().catch(() => false);
 
         if (!hasQuickActions) {
-            await page.getByPlaceholder(/ask anything/i).fill('What should I order today?');
-            await page.getByRole('button', { name: /send/i }).click();
+            await page.locator('input[placeholder*="Ask anything"]').fill('What should I order today?');
+            await page.getByRole('button', { name: 'Send message' }).click();
         } else {
             await page.getByRole('button', { name: 'What should I order today?' }).click();
         }
@@ -97,4 +97,3 @@ test.describe('AI Chat Interface', () => {
         await expect(page.getByText('AI service is currently unavailable.')).toBeVisible();
     });
 });
-

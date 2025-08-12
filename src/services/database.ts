@@ -205,10 +205,9 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
           logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
           throw new Error('Could not retrieve dashboard metrics from the database.');
       }
-      // If the result is an array, take the first element, otherwise use the object directly.
+      
       const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
 
-      // If data is null (e.g., new user with no data), return a valid empty object.
       if (data == null) {
           logger.warn('[RPC] get_dashboard_metrics returned null, returning default empty metrics.');
           return DashboardMetricsSchema.parse({}); 
@@ -216,7 +215,6 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
       return DashboardMetricsSchema.parse(data);
   } catch (e) {
       logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-      // Return a schema-compliant empty object on any failure
       return DashboardMetricsSchema.parse({});
   }
 }
@@ -385,7 +383,6 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    // Handle the case where the RPC returns null for a new company with no sales data.
     return SalesAnalyticsSchema.parse(data);
 }
 
@@ -410,7 +407,6 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
         return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
     }
     
-    // The new function returns a single JSONB object, not an array of items.
     const reportData = data || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
 
     const deadStockItems = DeadStockItemSchema.array().parse(reportData.deadStockItems || []);
@@ -612,13 +608,16 @@ export async function refreshMaterializedViews(companyId: string) {
     }
 }
 
-export async function getHistoricalSalesForSkus(companyId: string, skus: string[]) {
-    if (!z.string().uuid().safeParse(companyId).success) return [];
+export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sku: string): Promise<{ sale_date: string; total_quantity: number }[]> {
+    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_historical_sales_for_skus', { p_company_id: companyId, p_skus: skus });
+    const { data, error } = await supabase.rpc('get_historical_sales_for_sku', {
+        p_company_id: companyId,
+        p_sku: sku,
+    });
     if (error) {
-        logError(error, { context: `Failed to get historical sales for SKUs`, skus });
-        return [];
+        logError(error, { context: 'Failed to get historical sales for single SKU' });
+        throw new Error('Could not retrieve historical sales data.');
     }
     return data || [];
 }
@@ -719,21 +718,6 @@ export async function deletePurchaseOrderFromDb(id: string, companyId: string) {
         logError(error, { context: 'Failed to delete purchase order', id });
         throw error;
     }
-}
-
-
-export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sku: string): Promise<{ sale_date: string; total_quantity: number }[]> {
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_historical_sales_for_sku', {
-        p_company_id: companyId,
-        p_sku: sku,
-    });
-    if (error) {
-        logError(error, { context: 'Failed to get historical sales for single SKU' });
-        throw new Error('Could not retrieve historical sales data.');
-    }
-    return data || [];
 }
 
 export async function logWebhookEvent(integrationId: string, webhookId: string) {
