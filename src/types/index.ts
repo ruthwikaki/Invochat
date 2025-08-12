@@ -2,7 +2,7 @@
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
-import type { ReorderSuggestionBase, ReorderSuggestion } from '@/schemas/reorder';
+import type { ReorderSuggestion, ReorderSuggestionBase } from '@/schemas/reorder';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -287,7 +287,7 @@ export const MessageSchema = z.object({
     }).passthrough().optional(),
   }).nullable().optional(),
   component: z.string().nullable().optional(),
-  componentProps: z.record(z.string(), z.unknown()).nullable().optional(),
+  component_props: z.record(z.string(), z.unknown()).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
   confidence: z.number().min(0).max(1).nullable().optional(),
   assumptions: z.array(z.string()).nullable().optional(),
@@ -390,9 +390,9 @@ export const DashboardMetricsSchema = z.object({
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
 export const SalesAnalyticsSchema = z.object({
-    total_revenue: z.number().int(),
-    total_orders: z.number().int(),
-    average_order_value: z.number(),
+    total_revenue: z.number().int().default(0),
+    total_orders: z.number().int().default(0),
+    average_order_value: z.number().default(0),
 }).passthrough();
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
