@@ -136,7 +136,7 @@ class TestAIChatFunctionality:
                 # Test sending message
                 message_data = {
                     "content": query,
-                    "conversationId": None
+                    "conversationId": str(uuid.uuid4())
                 }
                 
                 message_response = self.api.post("/chat/message", message_data)

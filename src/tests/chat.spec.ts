@@ -33,7 +33,7 @@ test.describe('AI Chat Interface', () => {
         const response = await authedRequest.post('/api/chat/message', {
             data: {
               content: "What is my most profitable item?",
-              conversationId: null,
+              conversationId: crypto.randomUUID(),
             }
         });
 

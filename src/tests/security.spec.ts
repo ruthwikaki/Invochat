@@ -16,7 +16,7 @@ test.beforeAll(async () => {
     const testEmail = `rls-test-user-${Date.now()}@example.com`;
     const { data: { user }, error } = await supabase.auth.admin.createUser({
         email: testEmail,
-        password: 'password123',
+        password: 'TestPass123!',
         email_confirm: true,
     });
     if (error) throw new Error(`Failed to create test user: ${error.message}`);
@@ -49,7 +49,7 @@ test.describe('Security and Authorization', () => {
     // The test user is automatically associated with their own new company on creation.
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email!);
-    await page.fill('input[name="password"]', 'password123');
+    await page.fill('input[name="password"]', 'TestPass123!');
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
     

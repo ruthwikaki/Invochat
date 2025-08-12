@@ -43,7 +43,7 @@ test.describe('Performance Benchmarks', () => {
     
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
     const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/inventory'));
-    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: 'Search' }).click();
     const response = await responsePromise;
     
     const responseTime = response.timing().responseEnd - response.timing().requestStart;
