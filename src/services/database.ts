@@ -429,7 +429,12 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema).parse(data || []);
+        return z.array(ReorderSuggestionSchema.omit({
+            base_quantity: true,
+            adjustment_reason: true,
+            seasonality_factor: true,
+            confidence: true,
+        })).parse(data || []);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });

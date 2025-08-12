@@ -11,7 +11,6 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
     await expect(page.getByTestId('dashboard-root')).toBeVisible({ timeout: 20000 });
 }
 

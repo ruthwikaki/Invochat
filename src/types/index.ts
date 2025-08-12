@@ -3,11 +3,11 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
-  ReorderSuggestionSchema,
   EnhancedReorderSuggestionSchema,
+  ReorderSuggestionSchema,
+  type EnhancedReorderSuggestion,
   type ReorderSuggestion,
   type ReorderSuggestionBase,
-  type EnhancedReorderSuggestion,
 } from '@/schemas/reorder';
 import type { Supplier, SupplierFormData } from '@/schemas/suppliers';
 
