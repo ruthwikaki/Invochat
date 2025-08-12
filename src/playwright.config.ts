@@ -59,8 +59,6 @@ export default defineConfig({
         MOCK_AI: 'true',
         SHOPIFY_WEBHOOK_SECRET: 'test_secret_for_ci',
         TESTING_API_KEY: 'test_api_key',
-        TEST_MODE: 'true',
-        NEXT_PUBLIC_TEST_MODE: 'true'
     }
   },
 });
