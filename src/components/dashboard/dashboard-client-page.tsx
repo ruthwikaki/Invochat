@@ -72,11 +72,11 @@ function EmptyDashboardState() {
 }
 
 
-const StatCard = ({ title, value, change, icon: Icon, changeType, gradient }: { title: string; value: string; change?: string; icon: React.ElementType; changeType?: 'increase' | 'decrease' | 'neutral', gradient: string }) => {
+const StatCard = ({ title, value, change, icon: Icon, changeType, gradient, "data-testid": dataTestId }: { title: string; value: string; change?: string; icon: React.ElementType; changeType?: 'increase' | 'decrease' | 'neutral', gradient: string, "data-testid"?: string }) => {
     const changeColor = changeType === 'increase' ? 'text-success' : changeType === 'decrease' ? 'text-destructive' : 'text-muted-foreground';
     
     return (
-        <Card className="card relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm">
+        <Card className="relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm" data-testid={dataTestId}>
             <div className={cn("absolute -top-1/4 -right-1/4 w-1/2 h-1/2 rounded-full opacity-10 blur-3xl", gradient)}></div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -145,10 +145,10 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
             <MorningBriefingCard briefing={initialBriefing} />
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue, settings.currency)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
-                <StatCard title="Total Orders" value={initialMetrics.total_orders.toLocaleString()} change={`${initialMetrics.orders_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.orders_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
-                <StatCard title="New Customers" value={initialMetrics.new_customers.toLocaleString()} change={`${initialMetrics.customers_change.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
-                <StatCard title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value, settings.currency)} icon={TrendingDown} gradient="bg-rose-500" />
+                <StatCard data-testid="total-revenue-card" title="Total Revenue" value={formatCentsAsCurrency(initialMetrics.total_revenue, settings.currency)} change={`${initialMetrics.revenue_change.toFixed(1)}%`} icon={Wallet} changeType={initialMetrics.revenue_change >= 0 ? 'increase' : 'decrease'} gradient="bg-emerald-500" />
+                <StatCard data-testid="total-orders-card" title="Total Orders" value={initialMetrics.total_orders.toLocaleString()} change={`${initialMetrics.orders_change.toFixed(1)}%`} icon={ShoppingCart} changeType={initialMetrics.orders_change >= 0 ? 'increase' : 'decrease'} gradient="bg-sky-500" />
+                <StatCard data-testid="new-customers-card" title="New Customers" value={initialMetrics.new_customers.toLocaleString()} change={`${initialMetrics.customers_change.toFixed(1)}%`} icon={Users} changeType={initialMetrics.customers_change >= 0 ? 'increase' : 'decrease'} gradient="bg-violet-500" />
+                <StatCard data-testid="dead-stock-card" title="Dead Stock Value" value={formatCentsAsCurrency(initialMetrics.dead_stock_value, settings.currency)} icon={TrendingDown} gradient="bg-rose-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
+    "dev:test": "NODE_ENV=test MOCK_AI=true next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -12,8 +13,10 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
+    "test:setup": "node -r dotenv/config ./scripts/setup-test-db.js dotenv_config_path=.env.test",
+    "test:e2e": "npm run test:setup && playwright test",
+    "test:e2e:ui": "npm run test:setup && playwright test --ui",
+    "test:e2e:debug": "npm run test:setup && playwright test --debug",
     "test:all": "npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
