@@ -159,8 +159,8 @@ export type PurchaseOrderLineItem = z.infer<typeof PurchaseOrderLineItemSchema>;
 
 export const PurchaseOrderLineItemFormSchema = z.object({
   variant_id: z.string().uuid(),
-  quantity: z.number().int().positive(),
-  cost: z.number().int().nonnegative(),
+  quantity: z.coerce.number().int().positive(),
+  cost: z.coerce.number().int().nonnegative(),
 });
 
 export const PurchaseOrderFormSchema = z.object({
