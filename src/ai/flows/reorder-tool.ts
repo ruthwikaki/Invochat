@@ -1,5 +1,4 @@
 
-
 'use server';
 /**
  * @fileOverview Defines a Genkit tool for getting intelligent reorder suggestions.
@@ -8,7 +7,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
-import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
+import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
 import type { ReorderSuggestion } from '@/schemas/reorder';
 import { EnhancedReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/schemas/reorder';
 import { config } from '@/config/app-config';
@@ -27,10 +26,21 @@ const ReorderRefinementInputSchema = z.object({
   timezone: z.string().describe("The business's timezone, e.g., 'America/New_York'.")
 });
 
+// A more permissive schema for the direct AI output.
+// The AI is only responsible for a subset of fields.
+const LLMRefinedSuggestionSchema = z.object({
+    sku: z.string(),
+    suggested_reorder_quantity: z.number().int(),
+    adjustment_reason: z.string().nullable().optional(),
+    seasonality_factor: z.number().nullable().optional(),
+    confidence: z.number().nullable().optional(),
+}).passthrough();
+
+
 export const reorderRefinementPrompt = ai.definePrompt({
     name: 'reorderRefinementPrompt',
     input: { schema: ReorderRefinementInputSchema },
-    output: { schema: z.array(EnhancedReorderSuggestionSchema) },
+    output: { schema: z.array(LLMRefinedSuggestionSchema) },
     prompt: `
         You are an expert supply chain analyst for an e-commerce business. Your task is to refine a list of automatically-generated reorder suggestions by considering their historical sales data and seasonality.
 
@@ -56,19 +66,8 @@ export const reorderRefinementPrompt = ai.definePrompt({
         
         **Output Format:**
         Your Final Output MUST be only the refined list of suggestions as a single JSON array, conforming to the output schema.
-        - The original 'suggested_reorder_quantity' should be copied to 'base_quantity'.
-        - The new, AI-adjusted quantity should be in 'suggested_reorder_quantity'.
-        - Fill out 'adjustment_reason', 'seasonality_factor', and 'confidence' for every item.
     `,
 });
-
-function isCompleteSuggestion(item: any): item is ReorderSuggestion {
-    return item &&
-        typeof item.product_id === 'string' &&
-        typeof item.product_name === 'string' &&
-        typeof item.sku === 'string' &&
-        typeof item.suggested_reorder_quantity === 'number';
-}
 
 export const getReorderSuggestions = ai.defineTool(
   {
@@ -97,55 +96,65 @@ export const getReorderSuggestions = ai.defineTool(
         }));
 
         const skus = baseSuggestions.map(s => s.sku);
-        const [historicalSalesData, settings] = await Promise.all([
-            Promise.all(skus.slice(0, 100).map(sku => getHistoricalSalesForSingleSkuFromDB(input.companyId, sku).then(sales => ({ sku, monthly_sales: sales } as any)))),
+        const [historicalSales, settings] = await Promise.all([
+            getHistoricalSalesForSkus(input.companyId, skus.slice(0, 100)),
             getSettings(input.companyId),
         ]);
-        
-        const historicalSales = historicalSalesData.map(d => ({
-            sku: d.sku,
-            monthly_sales: d.monthly_sales.map((s: any) => ({
-                month: s.sale_date,
-                total_quantity: s.total_quantity
-            }))
-        }));
 
         if (!settings.timezone) {
             logger.warn(`[Reorder Tool] Company timezone not set. Defaulting to UTC for AI analysis.`);
         }
 
         logger.info(`[Reorder Tool] Refining ${baseSuggestions.length} suggestions with AI.`);
-        
-        const { output } = await reorderRefinementPrompt({
-            suggestions: suggestionsForAI,
-            historicalSales: historicalSales as any,
-            currentDate: new Date().toISOString().split('T')[0],
-            timezone: settings.timezone || 'UTC',
-        }, { model: config.ai.model });
+        let refinedOutput: z.infer<typeof LLMRefinedSuggestionSchema>[] = [];
+        try {
+            const { output } = await reorderRefinementPrompt({
+                suggestions: suggestionsForAI,
+                historicalSales: historicalSales as any,
+                currentDate: new Date().toISOString().split('T')[0],
+                timezone: settings.timezone || 'UTC',
+            }, { model: config.ai.model });
 
-        if (!output) {
-            logger.warn('[Reorder Tool] AI refinement did not return an output. Falling back to base suggestions.');
-            return baseSuggestions.map(s => ({
-                ...s,
-                base_quantity: s.suggested_reorder_quantity,
-                adjustment_reason: 'AI refinement failed, using base calculation.',
+            if(output) {
+                refinedOutput = output;
+            } else {
+                 logger.warn('[Reorder Tool] AI refinement did not return an output. Falling back to base suggestions.');
+            }
+        } catch (e) {
+            logError(e, { context: 'AI refinement prompt failed. Falling back to base suggestions.'});
+            // If AI fails, refinedOutput remains empty, and we fall back to base suggestions.
+        }
+
+        // Merge AI refinements with the source-of-truth base suggestions
+        const refinedSuggestionsMap = new Map(refinedOutput.map(s => [s.sku, s]));
+
+        const mergedSuggestions = baseSuggestions.map(base => {
+            const refinement = refinedSuggestionsMap.get(base.sku);
+            if (refinement) {
+                return {
+                    ...base,
+                    base_quantity: base.suggested_reorder_quantity,
+                    suggested_reorder_quantity: refinement.suggested_reorder_quantity,
+                    adjustment_reason: refinement.adjustment_reason,
+                    seasonality_factor: refinement.seasonality_factor,
+                    confidence: refinement.confidence,
+                };
+            }
+            // If no refinement, return the base suggestion with default values
+            return {
+                ...base,
+                base_quantity: base.suggested_reorder_quantity,
+                adjustment_reason: 'No AI adjustment was made.',
                 seasonality_factor: 1.0,
-                confidence: 0.1,
-            }));
-        }
+                confidence: 0.5,
+            };
+        });
         
-        // **FIX**: Filter out any incomplete or malformed items returned by the AI
-        const completeSuggestions = output.filter(isCompleteSuggestion);
+        // Final validation against the strict schema
+        const validationResult = z.array(EnhancedReorderSuggestionSchema).safeParse(mergedSuggestions);
 
-        if (completeSuggestions.length !== output.length) {
-            logger.warn(`[Reorder Tool] Filtered out ${output.length - completeSuggestions.length} incomplete items from AI response.`);
-        }
-        
-        const validatedOutput = z.array(EnhancedReorderSuggestionSchema).safeParse(completeSuggestions);
-
-        if(!validatedOutput.success) {
-            logError(validatedOutput.error, { context: 'AI output failed validation for reorder suggestions' });
-            // Fallback to base suggestions if AI output is malformed
+        if (!validationResult.success) {
+            logError(validationResult.error, { context: 'Final validation of merged reorder suggestions failed. Returning base suggestions.' });
             return baseSuggestions.map(s => ({
                 ...s,
                 base_quantity: s.suggested_reorder_quantity,
@@ -155,26 +164,7 @@ export const getReorderSuggestions = ai.defineTool(
             }));
         }
 
-        logger.info(`[Reorder Tool] AI refinement complete. Applying post-processing guards.`);
-        const finalSuggestions = validatedOutput.data.map(suggestion => {
-            const originalSuggestion = baseSuggestions.find(s => s.sku === suggestion.sku);
-            if (!originalSuggestion) return suggestion;
-
-            const salesRecord = (historicalSales as any[]).find(s => s.sku === suggestion.sku);
-            if (salesRecord && salesRecord.monthly_sales && salesRecord.monthly_sales.length > 0) {
-                const lastMonthSales = salesRecord.monthly_sales[salesRecord.monthly_sales.length - 1].total_quantity || 0;
-                if (suggestion.suggested_reorder_quantity < lastMonthSales) {
-                    suggestion.suggested_reorder_quantity = lastMonthSales;
-                    suggestion.adjustment_reason = `[CORRECTED] Increased to meet minimum 30-day supply based on recent sales.`;
-                }
-            }
-            return {
-                ...originalSuggestion,
-                ...suggestion,
-            };
-        });
-
-        return finalSuggestions;
+        return validationResult.data;
 
     } catch (e: unknown) {
         logError(e, { context: `[Reorder Tool] Failed to get suggestions for ${input.companyId}` });
@@ -182,3 +172,5 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
+    
