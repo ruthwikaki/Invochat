@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
@@ -161,6 +162,8 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
 
+  const router = useRouter();
+
   const {
       searchQuery,
       page,
@@ -170,8 +173,6 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
       handleSort,
       handlePageChange
   } = useTableState<SortableColumn>({ defaultSortColumn: 'product_title' });
-
-  const router = useRouter();
 
   const handleStatusChange = (newStatus: string) => {
     const params = new URLSearchParams(window.location.search);
@@ -347,3 +348,4 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     </>
   );
 }
+

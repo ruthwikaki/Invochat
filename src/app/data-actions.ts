@@ -1,4 +1,5 @@
 
+
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
@@ -372,24 +373,14 @@ export async function getCustomerAnalytics() {
             throw new Error("Customer analytics data is null or undefined after DB call.");
         }
 
-        // Transform snake_case to camelCase
-        const transformedAnalytics = {
-            totalCustomers: analyticsData.total_customers ?? 0,
-            newCustomers: analyticsData.new_customers_last_30_days ?? 0,
-            repeatCustomerRate: analyticsData.repeat_customer_rate ?? 0,
-            averageLifetimeValue: analyticsData.average_lifetime_value ?? 0,
-            topCustomersBySpend: analyticsData.top_customers_by_spend ?? [],
-            topCustomersBySales: analyticsData.top_customers_by_sales ?? [],
-        };
-        
         if(isRedisEnabled) {
-            await redisClient.set(cacheKey, JSON.stringify(transformedAnalytics), 'EX', config.redis.ttl.dashboard);
+            await redisClient.set(cacheKey, JSON.stringify(analyticsData), 'EX', config.redis.ttl.dashboard);
         }
         
-        return transformedAnalytics;
+        return analyticsData;
     } catch (e) {
         logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
-        return { totalCustomers: 0, newCustomers: 0, repeatCustomerRate: 0, averageLifetimeValue: 0, topCustomersBySpend: [], topCustomersBySales: [] };
+        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
     }
 }
 
@@ -857,3 +848,4 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+
