@@ -366,7 +366,6 @@ export async function getCustomerAnalytics() {
         
         const rawAnalytics = await getCustomerAnalyticsFromDB(companyId);
         
-        // The RPC returns a single-element array, so we unwrap it.
         const analyticsData = Array.isArray(rawAnalytics) ? rawAnalytics[0] : rawAnalytics;
 
         if (!analyticsData) {
@@ -387,10 +386,8 @@ export async function getCustomerAnalytics() {
 export async function exportInventory(params: { query: string; status: string; sortBy: string; sortDirection: string; }) {
     try {
         const { companyId } = await getAuthContext();
-        // Fetch all inventory items matching the filters, up to a reasonable limit.
         const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         
-        // Customize the data for a cleaner CSV export
         const dataToExport = items.map(item => ({
             product_title: item.product_title,
             variant_title: item.title,
@@ -706,10 +703,10 @@ export async function handleUserMessage(params: { content: string, conversationI
         role: 'assistant',
         content: aiResponse.response,
         visualization: aiResponse.visualization,
-        confidence: aiResponse.confidence,
-        assumptions: aiResponse.assumptions,
         component: aiResponse.toolName,
         component_props: aiResponse.data,
+        confidence: aiResponse.confidence,
+        assumptions: aiResponse.assumptions,
         is_error: aiResponse.is_error,
     }).select(`
       id,
@@ -848,4 +845,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-

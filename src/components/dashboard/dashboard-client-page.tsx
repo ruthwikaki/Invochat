@@ -160,4 +160,3 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         </motion.div>
     );
 }
-

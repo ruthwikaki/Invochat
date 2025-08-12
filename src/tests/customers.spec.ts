@@ -23,12 +23,11 @@ test.describe('Customers Page', () => {
   });
 
   test('should load customer analytics and validate data', async ({ page }) => {
-    // Wait for the main table to be visible, indicating data has loaded
-    await expect(page.locator('table').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('total-customers-card')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('All Customers')).toBeVisible();
 
     const totalCustomersCard = page.getByTestId('total-customers-card');
     await expect(totalCustomersCard).toBeVisible();
-    await expect(page.getByText('All Customers')).toBeVisible();
 
     const customersText = await totalCustomersCard.locator('.text-2xl').innerText();
     const customersValue = parseInt(customersText.replace(/,/g, ''), 10);
@@ -58,4 +57,3 @@ test.describe('Customers Page', () => {
     await expect(page.locator('table > tbody > tr').first()).toBeVisible();
   });
 });
-
