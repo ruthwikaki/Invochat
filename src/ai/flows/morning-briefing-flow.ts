@@ -41,8 +41,8 @@ export const morningBriefingPrompt = ai.definePrompt({
         - Is there a significant amount of capital tied up in dead stock?
         - If everything is stable, that's also an important insight.
     2.  **Write the Summary:** Craft a 1-3 sentence summary of this key insight.
-        - Example (Low Stock): "Your sales are trending up, but you have {{metrics.lowStockItemsCount}} items running low on stock. I recommend reviewing your reorder suggestions to avoid stockouts."
-        - Example (Dead Stock): "I've noticed that {{metrics.deadStockItemsCount}} items haven't sold in a while, tying up capital. Let's create a plan to move this inventory."
+        - Example (Low Stock): "Your sales are trending up, but you have {{metrics.inventory_summary.low_stock_value}} items running low on stock. I recommend reviewing your reorder suggestions to avoid stockouts."
+        - Example (Dead Stock): "I've noticed that {{metrics.dead_stock_value}} in products haven't sold in a while, tying up capital. Let's create a plan to move this inventory."
         - Example (Stable): "Things are looking stable. Your sales are steady and inventory levels are healthy. Keep up the great work!"
     3.  **Create a Call to Action (CTA):** Based on your summary, what is the most logical next step? Provide text and a relevant link for a button.
         - If the issue is low stock, link to '/analytics/reordering'.
