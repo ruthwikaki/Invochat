@@ -50,7 +50,7 @@ test.describe('Supplier Management', () => {
     await page.click('div[role="menuitem"]:has-text("Edit")');
     
     await expect(page.getByText(`Edit ${newSupplierName}`)).toBeVisible();
-    const updatedName = `${newSupplierName} - Updated`;
+    const updatedName = `Updated Corp ${Date.now()}`;
     await page.fill('input[name="name"]', updatedName);
     await page.click('button[type="submit"]');
 
