@@ -9,8 +9,7 @@ import {
   type EnhancedReorderSuggestion,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-import type { Supplier } from '@/schemas/suppliers';
-import { SupplierFormSchema } from '@/schemas/suppliers';
+import { SupplierFormSchema, type Supplier } from '@/schemas/suppliers';
 
 
 export const UserSchema = z.custom<SupabaseUser>();
@@ -291,7 +290,7 @@ export const MessageSchema = z.object({
 export type Message = z.infer<typeof MessageSchema>;
 
 export { EnhancedReorderSuggestionSchema, ReorderSuggestionSchema };
-export type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier, SupplierFormData };
+export type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier };
 
 export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),
@@ -506,5 +505,5 @@ export const FeedbackSchema = z.object({
 export const FeedbackWithMessagesSchema = FeedbackSchema;
 export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
 
-export const SupplierFormSchema = SupplierFormSchemaFromSchemaFile;
+export { SupplierFormSchema };
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
