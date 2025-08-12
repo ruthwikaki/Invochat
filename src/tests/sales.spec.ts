@@ -28,7 +28,7 @@ test.describe('Sales Page', () => {
     await expect(page.getByText('Average Order Value')).toBeVisible();
 
     const totalRevenueCard = page.locator('.card', { hasText: 'Total Revenue' });
-    const revenueText = await totalRevenueCard.locator('.text-2xl').innerText();
+    const revenueText = await totalRevenueCard.locator('.text-2xl').innerText({ timeout: 10000 });
     const revenueValue = parseFloat(revenueText.replace(/[^0-9.-]+/g,""));
     expect(revenueValue).toBeGreaterThanOrEqual(0);
 

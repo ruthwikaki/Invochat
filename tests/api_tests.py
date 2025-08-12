@@ -410,7 +410,7 @@ class TestAnalyticsEndpoints:
                 dashboard_data = dashboard_response.json()
                 
                 # Validate dashboard metrics structure
-                expected_metrics = ['total_revenue', 'total_orders', 'total_products']
+                expected_metrics = ['total_revenue', 'total_orders', 'total_products', 'low_stock_count']
                 present_metrics = [metric for metric in expected_metrics if metric in dashboard_data]
                 print(f"      ✅ Dashboard metrics present: {len(present_metrics)}/{len(expected_metrics)}")
                 
@@ -610,7 +610,7 @@ class TestChatAndConversationEndpoints:
             
             # Test chat endpoint
             chat_response = self.api.post("/chat", {
-                "message": "Show me my inventory summary",
+                "content": "Show me my inventory summary",
                 "conversation_id": None
             })
             print(f"   POST /chat: {chat_response.status_code}")
@@ -643,7 +643,7 @@ class TestChatAndConversationEndpoints:
             
             for query in test_queries:
                 query_response = self.api.post("/chat", {
-                    "message": query,
+                    "content": query,
                     "conversation_id": None
                 })
                 

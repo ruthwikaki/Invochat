@@ -69,6 +69,6 @@ test.describe('Supplier Management', () => {
 
     // 6. Verify the deletion
     await expect(page.getByText(updatedName)).not.toBeVisible();
-    await expect(page.getByText('Supplier Deleted')).toBeVisible(); // Toast message
+    await expect(page.getByText('Supplier Deleted').first()).toBeVisible();
   });
 });

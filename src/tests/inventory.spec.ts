@@ -25,7 +25,7 @@ test.describe('Inventory Page', () => {
   test('should load inventory analytics and table', async ({ page }) => {
     await page.waitForLoadState('networkidle');
   
-    const hasInventory = await page.locator('text=/Inventory Management|Products/').isVisible();
+    const hasInventory = await page.locator('text=/Inventory Management|Products/').first().isVisible();
     expect(hasInventory).toBeTruthy();
     
     const hasEmptyState = await page.locator('text=/Your Inventory is Empty|Import Inventory/').isVisible({ timeout: 5000 }).catch(() => false);

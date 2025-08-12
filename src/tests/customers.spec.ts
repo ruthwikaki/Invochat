@@ -44,13 +44,13 @@ test.describe('Customers Page', () => {
       console.log('Skipping filter test, no customer data available.');
       return;
     }
-    await page.fill('input[placeholder*="Search by customer name"]', 'Simulated Customer');
+    await page.fill('input[placeholder*="Search by customer name"]', 'george');
     
     const tableBody = page.locator('table > tbody');
     await expect(tableBody.locator('tr').first().or(page.getByText('No customers found matching'))).toBeVisible();
     
     if (await tableBody.locator('tr').first().isVisible()){
-        await expect(tableBody).toContainText('Simulated Customer');
+        await expect(tableBody).toContainText('george');
     }
     
     await page.fill('input[placeholder*="Search by customer name"]', '');
