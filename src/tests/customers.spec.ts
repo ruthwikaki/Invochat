@@ -23,10 +23,13 @@ test.describe('Customers Page', () => {
   });
 
   test('should load customer analytics and validate data', async ({ page }) => {
-    await expect(page.getByText('Total Customers')).toBeVisible();
+    // Wait for the main table to be visible, indicating data has loaded
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 10000 });
+
+    const totalCustomersCard = page.getByTestId('total-customers-card');
+    await expect(totalCustomersCard).toBeVisible();
     await expect(page.getByText('All Customers')).toBeVisible();
 
-    const totalCustomersCard = page.locator('.card', { hasText: 'Total Customers' });
     const customersText = await totalCustomersCard.locator('.text-2xl').innerText();
     const customersValue = parseInt(customersText.replace(/,/g, ''), 10);
     expect(customersValue).toBeGreaterThanOrEqual(0);
@@ -36,6 +39,7 @@ test.describe('Customers Page', () => {
   });
 
   test('should filter customers by name', async ({ page }) => {
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 10000 });
     const hasData = await page.locator('table > tbody > tr').first().isVisible({timeout: 5000}).catch(() => false);
     if (!hasData) {
       console.log('Skipping filter test, no customer data available.');
