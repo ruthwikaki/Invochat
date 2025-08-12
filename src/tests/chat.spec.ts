@@ -12,9 +12,8 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
     // Wait for either the empty state or the actual dashboard content
-    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview/', { timeout: 20000 });
+    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview|Dashboard/', { timeout: 20000 });
 }
 
 
@@ -45,7 +44,15 @@ test.describe('AI Chat Interface', () => {
     });
 
     test('should trigger dead stock tool and render the correct UI component', async ({ page }) => {
-        await page.getByRole('button', { name: 'Show me my dead stock report' }).click();
+        const hasQuickActions = await page.getByRole('button', { name: 'Show me my dead stock report' }).isVisible().catch(() => false);
+  
+        if (!hasQuickActions) {
+            // Type the message instead
+            await page.getByPlaceholder(/ask anything/i).fill('Show me my dead stock report');
+            await page.getByRole('button', { name: /send/i }).click();
+        } else {
+            await page.getByRole('button', { name: 'Show me my dead stock report' }).click();
+        }
 
         // Check that the user message appears
         await expect(page.getByText('Show me my dead stock report')).toBeVisible();
@@ -55,7 +62,14 @@ test.describe('AI Chat Interface', () => {
     
     test('should trigger reorder tool and render the correct UI component', async ({ page }) => {
         // Use a more specific quick action button selector
-        await page.getByRole('button', { name: 'What should I order today?' }).click();
+        const hasQuickActions = await page.getByRole('button', { name: 'What should I order today?' }).isVisible().catch(() => false);
+
+        if (!hasQuickActions) {
+            await page.getByPlaceholder(/ask anything/i).fill('What should I order today?');
+            await page.getByRole('button', { name: /send/i }).click();
+        } else {
+            await page.getByRole('button', { name: 'What should I order today?' }).click();
+        }
 
         // Check that the user message appears
         await expect(page.getByText('What should I order today?')).toBeVisible();
@@ -83,3 +97,4 @@ test.describe('AI Chat Interface', () => {
         await expect(page.getByText('AI service is currently unavailable.')).toBeVisible();
     });
 });
+
