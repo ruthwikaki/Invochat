@@ -8,7 +8,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
-import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
+import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
 import type { ReorderSuggestion } from '@/schemas/reorder';
 import { EnhancedReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/schemas/reorder';
 import { config } from '@/config/app-config';
@@ -84,19 +84,25 @@ export const getReorderSuggestions = ai.defineTool(
             return [];
         }
         
-        // **FIX:** Map DB field `current_quantity` to schema field `current_stock` for the AI prompt.
         const suggestionsForAI = baseSuggestions.map(s => ({
             ...s,
             current_stock: s.current_quantity,
         }));
 
-
         const skus = baseSuggestions.map(s => s.sku);
-        const [historicalSales, settings] = await Promise.all([
-            getHistoricalSalesForSkus(input.companyId, skus.slice(0, 100)), // Cap SKUs to prevent excessive token usage
+        const [historicalSalesData, settings] = await Promise.all([
+            Promise.all(skus.slice(0, 100).map(sku => getHistoricalSalesForSingleSkuFromDB(input.companyId, sku).then(sales => ({ sku, monthly_sales: sales } as any)))),
             getSettings(input.companyId),
         ]);
         
+        const historicalSales = historicalSalesData.map(d => ({
+            sku: d.sku,
+            monthly_sales: d.monthly_sales.map((s: any) => ({
+                month: s.sale_date,
+                total_quantity: s.total_quantity
+            }))
+        }));
+
         if (!settings.timezone) {
             logger.warn(`[Reorder Tool] Company timezone not set. Defaulting to UTC for AI analysis.`);
         }
@@ -104,7 +110,7 @@ export const getReorderSuggestions = ai.defineTool(
         logger.info(`[Reorder Tool] Refining ${baseSuggestions.length} suggestions with AI.`);
         
         const { output } = await reorderRefinementPrompt({
-            suggestions: suggestionsForAI, // Pass the correctly mapped data
+            suggestions: suggestionsForAI,
             historicalSales: historicalSales as any,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
@@ -134,16 +140,13 @@ export const getReorderSuggestions = ai.defineTool(
             }));
         }
 
-
         logger.info(`[Reorder Tool] AI refinement complete. Applying post-processing guards.`);
-        // Post-processing guardrail: ensure we don't suggest ordering less than a 30-day supply.
         const finalSuggestions = validatedOutput.data.map(suggestion => {
             const originalSuggestion = baseSuggestions.find(s => s.sku === suggestion.sku);
             if (!originalSuggestion) return suggestion;
 
             const salesRecord = (historicalSales as any[]).find(s => s.sku === suggestion.sku);
             if (salesRecord && salesRecord.monthly_sales && salesRecord.monthly_sales.length > 0) {
-                // Approximate 30-day supply from the most recent month's sales
                 const lastMonthSales = salesRecord.monthly_sales[salesRecord.monthly_sales.length - 1].total_quantity || 0;
                 if (suggestion.suggested_reorder_quantity < lastMonthSales) {
                     suggestion.suggested_reorder_quantity = lastMonthSales;
@@ -151,7 +154,7 @@ export const getReorderSuggestions = ai.defineTool(
                 }
             }
             return {
-                ...originalSuggestion, // Use original suggestion as base to ensure all fields are present
+                ...originalSuggestion,
                 ...suggestion,
             };
         });
@@ -164,4 +167,3 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
-

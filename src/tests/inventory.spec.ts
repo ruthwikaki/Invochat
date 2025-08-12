@@ -44,18 +44,17 @@ test.describe('Inventory Page', () => {
   test('should filter inventory by name', async ({ page }) => {
     const searchTerm = '4K Smart TV';
     // This test assumes a known product exists in the test data
-    await page.getByTestId('inventory-search').fill(searchTerm);
+    await page.locator('input[placeholder*="Search by product title or SKU..."]').fill(searchTerm);
     
     // Check that only rows with the search term are visible
     const firstRow = page.getByTestId('inventory-table').locator('tbody tr').first();
     await expect(firstRow.or(page.getByText('No inventory found'))).toBeVisible();
     if (await firstRow.isVisible()) {
-      // **FIX:** The assertion should check for the actual search term, not a generic one.
       await expect(firstRow).toContainText(new RegExp(searchTerm, 'i'));
     }
     
     // Clear the search and verify more data appears if it exists
-    await page.getByTestId('inventory-search').fill('');
+    await page.locator('input[placeholder*="Search by product title or SKU..."]').fill('');
     const firstRowAfterClear = page.getByTestId('inventory-table').locator('tbody tr').first();
     await expect(firstRowAfterClear.or(page.getByText('No inventory found'))).toBeVisible();
   });
@@ -90,4 +89,3 @@ test.describe('Inventory Page', () => {
     expect(download.suggestedFilename()).toMatch(/inventory-export-.*\.csv/);
   });
 });
-
