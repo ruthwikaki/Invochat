@@ -201,8 +201,9 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
   const supabase = getServiceRoleClient();
   try {
       const { data: rpcData, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
+      
       if (error) {
-          logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
+          logError(error, { context: 'get_dashboard_metrics RPC call failed', companyId, period });
           throw new Error('Could not retrieve dashboard metrics from the database.');
       }
       
@@ -215,6 +216,8 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
       return DashboardMetricsSchema.parse(data);
   } catch (e) {
       logError(e, { context: 'getDashboardMetrics failed', companyId, period });
+      // In case of Zod parsing error or other exceptions, return a default object.
+      // A more robust implementation might re-throw a more specific error type.
       return DashboardMetricsSchema.parse({});
   }
 }
@@ -622,14 +625,18 @@ export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sk
     return data || [];
 }
 
-export async function getHistoricalSalesForSkus(
-  companyId: string, 
-  skus: string[]
-): Promise<any[]> {
-  const results = await Promise.all(
-    skus.map(sku => getHistoricalSalesForSingleSkuFromDB(companyId, sku))
-  );
-  return results.filter(r => r !== null);
+export async function getHistoricalSalesForSkus(companyId: string, skus: string[]): Promise<any[]> {
+    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
+    
+    // Use Promise.all to call the singular function for each SKU
+    const salesPromises = skus.map(sku => 
+        getHistoricalSalesForSingleSkuFromDB(companyId, sku).then(salesData => ({
+            sku,
+            monthly_sales: salesData // The RPC returns data in a format we can use directly
+        }))
+    );
+    
+    return Promise.all(salesPromises);
 }
 
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {

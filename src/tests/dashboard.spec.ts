@@ -62,7 +62,7 @@ test.describe('Dashboard Page', () => {
             return;
         }
 
-        const totalRevenueCard = page.locator('.card', { hasText: 'Total Revenue' });
+        const totalRevenueCard = page.getByTestId('total-revenue-card');
         await expect(totalRevenueCard).toBeVisible();
         const revenueText = await totalRevenueCard.locator('.text-3xl').innerText();
         
