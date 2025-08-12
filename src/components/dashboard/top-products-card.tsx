@@ -30,7 +30,7 @@ export function TopProductsCard({ data, currency }: TopProductsCardProps) {
           <ul className="space-y-4">
             {data.map((product, index) => (
               <motion.li 
-                key={index} 
+                key={product.product_name} 
                 className="flex items-center gap-4"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -44,7 +44,7 @@ export function TopProductsCard({ data, currency }: TopProductsCardProps) {
                 </Avatar>
                 <div className="flex-1 truncate">
                   <p className="font-medium">{product.product_name}</p>
-                   <p className="text-xs text-muted-foreground">{product.quantity_sold} units sold</p>
+                  <p className="text-xs text-muted-foreground">{product.quantity_sold} units sold</p>
                 </div>
                 <div className="font-semibold font-tabular">{formatCentsAsCurrency(product.total_revenue, currency)}</div>
               </motion.li>
