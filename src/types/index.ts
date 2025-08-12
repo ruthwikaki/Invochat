@@ -3,7 +3,8 @@
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
-import type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, EnhancedReorderSuggestionSchema } from '@/schemas/reorder';
+import type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion } from '@/schemas/reorder';
+import { EnhancedReorderSuggestionSchema } from '@/schemas/reorder';
 import type { Supplier, SupplierFormData } from '@/schemas/suppliers';
 
 
@@ -285,7 +286,7 @@ export const MessageSchema = z.object({
 export type Message = z.infer<typeof MessageSchema>;
 
 export type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier, SupplierFormData };
-export { ReorderSuggestionSchema, EnhancedReorderSuggestionSchema };
+export { EnhancedReorderSuggestionSchema };
 
 
 export const InventoryAgingReportItemSchema = z.object({
