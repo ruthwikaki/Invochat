@@ -12,6 +12,7 @@ interface InventorySummaryCardProps {
         dead_stock_value: number;
     };
     currency: string;
+    "data-testid"?: string;
 }
 
 const SummaryItem = ({ label, value, colorClass, link, currency }: { label: string; value: number; colorClass: string; link?: string, currency: string }) => (
@@ -30,14 +31,14 @@ const SummaryItem = ({ label, value, colorClass, link, currency }: { label: stri
     </div>
 );
 
-export function InventorySummaryCard({ data, currency }: InventorySummaryCardProps) {
+export function InventorySummaryCard({ data, currency, "data-testid": dataTestId }: InventorySummaryCardProps) {
     const totalValue = data.total_value;
     const inStockPercentage = totalValue > 0 ? (data.in_stock_value / totalValue) * 100 : 0;
     const lowStockPercentage = totalValue > 0 ? (data.low_stock_value / totalValue) * 100 : 0;
     const deadStockPercentage = totalValue > 0 ? (data.dead_stock_value / totalValue) * 100 : 0;
 
     return (
-        <Card>
+        <Card data-testid={dataTestId}>
             <CardHeader>
                 <CardTitle>Inventory Value Summary</CardTitle>
                 <CardDescription>

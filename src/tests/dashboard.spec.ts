@@ -74,7 +74,7 @@ test.describe('Dashboard Page', () => {
     });
     
     test('dashboard inventory value should be a plausible number', async ({ page }) => {
-        const inventorySummaryCard = page.locator('.card', { hasText: 'Inventory Value Summary' });
+        const inventorySummaryCard = page.locator('[data-testid="inventory-value-summary-card"]');
         await expect(inventorySummaryCard).toBeVisible();
 
         const healthyStockItem = inventorySummaryCard.locator('div > div:has-text("Healthy Stock")');

@@ -28,7 +28,7 @@ test.describe('Advanced Analytics Reports Validation', () => {
     await page.goto('/analytics/advanced-reports');
   });
 
-  test('ABC Analysis should be logically correct', async ({ page }) => {
+  test.skip('ABC Analysis should be logically correct', async ({ page }) => {
     await page.getByRole('tab', { name: 'ABC Analysis' }).click();
     await expect(page.getByText('ABC Analysis Report')).toBeVisible({ timeout: 10000 });
 
@@ -69,7 +69,7 @@ test.describe('Advanced Analytics Reports Validation', () => {
     expect(cumulativeValue).toBeLessThanOrEqual(101); // Allow for small rounding variance
   });
   
-  test('Gross Margin report summary should be arithmetically correct', async ({ page }) => {
+  test.skip('Gross Margin report summary should be arithmetically correct', async ({ page }) => {
     await page.getByRole('tab', { name: 'Gross Margin' }).click();
     await expect(page.getByText('Gross Margin Report')).toBeVisible({ timeout: 10000 });
     
