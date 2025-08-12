@@ -9,13 +9,13 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
-import type { ReorderSuggestionBase } from '@/schemas/reorder';
-import { EnhancedReorderSuggestionSchema } from '@/schemas/reorder';
+import type { ReorderSuggestion } from '@/types';
+import { EnhancedReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/schemas/reorder';
 import { config } from '@/config/app-config';
 
-// The input for the AI refinement prompt
+// The input for the AI refinement prompt, derived from the base schema
 const ReorderRefinementInputSchema = z.object({
-  suggestions: z.array(z.custom<ReorderSuggestionBase>()),
+  suggestions: z.array(ReorderSuggestionBaseSchema),
   historicalSales: z.array(z.object({
       sku: z.string(),
       monthly_sales: z.array(z.object({
@@ -77,30 +77,25 @@ export const getReorderSuggestions = ai.defineTool(
     logger.info(`[Reorder Tool] Getting suggestions for company: ${input.companyId}`);
     
     try {
-        const baseSuggestions = await getReorderSuggestionsFromDB(input.companyId);
+        const baseSuggestions: ReorderSuggestion[] = await getReorderSuggestionsFromDB(input.companyId);
 
         if (baseSuggestions.length === 0) {
             logger.info(`[Reorder Tool] No baseline suggestions found for company ${input.companyId}. Returning empty array.`);
             return [];
         }
+        
+        // **FIX:** Map DB field `current_quantity` to schema field `current_stock` for the AI prompt.
+        const suggestionsForAI = baseSuggestions.map(s => ({
+            ...s,
+            current_stock: s.current_quantity,
+        }));
+
 
         const skus = baseSuggestions.map(s => s.sku);
         const [historicalSales, settings] = await Promise.all([
             getHistoricalSalesForSkus(input.companyId, skus.slice(0, 100)), // Cap SKUs to prevent excessive token usage
             getSettings(input.companyId),
         ]);
-        
-        // If no historical sales data, return base suggestions
-        if (!historicalSales || historicalSales.length === 0) {
-             logger.warn(`[Reorder Tool] No historical sales data for SKUs. Returning base suggestions.`);
-             return baseSuggestions.map(s => ({
-                ...s,
-                base_quantity: s.suggested_reorder_quantity,
-                adjustment_reason: 'No historical data available for AI refinement.',
-                seasonality_factor: 1.0,
-                confidence: 0.1,
-            }));
-        }
         
         if (!settings.timezone) {
             logger.warn(`[Reorder Tool] Company timezone not set. Defaulting to UTC for AI analysis.`);
@@ -109,7 +104,7 @@ export const getReorderSuggestions = ai.defineTool(
         logger.info(`[Reorder Tool] Refining ${baseSuggestions.length} suggestions with AI.`);
         
         const { output } = await reorderRefinementPrompt({
-            suggestions: baseSuggestions,
+            suggestions: suggestionsForAI, // Pass the correctly mapped data
             historicalSales: historicalSales as any,
             currentDate: new Date().toISOString().split('T')[0],
             timezone: settings.timezone || 'UTC',
@@ -143,6 +138,9 @@ export const getReorderSuggestions = ai.defineTool(
         logger.info(`[Reorder Tool] AI refinement complete. Applying post-processing guards.`);
         // Post-processing guardrail: ensure we don't suggest ordering less than a 30-day supply.
         const finalSuggestions = validatedOutput.data.map(suggestion => {
+            const originalSuggestion = baseSuggestions.find(s => s.sku === suggestion.sku);
+            if (!originalSuggestion) return suggestion;
+
             const salesRecord = (historicalSales as any[]).find(s => s.sku === suggestion.sku);
             if (salesRecord && salesRecord.monthly_sales && salesRecord.monthly_sales.length > 0) {
                 // Approximate 30-day supply from the most recent month's sales
@@ -152,7 +150,10 @@ export const getReorderSuggestions = ai.defineTool(
                     suggestion.adjustment_reason = `[CORRECTED] Increased to meet minimum 30-day supply based on recent sales.`;
                 }
             }
-            return suggestion;
+            return {
+                ...originalSuggestion, // Use original suggestion as base to ensure all fields are present
+                ...suggestion,
+            };
         });
 
         return finalSuggestions;

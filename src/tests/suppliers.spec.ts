@@ -11,7 +11,6 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    await page.waitForURL('/dashboard');
     // Wait for either the empty state or the actual dashboard content
     await page.waitForSelector('text=/Welcome to ARVO|Sales Overview/', { timeout: 20000 });
 }
@@ -39,9 +38,12 @@ test.describe('Supplier Management', () => {
 
     // 2. Verify the supplier was created and is in the list
     await page.waitForURL('/suppliers');
-    await expect(page.getByText(newSupplierName)).toBeVisible();
-    await expect(page.getByText(newSupplierEmail)).toBeVisible();
-    await expect(page.getByText('14 days')).toBeVisible();
+    const newRow = page.locator('tr', { hasText: newSupplierName });
+    await expect(newRow).toBeVisible();
+    await expect(newRow).toContainText(newSupplierEmail);
+    // **FIX**: Use a more specific locator to avoid matching other "14 days" on the page.
+    await expect(newRow.locator('td', { hasText: '14 days' })).toBeVisible();
+
 
     // 3. Update the supplier
     const supplierRow = page.locator('tr', { hasText: newSupplierName });
