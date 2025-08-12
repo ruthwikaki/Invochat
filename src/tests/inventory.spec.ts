@@ -12,7 +12,8 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 20000 });
+    // Wait for either the empty state or the actual dashboard content
+    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview/', { timeout: 20000 });
 }
 
 test.describe('Inventory Page', () => {
@@ -75,12 +76,12 @@ test.describe('Inventory Page', () => {
   });
 
   test('should trigger a file download when Export is clicked', async ({ page }) => {
-    // Wait for a response from the export endpoint. This is more reliable than waiting for a download event.
-    const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/inventory/export') && resp.status() === 200);
-
+    // Start waiting for the download before clicking.
+    const downloadPromise = page.waitForEvent('download');
+    
     await page.getByTestId('inventory-export').click();
     
-    const resp = await responsePromise;
-    expect(resp.ok()).toBeTruthy();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/inventory-export-.*\.csv/);
   });
 });

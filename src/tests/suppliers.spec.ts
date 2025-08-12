@@ -12,7 +12,8 @@ async function login(page: Page) {
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard');
-    await expect(page.getByText('Sales Overview')).toBeVisible({ timeout: 20000 });
+    // Wait for either the empty state or the actual dashboard content
+    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview/', { timeout: 20000 });
 }
 
 test.describe('Supplier Management', () => {
