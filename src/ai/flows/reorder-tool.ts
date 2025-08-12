@@ -62,6 +62,13 @@ export const reorderRefinementPrompt = ai.definePrompt({
     `,
 });
 
+function isCompleteSuggestion(item: any): item is ReorderSuggestion {
+    return item &&
+        typeof item.product_id === 'string' &&
+        typeof item.product_name === 'string' &&
+        typeof item.sku === 'string' &&
+        typeof item.suggested_reorder_quantity === 'number';
+}
 
 export const getReorderSuggestions = ai.defineTool(
   {
@@ -127,7 +134,15 @@ export const getReorderSuggestions = ai.defineTool(
             }));
         }
         
-        const validatedOutput = z.array(EnhancedReorderSuggestionSchema).safeParse(output);
+        // **FIX**: Filter out any incomplete or malformed items returned by the AI
+        const completeSuggestions = output.filter(isCompleteSuggestion);
+
+        if (completeSuggestions.length !== output.length) {
+            logger.warn(`[Reorder Tool] Filtered out ${output.length - completeSuggestions.length} incomplete items from AI response.`);
+        }
+        
+        const validatedOutput = z.array(EnhancedReorderSuggestionSchema).safeParse(completeSuggestions);
+
         if(!validatedOutput.success) {
             logError(validatedOutput.error, { context: 'AI output failed validation for reorder suggestions' });
             // Fallback to base suggestions if AI output is malformed

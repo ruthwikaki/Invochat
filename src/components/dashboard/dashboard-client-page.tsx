@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -100,7 +101,11 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         router.push(`/dashboard?range=${value}`);
     };
     
-    const hasData = initialMetrics.total_revenue > 0 || initialMetrics.total_orders > 0;
+    const hasData = initialMetrics && (
+        initialMetrics.total_revenue > 0 ||
+        initialMetrics.total_orders > 0 ||
+        (initialMetrics.inventory_summary && initialMetrics.inventory_summary.total_value > 0)
+    );
 
     if (!hasData) {
         return (
@@ -148,12 +153,10 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <SalesChart data={initialMetrics.sales_over_time} currency={settings.currency} />
-                <TopProductsCard data={initialMetrics.top_selling_products} currency={settings.currency} />
+                <TopProductsCard data={initialMetrics.top_products} currency={settings.currency} />
             </div>
             
             <InventorySummaryCard data={initialMetrics.inventory_summary} currency={settings.currency} />
         </motion.div>
     );
 }
-
-    

@@ -14,15 +14,23 @@ export const ReorderSuggestionBaseSchema = z.object({
 
 export type ReorderSuggestionBase = z.infer<typeof ReorderSuggestionBaseSchema>;
 
-export const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.extend({
-  recommended_order_qty: z.number().int().min(0),
-  rationale: z.string().optional(),
-  supplier: z.string().optional(),
-  unit_cost: z.number().min(0), // or .int().min(0) if this is in cents
-  expected_stockout_date: z.string().optional(),
+export const EnhancedReorderSuggestionSchema = z.object({
+    variant_id: z.string().uuid(),
+    product_id: z.string().uuid(),
+    sku: z.string(),
+    product_name: z.string(),
+    supplier_name: z.string().nullable(),
+    supplier_id: z.string().uuid().nullable(),
+    current_quantity: z.number().int(),
+    suggested_reorder_quantity: z.number().int(),
+    unit_cost: z.number().int().nullable(),
+    base_quantity: z.number().int(),
+    adjustment_reason: z.string().nullable(),
+    seasonality_factor: z.number().nullable(),
+    confidence: z.number().nullable(),
 });
-
 export type EnhancedReorderSuggestion = z.infer<typeof EnhancedReorderSuggestionSchema>;
+
 
 export const ReorderSuggestionSchema = z.object({
   variant_id: z.string().uuid(),
