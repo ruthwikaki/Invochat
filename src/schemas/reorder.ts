@@ -23,3 +23,20 @@ export const EnhancedReorderSuggestionSchema = ReorderSuggestionBaseSchema.exten
 });
 
 export type EnhancedReorderSuggestion = z.infer<typeof EnhancedReorderSuggestionSchema>;
+
+export const ReorderSuggestionSchema = z.object({
+  variant_id: z.string().uuid(),
+  product_id: z.string().uuid(),
+  sku: z.string(),
+  product_name: z.string(),
+  supplier_name: z.string().nullable(),
+  supplier_id: z.string().uuid().nullable(),
+  current_quantity: z.number().int(),
+  suggested_reorder_quantity: z.number().int(),
+  unit_cost: z.number().int().nullable(),
+  base_quantity: z.number().int(),
+  adjustment_reason: z.string().nullable(),
+  seasonality_factor: z.number().nullable(),
+  confidence: z.number().nullable(),
+});
+export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;

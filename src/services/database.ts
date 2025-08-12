@@ -230,7 +230,7 @@ export async function getInventoryAnalyticsFromDB(companyId: string): Promise<In
             logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
             throw new Error('Failed to retrieve inventory analytics');
         }
-        return InventoryAnalyticsSchema.parse(data[0]);
+        return InventoryAnalyticsSchema.parse(data);
     } catch (error) {
         logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
         throw error;
@@ -383,9 +383,6 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         throw error;
     }
     // Handle the case where the RPC returns null for a new company with no sales data.
-    if (!data) {
-        return SalesAnalyticsSchema.parse({});
-    }
     return SalesAnalyticsSchema.parse(data);
 }
 
