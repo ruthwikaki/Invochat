@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import type { DashboardMetrics } from '@/types';
 import { logger } from '@/lib/logger';
+import { getCurrentUser } from '@/lib/auth-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,18 +39,21 @@ export default async function DashboardPage({
     let briefing;
     let settings;
     let metricsError = null;
+    let user;
 
     try {
         // Fetch all data in parallel
-        const [metricsData, briefingData, settingsData] = await Promise.all([
+        user = await getCurrentUser();
+        const [metricsData, settingsData] = await Promise.all([
             getDashboardData(dateRange),
-            getMorningBriefing(dateRange),
             getCompanySettings(),
         ]);
         
         metrics = metricsData || emptyMetrics;
-        briefing = briefingData;
         settings = settingsData;
+
+        // Briefing depends on metrics, so it's called after.
+        briefing = await getMorningBriefing(metrics, user?.user_metadata.company_name);
 
     } catch (error: any) {
         logger.error('Failed to fetch dashboard data', { error: error.message });

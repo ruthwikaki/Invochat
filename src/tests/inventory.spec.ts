@@ -75,6 +75,7 @@ test.describe('Inventory Page', () => {
   });
 
   test('should trigger a file download when Export is clicked', async ({ page }) => {
+    // Wait for a response from the export endpoint. This is more reliable than waiting for a download event.
     const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/inventory/export') && resp.status() === 200);
 
     await page.getByTestId('inventory-export').click();

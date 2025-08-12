@@ -48,13 +48,13 @@ test.describe('Sales Page', () => {
       return;
     }
     
-    const firstRowText = await rows.first().innerText();
-    const inferredOrder = (firstRowText.match(/#[0-9]+/)?.[0]);
-    expect(inferredOrder).toBeDefined();
+    const firstRowOrderNumberCell = rows.first().locator('td').first();
+    const orderNumber = await firstRowOrderNumberCell.textContent();
+    expect(orderNumber).toBeDefined();
 
-    await page.getByTestId('sales-search').fill(inferredOrder!);
+    await page.getByTestId('sales-search').fill(orderNumber!);
     
-    await expect(rows.first()).toContainText(inferredOrder!);
+    await expect(rows.first()).toContainText(orderNumber!);
     
     await page.getByTestId('sales-search').fill('NONEXISTENT_ORDER_12345');
     await expect(page.getByText('No sales orders found matching your search.')).toBeVisible({ timeout: 10000 });

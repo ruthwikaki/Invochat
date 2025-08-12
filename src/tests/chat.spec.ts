@@ -53,12 +53,11 @@ test.describe('AI Chat Interface', () => {
     });
     
     test('should trigger reorder tool and render the correct UI component', async ({ page }) => {
-        const input = page.locator('input[type="text"]');
-        await input.fill('What should I reorder?');
-        await page.locator('button[type="submit"]').click();
+        // Use a more specific quick action button selector
+        await page.getByRole('button', { name: 'What should I order today?' }).click();
 
         // Check that the user message appears
-        await expect(page.getByText('What should I reorder?')).toBeVisible();
+        await expect(page.getByText('What should I order today?')).toBeVisible();
 
         await expect(page.getByTestId('reorder-list')).toBeVisible({ timeout: 20000 });
     });

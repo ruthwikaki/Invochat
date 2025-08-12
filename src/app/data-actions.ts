@@ -55,7 +55,7 @@ import {
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
-import { SupplierFormSchema } from '@/types';
+import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
@@ -577,16 +577,16 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         if (!data) return {} as DashboardMetrics;
         // Transform to camelCase
         const transformedData = {
-            totalRevenue: data.total_revenue,
-            revenueChange: data.revenue_change,
-            totalOrders: data.total_orders,
-            ordersChange: data.orders_change,
-            newCustomers: data.new_customers,
-            customersChange: data.customers_change,
-            deadStockValue: data.dead_stock_value,
-            salesOverTime: data.sales_over_time,
-            topSellingProducts: data.top_selling_products,
-            inventorySummary: data.inventory_summary,
+            total_revenue: data.total_revenue,
+            revenue_change: data.revenue_change,
+            total_orders: data.total_orders,
+            orders_change: data.orders_change,
+            new_customers: data.new_customers,
+            customers_change: data.customers_change,
+            dead_stock_value: data.dead_stock_value,
+            sales_over_time: data.sales_over_time,
+            top_selling_products: data.top_selling_products,
+            inventory_summary: data.inventory_summary,
         };
 
         if (isRedisEnabled && transformedData) {
@@ -599,11 +599,8 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
     }
 }
 
-export async function getMorningBriefing(dateRange: string) {
-    const { companyId } = await getAuthContext();
-    const user = await getCurrentUser();
-    const metrics = await getDashboardData(dateRange);
-    return generateMorningBriefing({ metrics, companyName: user?.user_metadata?.company_name });
+export async function getMorningBriefing(metrics: DashboardMetrics, companyName?: string) {
+    return generateMorningBriefing({ metrics, companyName });
 }
 
 export async function getSupplierPerformanceReportData() {
@@ -682,29 +679,29 @@ export async function handleUserMessage(params: { content: string, conversationI
   try {
     const { companyId, userId } = await getAuthContext();
     const validatedInput = chatInputSchema.parse(params);
-    const { content, conversationId } = validatedInput;
+    let { content, conversationId } = validatedInput;
 
     const supabase = getServiceRoleClient();
-    let currentConversationId = conversationId;
-
-    if (!currentConversationId) {
-        const { data: newConversation, error } = await supabase.from('conversations').insert({
+    
+    if (!conversationId) {
+        const { data: newConversation, error: convError } = await supabase.from('conversations').insert({
             user_id: userId,
             company_id: companyId,
             title: content.substring(0, 50)
         }).select().single();
-        if(error) throw error;
-        currentConversationId = newConversation.id;
+        if(convError) throw convError;
+        conversationId = newConversation.id;
     }
 
+
     await supabase.from('messages').insert({
-        conversation_id: currentConversationId,
+        conversation_id: conversationId,
         company_id: companyId,
         role: 'user',
         content,
     });
     
-    const { data: history } = await supabase.from('messages').select('*').eq('conversation_id', currentConversationId).order('created_at', { ascending: false }).limit(10);
+    const { data: history } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(10);
     const reversedHistory = (history || []).reverse();
 
     const aiResponse = await universalChatFlow({
@@ -713,7 +710,7 @@ export async function handleUserMessage(params: { content: string, conversationI
     });
 
     const { data: newMessage, error: messageError } = await supabase.from('messages').insert({
-        conversation_id: currentConversationId,
+        conversation_id: conversationId,
         company_id: companyId,
         role: 'assistant',
         content: aiResponse.response,
@@ -739,7 +736,7 @@ export async function handleUserMessage(params: { content: string, conversationI
     
     if (messageError) throw messageError;
 
-    return { newMessage: newMessage as Message, conversationId: currentConversationId };
+    return { newMessage: newMessage as Message, conversationId: conversationId };
 
   } catch(e) {
     const errorMessage = getErrorMessage(e);
