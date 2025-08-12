@@ -11,8 +11,8 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    // Wait for either the empty state or the actual dashboard content
-    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview|Dashboard/', { timeout: 20000 });
+    await page.waitForURL('/dashboard', { timeout: 30000 });
+    await page.waitForLoadState('networkidle');
 }
 
 test.describe('Inventory Page', () => {
@@ -26,11 +26,11 @@ test.describe('Inventory Page', () => {
     await page.waitForLoadState('networkidle');
   
     // Check if page loaded
-    const hasInventory = await page.locator('text=/Inventory|Products/').isVisible();
+    const hasInventory = await page.locator('text=/Inventory Management|Products/').isVisible();
     expect(hasInventory).toBeTruthy();
     
     // Only check values if not empty state
-    const hasEmptyState = await page.locator('text=/No inventory|Import data/').isVisible().catch(() => false);
+    const hasEmptyState = await page.locator('text=/Your Inventory is Empty|Import Inventory/').isVisible().catch(() => false);
     if (!hasEmptyState) {
       const valueCard = page.locator('.card').filter({ hasText: /Total.*Value/i });
       if (await valueCard.count() > 0) {
@@ -42,7 +42,7 @@ test.describe('Inventory Page', () => {
   });
 
   test('should filter inventory by name', async ({ page }) => {
-    const searchTerm = '4K Smart TV';
+    const searchTerm = 'Test Product';
     // This test assumes a known product exists in the test data
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill(searchTerm);
     

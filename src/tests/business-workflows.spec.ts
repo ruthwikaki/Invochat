@@ -14,8 +14,8 @@ async function login(page: Page) {
     await page.fill('input[name="email"]', testUser.email);
     await page.fill('input[name="password"]', testUser.password);
     await page.click('button[type="submit"]');
-    // Wait for a specific element that indicates the dashboard is fully loaded
-    await page.waitForSelector('text=/Welcome to ARVO|Sales Overview|Dashboard/', { timeout: 60000 });
+    await page.waitForURL('/dashboard', { timeout: 30000 });
+    await page.waitForLoadState('networkidle');
 }
 
 test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
@@ -69,4 +69,3 @@ test.describe('E2E Business Workflow: Create & Manage Purchase Order', () => {
     await expect(supplierInput).toContainText(newSupplierName);
   });
 });
-
