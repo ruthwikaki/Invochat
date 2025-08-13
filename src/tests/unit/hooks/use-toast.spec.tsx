@@ -2,7 +2,7 @@
 
 import { renderHook, act } from '@testing-library/react';
 import { useToast } from '@/hooks/use-toast';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Toaster } from '@/components/ui/toaster';
 import React from 'react';
 

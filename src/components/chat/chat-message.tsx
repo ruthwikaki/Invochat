@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -179,18 +180,18 @@ export function ChatMessage({
         className={cn("flex flex-col gap-3", isUserMessage && "items-end")}
     >
       <div className={cn("flex items-start gap-3 w-full", isUserMessage ? "justify-end" : "justify-start")}>
-        {!isUserMessage && <BotAvatar isError={message.isError} />}
+        {!isUserMessage && <BotAvatar isError={message.is_error} />}
         
         <div className={cn(
             'relative max-w-xl rounded-2xl px-4 py-3 shadow-md space-y-2 text-base whitespace-pre-wrap selection:bg-primary/50',
             isUserMessage
                 ? 'rounded-br-none bg-primary text-primary-foreground'
                 : 'rounded-bl-none bg-card text-card-foreground',
-            message.isError && 'bg-destructive/10 border border-destructive/20 text-destructive'
+            message.is_error && 'bg-destructive/10 border border-destructive/20 text-destructive'
         )}>
             {isLoading ? <LoadingIndicator /> : <div dangerouslySetInnerHTML={{ __html: sanitizedContent }} />}
 
-            {!isUserMessage && !isLoading && !message.isError &&(
+            {!isUserMessage && !isLoading && !message.is_error &&(
             <ConfidenceDisplay confidence={message.confidence} assumptions={message.assumptions} />
             )}
         </div>
@@ -202,7 +203,7 @@ export function ChatMessage({
         )}
       </div>
       
-      {CustomComponent && message.component_props?.data && (
+      {CustomComponent && message.component_props && (
           <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
             <CustomComponent data={(message.component_props as any).data} />
           </div>
@@ -217,7 +218,7 @@ export function ChatMessage({
         </div>
       )}
       
-       {!isUserMessage && !isLoading && !message.isError && (
+       {!isUserMessage && !isLoading && !message.is_error && (
             <div className={cn("max-w-xl w-full flex justify-start", !isUserMessage && "ml-12")}>
                 <FeedbackActions messageId={message.id} />
             </div>
