@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createOrUpdateSecret, getSecret } from '@/features/integrations/services/encryption';
 import { getServiceRoleClient } from '@/lib/supabase/admin';

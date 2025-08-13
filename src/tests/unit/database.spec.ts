@@ -12,13 +12,13 @@ vi.mock('@/lib/supabase/admin', () => ({
 const mockDashboardData = {
   total_revenue: 100000,
   revenue_change: 10.5,
-  total_sales: 50,
-  sales_change: 5.2,
+  total_orders: 50,
+  orders_change: 5.2,
   new_customers: 10,
   customers_change: 2.1,
   dead_stock_value: 5000,
-  sales_over_time: [{ date: '2024-01-01', total_sales: 5000 }],
-  top_selling_products: [{ product_name: 'Test Product', total_revenue: 20000, image_url: null }],
+  sales_over_time: [{ date: '2024-01-01', revenue: 5000 }],
+  top_products: [{ product_id: 'p1', product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
   inventory_summary: {
     total_value: 200000,
     in_stock_value: 150000,
@@ -40,7 +40,7 @@ describe('Database Service - Business Logic', () => {
     });
 
     expect(result.total_revenue).toBe(100000);
-    expect(result.top_selling_products[0].product_name).toBe('Test Product');
+    expect(result.top_products[0].product_name).toBe('Test Product');
   });
 
    it('getDashboardMetrics should throw an error if the RPC call fails', async () => {

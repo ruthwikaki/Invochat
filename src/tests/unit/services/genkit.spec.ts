@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ai } from '@/ai/genkit';
 import { testGenkitConnection } from '@/services/genkit';

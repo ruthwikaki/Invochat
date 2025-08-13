@@ -1,4 +1,3 @@
-
 import { rateLimit, isRedisEnabled } from '../../lib/redis';
 import { describe, it, expect } from 'vitest';
 
@@ -7,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 const RUN_REDIS_TESTS = isRedisEnabled;
 
 describe.skipIf(!RUN_REDIS_TESTS)('rateLimit', () => {
-
+    
   it('should allow requests below the limit', async () => {
     const identifier = `test-user-${Date.now()}`;
     const result = await rateLimit(identifier, 'test_action', 5, 60);

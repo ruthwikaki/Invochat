@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardData } from '@/app/data-actions';
 import * as database from '@/services/database';
