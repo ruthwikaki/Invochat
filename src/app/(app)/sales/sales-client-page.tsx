@@ -121,9 +121,15 @@ export function SalesClientPage({ initialSales, totalCount, itemsPerPage, analyt
     return (
     <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+<<<<<<< HEAD
             <AnalyticsCard title="Total Revenue" value={formatCentsAsCurrency(analyticsData?.total_revenue || 0)} icon={DollarSign} />
             <AnalyticsCard title="Total Orders" value={(analyticsData?.total_orders || 0).toLocaleString()} icon={ShoppingCart} />
             <AnalyticsCard title="Average Order Value" value={formatCentsAsCurrency(analyticsData?.average_order_value || 0)} icon={Percent} />
+=======
+            <AnalyticsCard title="Total Revenue" value={formatCentsAsCurrency(analyticsData?.total_revenue || 0total_revenue)} icon={DollarSign} />
+            <AnalyticsCard title="Total Orders" value={(analyticsData?.total_orders || 0).toLocaleString()} icon={ShoppingCart} />
+            <AnalyticsCard title="Average Order Value" value={formatCentsAsCurrency(analyticsData?.total_revenue || 0average_order_value)} icon={Percent} />
+>>>>>>> 993739928539a0f23889f9a0457da189169fe1b0
         </div>
         
         <Card>

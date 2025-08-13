@@ -14,8 +14,8 @@ test.describe('Data Security & Multi-Tenancy', () => {
     test.beforeAll(async () => {
         const supabase = getServiceRoleClient();
         // Create two separate companies and a supplier in the first one
-        const { data: comp1 } = await supabase.from('companies').insert({ name: 'Security Test Co 1' }).select().single();
-        const { data: comp2 } = await supabase.from('companies').insert({ name: 'Security Test Co 2' }).select().single();
+        const { data: comp1 } = await supabase.from('companies').insert({ name: 'Security Test Co 1', owner_id: null }).select().single();
+        const { data: comp2 } = await supabase.from('companies').insert({ name: 'Security Test Co 2', owner_id: null }).select().single();
         if(!comp1 || !comp2) throw new Error('Failed to create test companies');
         company1Id = comp1.id;
         company2Id = comp2.id;
@@ -53,3 +53,4 @@ test.describe('Data Security & Multi-Tenancy', () => {
         await supabase.from('companies').delete().in('id', [company1Id, company2Id]);
     });
 });
+

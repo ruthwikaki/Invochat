@@ -121,6 +121,10 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
 
                 if (wooProduct.type === 'simple') {
                     variantsToUpsert.push({
+
+                        reorder_point: null,
+
+                        reorder_quantity: null,
                         product_id: internalProductId,
                         company_id: integration.company_id,
                         sku: wooProduct.sku || `WOO-${wooProduct.id}`,
@@ -149,6 +153,12 @@ async function syncProducts(integration: Integration, credentials: { consumerKey
                 if (!internalProductId) continue;
 
                 variantsToUpsert.push({
+
+
+                    reorder_point: null,
+
+
+                    reorder_quantity: null,
                     product_id: internalProductId,
                     company_id: integration.company_id,
                     sku: variant.sku || `WOO-${variant.id}`,
@@ -272,3 +282,4 @@ export async function runWooCommerceFullSync(integration: Integration) {
         throw e;
     }
 }
+

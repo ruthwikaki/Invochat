@@ -57,3 +57,4 @@ describe('testGenkitConnection', () => {
     vi.spyOn(envValidation, 'success', 'get').mockReturnValue(true);
   });
 });
+

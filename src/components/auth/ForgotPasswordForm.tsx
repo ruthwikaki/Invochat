@@ -55,7 +55,7 @@ export function ForgotPasswordForm({ error: initialError, success: initialSucces
   
   const formAction = (formData: FormData) => {
     startTransition(async () => {
-        await requestPasswordReset(formData);
+        await requestPasswordReset(null, formData);
     })
   }
 
@@ -87,3 +87,4 @@ export function ForgotPasswordForm({ error: initialError, success: initialSucces
     </form>
   );
 }
+
