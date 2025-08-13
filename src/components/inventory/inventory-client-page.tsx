@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
@@ -20,7 +19,7 @@ import { formatCentsAsCurrency } from '@/lib/utils';
 import { InventoryHistoryDialog } from '@/components/inventory/inventory-history-dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useTableState } from '@/hooks/use-table-state';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface InventoryClientPageProps {
   initialInventory: UnifiedInventoryItem[];
@@ -161,7 +160,7 @@ const SortableHeader = ({ column, label, currentSort, currentDirection, onSort }
 export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage, analyticsData, exportAction }: InventoryClientPageProps) {
   const [expandedProducts, setExpandedProducts] = useState(new Set<string>());
   const [historyVariant, setHistoryVariant] = useState<UnifiedInventoryItem | null>(null);
-
+  const searchParams = useSearchParams();
   const router = useRouter();
 
   const {
@@ -175,13 +174,13 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
   } = useTableState<SortableColumn>({ defaultSortColumn: 'product_title' });
 
   const handleStatusChange = (newStatus: string) => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     params.set('status', newStatus);
     params.set('page', '1');
-    router.replace(`${window.location.pathname}?${params.toString()}`);
+    router.replace(`?${params.toString()}`);
   };
 
-  const status = new URLSearchParams(window.location.search).get('status') || 'all';
+  const status = searchParams.get('status') || 'all';
 
   const toggleExpandProduct = (productId: string) => {
     setExpandedProducts(prev => {
@@ -251,13 +250,13 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
         <Card>
             <CardContent className="p-0">
             <div className="max-h-[70vh] overflow-auto">
-                <Table>
+                <Table data-testid="inventory-table">
                     <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                         <TableRow>
-                            <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection as 'asc' | 'desc'} onSort={handleSort} />
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Variants</TableHead>
-                            <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection as 'asc' | 'desc'} onSort={handleSort} />
                             <TableHead className="w-16 text-center">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -348,4 +347,3 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     </>
   );
 }
-
