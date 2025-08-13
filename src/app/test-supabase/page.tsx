@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,11 +16,7 @@ export default function SupabaseTestPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  useEffect(() => {
-    testConnection();
-  }, []);
-
-  const testConnection = async () => {
+  const testConnection = useCallback(async () => {
     try {
       setConnectionStatus('checking');
       
@@ -37,7 +33,11 @@ export default function SupabaseTestPage() {
       setConnectionStatus('error');
       setErrorMessage(error.message || 'Unknown error occurred');
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    testConnection();
+  }, [testConnection]);
 
   const testSignUp = async () => {
     try {

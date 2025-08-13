@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useToast, Toaster } from '@/hooks/use-toast';
@@ -5,17 +6,17 @@ import React from 'react';
 
 // Wrapper component to provide the necessary context for the toast hook
 const ToastWrapper = ({ children }: { children: React.ReactNode }) => (
-  <>
+  <React.Fragment>
     {children}
     <Toaster />
-  </>
+  </React.Fragment>
 );
 
 
 describe('useToast hook', () => {
   it('should allow adding and dismissing toasts', () => {
     const { result } = renderHook(() => useToast(), {
-      wrapper: ({ children }) => <ToastWrapper>{children}</ToastWrapper>,
+      wrapper: ({ children }: { children: React.ReactNode }) => <ToastWrapper>{children}</ToastWrapper>,
     });
 
     act(() => {

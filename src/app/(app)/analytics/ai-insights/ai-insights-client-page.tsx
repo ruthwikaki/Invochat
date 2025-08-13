@@ -68,7 +68,7 @@ function PromotionalImpactResults({ data }: { data: PromotionalImpact }) {
         >
             <Alert className="mb-6 bg-primary/5 border-primary/20">
                 <Lightbulb className="h-4 w-4" />
-                <AlertTitle>AI Analyst's Summary</AlertTitle>
+                <AlertTitle>AI Analyst&apos;s Summary</AlertTitle>
                 <AlertDescription>{summary}</AlertDescription>
             </Alert>
 
@@ -114,7 +114,7 @@ function HiddenMoneyResults({ data }: { data: HiddenMoney }) {
         >
             <Alert className="mb-6 bg-primary/5 border-primary/20">
                 <Lightbulb className="h-4 w-4" />
-                <AlertTitle>AI Business Consultant's Summary</AlertTitle>
+                <AlertTitle>AI Business Consultant&apos;s Summary</AlertTitle>
                 <AlertDescription>{data.analysis}</AlertDescription>
             </Alert>
             
@@ -161,7 +161,7 @@ function MarkdownPlanResults({ plan }: { plan: MarkdownPlan }) {
         >
             <Alert className="mb-6 bg-primary/5 border-primary/20">
                 <Lightbulb className="h-4 w-4" />
-                <AlertTitle>AI Analyst's Summary</AlertTitle>
+                <AlertTitle>AI Analyst&apos;s Summary</AlertTitle>
                 <AlertDescription>{plan.analysis}</AlertDescription>
             </Alert>
             
@@ -208,7 +208,7 @@ function BundleResults({ bundles }: { bundles: BundleSuggestions }) {
         >
             <Alert className="mb-6 bg-primary/5 border-primary/20">
                 <Lightbulb className="h-4 w-4" />
-                <AlertTitle>AI Merchandiser's Summary</AlertTitle>
+                <AlertTitle>AI Merchandiser&apos;s Summary</AlertTitle>
                 <AlertDescription>{bundles.analysis}</AlertDescription>
             </Alert>
             
@@ -225,7 +225,7 @@ function BundleResults({ bundles }: { bundles: BundleSuggestions }) {
                                 <ul className="list-disc list-inside text-muted-foreground text-sm">
                                     {item.productSkus.map((sku: string) => <li key={sku}>{sku}</li>)}
                                 </ul>
-                                <p className="text-xs pt-2 italic">"{item.reasoning}"</p>
+                                <p className="text-xs pt-2 italic">&quot;{item.reasoning}&quot;</p>
                            </div>
                         </CardContent>
                     </Card>
@@ -246,7 +246,7 @@ function PriceOptimizationResults({ optimization }: { optimization: PriceOptimiz
         >
             <Alert className="mb-6 bg-primary/5 border-primary/20">
                 <Lightbulb className="h-4 w-4" />
-                <AlertTitle>AI Pricing Analyst's Summary</AlertTitle>
+                <AlertTitle>AI Pricing Analyst&apos;s Summary</AlertTitle>
                 <AlertDescription>{optimization.analysis}</AlertDescription>
             </Alert>
             

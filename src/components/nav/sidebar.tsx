@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -13,6 +12,7 @@ import {
   SidebarFooter,
   SidebarMenuSub,
   SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { AIventoryLogo } from '@/components/aiventory-logo';

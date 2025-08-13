@@ -65,10 +65,11 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
         },
     });
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, control } = useFieldArray({
         control: form.control,
         name: "line_items"
     });
+    const lineItems = form.watch('line_items');
 
     useEffect(() => {
         if (itemsFromParams.length > 0 && !initialData) {
@@ -77,12 +78,12 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
     }, [itemsFromParams, form, initialData]);
 
     const totalCost = useMemo(() => {
-        return form.watch('line_items').reduce((sum, item) => {
+        return lineItems.reduce((sum, item) => {
             const cost = item.cost || 0;
             const quantity = item.quantity || 0;
             return sum + (cost * quantity);
         }, 0);
-    }, [form.watch('line_items')]);
+    }, [lineItems]);
 
     const onSubmit = (data: PurchaseOrderFormData) => {
         if (!csrfToken) {
@@ -237,7 +238,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                             <div className="space-y-2">
                                <Label>Expected Arrival Date</Label>
                                <Controller
-                                    control={form.control}
+                                    control={control}
                                     name="expected_arrival_date"
                                     render={({ field }) => (
                                          <Popover>

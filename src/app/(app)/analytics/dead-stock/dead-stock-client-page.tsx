@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -62,7 +61,7 @@ function MarkdownPlanResults({ plan, onClear }: { plan: MarkdownPlan, onClear: (
                 <CardContent>
                      <Alert className="mb-6 bg-primary/5 border-primary/20">
                         <Lightbulb className="h-4 w-4" />
-                        <AlertTitle>Analyst's Summary</AlertTitle>
+                        <AlertTitle>Analyst&apos;s Summary</AlertTitle>
                         <AlertDescription>{plan.analysis}</AlertDescription>
                     </Alert>
                     

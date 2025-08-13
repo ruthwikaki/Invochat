@@ -65,7 +65,7 @@ export function AiPerformanceClientPage({ initialData, totalCount, itemsPerPage 
             <CardHeader>
                 <CardTitle>AI Response Feedback</CardTitle>
                 <CardDescription>
-                    Review feedback provided by users on the AI's responses in the chat interface.
+                    Review feedback provided by users on the AI&apos;s responses in the chat interface.
                 </CardDescription>
                  <div className="relative pt-2">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -136,4 +136,3 @@ export function AiPerformanceClientPage({ initialData, totalCount, itemsPerPage 
         </Card>
     );
 }
-

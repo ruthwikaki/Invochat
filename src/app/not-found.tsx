@@ -21,7 +21,7 @@ export default function NotFound() {
             </CardHeader>
             <CardContent className="space-y-4">
                 <p className="text-muted-foreground">
-                    Sorry, we couldn't find the page you were looking for.
+                    Sorry, we couldn&apos;t find the page you were looking for.
                 </p>
                 <Button asChild>
                   <Link href="/dashboard">Go to Dashboard</Link>

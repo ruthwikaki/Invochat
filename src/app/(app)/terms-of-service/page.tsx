@@ -35,11 +35,11 @@ export default function TermsOfServicePage() {
                     </p>
                     <h2>4. Termination</h2>
                     <p>
-                        You may terminate or suspend a user's account immediately, without prior notice or liability, for any reason whatsoever, including without limitation if they breach the terms.
+                        You may terminate or suspend a user&apos;s account immediately, without prior notice or liability, for any reason whatsoever, including without limitation if they breach the terms.
                     </p>
-                    <h2>5. Limitation of Liability</h2>
+                     <h2>5. Limitation of Liability</h2>
                     <p>
-                        In no event shall your company, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages.
+                       In no event shall your company, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages.
                     </p>
                      <h2>6. Governing Law</h2>
                     <p>
