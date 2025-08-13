@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest) {
 export async function POST(_request: NextRequest) {
   try {
     const { companyId } = await getAuthContext();
-    const { settings } = await request.json();
+    const { settings } = await _request.json();
     
     await updateAlertSettings(companyId, settings);
     
@@ -28,5 +28,6 @@ export async function POST(_request: NextRequest) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
+
 
 

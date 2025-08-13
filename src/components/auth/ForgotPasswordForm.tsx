@@ -27,7 +27,7 @@ interface ForgotPasswordFormProps {
 export function ForgotPasswordForm({ error: initialError, success: initialSuccess }: ForgotPasswordFormProps) {
   const [error, setError] = useState(initialError);
   const [success, setSuccess] = useState(initialSuccess);
-  const [isPending, startTransition] = useTransition();
+  const [_isPending, startTransition] = useTransition();
 
   useEffect(() => {
     setError(initialError);
@@ -87,5 +87,6 @@ export function ForgotPasswordForm({ error: initialError, success: initialSucces
     </form>
   );
 }
+
 
 
