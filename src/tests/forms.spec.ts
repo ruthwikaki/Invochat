@@ -49,7 +49,7 @@ test.describe('Forms and Data Validation', () => {
     const importButton = page.getByRole('button', { name: 'Start Import' });
     
     // 1. Attempt to import without a file
-    await expect(importButton).toBeDisabled(); // Button should be disabled if no file is selected
+    await expect(importButton).toBeDisabled();
 
     // 2. Upload a file
     const filePath = path.join(__dirname, 'test_data', 'sample-costs.csv');
@@ -59,7 +59,7 @@ test.describe('Forms and Data Validation', () => {
     await expect(importButton).toBeEnabled();
 
     // 4. Run a dry run and check for results
-    await page.getByRole('button', { name: 'Dry Run Mode' }).click(); // Ensure dry run is checked
+    await page.getByRole('checkbox', { name: 'Dry Run Mode' }).check();
     await importButton.click();
     
     // 5. Verify that the results card appears
