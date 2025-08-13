@@ -381,6 +381,7 @@ export const DashboardMetricsSchema = z.object({
     }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }),
 }).passthrough();
 
+
 export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int().default(0),
     total_orders: z.number().int().default(0),
@@ -526,3 +527,13 @@ export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 export type { Order };
 export interface AlertSettings extends CompanySettings {}
+
+export type ImportJob = {
+  id: string;
+  created_at: string;
+  import_type: string;
+  file_name: string;
+  status: string;
+  processed_rows: number | null;
+  failed_rows: number | null;
+}
