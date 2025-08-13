@@ -90,10 +90,8 @@ export const getReorderSuggestions = ai.defineTool(
             return [];
         }
         
-        // When MOCK_AI is enabled, return predictable test data without calling the real AI.
         if (process.env.MOCK_AI === 'true') {
             logger.info('[Reorder Tool] Using mocked AI response for test environment');
-            // Return properly formatted mock data
             return baseSuggestions.map(base => ({
                 ...base,
                 suggested_reorder_quantity: base.suggested_reorder_quantity || 50,
@@ -101,7 +99,7 @@ export const getReorderSuggestions = ai.defineTool(
                 adjustment_reason: 'Mocked AI response for testing.',
                 seasonality_factor: 1.0,
                 confidence: 0.99,
-                current_inventory: 10,
+                current_inventory: base.current_quantity,
                 avg_daily_sales: 2,
                 lead_time_days: 14,
                 safety_stock: 5,

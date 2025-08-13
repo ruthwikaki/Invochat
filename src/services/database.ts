@@ -211,14 +211,13 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
 
       if (data == null) {
           logger.warn('[RPC] get_dashboard_metrics returned null, returning default empty metrics.');
-          return DashboardMetricsSchema.parse({}); 
+          throw new Error("No response from get_dashboard_metrics RPC call.");
       }
       return DashboardMetricsSchema.parse(data);
   } catch (e) {
       logError(e, { context: 'getDashboardMetrics failed', companyId, period });
       // In case of Zod parsing error or other exceptions, return a default object.
-      // A more robust implementation might re-throw a more specific error type.
-      return DashboardMetricsSchema.parse({});
+      throw new Error(`Failed to process dashboard metrics: ${getErrorMessage(e)}`);
   }
 }
 
