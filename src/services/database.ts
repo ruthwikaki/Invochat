@@ -1,10 +1,9 @@
 
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, Order, ReorderSuggestion } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Order } from '@/types';
 import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
 import { type Supplier, type SupplierFormData, SupplierFormSchema, SuppliersArraySchema } from '@/schemas/suppliers';
 import { z } from 'zod';
@@ -13,6 +12,7 @@ import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { getAuthContext } from '@/lib/auth-helpers';
+import type { DashboardMetrics } from '@/types';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -654,8 +654,8 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes,
-        p_expected_arrival: poData.expected_arrival_date,
+        p_notes: poData.notes ?? '',
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() ?? null,
         p_line_items: poData.line_items,
     }).select('id').single();
 
@@ -905,4 +905,17 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         logError(e, { context: 'getFeedbackFromDB failed' });
         throw new Error('Failed to retrieve feedback data.');
     }
+}
+export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]) {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_suggestions: suggestions as any,
+    });
+    if (error) {
+        logError(error, { context: 'createPurchaseOrdersFromSuggestionsInDb RPC failed' });
+        throw new Error('Could not create purchase orders from suggestions.');
+    }
+    return data;
 }
