@@ -27,7 +27,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateRequest, GenerateResponse, MessageData } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator = [
@@ -97,7 +97,7 @@ const finalResponsePrompt = genkit.ai.definePrompt({
  * @returns A promise that resolves to the GenerateResponse.
  * @throws An error if the request fails after all retry attempts.
  */
-async function generateWithRetry(request: GenerateRequest): Promise<GenerateResponse> {
+async function generateWithRetry(request: GenerateOptions): Promise<GenerateResponse> {
     const MAX_RETRIES = 3;
     let lastError: Error | undefined;
 
@@ -105,9 +105,9 @@ async function generateWithRetry(request: GenerateRequest): Promise<GenerateResp
         try {
             // Use the primary model for the first attempt, then fallback for retries.
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateRequest = { ...request, model: modelToUse };
+            const finalRequest: GenerateOptions = { ...request, model: modelToUse };
 
-            return await genkit.ai.generate(finalRequest as any);
+            return await genkit.ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
@@ -163,7 +163,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            model: config.ai.model as any,
+            model: config.ai.model,
             tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
             config: {

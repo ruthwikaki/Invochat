@@ -10,6 +10,7 @@ import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
 import { getAuthContext } from '@/lib/auth-helpers';
+import { revalidatePath } from 'next/cache';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -424,12 +425,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema.omit({
-            base_quantity: true,
-            adjustment_reason: true,
-            seasonality_factor: true,
-            confidence: true
-        })).parse(data || []) as ReorderSuggestion[];
+        return z.array(ReorderSuggestionSchema).parse(data || []) as ReorderSuggestion[];
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -604,29 +600,21 @@ export async function refreshMaterializedViews(companyId: string) {
     }
 }
 
-export async function getHistoricalSalesForSingleSkuFromDB(companyId: string, sku: string): Promise<{ sale_date: string; total_quantity: number }[]> {
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_historical_sales_for_sku', {
-        p_company_id: companyId,
-        p_sku: sku,
-    });
-    if (error) {
-        logError(error, { context: 'Failed to get historical sales for single SKU' });
-        throw new Error('Could not retrieve historical sales data.');
-    }
-    return data || [];
-}
-
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]): Promise<any[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     
     // Use Promise.all to call the singular function for each SKU
     const salesPromises = skus.map(sku => 
-        getHistoricalSalesForSingleSkuFromDB(companyId, sku).then(salesData => ({
-            sku,
-            monthly_sales: salesData // The RPC returns data in a format we can use directly
-        }))
+        getServiceRoleClient().rpc('get_historical_sales_for_sku', {
+            p_company_id: companyId,
+            p_sku: sku,
+        }).then(({data, error}) => {
+            if(error) {
+                logError(error, { context: `get_historical_sales_for_sku failed for SKU ${sku}`});
+                return { sku, monthly_sales: [] };
+            }
+            return { sku, monthly_sales: data || [] };
+        })
     );
     
     return Promise.all(salesPromises);
@@ -914,4 +902,3 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     }
     return data;
 }
-
