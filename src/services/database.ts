@@ -2,7 +2,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics } from '@/types';
 import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
 import { type Supplier, type SupplierFormData, SupplierFormSchema, SuppliersArraySchema } from '@/schemas/suppliers';
 import { z } from 'zod';
@@ -11,6 +11,25 @@ import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
 import { getAuthContext } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
+
+
+export async function getProducts() {
+  const { companyId } = await getAuthContext();
+  const { items } = await getUnifiedInventoryFromDB(companyId, {});
+  return items;
+}
+
+export async function getOrders() {
+  const { companyId } = await getAuthContext();
+  const { items } = await getSalesFromDB(companyId, { offset: 0, limit: 1000});
+  return items;
+}
+
+export async function getCustomers() {
+  const { companyId } = await getAuthContext();
+  const { items } = await getCustomersFromDB(companyId, { offset: 0, limit: 1000});
+  return items;
+}
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -192,50 +211,6 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
     }
 }
 
-export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-  const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
-  const supabase = getServiceRoleClient();
-  try {
-      const { data: rpcData, error } = await supabase.rpc('get_dashboard_metrics' as any, { p_company_id: companyId, p_days: days });
-      
-      if (error) {
-          logError(error, { context: 'get_dashboard_metrics RPC call failed', companyId, period });
-          throw new Error('Could not retrieve dashboard metrics from the database.');
-      }
-      
-      const data = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-
-      if (data == null) {
-          logger.warn('[RPC] get_dashboard_metrics returned null, returning default empty metrics.');
-          throw new Error("No response from get_dashboard_metrics RPC call.");
-      }
-      return DashboardMetricsSchema.parse(data);
-  } catch (e) {
-      logError(e, { context: 'getDashboardMetrics failed', companyId, period });
-      // In case of Zod parsing error or other exceptions, return a default object.
-      throw new Error(`Failed to process dashboard metrics: ${getErrorMessage(e)}`);
-  }
-}
-
-
-export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
-    if (!z.string().uuid().safeParse(companyId).success) {
-        throw new Error('Invalid company ID format');
-    }
-    try {
-        const supabase = getServiceRoleClient();
-        const { data, error } = await supabase.rpc('get_inventory_analytics' as any, { p_company_id: companyId });
-        if (error) {
-            logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
-            throw new Error('Failed to retrieve inventory analytics');
-        }
-        return InventoryAnalyticsSchema.parse(data);
-    } catch (error) {
-        logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
-        throw error;
-    }
-}
-
 export async function getSuppliersDataFromDB(companyId: string): Promise<Supplier[]> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid company ID format');
@@ -289,7 +264,6 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
             logError(error, { context: 'createSupplierInDb failed', companyId });
             throw new Error('Failed to create supplier');
         }
-        revalidatePath('/suppliers');
     } catch (error) {
         logError(error, { context: 'createSupplierInDb unexpected error', companyId });
         throw new Error(`Could not create supplier: ${getErrorMessage(error)}`);
@@ -404,7 +378,7 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
         return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
     }
     
-    const reportData = data || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
+    const reportData = data as any || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
 
     const deadStockItems = DeadStockItemSchema.array().parse(reportData.deadStockItems || []);
     const totalValue = reportData.totalValue || 0;
@@ -425,7 +399,12 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema).parse(data || []);
+        return z.array(ReorderSuggestionSchema.omit({
+          base_quantity: true,
+          adjustment_reason: true,
+          seasonality_factor: true,
+          confidence: true,
+        })).parse(data || []) as ReorderSuggestion[];
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -567,37 +546,12 @@ export async function createAuditLogInDb(companyId: string, userId: string | nul
     }
 }
 
-export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
-    const supabase = getServiceRoleClient();
-    const { error } = await supabase.from('feedback').insert({
-        user_id: userId,
-        company_id: companyId,
-        subject_id: subjectId,
-        subject_type: subjectType,
-        feedback: feedback,
-    });
-
-    if (error) {
-        logError(error, { context: 'Failed to log user feedback' });
-    }
-}
 export async function createExportJobInDb(companyId: string, userId: string) { 
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) throw new Error('Invalid ID format');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase.from('export_jobs').insert({ company_id: companyId, requested_by_user_id: userId }).select().single();
     if (error) throw error;
     return data;
-}
-
-export async function refreshMaterializedViews(companyId: string) {
-    if (!z.string().uuid().safeParse(companyId).success) return;
-    logger.info(`[DB] Refreshing materialized views for company ${companyId}`);
-    const { error } = await getServiceRoleClient().rpc('refresh_all_matviews' as any, { p_company_id: companyId });
-    if(error) {
-        logError(error, { context: 'Failed to refresh materialized views', companyId });
-    } else {
-        logger.info(`[DB] Successfully refreshed materialized views for company ${companyId}`);
-    }
 }
 
 export async function getHistoricalSalesForSkus(companyId: string, skus: string[]): Promise<any[]> {
@@ -674,7 +628,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     return data;
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string): Promise<any[]> {
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItemsAndSupplier[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
@@ -688,7 +642,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<any[]>
         throw error;
     }
     
-    return (data || []) as any[];
+    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -903,4 +857,28 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     return data;
 }
 
-    
+export async function logUserFeedbackInDb(userId: string, companyId: string, subjectId: string, subjectType: string, feedback: 'helpful' | 'unhelpful') {
+    const supabase = getServiceRoleClient();
+    const { error } = await supabase.from('feedback').insert({
+        user_id: userId,
+        company_id: companyId,
+        subject_id: subjectId,
+        subject_type: subjectType,
+        feedback: feedback,
+    });
+
+    if (error) {
+        logError(error, { context: 'Failed to log user feedback' });
+    }
+}
+
+export async function refreshMaterializedViews(companyId: string) {
+    if (!z.string().uuid().safeParse(companyId).success) return;
+    logger.info(`[DB] Refreshing materialized views for company ${companyId}`);
+    const { error } = await getServiceRoleClient().rpc('refresh_all_matviews' as any, { p_company_id: companyId });
+    if(error) {
+        logError(error, { context: 'Failed to refresh materialized views', companyId });
+    } else {
+        logger.info(`[DB] Successfully refreshed materialized views for company ${companyId}`);
+    }
+}
