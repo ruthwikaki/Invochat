@@ -20,7 +20,7 @@ async function verifyTestAuth(): Promise<boolean> {
     return true;
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
     if (!(await verifyTestAuth())) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -48,3 +48,4 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }
+

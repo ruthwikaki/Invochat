@@ -79,13 +79,13 @@ function ConversationLink({ conversation }: { conversation: Conversation }) {
     const searchParams = useSearchParams();
     const isActive = pathname === `/chat` && searchParams.get('id') === conversation.id;
     return (
-        <SidebarMenuSubItem>
+        <SidebarMenuSub>
             <Link href={`/chat?id=${conversation.id}`} legacyBehavior passHref>
                  <SidebarMenuSubButton isActive={isActive} className="w-full">
                     <span className="truncate">{conversation.title || 'Untitled Chat'}</span>
                 </SidebarMenuSubButton>
             </Link>
-        </SidebarMenuSubItem>
+        </SidebarMenuSub>
     );
 }
 
@@ -172,3 +172,4 @@ export function AppSidebar() {
     </>
   );
 }
+

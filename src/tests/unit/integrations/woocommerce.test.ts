@@ -103,3 +103,4 @@ describe('WooCommerce Integration Service', () => {
      await expect(runWooCommerceFullSync(mockIntegration)).rejects.toThrow('WooCommerce credentials are missing.');
   });
 });
+

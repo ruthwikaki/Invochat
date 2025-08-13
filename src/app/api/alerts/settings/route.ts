@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     const { companyId } = await getAuthContext();
     const { settings } = await request.json();
@@ -28,4 +28,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
+
 

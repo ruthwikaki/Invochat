@@ -44,8 +44,9 @@ export async function getCSRFToken(): Promise<string | null> {
  * @param formData The FormData object from the form submission.
  * @throws {Error} If the tokens are missing or do not match.
  */
-export async function validateCSRF(formData: FormData): Promise<void> {
+export async function validateCSRF(_formData: FormData): Promise<void> {
   // Bypassing CSRF check as Supabase auth handles session security.
   // In a stateful app with its own session management, this would be crucial.
   return;
 }
+

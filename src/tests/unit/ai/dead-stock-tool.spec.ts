@@ -7,7 +7,7 @@ import * as database from '@/services/database';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((_config, func) => ({ ...config, func })),
+    defineTool: vi.fn((_config, func) => ({ ..._config, func })),
   },
 }));
 
@@ -65,6 +65,7 @@ describe('Dead Stock Tool', () => {
     await expect(getDeadStockReport.run(input)).rejects.toThrow('An error occurred while trying to generate the dead stock report.');
   });
 });
+
 
 
 
