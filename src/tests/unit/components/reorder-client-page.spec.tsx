@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
@@ -64,7 +63,7 @@ describe('Component: ReorderClientPage', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        (csrf.generateAndSetCsrfToken as vi.Mock).mockImplementation((setter: (token: string) => void) => setter('test-csrf-token'));
+        (csrf.generateAndSetCsrfToken as any).mockImplementation((setter: (token: string) => void) => setter('test-csrf-token'));
     });
 
     it('should render the table with initial suggestions', () => {
@@ -115,8 +114,8 @@ describe('Component: ReorderClientPage', () => {
 
     it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
         const mockToast = vi.fn();
-        (useToast as vi.Mock).mockReturnValue({ toast: mockToast });
-        (dataActions.createPurchaseOrdersFromSuggestions as vi.Mock).mockResolvedValue({ 
+        (useToast as any).mockReturnValue({ toast: mockToast });
+        (dataActions.createPurchaseOrdersFromSuggestions as any).mockResolvedValue({ 
             success: true, 
             createdPoCount: 1 
         });

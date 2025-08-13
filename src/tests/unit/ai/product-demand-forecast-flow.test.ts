@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { productDemandForecastFlow } from '@/ai/flows/product-demand-forecast-flow';
 import * as database from '@/services/database';
@@ -10,7 +9,7 @@ vi.mock('@/lib/utils');
 vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
-    defineFlow: vi.fn((config, func) => func),
+    defineFlow: vi.fn((_config, func) => func),
   },
 }));
 
@@ -39,7 +38,7 @@ describe('Product Demand Forecast Flow', () => {
     });
 
     it('should forecast demand for a product with sufficient sales data', async () => {
-        (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData);
+        (database.getHistoricalSalesForSingleSkuFromDB as any).mockResolvedValue(mockSalesData);
 
         const input = { companyId: 'test-company-id', sku: 'SKU001', daysToForecast: 30 };
         const result = await productDemandForecastFlow(input);
@@ -53,7 +52,7 @@ describe('Product Demand Forecast Flow', () => {
     });
 
     it('should return a low confidence forecast for insufficient data', async () => {
-        (database.getHistoricalSalesForSingleSkuFromDB as vi.Mock).mockResolvedValue(mockSalesData.slice(0, 3)); // Only 3 data points
+        (database.getHistoricalSalesForSingleSkuFromDB as any).mockResolvedValue(mockSalesData.slice(0, 3)); // Only 3 data points
         const input = { companyId: 'test-company-id', sku: 'SKU002', daysToForecast: 30 };
         const result = await productDemandForecastFlow(input);
 

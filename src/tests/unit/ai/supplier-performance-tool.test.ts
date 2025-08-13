@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getSupplierPerformanceReport } from '@/ai/flows/supplier-performance-tool';
 import * as database from '@/services/database';
@@ -7,7 +6,7 @@ import type { SupplierPerformanceReport } from '@/types';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((config, func) => ({ ...config, func })),
+    defineTool: vi.fn((config, func) => ({ ...config, run: func })),
   },
 }));
 
@@ -31,10 +30,10 @@ describe('Supplier Performance Tool', () => {
   });
 
   it('should return supplier performance data from the database', async () => {
-    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue(mockPerformanceData);
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue(mockPerformanceData);
 
     const input = { companyId: 'test-company-id' };
-    const result = await (getSupplierPerformanceReport as any).func(input);
+    const result = await (getSupplierPerformanceReport as any).run(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
     expect(result).toEqual(mockPerformanceData);
@@ -42,16 +41,16 @@ describe('Supplier Performance Tool', () => {
   });
 
   it('should return an empty array if no data is available', async () => {
-    (database.getSupplierPerformanceFromDB as vi.Mock).mockResolvedValue([]);
+    (database.getSupplierPerformanceFromDB as any).mockResolvedValue([]);
     const input = { companyId: 'test-company-id' };
-    const result = await (getSupplierPerformanceReport as any).func(input);
+    const result = await (getSupplierPerformanceReport as any).run(input);
     expect(result).toEqual([]);
   });
 
   it('should propagate errors from the database layer', async () => {
     const error = new Error('DB Error');
-    (database.getSupplierPerformanceFromDB as vi.Mock).mockRejectedValue(error);
+    (database.getSupplierPerformanceFromDB as any).mockRejectedValue(error);
     const input = { companyId: 'test-company-id' };
-    await expect((getSupplierPerformanceReport as any).func(input)).rejects.toThrow('An error occurred while trying to generate the supplier performance report.');
+    await expect((getSupplierPerformanceReport as any).run(input)).rejects.toThrow('An error occurred while trying to generate the supplier performance report.');
   });
 });

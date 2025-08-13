@@ -1,4 +1,3 @@
-
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -285,7 +284,7 @@ export const MessageSchema = z.object({
   created_at: z.string().datetime({ offset: true }),
   confidence: z.number().min(0).max(1).nullable().optional(),
   assumptions: z.array(z.string()).nullable().optional(),
-  is_error: z.boolean().optional(),
+  isError: z.boolean().optional(),
 });
 export type Message = z.infer<typeof MessageSchema>;
 

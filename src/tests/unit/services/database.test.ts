@@ -18,7 +18,7 @@ const mockDashboardData = {
   customers_change: 2.1,
   dead_stock_value: 5000,
   sales_over_time: [{ date: '2024-01-01', revenue: 5000 }],
-  top_selling_products: [{ product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
+  top_products: [{ product_id: 'p1', product_name: 'Test Product', total_revenue: 20000, image_url: null, quantity_sold: 10 }],
   inventory_summary: {
     total_value: 200000,
     in_stock_value: 150000,
@@ -50,13 +50,13 @@ describe('Database Service - Business Logic', () => {
     });
 
     expect(result.total_revenue).toBe(100000);
-    expect(result.top_selling_products[0].product_name).toBe('Test Product');
+    expect(result.top_products[0].product_name).toBe('Test Product');
   });
 
   it('getDashboardMetrics should throw an error if the RPC call fails', async () => {
     const dbError = { message: 'Database connection error' };
     
-    (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
+    (supabaseMock.rpc as any).mockResolvedValue({ 
       data: null, 
       error: dbError 
     });
@@ -66,7 +66,7 @@ describe('Database Service - Business Logic', () => {
 
   it('getDashboardMetrics should throw an error if data is null but no error object', async () => {
     // Simulate response with null data but no error (edge case)
-    (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
+    (supabaseMock.rpc as any).mockResolvedValue({ 
       data: null, 
       error: null 
     });

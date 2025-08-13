@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getInventoryTurnoverReport } from '@/ai/flows/inventory-turnover-tool';
 import * as database from '@/services/database';
@@ -6,7 +5,7 @@ import * as database from '@/services/database';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((config, func) => ({ ...config, func })),
+    defineTool: vi.fn((config, func) => ({ ...config, run: func })),
   },
 }));
 
@@ -26,7 +25,7 @@ describe('Inventory Turnover Tool', () => {
     vi.spyOn(database, 'getInventoryTurnoverFromDB').mockResolvedValue(mockTurnoverData);
 
     const input = { companyId: 'test-company-id', days: 90 };
-    const result = await getInventoryTurnoverReport.func(input);
+    const result = await (getInventoryTurnoverReport as any).run(input);
 
     expect(database.getInventoryTurnoverFromDB).toHaveBeenCalledWith(input.companyId, input.days);
     expect(result).toEqual(mockTurnoverData);
@@ -39,6 +38,6 @@ describe('Inventory Turnover Tool', () => {
 
     const input = { companyId: 'test-company-id', days: 90 };
 
-    await expect(getInventoryTurnoverReport.func(input)).rejects.toThrow('An error occurred while trying to calculate the inventory turnover rate.');
+    await expect((getInventoryTurnoverReport as any).run(input)).rejects.toThrow('An error occurred while trying to calculate the inventory turnover rate.');
   });
 });
