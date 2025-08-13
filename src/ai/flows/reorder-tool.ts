@@ -89,32 +89,6 @@ export const getReorderSuggestions = ai.defineTool(
             logger.info(`[Reorder Tool] No baseline suggestions found for company ${input.companyId}. Returning empty array.`);
             return [];
         }
-
-        // Check if we're in test mode or AI is mocked
-        const isMocked = process.env.MOCK_AI === 'true' || process.env.NODE_ENV === 'test';
-        
-        if (isMocked) {
-            logger.info('[Reorder Tool] Using mocked AI response for test environment');
-            // Return properly formatted mock data
-            return baseSuggestions.map(base => ({
-                ...base,
-                // Add missing fields from ReorderSuggestionBaseSchema
-                current_inventory: base.current_quantity,
-                avg_daily_sales: 0,
-                lead_time_days: 14,
-                safety_stock: 5,
-                reorder_point: 10,
-                weeks_of_coverage: 4,
-                min_order_qty: 1,
-                max_order_qty: 1000,
-                // AI-enhanced fields for mock
-                base_quantity: base.suggested_reorder_quantity || 50,
-                suggested_reorder_quantity: base.suggested_reorder_quantity || 50,
-                adjustment_reason: 'Test mode - using baseline calculation',
-                seasonality_factor: 1.0,
-                confidence: 0.8,
-            }));
-        }
         
         const suggestionsForAI = baseSuggestions.map(s => ({
             ...s,
@@ -193,3 +167,5 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
+    
