@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ai } from '@/ai/genkit';
 import { testGenkitConnection } from '@/services/genkit';
@@ -17,6 +18,7 @@ vi.mock('@/config/app-config', () => ({
     config: {
         ai: {
             model: 'googleai/gemini-1.5-flash',
+            maxOutputTokens: 2048,
         },
     },
 }));
@@ -53,7 +55,7 @@ describe('testGenkitConnection', () => {
     expect(result.success).toBe(false);
     expect(result.isConfigured).toBe(false);
     expect(result.error).toContain('Google AI credentials are not configured');
-    
+
     // Restore mock
     (envValidation as any).success = originalSuccess;
     (envValidation as any).error = originalError;

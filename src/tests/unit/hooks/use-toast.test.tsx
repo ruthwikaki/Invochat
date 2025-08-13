@@ -7,10 +7,10 @@ import React from 'react';
 
 // Wrapper component to provide the necessary context for the toast hook
 const ToastWrapper = ({ children }: { children: React.ReactNode }) => (
-  <>
+  <React.Fragment>
     {children}
     <Toaster />
-  </>
+  </React.Fragment>
 );
 
 
@@ -35,7 +35,7 @@ describe('useToast hook', () => {
             result.current.dismiss(result.current.toasts[0].id);
         }
     });
-    
+
     expect(result.current.toasts[0].open).toBe(false);
   });
 });

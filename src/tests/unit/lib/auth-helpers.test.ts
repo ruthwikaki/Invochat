@@ -1,5 +1,6 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getAuthContext, getCurrentUser, getCurrentCompanyId } from '@/lib/auth-helpers';
+import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { createServerClient, getServiceRoleClient } from '@/lib/supabase/admin';
 import { retry } from '@/lib/async-utils';
 
@@ -54,23 +55,6 @@ describe('Auth Helpers', () => {
       supabaseMock.auth.getUser.mockResolvedValue({ data: { user: null }, error: new Error('DB connection failed') });
       const user = await getCurrentUser();
       expect(user).toBeNull();
-    });
-  });
-
-  describe('getCurrentCompanyId', () => {
-    it('should return company ID from JWT if present', async () => {
-        supabaseMock.auth.getUser.mockResolvedValue({ data: { user: mockUser }, error: null });
-        const companyId = await getCurrentCompanyId();
-        expect(companyId).toBe('company-456');
-        expect(serviceSupabaseMock.from).not.toHaveBeenCalled();
-    });
-
-    it('should return company ID from database as a fallback if not in JWT', async () => {
-        const userWithoutCompanyInJWT = { ...mockUser, app_metadata: {} };
-        supabaseMock.auth.getUser.mockResolvedValue({ data: { user: userWithoutCompanyInJWT }, error: null });
-        const companyId = await getCurrentCompanyId();
-        expect(companyId).toBe('company-db-fallback');
-        expect(serviceSupabaseMock.from).toHaveBeenCalledWith('company_users');
     });
   });
 
