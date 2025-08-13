@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { handleUserMessage } from '@/app/data-actions';
@@ -152,7 +153,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
                 created_at: new Date().toISOString(),
                 conversation_id: response.conversationId || conversationId || tempId,
                 company_id: '',
-                isError: true,
+                is_error: true,
             };
             setMessages(prev => prev.filter(m => m.id !== 'loading').map(m => m.id === tempId ? optimisticUserMessage : m).concat(errorMessage));
 
@@ -173,7 +174,7 @@ export function ChatInterface({ conversationId, initialMessages, prefillQuery }:
             created_at: new Date().toISOString(),
             conversation_id: conversationId || tempId,
             company_id: '',
-            isError: true,
+            is_error: true,
         };
         setMessages(prev => prev.filter(m => m.id !== 'loading').map(m => m.id === tempId ? optimisticUserMessage : m).concat(errorMessage));
       }

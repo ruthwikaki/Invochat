@@ -1,5 +1,6 @@
 
 
+
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
@@ -55,15 +56,15 @@ import {
     createPurchaseOrdersFromSuggestionsInDb
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation } from '@/types';
+import type { Message, Conversation, ReorderSuggestion } from '@/types';
 import { z } from 'zod';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
-import { isRedisEnabled, redisClient } from '@/lib/redis';
+import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 
@@ -565,7 +566,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
         if (isRedisEnabled && data) {
           await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
         }
-        return data || { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };
+        return data ?? { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };
     } catch (e) {
         logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
         return { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };

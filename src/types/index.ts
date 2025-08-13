@@ -1,12 +1,10 @@
 
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
-  ReorderSuggestionSchema,
   EnhancedReorderSuggestionSchema,
-  type ReorderSuggestion,
-  type EnhancedReorderSuggestion,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
 import { SupplierFormSchema, type Supplier } from '@/schemas/suppliers';
@@ -290,8 +288,25 @@ export const MessageSchema = z.object({
 });
 export type Message = z.infer<typeof MessageSchema>;
 
-export { EnhancedReorderSuggestionSchema, ReorderSuggestionSchema };
-export type { ReorderSuggestion, ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier };
+export const ReorderSuggestionSchema = z.object({
+  variant_id: z.string(),
+  product_id: z.string(),
+  sku: z.string(),
+  product_name: z.string(),
+  supplier_name: z.string().nullable(),
+  supplier_id: z.string().nullable(),
+  current_quantity: z.number().int(),
+  suggested_reorder_quantity: z.number().int(),
+  unit_cost: z.number().int().nullable(),
+  base_quantity: z.number().int(),
+  adjustment_reason: z.string().nullable(),
+  seasonality_factor: z.number().nullable(),
+  confidence: z.number().nullable(),
+});
+export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
+
+export { EnhancedReorderSuggestionSchema };
+export type { ReorderSuggestionBase, EnhancedReorderSuggestion, Supplier };
 
 export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),
@@ -365,7 +380,6 @@ export const DashboardMetricsSchema = z.object({
       dead_stock_value: z.number().int().default(0),
     }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }),
 }).passthrough();
-export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
 export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int().default(0),
@@ -509,7 +523,6 @@ export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
 export { SupplierFormSchema };
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 
-// Additional type exports
-export interface AlertSettings extends CompanySettings {
-  // Add specific alert settings if needed
-}
+export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
+export type { Order };
+export interface AlertSettings extends CompanySettings {}

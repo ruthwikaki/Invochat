@@ -53,7 +53,7 @@ export default async function IntegrationsPage() {
                         <IntegrationsClientPage />
                     </Suspense>
                 </HydrationBoundary>
-                <ImportHistoryCard initialHistory={importHistory} />
+                <ImportHistoryCard initialHistory={importHistory || []} />
             </div>
         </AppPage>
     )

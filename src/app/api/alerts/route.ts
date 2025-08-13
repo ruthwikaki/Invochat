@@ -5,7 +5,7 @@ import { getAlertsWithStatus } from '@/services/alert-service';
 import { getAuthContext } from '@/lib/auth-helpers';
 import { getErrorMessage } from '@/lib/error-handler';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const { companyId } = await getAuthContext();
     const alerts = await getAlertsWithStatus(companyId);
@@ -15,3 +15,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }
+
