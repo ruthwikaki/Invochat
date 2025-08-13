@@ -105,7 +105,8 @@ export const getReorderSuggestions = ai.defineTool(
                 safety_stock: 5,
                 reorder_point: 33,
                 min_order_qty: 10,
-                max_order_qty: 1000
+                max_order_qty: 1000,
+                weeks_of_coverage: 4
             }));
         }
         
@@ -121,6 +122,7 @@ export const getReorderSuggestions = ai.defineTool(
             min_order_qty: 0, // Placeholder
             max_order_qty: null, // Placeholder
             suggested_reorder_quantity: s.suggested_reorder_quantity,
+            weeks_of_coverage: undefined,
         }));
 
         const skus = baseSuggestions.map(s => s.sku);
@@ -137,7 +139,7 @@ export const getReorderSuggestions = ai.defineTool(
         let refinedOutput: z.infer<typeof LLMRefinedSuggestionSchema>[] = [];
         try {
             const { output } = await reorderRefinementPrompt({
-                suggestions: suggestionsForAI,
+                suggestions: suggestionsForAI as any,
                 historicalSales: historicalSales as any,
                 currentDate: new Date().toISOString().split('T')[0],
                 timezone: settings.timezone || 'UTC',
@@ -170,6 +172,12 @@ export const getReorderSuggestions = ai.defineTool(
                 seasonality_factor: seasonality,
                 confidence,
                 adjustment_reason: reason,
+                 // Add missing fields from base schema for conformance
+                current_inventory: base.current_quantity,
+                avg_daily_sales: 0, // Placeholder
+                lead_time_days: 7, // Placeholder
+                safety_stock: 0, // Placeholder
+                reorder_point: 0, // Placeholder
             };
         });
         
@@ -184,6 +192,15 @@ export const getReorderSuggestions = ai.defineTool(
                 adjustment_reason: 'AI output was malformed, using base calculation.',
                 seasonality_factor: 1.0,
                 confidence: 0.0,
+                // Add required fields for conformance
+                lead_time_days: 7,
+                reorder_point: null,
+                current_inventory: s.current_quantity,
+                avg_daily_sales: 0,
+                safety_stock: 0,
+                min_order_qty: null,
+                max_order_qty: null,
+                weeks_of_coverage: 4
             }));
         }
 
