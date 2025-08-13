@@ -34,7 +34,7 @@ describe('Auth Helpers', () => {
     };
     (createServerClient as any).mockReturnValue(supabaseMock);
     (getServiceRoleClient as any).mockReturnValue(serviceSupabaseMock);
-    (retry as any).mockImplementation((fn: () => any) => fn());
+    (retry as any).mockImplementation((fn: any) => fn());
     vi.clearAllMocks();
   });
 
@@ -79,5 +79,3 @@ describe('Auth Helpers', () => {
     });
   });
 });
-
-    

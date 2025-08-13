@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { Bell, X, Check, AlertTriangle, Info, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Alert as AlertType } from '@/types';

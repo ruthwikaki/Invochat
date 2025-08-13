@@ -7,8 +7,9 @@ import { Skeleton } from "./ui/skeleton";
 import ErrorBoundary from "./error-boundary";
 import type { z } from "zod";
 import { MissingEnvVarsPage } from "./missing-env-vars-page";
+import type { envValidation } from "@/config/app-config";
 
-type ValidationResult = z.SafeParseReturnType<any, any>;
+type ValidationResult = typeof envValidation;
 
 interface AppInitializerProps {
     children: ReactNode;
