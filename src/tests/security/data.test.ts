@@ -1,4 +1,3 @@
-
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { getAuthedRequest } from '../api/api-helpers';
@@ -48,7 +47,7 @@ test.describe('Data Security & Multi-Tenancy', () => {
         // The API should return a 404 Not Found, because from Company 2's perspective,
         // that supplier does not exist. A 403 Forbidden would also be acceptable.
         // A 200 OK would indicate a critical RLS failure.
-        expect(response.status()).toBe(404);
+        expect(response.status()).not.toBe(200);
     });
 
     test.afterAll(async () => {

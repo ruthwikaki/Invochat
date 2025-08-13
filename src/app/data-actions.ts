@@ -1,20 +1,20 @@
 
 'use server';
-import { getAuthContext } from '@/lib/auth-helpers';
+import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { 
-    getDeadStockReportFromDB, 
-    getSupplierByIdFromDB, 
-    createSupplierInDb, 
-    updateSupplierInDb, 
-    deleteSupplierFromDb, 
-    getIntegrationsByCompanyId, 
-    deleteIntegrationFromDb, 
-    getTeamMembersFromDB, 
-    inviteUserToCompanyInDb, 
-    removeTeamMemberFromDb, 
-    updateTeamMemberRoleInDb, 
+import {
+    getDeadStockReportFromDB,
+    getSupplierByIdFromDB,
+    createSupplierInDb,
+    updateSupplierInDb,
+    deleteSupplierFromDb,
+    getIntegrationsByCompanyId,
+    deleteIntegrationFromDb,
+    getTeamMembersFromDB,
+    inviteUserToCompanyInDb,
+    removeTeamMemberFromDb,
+    updateTeamMemberRoleInDb,
     getCompanyById,
     getSettings,
     updateSettingsInDb,
@@ -37,7 +37,7 @@ import {
     reconcileInventoryInDb,
     getDashboardMetrics as getDashboardMetricsFromDb,
     checkUserPermission,
-    getHistoricalSalesForSingleSkuFromDB,
+    getHistoricalSalesForSkus,
     createAuditLogInDb as createAuditLogInDbService,
     adjustInventoryQuantityInDb,
     getAuditLogFromDB,
@@ -46,21 +46,22 @@ import {
     getSupplierPerformanceFromDB,
     getInventoryTurnoverFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
-    getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
-    refreshMaterializedViews
+    logUserFeedbackInDb as logUserFeedbackInDbService
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestion } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, Customer, InventoryAnalytics, Integration, Order } from '@/types';
+import type { Message, Conversation, Customer, InventoryAnalytics, Integration, Order, SalesAnalytics, CustomerAnalytics, ReorderSuggestion } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
+import { revalidatePath } from 'next/cache';
+import type { Json } from '@/types/database.types';
 
 
 export async function getProducts() {
@@ -293,7 +294,7 @@ export async function exportSales(params: { query: string }) {
     }
 }
 
-export async function getSalesAnalytics() {
+export async function getSalesAnalytics(): Promise<SalesAnalytics> {
     try {
         const { companyId } = await getAuthContext();
         const cacheKey = `cache:sales-analytics:${companyId}`;
@@ -347,7 +348,7 @@ export async function exportCustomers(params: { query: string }) {
     }
 }
 
-export async function getCustomerAnalytics() {
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     try {
         const { companyId } = await getAuthContext();
         const cacheKey = `cache:customer-analytics:${companyId}`;
