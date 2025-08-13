@@ -192,7 +192,6 @@ export const getReorderSuggestions = ai.defineTool(
                 adjustment_reason: 'AI output was malformed, using base calculation.',
                 seasonality_factor: 1.0,
                 confidence: 0.0,
-                // Add required fields for conformance
                 lead_time_days: 7,
                 reorder_point: null,
                 current_inventory: s.current_quantity,

@@ -38,7 +38,7 @@ import {
     reconcileInventoryInDb,
     getDashboardMetrics as getDashboardMetricsFromDb,
     checkUserPermission,
-    getHistoricalSalesForSingleSkuFromDB,
+    getHistoricalSalesForSkus,
     createAuditLogInDb as createAuditLogInDbService,
     adjustInventoryQuantityInDb,
     getAuditLogFromDB,
@@ -50,19 +50,21 @@ import {
     deletePurchaseOrderFromDb,
     getSupplierPerformanceFromDB,
     getInventoryTurnoverFromDB,
-    createPurchaseOrdersFromSuggestionsInDb
+    createPurchaseOrdersFromSuggestionsInDb,
+    refreshMaterializedViews
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Customer, SalesAnalytics, InventoryAnalytics, Integration } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, ReorderSuggestion } from '@/types';
+import type { Message, Conversation, ReorderSuggestion, Customer, SalesAnalytics, InventoryAnalytics, Integration, Order } from '@/types';
 import { z } from 'zod';
-import { isRedisEnabled, redisClient } from '@/lib/redis';
+import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
+import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 
 
 export async function getProducts() {
@@ -429,7 +431,7 @@ export async function getPurchaseOrderById(id: string) {
         po_number: po.po_number,
         total_cost: po.total_cost,
         expected_arrival_date: po.expected_arrival_date,
-        line_items: po.line_items?.map(item => ({
+        line_items: po.line_items?.map((item: any) => ({
             variant_id: item.variant_id,
             quantity: item.quantity,
             cost: item.cost,
