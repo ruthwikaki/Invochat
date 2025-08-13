@@ -3,7 +3,7 @@
 
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
-import { CSRF_COOKIE_NAME } from './csrf-client';
+import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from './csrf-client';
 
 const CSRF_TOKEN_MAX_AGE_SECONDS = 60 * 60; // 1 hour
 
@@ -43,8 +43,11 @@ export async function getCSRFToken(): Promise<string | null> {
  * @param formData The FormData object from the form submission.
  * @throws {Error} If the tokens are missing or do not match.
  */
-export async function validateCSRF(_formData: FormData): Promise<void> {
-  // Bypassing CSRF check as Supabase auth handles session security.
-  // In a stateful app with its own session management, this would be crucial.
-  return;
+export async function validateCSRF(formData: FormData): Promise<void> {
+  const token = formData.get(CSRF_FORM_NAME) as string;
+  const cookieToken = await getCSRFToken();
+  
+  if (!token || !cookieToken || token !== cookieToken) {
+    throw new Error('Invalid CSRF token');
+  }
 }
