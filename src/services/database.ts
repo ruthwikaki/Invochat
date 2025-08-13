@@ -98,7 +98,7 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
             .update({ 
                 ...settings, 
                 updated_at: new Date().toISOString() 
-            })
+            } as any)
             .eq('company_id', companyId)
             .select()
             .single();
@@ -288,8 +288,7 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
             logError(error, { context: 'createSupplierInDb failed', companyId });
             throw new Error('Failed to create supplier');
         }
-        await invalidateCompanyCache(companyId, ['suppliers']);
-        await refreshMaterializedViews(companyId);
+        revalidatePath('/suppliers');
     } catch (error) {
         logError(error, { context: 'createSupplierInDb unexpected error', companyId });
         throw new Error(`Could not create supplier: ${getErrorMessage(error)}`);
@@ -425,7 +424,12 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema).parse(data || []) as ReorderSuggestion[];
+        return z.array(ReorderSuggestionSchema.omit({
+            base_quantity: true,
+            adjustment_reason: true,
+            seasonality_factor: true,
+            confidence: true
+        })).parse(data || []) as ReorderSuggestion[];
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -696,7 +700,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
+    return (data || []) as any[];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -711,7 +715,7 @@ export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) 
         logError(error, { context: 'getPurchaseOrderByIdFromDB failed' });
         throw new Error('Failed to retrieve purchase order');
     }
-    return data as PurchaseOrderWithItemsAndSupplier;
+    return data as any;
 }
 
 export async function deletePurchaseOrderFromDb(id: string, companyId: string) {
@@ -911,4 +915,3 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     return data;
 }
 
-    

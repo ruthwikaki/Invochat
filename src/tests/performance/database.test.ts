@@ -1,5 +1,5 @@
 
-import { describe, it, expect, test } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
@@ -40,5 +40,3 @@ describe('Database Performance Tests', () => {
     expect(error).toBeNull();
   });
 });
-
-    

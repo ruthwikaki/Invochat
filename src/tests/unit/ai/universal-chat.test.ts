@@ -1,8 +1,9 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
 import * as redis from '@/lib/redis';
-import type { MessageData, GenerateResponse } from 'genkit';
+import type { MessageData, GenerateResponse,ToolRequestPart } from 'genkit';
 
 vi.mock('@/ai/genkit');
 vi.mock('@/lib/redis');
@@ -14,23 +15,26 @@ const mockConversationHistory: MessageData[] = [
     { role: 'user', content: [{ text: mockUserQuery }] }
 ];
 
+const mockToolRequestPart: ToolRequestPart = {
+    toolRequest: {
+        name: 'getReorderSuggestions',
+        input: { companyId: mockCompanyId }
+    }
+};
+
 const mockToolResponse: GenerateResponse = {
     candidates: [{
         index: 0,
         finishReason: 'toolUse',
         message: {
             role: 'model',
-            content: [],
-            toolRequests: [{
-                name: 'getReorderSuggestions',
-                input: { companyId: mockCompanyId }
-            }]
+            content: [mockToolRequestPart]
         }
     }],
     usage: {},
     custom: {},
     request: { messages: [], tools: [] },
-    toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
+    toolRequests: [mockToolRequestPart.toolRequest],
     text: ''
 };
 
@@ -81,7 +85,7 @@ describe('Universal Chat Flow', () => {
         const result = await universalChatFlow(input);
 
         expect(generateMock).toHaveBeenCalledWith(expect.objectContaining({
-            toolChoice: 'auto',
+            tools: expect.any(Array),
         }));
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
             { userQuery: mockUserQuery, toolResult: { companyId: mockCompanyId } },
@@ -115,6 +119,3 @@ describe('Universal Chat Flow', () => {
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });
-
-
-

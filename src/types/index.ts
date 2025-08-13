@@ -7,7 +7,6 @@ import {
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
 import { SupplierFormSchema, type Supplier } from '@/schemas/suppliers';
-import type { Json } from './database.types';
 
 
 export const UserSchema = z.custom<SupabaseUser>();
@@ -538,5 +537,3 @@ export type ImportJob = {
   processed_rows: number | null;
   failed_rows: number | null;
 }
-
-    
