@@ -7,11 +7,9 @@ import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWi
 import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema } from '@/types';
 import { ReorderSuggestionSchema, type ReorderSuggestion } from '@/schemas/reorder';
 import { SupplierSchema, SuppliersArraySchema, type Supplier, type SupplierFormData, SupplierFormSchema } from '@/schemas/suppliers';
-import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
-import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { getAuthContext } from '@/lib/auth-helpers';
@@ -907,23 +905,4 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
         logError(e, { context: 'getFeedbackFromDB failed' });
         throw new Error('Failed to retrieve feedback data.');
     }
-}
-
-export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string, userId: string, suggestions: ReorderSuggestion[]) {
-    if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(userId).success) {
-        throw new Error('Invalid ID format');
-    }
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('create_purchase_orders_from_suggestions', {
-        p_company_id: companyId,
-        p_user_id: userId,
-        p_suggestions: suggestions as unknown as Json,
-    });
-
-    if (error) {
-        logError(error, { context: 'Failed to execute create_purchase_orders_from_suggestions RPC' });
-        throw new Error('Database error while creating purchase orders from suggestions.');
-    }
-    
-    return data;
 }

@@ -176,11 +176,11 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                                         </div>
                                         <div className="w-24">
                                             <Label>Quantity</Label>
-                                            <Input type="number" {...form.register(`line_items.${index}.quantity`, { valueAsNumber: true, value: field.quantity || 1 })} />
+                                            <Input type="number" {...form.register(`line_items.${index}.quantity`, { valueAsNumber: true })} />
                                         </div>
                                          <div className="w-24">
                                             <Label>Unit Cost</Label>
-                                            <Input type="number" {...form.register(`line_items.${index}.cost`, { valueAsNumber: true, value: field.cost || 0 })} />
+                                            <Input type="number" {...form.register(`line_items.${index}.cost`, { valueAsNumber: true })} />
                                         </div>
                                         <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
                                             <Trash2 className="h-4 w-4" />

@@ -200,9 +200,7 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
   }
   
   const isAllSelected = initialSuggestions.length > 0 && selectedSuggestions.length === initialSuggestions.length;
-  const isSomeSelected = selectedSuggestions.length > 0 && selectedSuggestions.length < initialSuggestions.length;
   
-
   return (
     <div className="space-y-4">
       <Card>
