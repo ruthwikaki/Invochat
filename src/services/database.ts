@@ -99,7 +99,7 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
             .update({ 
                 ...settings, 
                 updated_at: new Date().toISOString() 
-            } as any)
+            })
             .eq('company_id', companyId)
             .select()
             .single();
@@ -352,7 +352,7 @@ export async function deleteCustomerFromDb(customerId: string, companyId: string
     }
 }
 
-export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: Order[], totalCount: number }> {
+export async function getSalesFromDB(companyId: string, params: { query?: string; offset: number, limit: number }): Promise<{ items: any[], totalCount: number }> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
     try {
@@ -404,7 +404,7 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
         return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
     }
     
-    const reportData = (data as any) || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
+    const reportData = data || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
 
     const deadStockItems = DeadStockItemSchema.array().parse(reportData.deadStockItems || []);
     const totalValue = reportData.totalValue || 0;
@@ -425,12 +425,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema.omit({
-            base_quantity: true,
-            adjustment_reason: true,
-            seasonality_factor: true,
-            confidence: true,
-        })).parse(data || []) as ReorderSuggestion[];
+        return z.array(ReorderSuggestionSchema).parse(data || []);
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -679,7 +674,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     return data;
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItemsAndSupplier[]> {
+export async function getPurchaseOrdersFromDB(companyId: string): Promise<any[]> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
@@ -907,3 +902,5 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     }
     return data;
 }
+
+    

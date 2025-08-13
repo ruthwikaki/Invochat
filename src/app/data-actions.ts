@@ -45,6 +45,9 @@ import {
     deletePurchaseOrderFromDb,
     getSupplierPerformanceFromDB,
     getInventoryTurnoverFromDB,
+    getAbcAnalysisFromDB,
+    getSalesVelocityFromDB,
+    getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService
 } from '@/services/database';
@@ -54,12 +57,11 @@ import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, Customer, InventoryAnalytics, Integration, Order, SalesAnalytics, CustomerAnalytics, ReorderSuggestion } from '@/types';
+import type { Message, Conversation, CustomerAnalytics, ReorderSuggestion } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
-import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 import { revalidatePath } from 'next/cache';
 import type { Json } from '@/types/database.types';
 
@@ -830,7 +832,6 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]) {
     const { companyId, userId } = await getAuthContext();
     const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
@@ -838,3 +839,5 @@ export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSu
     revalidatePath('/analytics/reordering');
     return { success: true, createdPoCount };
 }
+
+    
