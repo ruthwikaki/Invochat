@@ -11,7 +11,7 @@ vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
-    defineFlow: vi.fn((config, func) => func), // Immediately return the flow function
+    defineFlow: vi.fn((_config, func) => func), // Immediately return the flow function
   },
 }));
 
@@ -96,3 +96,4 @@ describe('Analyze Supplier Flow', () => {
     await expect(analyzeSuppliersFlow(input)).rejects.toThrow('An error occurred while analyzing supplier performance.');
   });
 });
+

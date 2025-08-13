@@ -35,7 +35,7 @@ describe('Server Actions: getDashboardData', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     // Mock the auth context to always return a valid user/company
-    (authHelpers.getAuthContext as vi.Mock).mockResolvedValue({
+    (authHelpers.getAuthContext as any).mockResolvedValue({
         userId: 'test-user-id',
         companyId: 'test-company-id'
     });
@@ -43,7 +43,7 @@ describe('Server Actions: getDashboardData', () => {
 
   it('should fetch and return dashboard metrics successfully', async () => {
     // Arrange: Mock the database function to return our test data
-    (database.getDashboardMetrics as vi.Mock).mockResolvedValue(mockDashboardMetrics);
+    (database.getDashboardMetrics as any).mockResolvedValue(mockDashboardMetrics);
 
     // Act: Call the server action
     const result = await getDashboardData('90d');
@@ -59,7 +59,7 @@ describe('Server Actions: getDashboardData', () => {
   it('should return empty metrics if the database call fails', async () => {
     // Arrange: Mock the database function to reject with an error
     const dbError = new Error('Database connection failed');
-    (database.getDashboardMetrics as vi.Mock).mockRejectedValue(dbError);
+    (database.getDashboardMetrics as any).mockRejectedValue(dbError);
 
     // Act & Assert: Expect the server action to return a default empty object
     const result = await getDashboardData('90d');
@@ -67,3 +67,4 @@ describe('Server Actions: getDashboardData', () => {
     expect(result.top_products).toEqual([]);
   });
 });
+

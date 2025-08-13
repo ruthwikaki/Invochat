@@ -21,7 +21,7 @@ describe('testGenkitConnection', () => {
   });
 
   it('should return success if AI generation works', async () => {
-    (ai.generate as vi.Mock).mockResolvedValue({ text: () => 'hello' });
+    (ai.generate as any).mockResolvedValue({ text: 'hello' });
     const result = await testGenkitConnection();
     expect(result.success).toBe(true);
     expect(result.isConfigured).toBe(true);
@@ -29,7 +29,7 @@ describe('testGenkitConnection', () => {
 
   it('should return failure if AI generation throws an error', async () => {
     const error = new Error('API Key Invalid');
-    (ai.generate as vi.Mock).mockRejectedValue(error);
+    (ai.generate as any).mockRejectedValue(error);
     const result = await testGenkitConnection();
     expect(result.success).toBe(false);
     expect(result.isConfigured).toBe(true);
@@ -50,3 +50,4 @@ describe('testGenkitConnection', () => {
     vi.spyOn(envValidation, 'success', 'get').mockReturnValue(true);
   });
 });
+

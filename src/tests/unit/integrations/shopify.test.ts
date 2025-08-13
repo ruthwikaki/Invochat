@@ -53,7 +53,7 @@ describe('Shopify Integration Service', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    (fetch as vi.Mock).mockClear();
+    (fetch as any).mockClear();
 
     supabaseMock = {
         from: vi.fn().mockReturnThis(),
@@ -62,14 +62,14 @@ describe('Shopify Integration Service', () => {
         upsert: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{id: 'prod-id', external_product_id: '1'}], error: null }) })),
         rpc: vi.fn().mockResolvedValue({ error: null }),
     };
-    (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
+    (getServiceRoleClient as any).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue('shpat_test_token');
     vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
     vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
   it('should run a full sync successfully', async () => {
-    (fetch as vi.Mock)
+    (fetch as any)
       .mockResolvedValueOnce(createFetchResponse(mockShopifyProducts)) // products fetch
       .mockResolvedValueOnce(createFetchResponse(mockShopifyOrders));  // orders fetch
 
@@ -94,7 +94,7 @@ describe('Shopify Integration Service', () => {
 
   it('should handle pagination for products', async () => {
     const linkHeader = '<https://test-shop.myshopify.com/admin/api/2024-07/products.json?page_info=nextPageToken>; rel="next"';
-    (fetch as vi.Mock)
+    (fetch as any)
       .mockResolvedValueOnce(createFetchResponse(mockShopifyProducts, linkHeader)) // first page
       .mockResolvedValueOnce(createFetchResponse(mockShopifyProducts)) // second page (no link header)
       .mockResolvedValueOnce(createFetchResponse(mockShopifyOrders)); // orders
@@ -105,7 +105,8 @@ describe('Shopify Integration Service', () => {
   });
 
   it('should throw an error if fetching products fails', async () => {
-    (fetch as vi.Mock).mockResolvedValueOnce({ ok: false, status: 500, text: () => Promise.resolve('Server Error') });
+    (fetch as any).mockResolvedValueOnce({ ok: false, status: 500, text: () => Promise.resolve('Server Error') });
     await expect(runShopifyFullSync(mockIntegration)).rejects.toThrow('Shopify API product fetch error (500): Server Error');
   });
 });
+

@@ -60,7 +60,7 @@ describe('Reorder Tool', () => {
     vi.spyOn(database, 'getSettings').mockResolvedValue({ timezone: 'UTC' } as any);
 
     const input = { companyId: 'test-company-id' };
-    const result = await (getReorderSuggestions as any).func(input);
+    const result = await (getReorderSuggestions as any).run(input);
 
     // Verify results
     expect(result).toHaveLength(1);
@@ -79,7 +79,7 @@ describe('Reorder Tool', () => {
     vi.spyOn(database, 'getSettings').mockResolvedValue({ timezone: 'UTC' } as any);
 
     const input = { companyId: 'test-company-id' };
-    const result = await (getReorderSuggestions as any).func(input);
+    const result = await (getReorderSuggestions as any).run(input);
 
     expect(result).toHaveLength(1);
     expect(result[0].suggested_reorder_quantity).toBe(50); // Fallback to base
@@ -89,9 +89,10 @@ describe('Reorder Tool', () => {
   it('should handle cases with no initial suggestions', async () => {
     vi.spyOn(database, 'getReorderSuggestionsFromDB').mockResolvedValue([]);
     const input = { companyId: 'test-company-id' };
-    const result = await (getReorderSuggestions as any).func(input);
+    const result = await (getReorderSuggestions as any).run(input);
 
     expect(result).toHaveLength(0);
     expect(reorderRefinementPrompt).not.toHaveBeenCalled();
   });
 });
+

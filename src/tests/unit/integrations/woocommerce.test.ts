@@ -57,7 +57,7 @@ describe('WooCommerce Integration Service', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    (fetch as vi.Mock).mockClear();
+    (fetch as any).mockClear();
 
     supabaseMock = {
       from: vi.fn().mockReturnThis(),
@@ -66,14 +66,14 @@ describe('WooCommerce Integration Service', () => {
       upsert: vi.fn(() => ({ select: vi.fn().mockResolvedValue({ data: [{id: 'prod-id-1', external_product_id: '1'}, {id: 'prod-id-2', external_product_id: '2'}], error: null }) })),
       rpc: vi.fn().mockResolvedValue({ error: null }),
     };
-    (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
+    (getServiceRoleClient as any).mockReturnValue(supabaseMock);
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
     vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
     vi.spyOn(database, 'refreshMaterializedViews').mockResolvedValue(undefined);
   });
 
   it('should run a full sync successfully', async () => {
-    (fetch as vi.Mock)
+    (fetch as any)
       .mockResolvedValueOnce(createFetchResponse(mockWooProducts)) // products fetch
       .mockResolvedValueOnce(createFetchResponse(mockWooVariations)) // variations fetch
       .mockResolvedValueOnce(createFetchResponse(mockWooOrders));   // orders fetch
@@ -103,3 +103,4 @@ describe('WooCommerce Integration Service', () => {
      await expect(runWooCommerceFullSync(mockIntegration)).rejects.toThrow('WooCommerce credentials are missing.');
   });
 });
+
