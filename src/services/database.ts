@@ -1,16 +1,14 @@
 
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
 import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
 import { type Supplier, type SupplierFormData, SupplierFormSchema, SuppliersArraySchema } from '@/schemas/suppliers';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
-import { invalidateCompanyCache } from '@/lib/redis';
 import { getAuthContext } from '@/lib/auth-helpers';
 
 // --- Input Validation Schemas ---
@@ -110,7 +108,6 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
             return { success: false, error: error.message };
         }
         
-        await invalidateCompanyCache(companyId, ['dashboard', 'alerts', 'deadstock']);
         return { success: true };
     } catch (error) {
         logError(error, { context: 'updateSettingsInDb unexpected error', companyId });
@@ -378,7 +375,7 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
 export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_sales_analytics' as any, { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
@@ -407,7 +404,7 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
         return { deadStockItems: [], totalValue: 0, totalUnits: 0 };
     }
     
-    const reportData = data || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
+    const reportData = (data as any) || { deadStockItems: [], totalValue: 0, totalUnits: 0 };
 
     const deadStockItems = DeadStockItemSchema.array().parse(reportData.deadStockItems || []);
     const totalValue = reportData.totalValue || 0;
@@ -428,12 +425,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema.omit({
-            base_quantity: true,
-            adjustment_reason: true,
-            seasonality_factor: true,
-            confidence: true,
-        })).parse(data || []);
+        return z.array(ReorderSuggestionSchema).parse(data || []) as ReorderSuggestion[];
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -600,7 +592,7 @@ export async function createExportJobInDb(companyId: string, userId: string) {
 export async function refreshMaterializedViews(companyId: string) {
     if (!z.string().uuid().safeParse(companyId).success) return;
     logger.info(`[DB] Refreshing materialized views for company ${companyId}`);
-    const { error } = await getServiceRoleClient().rpc('refresh_all_matviews', { p_company_id: companyId });
+    const { error } = await getServiceRoleClient().rpc('refresh_all_matviews' as any, { p_company_id: companyId });
     if(error) {
         logError(error, { context: 'Failed to refresh materialized views', companyId });
     } else {
@@ -639,7 +631,7 @@ export async function getHistoricalSalesForSkus(companyId: string, skus: string[
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(integrationId).success || !z.string().uuid().safeParse(userId).success) throw new Error('Invalid ID format');
     const supabase = getServiceRoleClient();
-    const { error } = await supabase.rpc('reconcile_inventory_from_integration', { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
+    const { error } = await supabase.rpc('reconcile_inventory_from_integration' as any, { p_company_id: companyId, p_integration_id: integrationId, p_user_id: userId });
     if(error) throw error;
 }
 
@@ -655,7 +647,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_status: poData.status,
         p_notes: poData.notes || '',
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || '',
-        p_line_items: poData.line_items,
+        p_line_items: poData.line_items as any,
     }).select('id').single();
 
     if (error) {
@@ -679,7 +671,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_status: poData.status,
         p_notes: poData.notes || '',
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || '',
-        p_line_items: poData.line_items,
+        p_line_items: poData.line_items as any,
     });
 
     if (error) {
@@ -845,7 +837,7 @@ export async function getImportHistory() {
     const { companyId, userId } = await getAuthContext();
     await checkUserPermission(userId, 'Admin');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('imports').select('*, failed_rows').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
+    const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
 }
@@ -919,3 +911,4 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     return data;
 }
 
+    

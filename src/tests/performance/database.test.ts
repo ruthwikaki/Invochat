@@ -1,5 +1,5 @@
 
-import { test, expect, describe } from 'vitest';
+import { test, expect } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
@@ -8,7 +8,7 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 // amount of data (e.g., 10,000 products, 100,000 orders) and then measuring
 // the execution time of complex queries.
 
-describe('Database Performance Tests', () => {
+test.describe('Database Performance Tests', () => {
 
   test.skip('getDashboardMetrics should execute within the performance budget (e.g., < 500ms)', async () => {
     // 1. (Setup) Seed the database with a large, realistic dataset.
@@ -30,7 +30,7 @@ describe('Database Performance Tests', () => {
     const supabase = getServiceRoleClient();
     
     // Use EXPLAIN ANALYZE to get query plan and execution time from Postgres.
-    const { data, error } = await supabase.rpc('get_unified_inventory' as any, {
+    const { error } = await supabase.rpc('get_unified_inventory' as any, {
         // params for a complex query on a large dataset
     });
 
@@ -40,3 +40,5 @@ describe('Database Performance Tests', () => {
     expect(error).toBeNull();
   });
 });
+
+    

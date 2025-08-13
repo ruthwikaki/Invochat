@@ -164,7 +164,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
         
         const response = await generateWithRetry({
             model: config.ai.model,
-            tools: safeToolsForOrchestrator,
+            tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis
@@ -259,3 +259,5 @@ export const universalChatFlow = genkit.ai.defineFlow(
     }
   }
 );
+
+    

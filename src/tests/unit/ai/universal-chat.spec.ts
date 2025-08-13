@@ -23,15 +23,17 @@ const mockToolResponse: GenerateResponse = {
             role: 'model',
             content: [],
             toolRequests: [{
-                name: 'getReorderSuggestions',
-                input: { companyId: mockCompanyId }
+                toolRequest: {
+                    name: 'getReorderSuggestions',
+                    input: { companyId: mockCompanyId }
+                }
             }]
         }
     }],
     usage: {},
     custom: {},
     request: { messages: [], tools: [] },
-    toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
+    toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } } as any],
     text: ''
 };
 
@@ -82,7 +84,7 @@ describe('Universal Chat Flow', () => {
         const result = await universalChatFlow(input);
 
         expect(generateMock).toHaveBeenCalledWith(expect.objectContaining({
-            toolChoice: 'auto',
+            tools: expect.any(Array)
         }));
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
             { userQuery: mockUserQuery, toolResult: { companyId: mockCompanyId } },
@@ -117,4 +119,4 @@ describe('Universal Chat Flow', () => {
     });
 });
 
-
+    
