@@ -11,13 +11,13 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   testIgnore: '**/unit/**',
   /* Run tests in files in parallel */
-  fullyParallel: true,
+  fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 1 : 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   timeout: 60 * 1000,
@@ -27,6 +27,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    actionTimeout: 15000,
+    navigationTimeout: 30000,
   },
 
   projects: [
@@ -41,15 +43,5 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev', // Create a test-specific dev script
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-    env: {
-      NODE_ENV: 'test',
-      MOCK_AI: 'true',
-      ...process.env
-    }
-  },
+  webServer: undefined,
 });
