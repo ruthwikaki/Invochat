@@ -9,15 +9,6 @@ export const AnomalySchema = z.object({
   deviation_percentage: z.number(),
 });
 
-// A single part of a multi-modal message, updated to support tool responses.
-const ContentPartSchema = z.object({
-  text: z.string().optional(),
-  toolResponse: z.object({
-    name: z.string(),
-    output: z.any(),
-  }).optional(),
-});
-
 // A message in the conversation history, aligned with Genkit's history message structure.
 const HistoryMessageSchema = z.object({
   role: z.enum(['user', 'model']),
@@ -44,7 +35,7 @@ export const UniversalChatOutputSchema = z.object({
   }).optional().describe("A suggested visualization for the data."),
   confidence: z.number().min(0).max(1).describe("A score from 0.0 (low) to 1.0 (high) indicating the AI's confidence in the generated SQL query and response."),
   assumptions: z.array(z.string()).optional().describe("A list of any assumptions the AI had to make to answer the query."),
-  isError: z.boolean().optional(),
+  is_error: z.boolean().optional(),
   // Add a field to specify which tool was called, if any.
   toolName: z.string().optional().describe("The name of the tool that was called to generate this response, if applicable."),
 });
