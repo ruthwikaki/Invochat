@@ -184,8 +184,8 @@ export const universalChatFlow = genkit.ai.defineFlow(
         const toolRequest = response.toolRequests[0];
 
         if (toolRequest) {
-            const toolName = toolRequest.name;
-            const toolResponseData = toolRequest.input;
+            const toolName = toolRequest.toolRequest.name;
+            const toolResponseData = toolRequest.toolRequest.input;
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 
@@ -267,3 +267,4 @@ export const universalChatFlow = genkit.ai.defineFlow(
     }
   }
 );
+
