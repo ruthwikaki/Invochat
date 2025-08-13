@@ -9,7 +9,7 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
+    await page.fill('input[name="password"]', 'TestPass123!');
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 30000 });
     await page.waitForLoadState('networkidle');
@@ -24,7 +24,7 @@ test.describe('Performance Benchmarks', () => {
   test('Dashboard loads within performance budget', async ({ page }) => {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
+    await page.fill('input[name="password"]', 'TestPass123!');
     
     const startTime = Date.now();
     await page.click('button[type="submit"]');
@@ -43,7 +43,7 @@ test.describe('Performance Benchmarks', () => {
     
     await page.fill('input[placeholder*="Search by product title"]', 'Test');
     const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/inventory'));
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.keyboard.press('Enter'); // Just press Enter
     const response = await responsePromise;
     
     const responseTime = response.timing().responseEnd - response.timing().requestStart;
