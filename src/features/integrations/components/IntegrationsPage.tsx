@@ -89,7 +89,7 @@ function ReconciliationCard({ integrationId }: { integrationId: string | undefin
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>How it works</AlertTitle>
                     <AlertDescription>
-                        This process will fetch the current stock levels from your store and create an inventory adjustment in ARVO to match the platform's quantity.
+                        This process will fetch the current stock levels from your store and create an inventory adjustment in ARVO to match the platform&apos;s quantity.
                     </AlertDescription>
                 </Alert>
             </CardContent>

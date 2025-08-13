@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -18,21 +18,25 @@ export function AlertSettings() {
   const [isSaving, startSavingTransition] = useTransition();
   const { toast } = useToast();
 
+  const fetchSettings = useCallback(async () => {
+    try {
+        const response = await fetch(`/api/alerts/settings`);
+        if (response.ok) {
+            const data = await response.json();
+            setSettings(data.settings);
+        } else {
+             toast({ title: 'Error', description: 'Failed to fetch alert settings.', variant: 'destructive' });
+        }
+    } catch (error) {
+        toast({ title: 'Error', description: 'Failed to fetch alert settings.', variant: 'destructive' });
+    }
+  }, [toast]);
+
   useEffect(() => {
     startLoadingTransition(async () => {
-        try {
-            const response = await fetch(`/api/alerts/settings`);
-            if (response.ok) {
-                const data = await response.json();
-                setSettings(data.settings);
-            } else {
-                 toast({ title: 'Error', description: 'Failed to fetch alert settings.', variant: 'destructive' });
-            }
-        } catch (error) {
-            toast({ title: 'Error', description: 'Failed to fetch alert settings.', variant: 'destructive' });
-        }
+       await fetchSettings();
     });
-  }, []);
+  }, [fetchSettings]);
 
   const handleSettingChange = <K extends keyof AlertSettingsType>(key: K, value: AlertSettingsType[K]) => {
       if (settings) {
@@ -80,7 +84,7 @@ export function AlertSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Alert & Notification Settings</CardTitle>
+        <CardTitle>Alert &amp; Notification Settings</CardTitle>
         <CardDescription>
             Configure thresholds and delivery preferences for automated inventory alerts.
         </CardDescription>
@@ -131,7 +135,7 @@ export function AlertSettings() {
           <div className="space-y-2">
             <Label htmlFor="low-stock">Low Stock Threshold</Label>
              <p className="text-xs text-muted-foreground">
-              Trigger a 'warning' alert when stock falls to this level.
+              Trigger a &apos;warning&apos; alert when stock falls to this level.
             </p>
             <Input
               id="low-stock"
@@ -144,7 +148,7 @@ export function AlertSettings() {
           <div className="space-y-2">
             <Label htmlFor="critical-stock">Critical Stock Threshold</Label>
             <p className="text-xs text-muted-foreground">
-              Trigger a 'critical' alert when stock falls to this level.
+              Trigger a &apos;critical&apos; alert when stock falls to this level.
             </p>
             <Input
               id="critical-stock"

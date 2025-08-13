@@ -19,7 +19,7 @@ export default function PrivacyPolicyPage() {
                 </CardHeader>
                 <CardContent className="prose dark:prose-invert max-w-none">
                     <p>
-                        This is where your privacy policy content will go. It's important to detail how you collect, use, and protect your users' data. Services like Termly can generate a comprehensive policy that covers legal requirements such as GDPR, CCPA, and more.
+                        This is where your privacy policy content will go. It&apos;s important to detail how you collect, use, and protect your users&apos; data. Services like Termly can generate a comprehensive policy that covers legal requirements such as GDPR, CCPA, and more.
                     </p>
                     <h2>1. Information We Collect</h2>
                     <p>

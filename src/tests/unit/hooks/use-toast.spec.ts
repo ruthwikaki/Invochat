@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+
+import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
@@ -16,7 +17,7 @@ const ToastWrapper = ({ children }: { children: React.ReactNode }) => (
 describe('useToast hook', () => {
   it('should allow adding and dismissing toasts', () => {
     const { result } = renderHook(() => useToast(), {
-      wrapper: ({ children }) => <ToastWrapper>{children}</ToastWrapper>,
+      wrapper: ({ children }: { children: React.ReactNode }) => <ToastWrapper>{children}</ToastWrapper>,
     });
 
     act(() => {

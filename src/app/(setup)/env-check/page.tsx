@@ -31,7 +31,7 @@ export default function EnvCheckPage() {
                     <p>1. In your project, find the file located at: <code className="font-mono bg-muted-foreground/20 px-1 py-0.5 rounded-sm">src/lib/database-schema.sql</code></p>
                     <p>2. Copy the entire contents of this file.</p>
                     <p>3. Go to your Supabase project dashboard and navigate to the <span className="font-semibold">SQL Editor</span>.</p>
-                    <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">"Run"</span>.</p>
+                    <p>4. Paste the copied SQL code into the editor and click <span className="font-semibold">&quot;Run&quot;</span>.</p>
                 </div>
                  <p className="text-sm text-muted-foreground">
                     After the script finishes successfully, you must sign out and <span className="font-semibold">create a new user account</span>. This will ensure your new company is set up correctly.

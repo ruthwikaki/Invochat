@@ -205,7 +205,7 @@ function AbcAnalysisTab({ data }: { data: AbcAnalysisItem[] }) {
             <CardHeader>
                 <CardTitle>ABC Analysis Report</CardTitle>
                 <CardDescription>
-                    Products are categorized into A, B, and C tiers based on their revenue contribution. 'A' items are your most valuable products.
+                    Products are categorized into A, B, and C tiers based on their revenue contribution. &apos;A&apos; items are your most valuable products.
                 </CardDescription>
             </CardHeader>
             <CardContent>
