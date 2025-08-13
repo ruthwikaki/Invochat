@@ -61,3 +61,4 @@ export function InventorySummaryCard({ data, currency, "data-testid": dataTestId
         </Card>
     );
 }
+    

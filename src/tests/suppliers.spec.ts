@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -72,3 +71,5 @@ test.describe('Supplier Management', () => {
     await expect(page.getByText('Supplier Deleted').first()).toBeVisible();
   });
 });
+
+    

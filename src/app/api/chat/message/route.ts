@@ -6,25 +6,14 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Message } from '@/types';
 import * as Sentry from '@sentry/nextjs';
+import { makeSupabaseForReq, requireUser } from '@/lib/api-auth';
+import type { NextRequest } from 'next/server';
 
-export async function POST(req: Request) {
+
+export async function POST(req: NextRequest) {
     try {
         if (process.env.NODE_ENV === 'test' || process.env.MOCK_AI === 'true') {
-            const cookieStore = cookies();
-            const supabase = createServerClient(
-                process.env.NEXT_PUBLIC_SUPABASE_URL!,
-                process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                {
-                    cookies: {
-                        get: (name) => cookieStore.get(name)?.value,
-                    },
-                }
-            );
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                return NextResponse.json({ error: 'Unauthorized: Test user not authenticated.' }, { status: 401 });
-            }
+            const { user } = await requireUser(req);
             
             const { content } = await req.json();
             const newMessage: Message = {
@@ -57,3 +46,4 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
+    
