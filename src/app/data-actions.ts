@@ -680,7 +680,10 @@ export async function handleUserMessage(params: { content: string, conversationI
 
     const aiResponse = await universalChatFlow({
         companyId: companyId,
-        conversationHistory: reversedHistory.map(m => ({ role: m.role, content: [{ text: m.content }] })) || [] as any,
+        conversationHistory: reversedHistory.map(m => ({ 
+            role: m.role === 'assistant' ? 'model' : m.role === 'system' ? 'user' : m.role as 'user' | 'model', 
+            content: [{ text: m.content }] 
+        })) || [],
     });
 
     const { data: newMessage, error: messageError } = await supabase.from('messages').insert({
@@ -831,4 +834,5 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+
 
