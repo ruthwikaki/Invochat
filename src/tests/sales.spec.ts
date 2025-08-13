@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -41,8 +40,9 @@ test.describe('Sales Page', () => {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
 
-    // Check for "no results" message or empty state
-    const noResultsMessage = await page.locator('text=/no.*found|no.*results|empty/i').isVisible().catch(() => false);
-    expect(noResultsMessage || (await page.locator('table tbody tr').count()) === 0).toBeTruthy();
+    const tableRows = await page.locator('table tbody tr').count();
+    expect(tableRows).toBe(0);
   });
 });
+
+    
