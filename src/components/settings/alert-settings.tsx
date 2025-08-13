@@ -8,9 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import type { AlertSettings as AlertSettingsType } from '@/services/alert-service';
 import { Loader2 } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
+import { CompanySettings } from '@/types';
+
+type AlertSettingsType = Pick<CompanySettings, 'alert_settings' | 'morning_briefing_enabled' | 'morning_briefing_time' | 'low_stock_threshold' | 'critical_stock_threshold' | 'email_notifications'>;
+
 
 export function AlertSettings() {
   const [settings, setSettings] = useState<AlertSettingsType | null>(null);

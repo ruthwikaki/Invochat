@@ -6,7 +6,6 @@ import { useAuth } from "@/context/auth-context";
 import { Skeleton } from "./ui/skeleton";
 import ErrorBoundary from "./error-boundary";
 import type { z } from "zod";
-import type { envValidation } from "@/config/app-config";
 import { MissingEnvVarsPage } from "./missing-env-vars-page";
 
 type ValidationResult = z.SafeParseReturnType<any, any>;

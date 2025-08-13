@@ -107,7 +107,7 @@ async function generateWithRetry(request: GenerateRequest): Promise<GenerateResp
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
             const finalRequest = { ...request, model: modelToUse };
 
-            return await genkit.ai.generate(finalRequest);
+            return await genkit.ai.generate(finalRequest as any);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
@@ -157,22 +157,15 @@ export const universalChatFlow = genkit.ai.defineFlow(
     // --- End Caching Logic ---
 
     try {
-        const systemPrompt = {
-            role: 'system' as const,
-            content: [{ text: `You are an AI assistant for a business. The business's companyId is '${companyId}'. You must use this exact companyId when calling any tool that requires it.`}]
-        };
-
-        const genkitHistory = conversationHistory.map(msg => ({
-            ...msg,
+        const genkitHistory: MessageData[] = conversationHistory.map(msg => ({
             role: msg.role as 'user' | 'model',
-        })) as MessageData[];
-
-        const messages: MessageData[] = [systemPrompt, ...genkitHistory];
+            content: msg.content,
+        }));
         
         const response = await generateWithRetry({
             model: config.ai.model,
             tools: safeToolsForOrchestrator,
-            messages,
+            messages: genkitHistory,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis
                 maxOutputTokens: config.ai.maxOutputTokens,
