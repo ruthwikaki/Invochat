@@ -11,8 +11,10 @@ test.describe('Multi-Platform Synchronization', () => {
         // Seeding logic: ensure both integrations exist for the test user's company.
         // This is a simplified version. A real setup would be more robust.
         const supabase = getServiceRoleClient();
-        const { data: user } = await supabase.from('users' as any).select('app_metadata').eq('email', process.env.TEST_USER_EMAIL).single();
-        const companyId = user?.app_metadata?.company_id;
+        const { data: userData } = await supabase.auth.admin.listUsers();
+        const testUser = userData.users.find(u => u.email === process.env.TEST_USER_EMAIL);
+
+        const companyId = testUser?.app_metadata?.company_id;
 
         if (companyId) {
             await supabase.from('integrations').upsert([

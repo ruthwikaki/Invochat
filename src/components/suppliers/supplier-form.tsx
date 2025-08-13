@@ -3,10 +3,10 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useTransition, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTransition, useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { SupplierFormData, SupplierFormSchema } from '@/types';
+import { type SupplierFormData, SupplierFormSchema } from '@/types';
 import { createSupplier, updateSupplier } from '@/app/data-actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import type { Supplier } from '@/types';
-import { getCookie, CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
+import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 
 interface SupplierFormProps {
   initialData?: Supplier;

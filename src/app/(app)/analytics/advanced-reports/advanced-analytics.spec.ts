@@ -57,7 +57,7 @@ test.describe('Advanced Analytics Reports Validation', () => {
       // Revenue should be descending
       expect(revenue <= previousRevenue).toBeTruthy();
 
-      previousCategory = revenue;
+      previousCategory = category as 'A' | 'B' | 'C';
       previousRevenue = revenue;
     }
     

@@ -1,10 +1,9 @@
 
 'use server';
 
-import { logger } from './logger';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
-import { CSRF_COOKIE_NAME, CSRF_FORM_NAME } from './csrf-client';
+import { CSRF_COOKIE_NAME } from './csrf-client';
 
 const CSRF_TOKEN_MAX_AGE_SECONDS = 60 * 60; // 1 hour
 
@@ -49,4 +48,3 @@ export async function validateCSRF(_formData: FormData): Promise<void> {
   // In a stateful app with its own session management, this would be crucial.
   return;
 }
-

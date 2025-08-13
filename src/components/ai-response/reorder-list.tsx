@@ -7,7 +7,6 @@ import { RefreshCw, Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useToast } from '@/hooks/use-toast';
 import Papa from 'papaparse';
-import { formatCentsAsCurrency } from '@/lib/utils';
 
 type ReorderListProps = {
   data: ReorderSuggestion[];
