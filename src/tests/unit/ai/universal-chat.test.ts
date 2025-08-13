@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
@@ -30,7 +29,7 @@ const mockToolResponse: GenerateResponse = {
     }],
     usage: {},
     custom: {},
-    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' },
+    request: { messages: [], tools: [] },
     toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
     text: () => ''
 };
@@ -46,7 +45,7 @@ const mockTextResponse: GenerateResponse = {
     }],
     usage: {},
     custom: {},
-    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' },
+    request: { messages: [], tools: [] },
     toolRequests: [],
     text: () => 'I cannot help with that.'
 };
@@ -116,5 +115,3 @@ describe('Universal Chat Flow', () => {
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });
-
-    
