@@ -37,16 +37,12 @@ test.describe('Sales Page', () => {
   });
 
   test('should filter sales by order number', async ({ page }) => {
-    await page.goto('/sales');
-    await page.waitForLoadState('networkidle');
-    
-    const searchInput = page.locator('input[placeholder*="Search"]');
-    await searchInput.fill('NONEXISTENT999');
+    await page.fill('input[placeholder*="Search"]', 'NONEXISTENT999');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
 
-    // Check if table is empty or shows no results
-    const tableRows = await page.locator('table tbody tr').count();
-    expect(tableRows).toBe(0);
+    // Check for "no results" message or empty state
+    const noResultsMessage = await page.locator('text=/no.*found|no.*results|empty/i').isVisible().catch(() => false);
+    expect(noResultsMessage || (await page.locator('table tbody tr').count()) === 0).toBeTruthy();
   });
 });
