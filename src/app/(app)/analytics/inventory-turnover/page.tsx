@@ -10,7 +10,7 @@ export default async function InventoryTurnoverPage() {
     const reportData = await getInventoryTurnoverReportData();
 
     // Ensure reportData is not null and conforms to the expected type
-    const safeReportData: TurnoverReport = reportData || {
+    const safeReportData: TurnoverReport = (reportData as TurnoverReport) || {
         turnover_rate: 0,
         total_cogs: 0,
         average_inventory_value: 0,

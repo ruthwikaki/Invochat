@@ -164,7 +164,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
 
         const genkitHistory = conversationHistory.map(msg => ({
             ...msg,
-            role: msg.role === 'assistant' ? 'model' as const : msg.role,
+            role: msg.role as 'user' | 'model',
         })) as MessageData[];
 
         const messages: MessageData[] = [systemPrompt, ...genkitHistory];
@@ -172,7 +172,6 @@ export const universalChatFlow = genkit.ai.defineFlow(
         const response = await generateWithRetry({
             model: config.ai.model,
             tools: safeToolsForOrchestrator,
-            toolChoice: 'auto',
             messages,
             config: {
                 temperature: 0.2, // Slightly more creative for better synthesis
@@ -267,4 +266,3 @@ export const universalChatFlow = genkit.ai.defineFlow(
     }
   }
 );
-
