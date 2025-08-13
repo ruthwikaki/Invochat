@@ -35,7 +35,7 @@ import {
     upsertChannelFeeInDb,
     createExportJobInDb,
     reconcileInventoryInDb,
-    getDashboardMetrics as getDashboardMetricsFromDb,
+    getDashboardMetrics,
     checkUserPermission,
     getHistoricalSalesForSkus,
     createAuditLogInDb as createAuditLogInDbService,
@@ -58,14 +58,13 @@ import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, CustomerAnalytics, SalesAnalytics, InventoryAnalytics, Integration } from '@/types';
+import type { Message, Conversation, Customer, SalesAnalytics, Integration, Order } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 import type { Json } from '@/types/database.types';
-import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 import { ReorderSuggestion } from '@/schemas/reorder';
 
 
@@ -563,7 +562,7 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
     }
 
     try {
-        const data = await getDashboardMetricsFromDb(companyId, dateRange);
+        const data = await getDashboardMetrics(companyId, dateRange);
         if (isRedisEnabled && data) {
           await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
         }

@@ -33,7 +33,7 @@ export default async function CustomersPage({
         />
         <div className="mt-6">
             <CustomersClientPage
-                initialCustomers={customersData.items as Customer[]}
+                initialCustomers={customersData.items}
                 totalCount={customersData.totalCount}
                 itemsPerPage={ITEMS_PER_PAGE}
                 analyticsData={analyticsData as CustomerAnalyticsType}
