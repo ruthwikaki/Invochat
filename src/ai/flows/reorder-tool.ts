@@ -74,10 +74,10 @@ export const getReorderSuggestions = ai.defineTool(
     name: 'getReorderSuggestions',
     description:
       "Use this tool to get a list of products that should be reordered based on current stock levels, sales velocity, and reorder rules. This is the primary tool for answering any questions about 'what to order' or 'what is running low'.",
+    outputSchema: z.array(EnhancedReorderSuggestionSchema),
     inputSchema: z.object({
       companyId: z.string().uuid().describe("The ID of the company to get suggestions for."),
     }),
-    outputSchema: z.array(EnhancedReorderSuggestionSchema),
   },
   async (input): Promise<z.infer<typeof EnhancedReorderSuggestionSchema>[]> => {
     logger.info(`[Reorder Tool] Getting suggestions for company: ${input.companyId}`);
@@ -110,8 +110,17 @@ export const getReorderSuggestions = ai.defineTool(
         }
         
         const suggestionsForAI = baseSuggestions.map(s => ({
-            ...s,
-            current_stock: s.current_quantity,
+            product_id: s.product_id,
+            product_name: s.product_name,
+            sku: s.sku,
+            lead_time_days: 7, // Using a default, could be from variant
+            reorder_point: 0, // Not available on base suggestion, default
+            current_inventory: s.current_quantity,
+            avg_daily_sales: 0, // Placeholder, AI will use historical data
+            safety_stock: 0, // Placeholder
+            min_order_qty: 0, // Placeholder
+            max_order_qty: null, // Placeholder
+            suggested_reorder_quantity: s.suggested_reorder_quantity,
         }));
 
         const skus = baseSuggestions.map(s => s.sku);
@@ -128,20 +137,7 @@ export const getReorderSuggestions = ai.defineTool(
         let refinedOutput: z.infer<typeof LLMRefinedSuggestionSchema>[] = [];
         try {
             const { output } = await reorderRefinementPrompt({
-                suggestions: suggestionsForAI.map(s => ({
-                    product_id: s.product_id,
-                    product_name: s.product_name,
-                    sku: s.sku,
-                    lead_time_days: 7,
-                    reorder_point: 0, // Default as field doesn't exist
-                    current_inventory: s.current_stock,
-                    avg_daily_sales: 0,
-                    safety_stock: 0,
-                    min_order_qty: null,
-                    max_order_qty: null,
-                    suggested_reorder_quantity: s.suggested_reorder_quantity,
-                    weeks_of_coverage: undefined
-                })),
+                suggestions: suggestionsForAI,
                 historicalSales: historicalSales as any,
                 currentDate: new Date().toISOString().split('T')[0],
                 timezone: settings.timezone || 'UTC',
