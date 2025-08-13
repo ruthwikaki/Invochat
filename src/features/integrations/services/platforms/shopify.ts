@@ -79,6 +79,10 @@ export async function syncProducts(integration: Integration, accessToken: string
                         reorder_point: null,
 
                         reorder_quantity: null,
+
+                        reorder_point: null,
+
+                        reorder_quantity: null,
                         product_id: internalProductId,
                         company_id: integration.company_id,
                         sku: variant.sku || `SHOPIFY-${variant.id}`,
@@ -197,4 +201,5 @@ export async function runShopifyFullSync(integration: Integration) {
         throw e;
     }
 }
+
 

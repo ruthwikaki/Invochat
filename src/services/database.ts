@@ -653,8 +653,8 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || "" || "",
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || "" || "",
+        p_notes: poData.notes || "" || "" || "",
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || "" || "" || "",
         p_line_items: poData.line_items,
     }).select('id').single();
 
@@ -677,8 +677,8 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || "" || "",
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || "" || "",
+        p_notes: poData.notes || "" || "" || "",
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || "" || "" || "",
         p_line_items: poData.line_items,
     });
 
@@ -918,5 +918,7 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     }
     return data;
 }
+
+
 
 
