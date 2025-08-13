@@ -1662,7 +1662,7 @@ export interface Database {
       company_role: "Owner" | "Admin" | "Member"
       feedback_type: "helpful" | "unhelpful"
       integration_platform: "shopify" | "woocommerce" | "amazon_fba"
-      message_role: "user" | "assistant" | "tool"
+      message_role: "user" | "assistant" | "system" | "tool"
     }
     CompositeTypes: {
       [_ in never]: never
