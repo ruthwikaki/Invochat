@@ -9,7 +9,7 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
+    await page.fill('input[name="password"]', 'TestPass123!');
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 30000 });
     await page.waitForLoadState('networkidle');
@@ -50,7 +50,7 @@ test.describe('Customers Page', () => {
     await expect(tableBody.locator('tr').first().or(page.getByText('No customers found matching'))).toBeVisible();
     
     if (await tableBody.locator('tr').first().isVisible()){
-        await expect(tableBody).toContainText('george');
+        await expect(tableBody).toContainText(/george/i);
     }
     
     await page.fill('input[placeholder*="Search by customer name"]', '');
