@@ -12,24 +12,6 @@ import type { NextRequest } from 'next/server';
 
 export async function POST(req: NextRequest) {
     try {
-        if (process.env.NODE_ENV === 'test' || process.env.MOCK_AI === 'true') {
-            const { user } = await requireUser(req);
-            
-            const { content } = await req.json();
-            const newMessage: Message = {
-              id: crypto.randomUUID(),
-              role: 'assistant',
-              content: `This is a mocked AI response to: "${content}"`,
-              created_at: new Date().toISOString(),
-              conversation_id: crypto.randomUUID(),
-              company_id: user.app_metadata.company_id,
-            };
-            return NextResponse.json({
-              newMessage,
-              conversationId: newMessage.conversation_id,
-            });
-        }
-
         const body = await req.json();
         const result = await handleUserMessage(body);
 
