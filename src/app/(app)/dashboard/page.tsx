@@ -20,8 +20,7 @@ const emptyMetrics: DashboardMetrics = {
     customers_change: 0,
     dead_stock_value: 0,
     sales_over_time: [],
-    top_selling_products: [],
-  top_products: [],
+    top_products: [],
     inventory_summary: {
         total_value: 0,
         in_stock_value: 0,
@@ -98,4 +97,3 @@ export default async function DashboardPage({
         </AppPage>
     );
 }
-

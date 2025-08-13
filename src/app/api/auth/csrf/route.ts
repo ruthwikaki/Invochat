@@ -1,5 +1,5 @@
 
-import { _generateCSRFToken } from '@/lib/csrf';
+import { generateCSRFToken } from '@/lib/csrf';
 import { NextResponse } from 'next/server';
 
 /**
@@ -12,10 +12,9 @@ import { NextResponse } from 'next/server';
  */
 export async function POST() {
   try {
-    // await _generateCSRFToken(); // Temporarily disabled
+    await generateCSRFToken(); // Temporarily disabled
     return NextResponse.json({ success: true, message: "CSRF handling is currently managed by Supabase session cookies." }, { status: 200 });
   } catch (e) {
     return NextResponse.json({ success: false, error: 'Failed to generate CSRF token.' }, { status: 500 });
   }
 }
-

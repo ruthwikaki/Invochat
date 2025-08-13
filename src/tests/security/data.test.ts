@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { getAuthedRequest } from '../api/api-helpers';
+import { randomUUID } from 'crypto';
 
 // This test checks for Insecure Direct Object Reference (IDOR) vulnerabilities
 // by ensuring one user cannot access another user's data.
@@ -13,9 +14,10 @@ test.describe('Data Security & Multi-Tenancy', () => {
 
     test.beforeAll(async () => {
         const supabase = getServiceRoleClient();
+        const ownerId = randomUUID();
         // Create two separate companies and a supplier in the first one
-        const { data: comp1 } = await supabase.from('companies').insert({ name: 'Security Test Co 1', owner_id: '' }).select().single();
-        const { data: comp2 } = await supabase.from('companies').insert({ name: 'Security Test Co 2', owner_id: '' }).select().single();
+        const { data: comp1 } = await supabase.from('companies').insert({ name: 'Security Test Co 1', owner_id: ownerId }).select().single();
+        const { data: comp2 } = await supabase.from('companies').insert({ name: 'Security Test Co 2', owner_id: ownerId }).select().single();
         if(!comp1 || !comp2) throw new Error('Failed to create test companies');
         company1Id = comp1.id;
         company2Id = comp2.id;
@@ -36,7 +38,7 @@ test.describe('Data Security & Multi-Tenancy', () => {
         // Temporarily assign the test user to Company 2
         await supabase.from('company_users').upsert({ user_id: testUser.id, company_id: company2Id, role: 'Owner' }, { onConflict: 'user_id' });
 
-        const authedRequest = await getAuthedRequest();
+        const authedRequest = await getAuthedRequest(request);
         
         // As a user from Company 2, try to fetch the supplier from Company 1
         const response = await authedRequest.get(`/api/suppliers/${supplierFromCompany1Id}`);
@@ -53,6 +55,3 @@ test.describe('Data Security & Multi-Tenancy', () => {
         await supabase.from('companies').delete().in('id', [company1Id, company2Id]);
     });
 });
-
-
-
