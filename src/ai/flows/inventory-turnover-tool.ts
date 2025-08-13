@@ -35,6 +35,10 @@ export const getInventoryTurnoverReport = ai.defineTool(
         const safeDays = Math.min(input.days, MAX_DAYS_LOOKBACK);
         const result = await getInventoryTurnoverFromDB(input.companyId, safeDays);
 
+        if (!result) {
+            throw new Error('Could not retrieve turnover data from the database.');
+        }
+
         // Prevent division by zero errors
         if (result.average_inventory_value === 0) {
             return {
