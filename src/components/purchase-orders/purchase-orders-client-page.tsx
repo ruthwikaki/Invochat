@@ -176,7 +176,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {po.line_items.map(item => (
+                                            {po.line_items?.map(item => (
                                                 <TableRow key={item.id}>
                                                     <TableCell className="font-mono text-xs">{item.sku}</TableCell>
                                                     <TableCell>{item.product_name}</TableCell>
@@ -219,3 +219,4 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
     </>
   );
 }
+
