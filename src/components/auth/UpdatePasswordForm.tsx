@@ -25,7 +25,7 @@ interface UpdatePasswordFormProps {
 
 export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormProps) {
     const [error, setError] = useState(initialError);
-    const [isPending, startTransition] = useTransition();
+    const [_isPending, startTransition] = useTransition();
 
     useEffect(() => {
         setError(initialError);
@@ -79,5 +79,6 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
     </form>
   );
 }
+
 
 

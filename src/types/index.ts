@@ -306,7 +306,7 @@ export const ReorderSuggestionSchema = z.object({
 export type ReorderSuggestion = z.infer<typeof ReorderSuggestionSchema>;
 
 export { EnhancedReorderSuggestionSchema };
-export type { ReorderSuggestionBase, ReorderSuggestion, Supplier };
+export type { ReorderSuggestionBase, Supplier };
 
 export const InventoryAgingReportItemSchema = z.object({
   sku: z.string(),
@@ -537,5 +537,6 @@ export type ImportJob = {
   processed_rows: number | null;
   failed_rows: number | null;
 }
+
 
 
