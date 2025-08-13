@@ -1,6 +1,7 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createOrUpdateSecret, getSecret } from '@/features/integrations/services/encryption';
-import { getServiceRoleClient } from '@/lib/supabase/admin';
+import * as admin from '@/lib/supabase/admin';
 
 // Mock the Supabase admin client
 const mockSupabaseVault = {
@@ -11,7 +12,9 @@ const mockSupabaseVault = {
   },
 };
 vi.mock('@/lib/supabase/admin', () => ({
-  getServiceRoleClient: vi.fn(() => mockSupabaseVault),
+  getServiceRoleClient: vi.fn(() => ({
+    vault: mockSupabaseVault
+  })),
 }));
 
 describe('Encryption Service (Supabase Vault)', () => {
@@ -98,6 +101,3 @@ describe('Encryption Service (Supabase Vault)', () => {
     });
   });
 });
-
-
-

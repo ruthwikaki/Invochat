@@ -6,16 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CheckCircle, AlertTriangle, Clock, FileText } from "lucide-react";
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from "@/lib/utils";
-
-interface ImportJob {
-    id: string;
-    created_at: string;
-    import_type: string;
-    file_name: string;
-    status: string;
-    processed_rows: number | null;
-    failed_rows: number | null;
-}
+import type { ImportJob } from "@/types";
 
 interface ImportHistoryCardProps {
     initialHistory: ImportJob[];

@@ -27,7 +27,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart, GenerateRequest, ToolAction } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, GenerateRequest } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator = [
@@ -97,16 +97,14 @@ const finalResponsePrompt = ai.definePrompt({
  * @returns A promise that resolves to the GenerateResponse.
  * @throws An error if the request fails after all retry attempts.
  */
-async function generateWithRetry(request: GenerateOptions): Promise<GenerateResponse> {
+async function generateWithRetry(request: GenerateRequest): Promise<GenerateResponse> {
     const MAX_RETRIES = 3;
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            // Use the primary model for the first attempt, then fallback for retries.
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest = { ...request, model: modelToUse as any };
-
+            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
             return await ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
@@ -158,12 +156,11 @@ export const universalChatFlow = ai.defineFlow(
 
     try {
         const genkitHistory: MessageData[] = conversationHistory.map(msg => ({
-            role: msg.role,
+            role: msg.role as 'user' | 'model',
             content: msg.content,
         }));
         
         const response = await generateWithRetry({
-            model: config.ai.model as any,
             tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
             config: {
@@ -259,5 +256,3 @@ export const universalChatFlow = ai.defineFlow(
     }
   }
 );
-
-    

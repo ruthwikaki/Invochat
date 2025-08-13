@@ -7,7 +7,6 @@ import {
 } from '@/schemas/reorder';
 import { type Supplier, SupplierFormSchema } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
-import { type Json } from './database.types';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -521,9 +520,7 @@ export const FeedbackSchema = z.object({
     user_message_content: z.string().nullable(),
     assistant_message_content: z.string().nullable(),
 }).passthrough();
-
-export const FeedbackWithMessagesSchema = FeedbackSchema;
-export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
+export type FeedbackWithMessages = z.infer<typeof FeedbackSchema>;
 
 export { SupplierFormSchema };
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
@@ -537,5 +534,3 @@ export type ImportJob = {
   processed_rows: number | null;
   failed_rows: number | null;
 }
-
-    
