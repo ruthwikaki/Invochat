@@ -22,7 +22,7 @@ let accessToken: string | null = null;
  */
 export async function createTestUser(
   { email, password, companyId, role = 'Owner' }: 
-  { email: string; password; string; companyId: string; role?: 'Owner' | 'Admin' | 'Member' }
+  { email: string; password: string; companyId: string; role?: 'Owner' | 'Admin' | 'Member' }
 ) {
     const supabase = getServiceRoleClient();
     
@@ -124,3 +124,4 @@ export async function getAuthedRequest(request: APIRequestContext): Promise<APIR
 
   return authedContext;
 }
+

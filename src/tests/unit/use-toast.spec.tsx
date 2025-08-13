@@ -40,3 +40,4 @@ describe('useToast hook', () => {
     expect(result.current.toasts[0].open).toBe(false);
   });
 });
+

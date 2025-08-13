@@ -8,7 +8,7 @@ const adminUser = credentials.test_users[0];
 const memberUserEmail = `testmember-${Date.now()}@example.com`;
 const memberUserPassword = 'TestMemberPassword123!';
 
-async function login(page: Page, user: { email: string, password, string }) {
+async function login(page: Page, user: { email: string, password: string }) {
     await page.goto('/login');
     await page.fill('input[name="email"]', user.email);
     await page.fill('input[name="password"]', user.password);
@@ -78,3 +78,4 @@ test.describe('Admin & Role Permission Tests', () => {
         await supabase.auth.admin.deleteUser(memberUserId);
     });
 });
+

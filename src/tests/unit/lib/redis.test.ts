@@ -1,5 +1,5 @@
 import { rateLimit, isRedisEnabled, redisClient } from '@/lib/redis';
-import { describe, it, expect, vi, afterAll, beforeAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 
 // We conditionally run these tests because they require a Redis instance.
 // In a CI environment, this might be mocked or connected to a real test instance.
@@ -28,3 +28,5 @@ describe.skipIf(!RUN_REDIS_TESTS)('rateLimit', () => {
     expect(result.remaining).toBe(0);
   });
 });
+
+

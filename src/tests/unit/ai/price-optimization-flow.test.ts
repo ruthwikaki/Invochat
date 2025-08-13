@@ -78,3 +78,4 @@ describe('Price Optimization Flow', () => {
     expect(suggestPricesPrompt).not.toHaveBeenCalled();
   });
 });
+

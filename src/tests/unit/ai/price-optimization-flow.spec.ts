@@ -1,7 +1,7 @@
 
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { suggestPriceOptimizationsFlow } from '@/ai/flows/price-optimization-flow';
+import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
 import * as database from '@/services/database';
 import * as genkit from '@/ai/genkit';
 
@@ -56,7 +56,7 @@ describe('Price Optimization Flow', () => {
     vi.spyOn(database, 'getUnifiedInventoryFromDB').mockResolvedValue(mockInventory as any);
     
     const input = { companyId: 'test-company-id' };
-    const result = await suggestPriceOptimizationsFlow(input);
+    const result = await priceOptimizationFlow(input);
 
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
     expect(suggestPricesPrompt).toHaveBeenCalledWith({
@@ -74,9 +74,11 @@ describe('Price Optimization Flow', () => {
     vi.spyOn(database, 'getUnifiedInventoryFromDB').mockResolvedValue({ items: [], totalCount: 0 });
 
     const input = { companyId: 'test-company-id' };
-    const result = await suggestPriceOptimizationsFlow(input);
+    const result = await priceOptimizationFlow(input);
     expect(result.analysis).toContain('Not enough product data');
     expect(suggestPricesPrompt).not.toHaveBeenCalled();
   });
 });
+
+
 

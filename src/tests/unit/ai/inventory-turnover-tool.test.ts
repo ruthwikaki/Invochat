@@ -5,7 +5,7 @@ import * as database from '@/services/database';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((config, func) => ({ ...config, run: func })),
+    defineTool: vi.fn((_config, func) => ({ ...config, run: func })),
   },
 }));
 
@@ -41,3 +41,5 @@ describe('Inventory Turnover Tool', () => {
     await expect((getInventoryTurnoverReport as any).run(input)).rejects.toThrow('An error occurred while trying to calculate the inventory turnover rate.');
   });
 });
+
+

@@ -24,3 +24,4 @@ describe('withTimeout', () => {
     await expect(withTimeout(failingPromise, 20)).rejects.toThrow('original error');
   });
 });
+
