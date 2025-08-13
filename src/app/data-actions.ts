@@ -400,7 +400,7 @@ export async function exportInventory(params: { query: string; status: string; s
             product_type: item.product_type,
             location: item.location,
             barcode: item.barcode,
-        }));
+        })) || [];
         
         const csv = Papa.unparse(dataToExport);
         return { success: true, data: csv };
@@ -432,11 +432,11 @@ export async function getPurchaseOrderById(id: string) {
         po_number: po.po_number,
         total_cost: po.total_cost,
         expected_arrival_date: po.expected_arrival_date,
-        line_items: po.line_items.map(item => ({
+        line_items: po.line_items?.map(item => ({
             variant_id: item.variant_id,
             quantity: item.quantity,
             cost: item.cost,
-        }))
+        })) || []
     }
 }
 
@@ -680,7 +680,7 @@ export async function handleUserMessage(params: { content: string, conversationI
 
     const aiResponse = await universalChatFlow({
         companyId: companyId,
-        conversationHistory: reversedHistory.map(m => ({ role: m.role, content: [{ text: m.content }] })) as any,
+        conversationHistory: reversedHistory.map(m => ({ role: m.role, content: [{ text: m.content }] })) || [] as any,
     });
 
     const { data: newMessage, error: messageError } = await supabase.from('messages').insert({
@@ -831,3 +831,4 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+
