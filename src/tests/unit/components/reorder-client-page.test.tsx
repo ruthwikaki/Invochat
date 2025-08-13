@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
-import type { ReorderSuggestion } from '@/types';
+import type { ReorderSuggestion } from '@/schemas/reorder';
 import { useToast } from '@/hooks/use-toast';
 import * as dataActions from '@/app/(app)/analytics/reordering/actions';
 import * as csrf from '@/lib/csrf-client';
@@ -90,7 +90,7 @@ describe('Component: ReorderClientPage', () => {
         expect(screen.queryByText(/item\(s\) selected/)).not.toBeInTheDocument();
 
         // Select all items
-        await fireEvent.click(selectAllCheckbox);
+        fireEvent.click(selectAllCheckbox);
         
         // Wait for state update and action bar to appear
         await waitFor(() => {
@@ -98,7 +98,7 @@ describe('Component: ReorderClientPage', () => {
         });
 
         // Unselect all items
-        await fireEvent.click(selectAllCheckbox);
+        fireEvent.click(selectAllCheckbox);
         
         // Wait for state update and action bar to disappear
         await waitFor(() => {
@@ -106,7 +106,7 @@ describe('Component: ReorderClientPage', () => {
         });
 
         // Check one item to ensure individual selection still works
-        await fireEvent.click(checkboxes[1]);
+        fireEvent.click(checkboxes[1]);
         await waitFor(() => {
           expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
         });
@@ -124,14 +124,14 @@ describe('Component: ReorderClientPage', () => {
         render(<ReorderClientPage initialSuggestions={mockSuggestions} />);
         // Select an item to enable the button
         const firstCheckbox = screen.getAllByRole('checkbox')[1];
-        await fireEvent.click(firstCheckbox);
+        fireEvent.click(firstCheckbox);
 
         await waitFor(() => {
             expect(screen.getByText('1 item(s) selected')).toBeInTheDocument();
         });
 
         const createPoButton = screen.getByRole('button', { name: /Create PO\(s\)/ });
-        await fireEvent.click(createPoButton);
+        fireEvent.click(createPoButton);
 
         await waitFor(() => {
             expect(dataActions.createPurchaseOrdersFromSuggestions).toHaveBeenCalled();
