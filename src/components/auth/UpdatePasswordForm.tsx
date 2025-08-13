@@ -42,7 +42,7 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
     
     const formAction = (formData: FormData) => {
         startTransition(async () => {
-            await updatePassword(formData);
+            await updatePassword(null, formData);
         });
     }
 
@@ -79,3 +79,4 @@ export function UpdatePasswordForm({ error: initialError }: UpdatePasswordFormPr
     </form>
   );
 }
+
