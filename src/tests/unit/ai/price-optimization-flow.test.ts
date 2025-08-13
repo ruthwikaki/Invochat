@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { priceOptimizationFlow } from '@/ai/flows/price-optimization-flow';
 import * as database from '@/services/database';
@@ -8,7 +7,7 @@ vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
-    defineFlow: vi.fn((config, func) => func),
+    defineFlow: vi.fn((_config, func) => func),
   },
 }));
 
@@ -52,8 +51,8 @@ describe('Price Optimization Flow', () => {
   });
 
   it('should fetch inventory and generate price suggestions', async () => {
-    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue(mockInventory as any);
-    (database.getHistoricalSalesForSkus as vi.Mock).mockResolvedValue([]);
+    (database.getUnifiedInventoryFromDB as any).mockResolvedValue(mockInventory as any);
+    (database.getHistoricalSalesForSkus as any).mockResolvedValue([]);
 
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);
@@ -71,7 +70,7 @@ describe('Price Optimization Flow', () => {
   });
 
   it('should handle no inventory data', async () => {
-    (database.getUnifiedInventoryFromDB as vi.Mock).mockResolvedValue({ items: [], totalCount: 0 });
+    (database.getUnifiedInventoryFromDB as any).mockResolvedValue({ items: [], totalCount: 0 });
 
     const input = { companyId: 'test-company-id' };
     const result = await priceOptimizationFlow(input);

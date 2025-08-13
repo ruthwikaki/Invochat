@@ -31,7 +31,7 @@ const mockToolResponse: GenerateResponse = {
     custom: {},
     request: { messages: [], tools: [] },
     toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
-    text: () => ''
+    text: ''
 };
 
 const mockTextResponse: GenerateResponse = {
@@ -47,7 +47,7 @@ const mockTextResponse: GenerateResponse = {
     custom: {},
     request: { messages: [], tools: [] },
     toolRequests: [],
-    text: () => 'I cannot help with that.'
+    text: 'I cannot help with that.'
 };
 
 const mockFinalResponse = {
@@ -69,7 +69,7 @@ describe('Universal Chat Flow', () => {
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
         vi.spyOn(genkit.ai, 'generate').mockImplementation(generateMock);
-        vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((config, func) => func as any);
+        vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((_config, func) => func as any);
         vi.spyOn(genkit.ai, 'definePrompt').mockImplementation(() => finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });

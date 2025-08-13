@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { analyzeSuppliersFlow } from '@/ai/flows/analyze-supplier-flow';
 import * as database from '@/services/database';
@@ -10,7 +9,7 @@ vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
-    defineFlow: vi.fn((config, func) => func), // Immediately return the flow function
+    defineFlow: vi.fn((_config, func) => func), // Immediately return the flow function
   },
 }));
 

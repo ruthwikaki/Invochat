@@ -43,7 +43,7 @@ describe('Server Actions: getDashboardData', () => {
 
   it('should fetch and return dashboard metrics successfully', async () => {
     // Arrange: Mock the database function to return our test data
-    vi.spyOn(database, 'getDashboardMetrics').mockResolvedValue(mockDashboardMetrics);
+    (database.getDashboardMetrics as vi.Mock).mockResolvedValue(mockDashboardMetrics);
 
     // Act: Call the server action
     const result = await getDashboardData('90d');
@@ -59,9 +59,9 @@ describe('Server Actions: getDashboardData', () => {
   it('should return empty metrics if the database call fails', async () => {
     // Arrange: Mock the database function to reject with an error
     const dbError = new Error('Database connection failed');
-    vi.spyOn(database, 'getDashboardMetrics').mockRejectedValue(dbError);
+    (database.getDashboardMetrics as vi.Mock).mockRejectedValue(dbError);
 
-    // Act & Assert: Expect the server action to return empty metrics instead of throwing
+    // Act & Assert: Expect the server action to return a default empty object
     const result = await getDashboardData('90d');
     expect(result.total_revenue).toBe(0);
     expect(result.top_products).toEqual([]);

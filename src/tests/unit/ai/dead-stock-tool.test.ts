@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDeadStockReport } from '@/ai/flows/dead-stock-tool';
 import * as database from '@/services/database';
@@ -6,7 +5,7 @@ import * as database from '@/services/database';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((config, func) => ({ ...config, func })),
+    defineTool: vi.fn((config, func) => ({ ...config, run: func })),
   },
 }));
 
@@ -30,10 +29,10 @@ describe('Dead Stock Tool', () => {
   });
 
   it('should return a list of dead stock items from the database', async () => {
-    (database.getDeadStockReportFromDB as vi.Mock).mockResolvedValue(mockDeadStockData);
+    (database.getDeadStockReportFromDB as any).mockResolvedValue(mockDeadStockData);
 
     const input = { companyId: 'test-company-id' };
-    const result = await (getDeadStockReport as any).func(input);
+    const result = await (getDeadStockReport as any).run(input);
 
     expect(database.getDeadStockReportFromDB).toHaveBeenCalledWith(input.companyId);
     expect(result).toEqual(mockDeadStockData.deadStockItems);
@@ -42,14 +41,14 @@ describe('Dead Stock Tool', () => {
   });
 
   it('should return an empty array if no dead stock is found', async () => {
-    (database.getDeadStockReportFromDB as vi.Mock).mockResolvedValue({
+    (database.getDeadStockReportFromDB as any).mockResolvedValue({
       deadStockItems: [],
       totalValue: 0,
       totalUnits: 0,
     });
 
     const input = { companyId: 'test-company-id' };
-    const result = await (getDeadStockReport as any).func(input);
+    const result = await (getDeadStockReport as any).run(input);
 
     expect(result).toEqual([]);
     expect(result).toHaveLength(0);
@@ -57,10 +56,10 @@ describe('Dead Stock Tool', () => {
 
   it('should throw an error if the database call fails', async () => {
     const dbError = new Error('Database connection failed');
-    (database.getDeadStockReportFromDB as vi.Mock).mockRejectedValue(dbError);
+    (database.getDeadStockReportFromDB as any).mockRejectedValue(dbError);
 
     const input = { companyId: 'test-company-id' };
 
-    await expect((getDeadStockReport as any).func(input)).rejects.toThrow('An error occurred while trying to generate the dead stock report.');
+    await expect((getDeadStockReport as any).run(input)).rejects.toThrow('An error occurred while trying to generate the dead stock report.');
   });
 });
