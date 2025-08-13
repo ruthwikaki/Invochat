@@ -2,12 +2,11 @@
 import { NextResponse } from 'next/server';
 import { handleUserMessage } from '@/app/data-actions';
 import { getErrorMessage, logError } from '@/lib/error-handler';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import type { Message } from '@/types';
 import * as Sentry from '@sentry/nextjs';
-import { makeSupabaseForReq, requireUser } from '@/lib/api-auth';
+import { rateLimit } from '@/lib/redis';
+import { config } from '@/config/app-config';
 import type { NextRequest } from 'next/server';
+import { headers } from 'next/headers';
 
 
 export async function POST(req: NextRequest) {
@@ -25,6 +24,12 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+        const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
+        const { limited } = await rateLimit(ip, 'ai-chat', config.ratelimit.ai, 3600);
+        if (limited) {
+            return NextResponse.json({ error: 'You have made too many requests. Please try again in an hour.' }, { status: 429 });
+        }
+
         const body = await req.json();
         const result = await handleUserMessage(body);
 
@@ -41,3 +46,5 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
+
+    

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for AIventory.
@@ -26,7 +27,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart, GenerateRequest } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart, GenerateRequest, ToolAction } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator = [
@@ -96,7 +97,7 @@ const finalResponsePrompt = ai.definePrompt({
  * @returns A promise that resolves to the GenerateResponse.
  * @throws An error if the request fails after all retry attempts.
  */
-async function generateWithRetry(request: GenerateRequest): Promise<GenerateResponse> {
+async function generateWithRetry(request: GenerateOptions): Promise<GenerateResponse> {
     const MAX_RETRIES = 3;
     let lastError: Error | undefined;
 
@@ -104,7 +105,7 @@ async function generateWithRetry(request: GenerateRequest): Promise<GenerateResp
         try {
             // Use the primary model for the first attempt, then fallback for retries.
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
+            const finalRequest = { ...request, model: modelToUse as any };
 
             return await ai.generate(finalRequest);
         } catch (e: unknown) {
@@ -157,7 +158,7 @@ export const universalChatFlow = ai.defineFlow(
 
     try {
         const genkitHistory: MessageData[] = conversationHistory.map(msg => ({
-            role: msg.role as 'user' | 'model',
+            role: msg.role,
             content: msg.content,
         }));
         
@@ -175,8 +176,8 @@ export const universalChatFlow = ai.defineFlow(
         const toolRequest = response.toolRequests[0];
 
         if (toolRequest) {
-            const toolName = toolRequest.toolRequest.name;
-            const toolResponseData = toolRequest.toolRequest.input;
+            const toolName = toolRequest.name;
+            const toolResponseData = toolRequest.input;
 
             logger.info(`[UniversalChat:Flow] AI requested tool: "${toolName}"`);
 
@@ -258,3 +259,5 @@ export const universalChatFlow = ai.defineFlow(
     }
   }
 );
+
+    
