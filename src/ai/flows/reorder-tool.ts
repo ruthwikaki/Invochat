@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { logError } from '@/lib/error-handler';
 import { getReorderSuggestionsFromDB, getSettings, getHistoricalSalesForSkus } from '@/services/database';
-import type { ReorderSuggestion, ReorderSuggestionBase } from '@/types';
+import type { ReorderSuggestion } from '@/types';
 import { EnhancedReorderSuggestionSchema, ReorderSuggestionBaseSchema } from '@/schemas/reorder';
 import { config } from '@/config/app-config';
 
@@ -88,6 +88,27 @@ export const getReorderSuggestions = ai.defineTool(
         if (baseSuggestions.length === 0) {
             logger.info(`[Reorder Tool] No baseline suggestions found for company ${input.companyId}. Returning empty array.`);
             return [];
+        }
+        
+        // When MOCK_AI is enabled, return predictable test data without calling the real AI.
+        if (process.env.MOCK_AI === 'true') {
+            logger.info('[Reorder Tool] Using mocked AI response for test environment');
+            // Return properly formatted mock data
+            return baseSuggestions.map(base => ({
+                ...base,
+                suggested_reorder_quantity: base.suggested_reorder_quantity || 50,
+                base_quantity: base.suggested_reorder_quantity || 50,
+                adjustment_reason: 'Mocked AI response for testing.',
+                seasonality_factor: 1.0,
+                confidence: 0.99,
+                current_inventory: 10,
+                avg_daily_sales: 2,
+                lead_time_days: 14,
+                safety_stock: 5,
+                reorder_point: 33,
+                min_order_qty: 10,
+                max_order_qty: 1000
+            }));
         }
         
         const suggestionsForAI = baseSuggestions.map(s => ({
