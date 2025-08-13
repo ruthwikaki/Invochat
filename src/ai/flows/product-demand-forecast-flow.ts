@@ -7,7 +7,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getHistoricalSalesForSingleSkuFromDB } from '@/services/database';
+import { getHistoricalSalesForSkus } from '@/services/database';
 import { logError } from '@/lib/error-handler';
 import { linearRegression } from '@/lib/utils';
 import { differenceInDays } from 'date-fns';
@@ -59,7 +59,7 @@ const generateForecastAnalysisPrompt = ai.definePrompt({
     2.  **Determine Confidence:**
         - If 'dataPointCount' is high (e.g., > 90), confidence is 'High'.
         - If 'dataPointCount' is moderate (e.g., 30-90), confidence is 'Medium'.
-        - If 'dataPointCount' is low (e.g., < 30), confidence is 'Low'. Confidence is also 'Low' if the slope is very steep, indicating volatile sales.
+        - If 'dataPointCount' is low (e.g., < 30), confidence is also 'Low'. Confidence is also 'Low' if the slope is very steep, indicating volatile sales.
     3.  **Write Analysis:**
         - Write a concise, 1-2 sentence summary. Start with the trend.
         - Example (Upward): "Sales for this product show a clear upward trend. Based on this, I predict you will sell approximately {{forecastedDemand}} units in the next {{daysToForecast}} days."
@@ -78,7 +78,8 @@ export const productDemandForecastFlow = ai.defineFlow(
   },
   async ({ companyId, sku, daysToForecast }): Promise<z.infer<typeof ForecastOutputSchema>> => {
     try {
-      const salesData = await getHistoricalSalesForSingleSkuFromDB(companyId, sku);
+      const historicalData = await getHistoricalSalesForSkus(companyId, [sku]);
+      const salesData = (historicalData[0] as any)?.monthly_sales || [];
 
       if (salesData.length < 5) {
         return {
@@ -91,7 +92,7 @@ export const productDemandForecastFlow = ai.defineFlow(
       }
 
       const firstDay = new Date(salesData[0].sale_date);
-      const dataForRegression = salesData.map(d => ({
+      const dataForRegression = salesData.map((d: any) => ({
         x: differenceInDays(new Date(d.sale_date), firstDay),
         y: d.total_quantity,
       }));

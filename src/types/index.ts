@@ -7,6 +7,7 @@ import {
 } from '@/schemas/reorder';
 import { type Supplier, SupplierFormSchema } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { Json } from './database.types';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;

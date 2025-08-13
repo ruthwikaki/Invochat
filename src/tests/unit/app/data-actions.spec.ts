@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardData } from '@/app/data-actions';
 import * as database from '@/services/database';
@@ -61,13 +62,10 @@ describe('Server Actions: getDashboardData', () => {
     const dbError = new Error('Database connection failed');
     (database.getDashboardMetrics as any).mockRejectedValue(dbError);
 
-    // Act & Assert: Expect the server action to return a default empty object
     const result = await getDashboardData('90d');
+
+    // Assert: Expect the server action to return a default empty object
     expect(result.total_revenue).toBe(0);
     expect(result.top_products).toEqual([]);
   });
 });
-
-
-
-

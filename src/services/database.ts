@@ -2,8 +2,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics } from '@/types';
-import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, ChannelFee, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, InventoryAnalyticsSchema } from '@/types';
 import { type Supplier, type SupplierFormData, SupplierFormSchema, SuppliersArraySchema } from '@/schemas/suppliers';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -118,7 +118,7 @@ export async function updateSettingsInDb(companyId: string, settings: Partial<Co
             .update({ 
                 ...settings, 
                 updated_at: new Date().toISOString() 
-            })
+            } as any)
             .eq('company_id', companyId)
             .select()
             .single();
@@ -387,7 +387,7 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
     return { deadStockItems, totalValue, totalUnits };
 }
 
-export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<any[]> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid Company ID');
     }
@@ -399,12 +399,7 @@ export async function getReorderSuggestionsFromDB(companyId: string): Promise<Re
             throw error;
         }
 
-        return z.array(ReorderSuggestionSchema.omit({
-          base_quantity: true,
-          adjustment_reason: true,
-          seasonality_factor: true,
-          confidence: true,
-        })).parse(data || []) as ReorderSuggestion[];
+        return data || [];
 
     } catch (e) {
         logError(e, { context: `Failed to get reorder suggestions for company ${companyId}` });
@@ -628,7 +623,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
     return data;
 }
 
-export async function getPurchaseOrdersFromDB(companyId: string): Promise<PurchaseOrderWithItemsAndSupplier[]> {
+export async function getPurchaseOrdersFromDB(companyId: string) {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
     const { data, error } = await supabase
@@ -642,7 +637,7 @@ export async function getPurchaseOrdersFromDB(companyId: string): Promise<Purcha
         throw error;
     }
     
-    return (data || []) as PurchaseOrderWithItemsAndSupplier[];
+    return data || [];
 }
 
 export async function getPurchaseOrderByIdFromDB(id: string, companyId: string) {
@@ -881,4 +876,23 @@ export async function refreshMaterializedViews(companyId: string) {
     } else {
         logger.info(`[DB] Successfully refreshed materialized views for company ${companyId}`);
     }
+}
+
+
+export async function getDashboardMetrics(companyId: string, range: string): Promise<DashboardMetrics> {
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.rpc('get_dashboard_metrics' as any, {
+      p_company_id: companyId,
+      p_days: parseInt(range, 10) || 90,
+    });
+  
+    if (error) {
+      logError(error, { context: 'getDashboardMetrics database error' });
+      throw new Error('Could not retrieve dashboard metrics from the database.');
+    }
+    if (!data) {
+        throw new Error('No response from get_dashboard_metrics RPC call.');
+    }
+  
+    return DashboardMetricsSchema.parse(data);
 }
