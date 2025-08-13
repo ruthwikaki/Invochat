@@ -9,7 +9,7 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
+    await page.fill('input[name="password"]', 'TestPass123!');
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 30000 });
     await page.waitForLoadState('networkidle');
@@ -41,6 +41,7 @@ test.describe('Inventory Page', () => {
   test('should filter inventory by name', async ({ page }) => {
     const searchTerm = '4K Smart TV'; 
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill(searchTerm);
+    await page.keyboard.press('Enter');
     
     const firstRow = page.locator('table > tbody > tr').first();
     await expect(firstRow.or(page.getByText('No inventory found'))).toBeVisible();
@@ -49,6 +50,7 @@ test.describe('Inventory Page', () => {
     }
     
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill('');
+    await page.keyboard.press('Enter');
     const firstRowAfterClear = page.locator('table > tbody > tr').first();
     await expect(firstRowAfterClear.or(page.getByText('No inventory found'))).toBeVisible();
   });

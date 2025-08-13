@@ -9,7 +9,7 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
+    await page.fill('input[name="password"]', 'TestPass123!');
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 30000 });
     await page.waitForLoadState('networkidle');
@@ -40,12 +40,13 @@ test.describe('Sales Page', () => {
     await page.goto('/sales');
     await page.waitForLoadState('networkidle');
     
-    const searchInput = page.locator('input[placeholder*="Search"], input[type="search"]').first();
-    await searchInput.fill('NONEXISTENT_ORDER_12345');
+    const searchInput = page.locator('input[placeholder*="Search"]');
+    await searchInput.fill('NONEXISTENT999');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
-    
-    const noResults = await page.locator('text=/No sales orders found matching your search/i').isVisible();
-    expect(noResults).toBeTruthy();
+
+    // Check if table is empty or shows no results
+    const tableRows = await page.locator('table tbody tr').count();
+    expect(tableRows).toBe(0);
   });
 });

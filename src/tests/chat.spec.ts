@@ -3,7 +3,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
-import { getAuthedRequest } from './api/api-helpers';
 import * as crypto from 'crypto';
 
 const testUser = credentials.test_users[0]; // Use the first user for tests
@@ -11,7 +10,7 @@ const testUser = credentials.test_users[0]; // Use the first user for tests
 async function login(page: Page) {
     await page.goto('/login');
     await page.fill('input[name="email"]', testUser.email);
-    await page.fill('input[name="password"]', testUser.password);
+    await page.fill('input[name="password"]', 'TestPass123!');
     await page.click('button[type="submit"]');
     await page.waitForURL('/dashboard', { timeout: 30000 });
     await page.waitForLoadState('networkidle');
@@ -25,22 +24,15 @@ test.describe('AI Chat Interface', () => {
         await page.waitForURL('/chat');
     });
 
-    test('should send a message and receive a text response', async ({ request, page }) => {
+    test('should send a message and receive a text response', async ({ page }) => {
         await expect(page.getByText('How can I help you today?')).toBeVisible();
 
-        const authedRequest = await getAuthedRequest(request);
+        const responsePromise = page.waitForResponse(resp => resp.url().includes('/api/chat/message') && resp.status() === 200);
 
-        const response = await authedRequest.post('/api/chat/message', {
-            data: {
-              content: "What is my most profitable item?",
-              conversationId: crypto.randomUUID(),
-            }
-        });
+        await page.locator('input[placeholder*="Ask anything"]').fill('What is my most profitable item?');
+        await page.getByRole('button', { name: 'Send message' }).click();
 
-        expect(response.ok()).toBeTruthy();
-        
-        await page.reload();
-        await page.waitForLoadState('networkidle');
+        await responsePromise;
 
         const assistantMessageContainer = page.locator('.flex.flex-col.gap-3').last();
         await expect(assistantMessageContainer).toBeVisible({ timeout: 20000 });
@@ -79,8 +71,6 @@ test.describe('AI Chat Interface', () => {
 
     test('should handle AI service error gracefully', async ({ page, context }) => {
         await page.route('**/api/chat/message', async route => {
-            const originalRequest = route.request();
-            const response = await context.request.fetch(originalRequest);
             await route.fulfill({
                 status: 500,
                 contentType: 'application/json',
