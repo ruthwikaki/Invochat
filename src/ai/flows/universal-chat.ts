@@ -105,7 +105,7 @@ async function generateWithRetry(request: GenerateRequest): Promise<GenerateResp
         try {
             // Use the primary model for the first attempt, then fallback for retries.
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest = { ...request, model: modelToUse };
+            const finalRequest: GenerateRequest = { ...request, model: modelToUse };
 
             return await genkit.ai.generate(finalRequest as any);
         } catch (e: unknown) {
@@ -163,7 +163,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            model: config.ai.model,
+            model: config.ai.model as any,
             tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
             config: {
@@ -259,5 +259,3 @@ export const universalChatFlow = genkit.ai.defineFlow(
     }
   }
 );
-
-    

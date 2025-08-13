@@ -42,11 +42,11 @@ test.describe('Advanced Analytics Reports Validation', () => {
     }
 
     let previousRevenue = Infinity;
-    let previousCategory = 'A';
+    let previousCategory: 'A' | 'B' | 'C' = 'A';
 
     for (let i = 0; i < Math.min(rowCount, 10); i++) { // Check first 10 rows
       const row = tableRows.nth(i);
-      const category = await row.locator('td').nth(1).textContent();
+      const category = await row.locator('td').nth(1).textContent() as 'A' | 'B' | 'C';
       const revenueText = await row.locator('td').nth(2).textContent();
       const revenue = parseCurrency(revenueText);
 
@@ -57,7 +57,7 @@ test.describe('Advanced Analytics Reports Validation', () => {
       // Revenue should be descending
       expect(revenue <= previousRevenue).toBeTruthy();
 
-      previousCategory = category as 'A' | 'B' | 'C';
+      previousCategory = category;
       previousRevenue = revenue;
     }
     

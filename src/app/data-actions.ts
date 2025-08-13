@@ -53,7 +53,7 @@ import {
     createPurchaseOrdersFromSuggestionsInDb
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Customer, SalesAnalytics, InventoryAnalytics, Integration } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
@@ -63,7 +63,6 @@ import { z } from 'zod';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
-import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 
 
 export async function getProducts() {
@@ -287,6 +286,7 @@ export async function getSalesData(params: { query: string; page: number, limit:
 export async function exportSales(params: { query: string }) {
     try {
         const { companyId } = await getAuthContext();
+        // Fetch all customers matching the query, up to a reasonable limit.
         const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 10000 });
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
@@ -688,9 +688,9 @@ export async function handleUserMessage(params: { content: string, conversationI
         company_id: companyId,
         role: 'assistant',
         content: aiResponse.response,
-        visualization: aiResponse.visualization,
+        visualization: aiResponse.visualization as any,
         component: aiResponse.toolName,
-        component_props: aiResponse.data as Json,
+        component_props: aiResponse.data as any,
         confidence: aiResponse.confidence,
         assumptions: aiResponse.assumptions,
         is_error: aiResponse.is_error,
@@ -793,7 +793,7 @@ export async function getImportHistory() {
     const { companyId, userId } = await getAuthContext();
     await checkUserPermission(userId, 'Admin');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('imports').select('*, failed_rows').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
+    const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
 }
@@ -830,4 +830,11 @@ export async function getFeedbackData(params: {
         logError(error, { context: 'getFeedbackData failed' });
         return { items: [], totalCount: 0 };
     }
+}
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]) {
+    const { companyId, userId } = await getAuthContext();
+    const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
+    revalidatePath('/purchase-orders');
+    revalidatePath('/analytics/reordering');
+    return { success: true, createdPoCount };
 }

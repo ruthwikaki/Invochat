@@ -57,5 +57,3 @@ test.describe('Data Security & Multi-Tenancy', () => {
         await supabase.from('companies').delete().in('id', [company1Id, company2Id]);
     });
 });
-
-    
