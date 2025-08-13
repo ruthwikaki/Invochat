@@ -32,17 +32,17 @@ export function useTableState<T extends string>({
     const sortDirection = searchParams.get(sortDirectionParamName) === 'desc' ? 'desc' : 'asc';
     
     const createURL = (newParams: Record<string, string | number>) => {
-        const params = new URLSearchParams(searchParams);
-        Object.entries(newParams).forEach(([key, value]) => {
+        const params = new URLSearchParams(searchParams.toString());
+        for (const [key, value] of Object.entries(newParams)) {
             if (value) {
                 params.set(key, String(value));
             } else {
                 params.delete(key);
             }
-        });
-        // Always reset to page 1 on search or sort change
-        if (key !== pageParamName) {
-            params.set(pageParamName, '1');
+            // Always reset to page 1 on search or sort change
+            if (key !== pageParamName) {
+                params.set(pageParamName, '1');
+            }
         }
         return `${pathname}?${params.toString()}`;
     };

@@ -88,7 +88,7 @@ describe('WooCommerce Integration Service', () => {
     expect(supabaseMock.from).toHaveBeenCalledWith('product_variants');
     
     // Check that both simple and variable product variants were processed
-    const upsertedVariants = supabaseMock.upsert.mock.calls.find(call => call[0][0].product_id)[0];
+    const upsertedVariants = supabaseMock.upsert.mock.calls.find((call: any) => call[0][0].product_id)[0];
     expect(upsertedVariants.find((v: any) => v.sku === 'SIMPLE1')).toBeDefined();
     expect(upsertedVariants.find((v: any) => v.sku === 'VAR1-S')).toBeDefined();
 
@@ -103,5 +103,3 @@ describe('WooCommerce Integration Service', () => {
      await expect(runWooCommerceFullSync(mockIntegration)).rejects.toThrow('WooCommerce credentials are missing.');
   });
 });
-
-

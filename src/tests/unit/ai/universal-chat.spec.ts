@@ -116,6 +116,3 @@ describe('Universal Chat Flow', () => {
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });
-
-
-

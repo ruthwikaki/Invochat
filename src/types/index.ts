@@ -1,3 +1,4 @@
+
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
@@ -213,6 +214,7 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
         cost: z.number().int(),
         sku: z.string(),
         product_name: z.string(),
+        variant_id: z.string().uuid(),
     }))
 });
 
@@ -284,7 +286,7 @@ export const MessageSchema = z.object({
   created_at: z.string().datetime({ offset: true }),
   confidence: z.number().min(0).max(1).nullable().optional(),
   assumptions: z.array(z.string()).nullable().optional(),
-  isError: z.boolean().optional(),
+  is_error: z.boolean().optional(),
 });
 export type Message = z.infer<typeof MessageSchema>;
 
@@ -506,3 +508,8 @@ export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
 
 export { SupplierFormSchema };
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
+
+// Additional type exports
+export interface AlertSettings extends CompanySettings {
+  // Add specific alert settings if needed
+}

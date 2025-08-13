@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { createServerClient, getServiceRoleClient } from '@/lib/supabase/admin';
@@ -82,5 +83,3 @@ describe('Auth Helpers', () => {
     });
   });
 });
-
-

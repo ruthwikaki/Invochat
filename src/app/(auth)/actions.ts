@@ -14,7 +14,7 @@ const FAILED_LOGIN_ATTEMPTS_KEY_PREFIX = 'failed_login_attempts:';
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_SECONDS = 900; // 15 minutes
 
-export async function login(prevState: any, formData: FormData): Promise<{ error?: string; }> {
+export async function login(_prevState: any, formData: FormData): Promise<{ error?: string; }> {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const cookieStore = cookies();
@@ -123,7 +123,7 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
 }
 
 
-export async function signup(prevState: any, formData: FormData): Promise<{ error?: string; message?: string }> {
+export async function signup(_prevState: any, formData: FormData): Promise<{ error?: string; message?: string }> {
   const companyName = formData.get('companyName') as string;
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
@@ -279,5 +279,3 @@ export async function updatePassword(formData: FormData) {
 
     redirect('/login?message=Your password has been updated successfully. Please sign in again.');
 }
-
-    

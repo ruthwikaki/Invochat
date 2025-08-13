@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { analyzeSuppliersFlow } from '@/ai/flows/analyze-supplier-flow';
 import * as database from '@/services/database';
@@ -94,4 +95,3 @@ describe('Analyze Supplier Flow', () => {
     await expect(analyzeSuppliersFlow(input)).rejects.toThrow('An error occurred while analyzing supplier performance.');
   });
 });
-

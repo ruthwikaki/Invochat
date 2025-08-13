@@ -7,6 +7,7 @@ import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@/types';
 import { logError } from './error-handler';
 import { retry } from './async-utils';
+import { logger } from '@/lib/logger';
 
 /**
  * Gets the current authenticated user from the server-side context.
@@ -15,11 +16,11 @@ import { retry } from './async-utils';
  */
 export async function getCurrentUser(): Promise<User | null> {
   const supabase = createServerClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { user }, error: _error } = await supabase.auth.getUser();
   
-  if (error) {
+  if (_error) {
     // In a server context, it's better to log and return null than to throw.
-    logError(error, { context: "Error fetching current user in auth-helpers" });
+    logError(_error, { context: "Error fetching current user in auth-helpers" });
     return null;
   }
   return user as User | null;
@@ -110,7 +111,7 @@ export async function debugAuthContext() {
     }
     
     const supabase = createServerClient();
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
         return { error: 'No user found' };
@@ -133,7 +134,7 @@ export async function debugAuthContext() {
             id: user.id,
             email: user.email,
             app_metadata: user.app_metadata,
-            raw_user_meta_data: user.raw_user_meta_data
+            user_metadata: user.user_metadata
         },
         companyUsers: { data: companyData, error: companyError },
         companies: { data: companiesData, error: companiesError }

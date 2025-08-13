@@ -204,7 +204,7 @@ export function ChatMessage({
       
       {CustomComponent && message.component_props?.data && (
           <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
-            <CustomComponent data={message.component_props.data} />
+            <CustomComponent data={(message.component_props as any).data} />
           </div>
       )}
 
@@ -212,7 +212,7 @@ export function ChatMessage({
         <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
           <DataVisualization
             visualization={message.visualization}
-            title={message.visualization.title}
+            title={(message.visualization as any)?.title}
           />
         </div>
       )}

@@ -830,18 +830,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
-export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
-        revalidatePath('/purchase-orders');
-        revalidatePath('/analytics/reordering');
-        return { success: true, createdPoCount };
-    } catch (e) {
-        logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-    
