@@ -1,8 +1,10 @@
 
+
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { getAuthedRequest } from '../api/api-helpers';
 import { randomUUID } from 'crypto';
+import type { APIRequestContext } from '@playwright/test';
 
 // This test checks for Insecure Direct Object Reference (IDOR) vulnerabilities
 // by ensuring one user cannot access another user's data.
@@ -27,12 +29,13 @@ test.describe('Data Security & Multi-Tenancy', () => {
         supplierFromCompany1Id = supplier.id;
     });
 
-    test('should prevent a user from one company from accessing data from another', async () => {
+    test('should prevent a user from one company from accessing data from another', async ({ request }: { request: APIRequestContext }) => {
         // Authenticate as a user from Company 2. `getAuthedRequest` is configured
         // to use a test user that we can associate with Company 2 for this test.
         const supabase = getServiceRoleClient();
         const {data: {users}} = await supabase.auth.admin.listUsers();
-        const testUser = users.find(u => u.email === (process.env.TEST_USER_EMAIL || 'test@example.com'));
+        const testUserEmail = process.env.TEST_USER_EMAIL || 'testowner1@example.com';
+        const testUser = users.find(u => u.email === testUserEmail);
         if (!testUser) throw new Error('Test user not found');
 
         // Temporarily assign the test user to Company 2
