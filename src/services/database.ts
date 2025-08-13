@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics, ReorderSuggestion } from '@/types';
 import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
 import { type Supplier, type SupplierFormData, SupplierFormSchema, SuppliersArraySchema } from '@/schemas/suppliers';
 import { z } from 'zod';
@@ -416,7 +416,7 @@ export async function getDeadStockReportFromDB(companyId: string): Promise<{ dea
     return { deadStockItems, totalValue, totalUnits };
 }
 
-export async function getReorderSuggestionsFromDB(companyId: string): Promise<any[]> {
+export async function getReorderSuggestionsFromDB(companyId: string): Promise<ReorderSuggestion[]> {
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid Company ID');
     }
@@ -653,8 +653,8 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || "" || "" || "",
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || "" || "" || "",
+        p_notes: poData.notes || '',
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items,
     }).select('id').single();
 
@@ -677,8 +677,8 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes || "" || "" || "",
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || "" || "" || "",
+        p_notes: poData.notes || '',
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items,
     });
 
@@ -918,9 +918,3 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     }
     return data;
 }
-
-
-
-
-
-

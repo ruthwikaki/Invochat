@@ -78,7 +78,7 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
   }, []);
 
   const toggleExpand = (poId: string) => {
-    setExpandedPoId(prevId => (prevId === poId ? null : poId));
+    setExpandedPoId(prevId => (prevId === poId ? null : prevId));
   };
 
   const handleDelete = () => {
@@ -176,10 +176,10 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {po.line_items.map((item: any) => (
+                                            {po.line_items?.map(item => (
                                                 <TableRow key={item.id}>
-                                                    <TableCell className="font-mono text-xs">{item.product_variants?.sku || 'N/A'}</TableCell>
-                                                    <TableCell>{item.product_variants?.products?.product_title || 'N/A'}</TableCell>
+                                                    <TableCell className="font-mono text-xs">{item.sku}</TableCell>
+                                                    <TableCell>{item.product_name}</TableCell>
                                                     <TableCell className="text-right">{item.quantity}</TableCell>
                                                     <TableCell className="text-right">{formatCentsAsCurrency(item.cost)}</TableCell>
                                                     <TableCell className="text-right font-semibold">{formatCentsAsCurrency(item.quantity * item.cost)}</TableCell>
@@ -219,4 +219,3 @@ export function PurchaseOrdersClientPage({ initialPurchaseOrders }: PurchaseOrde
     </>
   );
 }
-

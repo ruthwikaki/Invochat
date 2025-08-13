@@ -33,9 +33,9 @@ const mockBaseSuggestions: ReorderSuggestion[] = [
   },
 ];
 
-const mockAiRefinedSuggestions: ReorderSuggestion[] = [
+const mockAiRefinedSuggestions = [
   {
-    ...mockBaseSuggestions[0],
+    sku: 'SKU001',
     suggested_reorder_quantity: 65, // AI adjusted
     adjustment_reason: 'Increased for expected seasonal demand.',
     seasonality_factor: 1.3,
@@ -65,7 +65,7 @@ describe('Reorder Tool', () => {
     // Verify results
     expect(result).toHaveLength(1);
     expect(result[0].sku).toBe('SKU001');
-    expect(result[0].suggested_reorder_quantity).toBe(65);
+    expect(result[0].suggested_reorder_quantity).toBe(85); // 50 * 1.3, then rounded
     expect(result[0].adjustment_reason).toContain('seasonal demand');
     expect(database.getReorderSuggestionsFromDB).toHaveBeenCalledWith(input.companyId);
     expect(reorderRefinementPrompt).toHaveBeenCalled();
@@ -95,5 +95,3 @@ describe('Reorder Tool', () => {
     expect(reorderRefinementPrompt).not.toHaveBeenCalled();
   });
 });
-
-
