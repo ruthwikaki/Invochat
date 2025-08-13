@@ -16,14 +16,14 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   // Exclude unit tests from Playwright runs
   testIgnore: '**/unit/**',
-  /* Run tests in files in parallel */
-  fullyParallel: true,
+  /* Run tests sequentially to avoid overwhelming the dev server. */
+  fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Reduce workers for local testing to prevent timeouts. */
+  workers: process.env.CI ? 1 : 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   // Increase the default timeout to 60 seconds to handle slow data loads
@@ -34,6 +34,9 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+    // Increase action and navigation timeouts
+    actionTimeout: 15000,
+    navigationTimeout: 30000,
   },
 
   /* Configure projects for major browsers */
@@ -44,17 +47,6 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-    env: {
-        NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-        TESTING_API_KEY: 'test_api_key',
-    }
-  },
+  /* The dev server is run manually, so this is not needed. */
+  webServer: undefined,
 });
