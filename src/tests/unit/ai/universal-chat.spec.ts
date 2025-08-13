@@ -70,7 +70,7 @@ describe('Universal Chat Flow', () => {
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
         vi.spyOn(genkit.ai, 'generate').mockImplementation(generateMock);
-        vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((config, func) => func as any);
+        vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((_config, func) => func as any);
         vi.spyOn(genkit.ai, 'definePrompt').mockImplementation(() => finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
@@ -116,4 +116,6 @@ describe('Universal Chat Flow', () => {
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });
+
+
 

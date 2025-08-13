@@ -6,7 +6,7 @@ import type { SupplierPerformanceReport } from '@/types';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((config, func) => ({ ...config, run: func })),
+    defineTool: vi.fn((_config, func) => ({ ...config, run: func })),
   },
 }));
 
@@ -54,3 +54,5 @@ describe('Supplier Performance Tool', () => {
     await expect((getSupplierPerformanceReport as any).run(input)).rejects.toThrow('An error occurred while trying to generate the supplier performance report.');
   });
 });
+
+

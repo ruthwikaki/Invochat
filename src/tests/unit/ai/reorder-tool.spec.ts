@@ -11,7 +11,7 @@ vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
-    defineTool: vi.fn((config, func) => ({ ...config, func })),
+    defineTool: vi.fn((_config, func) => ({ ...config, func })),
   },
 }));
 
@@ -95,4 +95,6 @@ describe('Reorder Tool', () => {
     expect(reorderRefinementPrompt).not.toHaveBeenCalled();
   });
 });
+
+
 

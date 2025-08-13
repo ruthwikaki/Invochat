@@ -115,8 +115,8 @@ describe('Component: ReorderClientPage', () => {
 
     it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
         const mockToast = vi.fn();
-        (useToast as vi.Mock).mockReturnValue({ toast: mockToast });
-        (dataActions.createPurchaseOrdersFromSuggestions as vi.Mock).mockResolvedValue({ 
+        (useToast as any).mockReturnValue({ toast: mockToast });
+        (dataActions.createPurchaseOrdersFromSuggestions as any).mockResolvedValue({ 
             success: true, 
             createdPoCount: 1 
         });
@@ -141,3 +141,4 @@ describe('Component: ReorderClientPage', () => {
         });
     });
 });
+

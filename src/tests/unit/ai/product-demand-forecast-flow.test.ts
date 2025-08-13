@@ -61,3 +61,4 @@ describe('Product Demand Forecast Flow', () => {
         expect(utils.linearRegression).not.toHaveBeenCalled();
     });
 });
+

@@ -20,3 +20,4 @@ describe('logger', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('[ERROR] - Test error message'), { error: 'test' });
   });
 });
+

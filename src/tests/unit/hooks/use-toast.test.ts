@@ -1,5 +1,5 @@
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useToast } from '@/hooks/use-toast'
 
@@ -18,3 +18,5 @@ describe('useToast hook', () => {
     expect(result.current.toasts[0].title).toBe('Test Toast')
   });
 })
+
+
