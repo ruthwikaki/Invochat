@@ -57,7 +57,7 @@ interface AiInsightsClientPageProps {
 function PromotionalImpactResults({ data }: { data: PromotionalImpact }) {
     if (!data) return <p className="text-muted-foreground">The AI did not generate a promotional impact analysis.</p>;
 
-    const { estimated_impact, product_breakdown, summary } = data;
+    const { estimated_impact, summary } = data;
 
     return (
         <motion.div

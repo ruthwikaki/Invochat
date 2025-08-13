@@ -1,7 +1,6 @@
 
 'use server';
-import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
-import { revalidatePath } from 'next/cache';
+import { getAuthContext } from '@/lib/auth-helpers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { 
@@ -38,33 +37,30 @@ import {
     reconcileInventoryInDb,
     getDashboardMetrics as getDashboardMetricsFromDb,
     checkUserPermission,
-    getHistoricalSalesForSkus,
+    getHistoricalSalesForSingleSkuFromDB,
     createAuditLogInDb as createAuditLogInDbService,
     adjustInventoryQuantityInDb,
     getAuditLogFromDB,
-    logUserFeedbackInDb as logUserFeedbackInDbService,
-    getAbcAnalysisFromDB,
-    getSalesVelocityFromDB,
-    getGrossMarginAnalysisFromDB,
     getFeedbackFromDB,
     deletePurchaseOrderFromDb,
     getSupplierPerformanceFromDB,
     getInventoryTurnoverFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
+    getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
     refreshMaterializedViews
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestion } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, ReorderSuggestion, Customer, SalesAnalytics, InventoryAnalytics, Integration, Order } from '@/types';
+import type { Message, Conversation, Customer, InventoryAnalytics, Integration, Order } from '@/types';
 import { z } from 'zod';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
-import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 
 
 export async function getProducts() {
@@ -833,6 +829,7 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+
 export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]) {
     const { companyId, userId } = await getAuthContext();
     const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
