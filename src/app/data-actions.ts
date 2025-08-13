@@ -562,28 +562,13 @@ export async function getDashboardData(dateRange: string): Promise<DashboardMetr
 
     try {
         const data = await getDashboardMetricsFromDb(companyId, dateRange);
-        if (!data) return {} as DashboardMetrics;
-        // Transform to camelCase
-        const transformedData = {
-            total_revenue: data.total_revenue,
-            revenue_change: data.revenue_change,
-            total_orders: data.total_orders,
-            orders_change: data.orders_change,
-            new_customers: data.new_customers,
-            customers_change: data.customers_change,
-            dead_stock_value: data.dead_stock_value,
-            sales_over_time: data.sales_over_time,
-            top_products: data.top_products,
-            inventory_summary: data.inventory_summary,
-        };
-
-        if (isRedisEnabled && transformedData) {
-          await redisClient.set(cacheKey, JSON.stringify(transformedData), 'EX', config.redis.ttl.dashboard);
+        if (isRedisEnabled && data) {
+          await redisClient.set(cacheKey, JSON.stringify(data), 'EX', config.redis.ttl.dashboard);
         }
-        return transformedData as DashboardMetrics;
+        return data || { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };
     } catch (e) {
         logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
-        return {} as DashboardMetrics;
+        return { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };
     }
 }
 
@@ -845,3 +830,18 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
+
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
+        revalidatePath('/purchase-orders');
+        revalidatePath('/analytics/reordering');
+        return { success: true, createdPoCount };
+    } catch (e) {
+        logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+    

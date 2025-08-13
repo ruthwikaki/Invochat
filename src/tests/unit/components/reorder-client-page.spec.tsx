@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
@@ -114,8 +115,8 @@ describe('Component: ReorderClientPage', () => {
 
     it('should call createPurchaseOrdersFromSuggestions when PO button is clicked', async () => {
         const mockToast = vi.fn();
-        (useToast as any).mockReturnValue({ toast: mockToast });
-        (dataActions.createPurchaseOrdersFromSuggestions as any).mockResolvedValue({ 
+        (useToast as vi.Mock).mockReturnValue({ toast: mockToast });
+        (dataActions.createPurchaseOrdersFromSuggestions as vi.Mock).mockResolvedValue({ 
             success: true, 
             createdPoCount: 1 
         });
