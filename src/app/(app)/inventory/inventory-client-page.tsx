@@ -253,10 +253,10 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
                 <Table data-testid="inventory-table">
                     <TableHeader className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
                         <TableRow>
-                            <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <SortableHeader column="product_title" label="Product" currentSort={sortBy} currentDirection={sortDirection as "asc" | "desc"} onSort={handleSort} />
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Variants</TableHead>
-                            <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection} onSort={handleSort} />
+                            <SortableHeader column="inventory_quantity" label="Total Quantity" currentSort={sortBy} currentDirection={sortDirection as "asc" | "desc"} onSort={handleSort} />
                             <TableHead className="w-16 text-center">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -347,3 +347,4 @@ export function InventoryClientPage({ initialInventory, totalCount, itemsPerPage
     </>
   );
 }
+
