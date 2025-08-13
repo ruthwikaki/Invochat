@@ -11,6 +11,19 @@ import type { NextRequest } from 'next/server';
 
 
 export async function POST(req: NextRequest) {
+    if (process.env.MOCK_AI === 'true') {
+        return NextResponse.json({
+            newMessage: {
+                id: `mock_${Date.now()}`,
+                role: 'assistant',
+                content: 'This is a mocked AI response for testing.',
+                created_at: new Date().toISOString(),
+                isError: false,
+            },
+            conversationId: 'mock-conversation-id',
+        });
+    }
+
     try {
         const body = await req.json();
         const result = await handleUserMessage(body);
@@ -28,4 +41,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
-    

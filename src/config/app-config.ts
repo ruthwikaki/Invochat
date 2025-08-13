@@ -24,6 +24,7 @@ const EnvSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().email().optional(),
   EMAIL_TEST_RECIPIENT: z.string().email().optional(),
+  MOCK_AI: z.string().optional(),
 });
 
 // Export the result with better error handling
