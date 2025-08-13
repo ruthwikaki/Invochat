@@ -38,16 +38,18 @@ export const getInventoryTurnoverReport = ai.defineTool(
         if (!result) {
             throw new Error('Could not retrieve turnover data from the database.');
         }
+        
+        const parsedResult = InventoryTurnoverReportSchema.parse(result);
 
         // Prevent division by zero errors
-        if (result.average_inventory_value === 0) {
+        if (parsedResult.average_inventory_value === 0) {
             return {
-                ...result,
+                ...parsedResult,
                 turnover_rate: 0, // Set turnover to 0 if there's no inventory value
             };
         }
         
-        return InventoryTurnoverReportSchema.parse(result);
+        return parsedResult;
 
     } catch (e) {
         logError(e, { context: `[Inventory Turnover Tool] Failed to run RPC for company ${input.companyId}` });
