@@ -26,7 +26,7 @@ describe('Inventory Turnover Tool', () => {
     vi.spyOn(database, 'getInventoryTurnoverFromDB').mockResolvedValue(mockTurnoverData);
 
     const input = { companyId: 'test-company-id', days: 90 };
-    const result = await getInventoryTurnoverReport.func(input);
+    const result = await getInventoryTurnoverReport.run(input);
 
     expect(database.getInventoryTurnoverFromDB).toHaveBeenCalledWith(input.companyId, input.days);
     expect(result).toEqual(mockTurnoverData);
@@ -39,6 +39,7 @@ describe('Inventory Turnover Tool', () => {
 
     const input = { companyId: 'test-company-id', days: 90 };
 
-    await expect(getInventoryTurnoverReport.func(input)).rejects.toThrow('An error occurred while trying to calculate the inventory turnover rate.');
+    await expect(getInventoryTurnoverReport.run(input)).rejects.toThrow('An error occurred while trying to calculate the inventory turnover rate.');
   });
 });
+

@@ -9,7 +9,7 @@ vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
     definePrompt: vi.fn(() => vi.fn()),
-    defineFlow: vi.fn((config, func) => func),
+    defineFlow: vi.fn((_config, func) => func),
   },
 }));
 
@@ -79,3 +79,4 @@ describe('Price Optimization Flow', () => {
     expect(suggestPricesPrompt).not.toHaveBeenCalled();
   });
 });
+

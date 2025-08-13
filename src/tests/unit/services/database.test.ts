@@ -37,7 +37,7 @@ describe('Database Service - Business Logic', () => {
 
   it('getDashboardMetrics should call the correct RPC function and return data', async () => {
     // Mock successful response with proper structure
-    (supabaseMock.rpc as vi.Mock).mockResolvedValue({ 
+    (supabaseMock.rpc as any).mockResolvedValue({ 
       data: mockDashboardData, 
       error: null 
     });
@@ -74,3 +74,4 @@ describe('Database Service - Business Logic', () => {
     await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d')).rejects.toThrow('No response from get_dashboard_metrics RPC call.');
   });
 });
+

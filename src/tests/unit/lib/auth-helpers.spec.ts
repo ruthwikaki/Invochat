@@ -34,9 +34,9 @@ describe('Auth Helpers', () => {
         single: vi.fn().mockResolvedValue({ data: { company_id: 'company-db-fallback' }, error: null }),
     };
 
-    (createServerClient as vi.Mock).mockReturnValue(supabaseMock);
-    (getServiceRoleClient as vi.Mock).mockReturnValue(serviceSupabaseMock);
-    (retry as vi.Mock).mockImplementation((fn: any) => fn());
+    (createServerClient as any).mockReturnValue(supabaseMock);
+    (getServiceRoleClient as any).mockReturnValue(serviceSupabaseMock);
+    (retry as any).mockImplementation((fn: any) => fn());
 
     vi.clearAllMocks();
   });
@@ -77,8 +77,9 @@ describe('Auth Helpers', () => {
      it('should throw error if company ID is missing', async () => {
         const userWithoutCompany = { ...mockUser, app_metadata: {} };
         supabaseMock.auth.getUser.mockResolvedValue({ data: { user: userWithoutCompany }, error: null });
-        (retry as vi.Mock).mockRejectedValue(new Error('Failed after retries'));
+        (retry as any).mockRejectedValue(new Error('Failed after retries'));
         await expect(getAuthContext()).rejects.toThrow('Authorization failed: User is not associated with a company.');
     });
   });
 });
+

@@ -32,7 +32,7 @@ const mockToolResponse: GenerateResponse = {
     custom: {},
     request: { messages: [], tools: [] },
     toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
-    text: () => ''
+    text: ''
 };
 
 const mockTextResponse: GenerateResponse = {
@@ -48,7 +48,7 @@ const mockTextResponse: GenerateResponse = {
     custom: {},
     request: { messages: [], tools: [] },
     toolRequests: [],
-    text: () => 'I cannot help with that.'
+    text: 'I cannot help with that.'
 };
 
 const mockFinalResponse = {
@@ -116,3 +116,4 @@ describe('Universal Chat Flow', () => {
         expect(result.response).toBe(mockFinalResponse.response);
     });
 });
+

@@ -30,7 +30,7 @@ const mockDashboardData = {
 describe('Database Service - Business Logic', () => {
   it('getDashboardMetrics should call the correct RPC function and return data', async () => {
     const supabaseMock = getServiceRoleClient();
-    (supabaseMock.rpc as vi.Mock).mockResolvedValue({ data: mockDashboardData, error: null });
+    (supabaseMock.rpc as any).mockResolvedValue({ data: mockDashboardData, error: null });
 
     const result = await getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d');
 
@@ -46,8 +46,9 @@ describe('Database Service - Business Logic', () => {
    it('getDashboardMetrics should throw an error if the RPC call fails', async () => {
     const supabaseMock = getServiceRoleClient();
     const dbError = new Error('Database connection error');
-    (supabaseMock.rpc as vi.Mock).mockResolvedValue({ data: null, error: dbError });
+    (supabaseMock.rpc as any).mockResolvedValue({ data: null, error: dbError });
 
     await expect(getDashboardMetrics('d1a3c5b9-2d7f-4b8e-9c1a-8b7c6d5e4f3a', '30d')).rejects.toThrow('Could not retrieve dashboard metrics from the database.');
   });
 });
+

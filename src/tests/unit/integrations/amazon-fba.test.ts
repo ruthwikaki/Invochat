@@ -41,7 +41,7 @@ describe('Amazon FBA Integration Service', () => {
       eq: vi.fn().mockReturnThis(),
       rpc: vi.fn().mockResolvedValue({ error: null }),
     };
-    (getServiceRoleClient as vi.Mock).mockReturnValue(supabaseMock);
+    (getServiceRoleClient as any).mockReturnValue(supabaseMock);
     
     vi.spyOn(encryption, 'getSecret').mockResolvedValue(JSON.stringify(mockCredentials));
     vi.spyOn(redis, 'invalidateCompanyCache').mockResolvedValue(undefined);
@@ -82,3 +82,4 @@ describe('Amazon FBA Integration Service', () => {
     expect(supabaseMock.update).toHaveBeenCalledWith({ sync_status: 'failed' });
   });
 });
+
