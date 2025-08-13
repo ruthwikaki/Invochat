@@ -232,6 +232,11 @@ export const CompanySettingsSchema = z.object({
   overstock_multiplier: z.number().int().default(3),
   high_value_threshold: z.number().int().default(100000),
   alert_settings: z.record(z.unknown()).default({}),
+  email_notifications: z.boolean().default(true),
+  morning_briefing_enabled: z.boolean().default(true),
+  morning_briefing_time: z.string().default('08:00'),
+  low_stock_threshold: z.number().int().default(10),
+  critical_stock_threshold: z.number().int().default(3),
 });
 export type CompanySettings = z.infer<typeof CompanySettingsSchema>;
 

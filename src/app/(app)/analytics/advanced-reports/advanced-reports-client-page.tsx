@@ -7,10 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { BarChart3, TrendingUp, TrendingDown, Percent, DollarSign, LineChart } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, DollarSign, LineChart } from 'lucide-react';
 
 // Define types for the report data
-type AbcAnalysisItem = {
+export type AbcAnalysisItem = {
     sku: string;
     product_name: string;
     revenue: number;

@@ -10,7 +10,7 @@ import { useTransition, useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { CSRF_FORM_NAME, generateAndSetCsrfToken } from '@/lib/csrf-client';
 import { createPurchaseOrder, updatePurchaseOrder } from '@/app/data-actions';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,6 +56,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
         resolver: zodResolver(PurchaseOrderFormSchema),
         defaultValues: initialData ? {
             ...initialData,
+            supplier_id: initialData.supplier_id || '',
             expected_arrival_date: initialData.expected_arrival_date ? new Date(initialData.expected_arrival_date) : undefined
         } : {
             supplier_id: '',
@@ -65,7 +66,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
         },
     });
 
-    const { fields, append, remove, control } = useFieldArray({
+    const { fields, append, remove } = useFieldArray({
         control: form.control,
         name: "line_items"
     });
@@ -111,8 +112,9 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
 
             if (result.success) {
                 toast({ title: `Purchase Order ${initialData ? 'updated' : 'created'}.` });
-                if (result.newPoId) {
-                    router.push(`/purchase-orders/${result.newPoId}/edit`);
+                const newPoId = (result as {newPoId?: string}).newPoId;
+                if (newPoId) {
+                    router.push(`/purchase-orders/${newPoId}/edit`);
                 } else {
                     router.push('/purchase-orders');
                 }
@@ -238,7 +240,7 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
                             <div className="space-y-2">
                                <Label>Expected Arrival Date</Label>
                                <Controller
-                                    control={control}
+                                    control={form.control}
                                     name="expected_arrival_date"
                                     render={({ field }) => (
                                          <Popover>
@@ -292,4 +294,3 @@ export function PurchaseOrderForm({ initialData, suppliers, products }: Purchase
         </form>
     );
 }
-

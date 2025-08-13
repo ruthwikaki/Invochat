@@ -38,8 +38,7 @@ import {
     reconcileInventoryInDb,
     getDashboardMetrics as getDashboardMetricsFromDb,
     checkUserPermission,
-    getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
-    refreshMaterializedViews,
+    getHistoricalSalesForSingleSkuFromDB,
     createAuditLogInDb as createAuditLogInDbService,
     adjustInventoryQuantityInDb,
     getAuditLogFromDB,
@@ -54,17 +53,17 @@ import {
     createPurchaseOrdersFromSuggestionsInDb
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import type { Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation, ReorderSuggestion } from '@/types';
 import { z } from 'zod';
-import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
+import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
+import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 
 
 export async function getProducts() {
@@ -689,9 +688,9 @@ export async function handleUserMessage(params: { content: string, conversationI
         company_id: companyId,
         role: 'assistant',
         content: aiResponse.response,
-        visualization: aiResponse.visualization as Json,
+        visualization: aiResponse.visualization,
         component: aiResponse.toolName,
-        component_props: aiResponse.data,
+        component_props: aiResponse.data as Json,
         confidence: aiResponse.confidence,
         assumptions: aiResponse.assumptions,
         is_error: aiResponse.is_error,
