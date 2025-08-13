@@ -3,9 +3,9 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, ReorderSuggestion } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, Order } from '@/types';
 import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema } from '@/types';
-import { ReorderSuggestionSchema } from '@/schemas/reorder';
+import { ReorderSuggestionSchema, type ReorderSuggestion } from '@/schemas/reorder';
 import { SupplierSchema, SuppliersArraySchema, type Supplier, type SupplierFormData, SupplierFormSchema } from '@/schemas/suppliers';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import type { Json } from '@/types/database.types';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache } from '@/lib/redis';
+import { getAuthContext } from '@/lib/auth-helpers';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -197,7 +198,7 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
 }
 
 export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-  const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
+  const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\D/g, ''), 10);
   const supabase = getServiceRoleClient();
   try {
       const { data: rpcData, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
@@ -843,6 +844,15 @@ export async function adjustInventoryQuantityInDb(companyId: string, userId: str
     }
 }
 
+export async function getImportHistory() {
+    const { companyId, userId } = await getAuthContext();
+    await checkUserPermission(userId, 'Admin');
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
+    if(error) throw error;
+    return data;
+}
+
 export async function getAuditLogFromDB(companyId: string, params: { query?: string; offset: number; limit: number }): Promise<{ items: AuditLogEntry[], totalCount: number }> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const validatedParams = DatabaseQueryParamsSchema.parse(params);
@@ -917,5 +927,3 @@ export async function createPurchaseOrdersFromSuggestionsInDb(companyId: string,
     
     return data;
 }
-
-    

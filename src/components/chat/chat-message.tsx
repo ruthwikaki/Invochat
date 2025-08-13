@@ -202,9 +202,9 @@ export function ChatMessage({
         )}
       </div>
       
-      {CustomComponent && message.componentProps?.data && (
+      {CustomComponent && message.component_props?.data && (
           <div className={cn("max-w-xl w-full", !isUserMessage && "ml-12")}>
-            <CustomComponent data={message.componentProps.data} />
+            <CustomComponent data={message.component_props.data} />
           </div>
       )}
 
