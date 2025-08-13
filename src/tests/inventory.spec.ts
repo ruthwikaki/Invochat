@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import credentials from './test_data/test_credentials.json';
@@ -41,7 +40,6 @@ test.describe('Inventory Page', () => {
   test('should filter inventory by name', async ({ page }) => {
     const searchTerm = '4K Smart TV'; 
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill(searchTerm);
-    await page.keyboard.press('Enter');
     
     const firstRow = page.locator('table > tbody > tr').first();
     await expect(firstRow.or(page.getByText('No inventory found'))).toBeVisible();
@@ -50,7 +48,6 @@ test.describe('Inventory Page', () => {
     }
     
     await page.locator('input[placeholder*="Search by product title or SKU..."]').fill('');
-    await page.keyboard.press('Enter');
     const firstRowAfterClear = page.locator('table > tbody > tr').first();
     await expect(firstRowAfterClear.or(page.getByText('No inventory found'))).toBeVisible();
   });
@@ -80,5 +77,29 @@ test.describe('Inventory Page', () => {
     
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toContain('.csv');
+  });
+
+  test('should navigate to the next page using pagination', async ({ page }) => {
+    const nextButton = page.getByRole('button', { name: 'Next' });
+    if (!await nextButton.isVisible()) {
+        console.log('Skipping pagination test, not enough items for a second page.');
+        return;
+    }
+
+    const firstRowText = await page.locator('table > tbody > tr').first().innerText();
+    
+    await nextButton.click();
+    await page.waitForURL(/page=2/);
+
+    const newFirstRowText = await page.locator('table > tbody > tr').first().innerText();
+    
+    expect(newFirstRowText).not.toEqual(firstRowText);
+
+    const prevButton = page.getByRole('button', { name: 'Previous' });
+    await prevButton.click();
+    await page.waitForURL(/page=1/);
+
+    const originalFirstRowText = await page.locator('table > tbody > tr').first().innerText();
+    expect(originalFirstRowText).toEqual(firstRowText);
   });
 });
