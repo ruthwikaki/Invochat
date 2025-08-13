@@ -1,3 +1,4 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { createServerClient, getServiceRoleClient } from '@/lib/supabase/admin';
@@ -33,7 +34,7 @@ describe('Auth Helpers', () => {
     };
     (createServerClient as any).mockReturnValue(supabaseMock);
     (getServiceRoleClient as any).mockReturnValue(serviceSupabaseMock);
-    (retry as any).mockImplementation((fn) => fn());
+    (retry as any).mockImplementation((fn: () => any) => fn());
     vi.clearAllMocks();
   });
 
@@ -78,7 +79,3 @@ describe('Auth Helpers', () => {
     });
   });
 });
-
-
-
-

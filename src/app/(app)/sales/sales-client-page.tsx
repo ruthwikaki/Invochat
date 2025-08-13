@@ -61,7 +61,7 @@ const AnalyticsCard = ({ title, value, icon: Icon }: { title: string, value: str
             <Icon className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-            <div className="text-2xl font-bold">{value}</div>
+            <div className="text-2xl font-semibold">{value}</div>
         </CardContent>
     </Card>
 );
