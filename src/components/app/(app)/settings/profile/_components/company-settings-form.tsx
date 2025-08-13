@@ -90,7 +90,7 @@ export function CompanySettingsForm({ settings }: { settings: CompanySettings })
          <div className="space-y-1">
           <Label htmlFor="high_value_threshold">High-Value Threshold ($)</Label>
           <Input id="high_value_threshold" type="number" step="0.01" {...form.register('high_value_threshold', { valueAsNumber: true })} />
-           <p className="text-xs text-muted-foreground">Cost-of-goods threshold to be considered a 'high-value' item.</p>
+           <p className="text-xs text-muted-foreground">Cost-of-goods threshold to be considered a &apos;high-value&apos; item.</p>
         </div>
         <div className="space-y-1">
             <Label htmlFor="currency">Display Currency</Label>
