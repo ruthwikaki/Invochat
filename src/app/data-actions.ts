@@ -1,6 +1,4 @@
 
-
-
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { revalidatePath } from 'next/cache';
@@ -40,7 +38,7 @@ import {
     reconcileInventoryInDb,
     getDashboardMetrics as getDashboardMetricsFromDb,
     checkUserPermission,
-    getHistoricalSalesForSkus,
+    getHistoricalSalesForSkus as getHistoricalSalesForSkusFromDB,
     refreshMaterializedViews,
     createAuditLogInDb as createAuditLogInDbService,
     adjustInventoryQuantityInDb,
@@ -56,14 +54,14 @@ import {
     createPurchaseOrdersFromSuggestionsInDb
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { SupplierFormData, Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItems } from '@/types';
+import type { SupplierFormData, Order, DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import type { Message, Conversation, ReorderSuggestion } from '@/types';
 import { z } from 'zod';
-import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
@@ -681,7 +679,7 @@ export async function handleUserMessage(params: { content: string, conversationI
     const aiResponse = await universalChatFlow({
         companyId: companyId,
         conversationHistory: reversedHistory.map(m => ({ 
-            role: m.role === 'assistant' ? 'model' : m.role === 'system' ? 'user' : m.role as 'user' | 'model', 
+            role: m.role as 'user' | 'model', 
             content: [{ text: m.content }] 
         })) || [],
     });
@@ -691,7 +689,7 @@ export async function handleUserMessage(params: { content: string, conversationI
         company_id: companyId,
         role: 'assistant',
         content: aiResponse.response,
-        visualization: aiResponse.visualization,
+        visualization: aiResponse.visualization as Json,
         component: aiResponse.toolName,
         component_props: aiResponse.data,
         confidence: aiResponse.confidence,
@@ -796,7 +794,7 @@ export async function getImportHistory() {
     const { companyId, userId } = await getAuthContext();
     await checkUserPermission(userId, 'Admin');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
+    const { data, error } = await supabase.from('imports').select('*, failed_rows').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
 }
@@ -834,5 +832,3 @@ export async function getFeedbackData(params: {
         return { items: [], totalCount: 0 };
     }
 }
-
-

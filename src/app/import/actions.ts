@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { headers } from 'next/headers';
@@ -93,7 +92,7 @@ async function processCsv<T extends z.ZodType>(
     }
 
     const rpcMap = {
-        'product-costs': 'batch_upsert_costs',
+        'product-costs': 'batch_upsert_product_costs',
         'suppliers': 'batch_upsert_suppliers',
         'historical-sales': 'batch_import_sales'
     };
@@ -114,7 +113,7 @@ async function processCsv<T extends z.ZodType>(
             return;
         }
 
-        const { error: dbError } = await supabase.rpc(rpcToCall, { p_records: currentBatch, p_company_id: companyId, p_user_id: userId });
+        const { error: dbError } = await supabase.rpc(rpcToCall as any, { p_records: currentBatch, p_company_id: companyId, p_user_id: userId });
         if (dbError) {
             logError(dbError, { context: `Transactional database error for ${importType}` });
             validationErrors.push({ row: rowCount, message: `Database error during batch import: ${dbError.message}`, data: {} });

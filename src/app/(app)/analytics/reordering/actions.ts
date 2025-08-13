@@ -7,13 +7,13 @@ import { getErrorMessage, logError } from '@/lib/error-handler';
 import { createPurchaseOrdersFromSuggestionsInDb } from '@/services/database';
 import type { ReorderSuggestion } from '@/schemas/reorder';
 import Papa from 'papaparse';
-import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
+import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     try {
         const { companyId } = await getAuthContext();
         // The getReorderSuggestions flow already returns the fully enhanced suggestion object
-        return await getReorderSuggestions({ companyId });
+        return await getReorderSuggestionsFlow({ companyId }) as ReorderSuggestion[];
     } catch (error) {
         // Log the error for debugging but don't throw it
         logError(error, { context: 'getReorderReport failed' });
@@ -56,5 +56,3 @@ export async function exportReorderSuggestions(suggestions: ReorderSuggestion[])
         return { success: false, error: getErrorMessage(e) };
     }
 }
-
-

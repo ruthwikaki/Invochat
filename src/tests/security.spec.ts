@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import type { User } from '@supabase/supabase-js';
@@ -81,5 +80,3 @@ test.afterAll(async () => {
         }
     }
 });
-
-

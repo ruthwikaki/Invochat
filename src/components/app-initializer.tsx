@@ -9,7 +9,7 @@ import type { z } from "zod";
 import type { envValidation } from "@/config/app-config";
 import { MissingEnvVarsPage } from "./missing-env-vars-page";
 
-type ValidationResult = z.SafeParseReturnType<z.input<typeof envValidation._def.schema>, z.output<typeof envValidation._def.schema>>;
+type ValidationResult = z.SafeParseReturnType<any, any>;
 
 interface AppInitializerProps {
     children: ReactNode;
