@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileoverview Implements the advanced, multi-agent AI chat system for AIventory.
@@ -7,7 +6,7 @@
  * context-aware answers.
  */
 
-import * as genkit from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import * as redis from '@/lib/redis';
 import { z } from 'zod';
 import type { UniversalChatOutput } from '@/types/ai-schemas';
@@ -27,7 +26,7 @@ import { getProductDemandForecast } from './product-demand-forecast-flow';
 import { getDemandForecast, getAbcAnalysis, getGrossMarginAnalysis, getNetMarginByChannel, getMarginTrends, getSalesVelocity, getPromotionalImpactAnalysis } from './analytics-tools';
 import { logError, getErrorMessage } from '@/lib/error-handler';
 import crypto from 'crypto';
-import type { GenerateOptions, GenerateResponse, MessageData } from 'genkit';
+import type { GenerateOptions, GenerateResponse, MessageData, ToolRequestPart, GenerateRequest } from 'genkit';
 
 // These are the tools that are safe and fully implemented for the AI to use.
 const safeToolsForOrchestrator = [
@@ -52,7 +51,7 @@ const safeToolsForOrchestrator = [
 
 
 const FinalResponseObjectSchema = UniversalChatOutputSchema.omit({ data: true, toolName: true });
-const finalResponsePrompt = genkit.ai.definePrompt({
+const finalResponsePrompt = ai.definePrompt({
   name: 'finalResponsePrompt',
   input: { schema: z.object({ userQuery: z.string(), toolResult: z.any() }) },
   output: { schema: FinalResponseObjectSchema },
@@ -97,7 +96,7 @@ const finalResponsePrompt = genkit.ai.definePrompt({
  * @returns A promise that resolves to the GenerateResponse.
  * @throws An error if the request fails after all retry attempts.
  */
-async function generateWithRetry(request: GenerateOptions): Promise<GenerateResponse> {
+async function generateWithRetry(request: GenerateRequest): Promise<GenerateResponse> {
     const MAX_RETRIES = 3;
     let lastError: Error | undefined;
 
@@ -105,9 +104,9 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
         try {
             // Use the primary model for the first attempt, then fallback for retries.
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request, model: modelToUse };
+            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
 
-            return await genkit.ai.generate(finalRequest);
+            return await ai.generate(finalRequest);
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
@@ -125,7 +124,7 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
 }
 
 
-export const universalChatFlow = genkit.ai.defineFlow(
+export const universalChatFlow = ai.defineFlow(
   {
     name: 'universalChatFlow',
     inputSchema: UniversalChatInputSchema,
@@ -163,7 +162,7 @@ export const universalChatFlow = genkit.ai.defineFlow(
         }));
         
         const response = await generateWithRetry({
-            model: config.ai.model,
+            model: config.ai.model as any,
             tools: safeToolsForOrchestrator as any,
             messages: genkitHistory,
             config: {

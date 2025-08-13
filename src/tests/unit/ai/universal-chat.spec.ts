@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
@@ -38,7 +37,7 @@ const mockToolResponse: GenerateResponse = {
     text: ''
 };
 
-const mockTextResponse: GenerateResponse = {
+const mockTextResponse = {
     candidates: [{
         index: 0,
         finishReason: 'stop',
@@ -51,7 +50,7 @@ const mockTextResponse: GenerateResponse = {
     custom: {},
     request: { messages: [], tools: [] },
     toolRequests: [],
-    text: 'I cannot help with that.'
+    text: () => 'I cannot help with that.'
 };
 
 const mockFinalResponse = {
@@ -64,8 +63,8 @@ const mockFinalResponse = {
 };
 
 describe('Universal Chat Flow', () => {
-    let generateMock: vi.Mock;
-    let finalResponsePromptMock: vi.Mock;
+    let generateMock: any;
+    let finalResponsePromptMock: any;
 
     beforeEach(() => {
         vi.resetAllMocks();

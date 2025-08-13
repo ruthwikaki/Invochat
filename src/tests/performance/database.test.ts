@@ -1,4 +1,3 @@
-
 import { describe, test, expect } from 'vitest';
 import { getDashboardMetrics } from '@/services/database';
 import { getServiceRoleClient } from '@/lib/supabase/admin';

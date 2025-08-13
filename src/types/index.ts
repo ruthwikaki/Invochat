@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
@@ -7,6 +6,7 @@ import {
 } from '@/schemas/reorder';
 import { type Supplier, SupplierFormSchema } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import type { Json } from './database.types';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
@@ -297,7 +297,7 @@ export const ReorderSuggestionSchema = z.object({
   sku: z.string(),
   product_name: z.string(),
   supplier_name: z.string().nullable(),
-  supplier_id: z.string().nullable(),
+  supplier_id: z.string().uuid().nullable(),
   current_quantity: z.number().int(),
   suggested_reorder_quantity: z.number().int(),
   unit_cost: z.number().int().nullable(),
