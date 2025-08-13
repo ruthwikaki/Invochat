@@ -128,7 +128,20 @@ export const getReorderSuggestions = ai.defineTool(
         let refinedOutput: z.infer<typeof LLMRefinedSuggestionSchema>[] = [];
         try {
             const { output } = await reorderRefinementPrompt({
-                suggestions: suggestionsForAI,
+                suggestions: suggestionsForAI.map(s => ({
+                    product_id: s.product_id,
+                    product_name: s.product_name,
+                    sku: s.sku,
+                    lead_time_days: 7,
+                    reorder_point: s.reorder_point || 0,
+                    current_inventory: s.current_stock,
+                    avg_daily_sales: 0,
+                    safety_stock: 0,
+                    min_order_qty: null,
+                    max_order_qty: null,
+                    suggested_reorder_quantity: s.suggested_reorder_quantity,
+                    weeks_of_coverage: undefined
+                })),
                 historicalSales: historicalSales as any,
                 currentDate: new Date().toISOString().split('T')[0],
                 timezone: settings.timezone || 'UTC',
@@ -186,3 +199,4 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
+
