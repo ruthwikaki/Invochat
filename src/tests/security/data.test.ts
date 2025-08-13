@@ -1,5 +1,4 @@
 
-
 import { test, expect } from '@playwright/test';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { getAuthedRequest } from '../api/api-helpers';
@@ -58,3 +57,5 @@ test.describe('Data Security & Multi-Tenancy', () => {
         await supabase.from('companies').delete().in('id', [company1Id, company2Id]);
     });
 });
+
+    

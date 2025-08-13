@@ -11,7 +11,7 @@ test.describe('Multi-Platform Synchronization', () => {
         // Seeding logic: ensure both integrations exist for the test user's company.
         // This is a simplified version. A real setup would be more robust.
         const supabase = getServiceRoleClient();
-        const { data: user } = await supabase.from('users').select('app_metadata').eq('email', process.env.TEST_USER_EMAIL).single();
+        const { data: user } = await supabase.from('users' as any).select('app_metadata').eq('email', process.env.TEST_USER_EMAIL).single();
         const companyId = user?.app_metadata?.company_id;
 
         if (companyId) {
@@ -48,3 +48,5 @@ test.describe('Multi-Platform Synchronization', () => {
         await expect(wooCard.getByText(/Last synced|Sync failed/)).toBeVisible({ timeout: 20000 });
     });
 });
+
+    

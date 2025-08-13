@@ -18,14 +18,14 @@ export type AbcAnalysisItem = {
     abc_category: 'A' | 'B' | 'C';
 };
 
-type SalesVelocityItem = {
+export type SalesVelocityItem = {
     sku: string;
     product_name: string;
     units_sold: number;
     total_revenue: number;
 };
 
-type GrossMarginItem = {
+export type GrossMarginItem = {
     sku: string;
     product_name: string;
     total_revenue: number;
@@ -261,3 +261,5 @@ export function AdvancedReportsClientPage({ abcAnalysisData, salesVelocityData, 
     </Tabs>
   );
 }
+
+    

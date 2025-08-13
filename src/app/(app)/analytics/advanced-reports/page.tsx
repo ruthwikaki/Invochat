@@ -1,8 +1,7 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { getAdvancedAbcReport, getAdvancedSalesVelocityReport, getAdvancedGrossMarginReport } from "@/app/data-actions";
-import { AdvancedReportsClientPage } from "./advanced-reports-client-page";
-import type { AbcAnalysisItem } from "./advanced-reports-client-page";
+import { AdvancedReportsClientPage, type AbcAnalysisItem, type SalesVelocityItem, type GrossMarginItem } from "./advanced-reports-client-page";
 
 export const dynamic = 'force-dynamic';
 
@@ -23,10 +22,12 @@ export default async function AdvancedReportsPage() {
             <div className="mt-6">
                 <AdvancedReportsClientPage
                     abcAnalysisData={(abcAnalysisData as AbcAnalysisItem[]) || []}
-                    salesVelocityData={salesVelocityData || { fast_sellers: [], slow_sellers: [] }}
-                    grossMarginData={grossMarginData || { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } }}
+                    salesVelocityData={(salesVelocityData as { fast_sellers: SalesVelocityItem[], slow_sellers: SalesVelocityItem[] }) || { fast_sellers: [], slow_sellers: [] }}
+                    grossMarginData={(grossMarginData as { products: GrossMarginItem[], summary: { total_revenue: number; total_cogs: number; total_gross_margin: number; average_gross_margin: number; } }) || { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } }}
                 />
             </div>
         </AppPage>
     );
 }
+
+    

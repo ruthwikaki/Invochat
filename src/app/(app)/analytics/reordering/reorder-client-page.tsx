@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, ShoppingCart, AlertTriangle, BrainCircuit, Download, Info, Package, TrendingUp } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
 import { exportReorderSuggestions, createPurchaseOrdersFromSuggestions } from '@/app/(app)/analytics/reordering/actions';
 
 function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
@@ -21,12 +20,7 @@ function AiReasoning({ suggestion }: { suggestion: ReorderSuggestion }) {
     }
 
     const confidence = suggestion.confidence ?? 0;
-    const confidenceColor = confidence > 0.7 
-        ? 'text-success' 
-        : confidence > 0.4 
-        ? 'text-warning' 
-        : 'text-destructive';
-
+    
     const confidenceIcon = confidence < 0.4 
         ? <AlertTriangle className="h-4 w-4 text-destructive" /> 
         : <BrainCircuit className="h-4 w-4 text-accent" />;
@@ -300,3 +294,5 @@ export function ReorderClientPage({ initialSuggestions }: { initialSuggestions: 
     </div>
   );
 }
+
+    

@@ -2,7 +2,6 @@
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 import { logger } from '@/lib/logger';
-import { config } from '@/config/app-config';
 
 logger.info('[Genkit] Initializing Genkit with Google AI plugin...');
 
@@ -13,3 +12,5 @@ export const ai = genkit({
 });
 
 logger.info('[Genkit] Genkit client initialized successfully.');
+
+    
