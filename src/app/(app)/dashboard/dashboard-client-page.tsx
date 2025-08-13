@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -101,8 +100,6 @@ export function DashboardClientPage({ initialMetrics, settings, initialBriefing 
         router.push(`/dashboard?range=${value}`);
     };
     
-    // **FIX:** The condition for showing the empty state was too strict.
-    // It should only show if there's truly no data across key metrics.
     const hasData = initialMetrics && (
         initialMetrics.total_revenue > 0 ||
         initialMetrics.total_orders > 0 ||

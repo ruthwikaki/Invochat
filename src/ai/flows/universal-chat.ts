@@ -97,15 +97,18 @@ const finalResponsePrompt = ai.definePrompt({
  * @returns A promise that resolves to the GenerateResponse.
  * @throws An error if the request fails after all retry attempts.
  */
-async function generateWithRetry(request: GenerateRequest): Promise<GenerateResponse> {
+async function generateWithRetry(request: GenerateOptions): Promise<GenerateResponse> {
     const MAX_RETRIES = 3;
     let lastError: Error | undefined;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request, model: modelToUse as any };
-            return await ai.generate(finalRequest);
+            // Corrected call structure
+            return await ai.generate({
+                model: modelToUse as any,
+                ...request
+            });
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);

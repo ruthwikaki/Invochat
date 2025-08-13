@@ -4,7 +4,7 @@ import { DashboardClientPage } from './dashboard-client-page';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
-import type { DashboardMetrics } from '@/types';
+import type { DashboardMetrics, CompanySettings } from '@/types';
 import { logger } from '@/lib/logger';
 import { getCurrentUser } from '@/lib/auth-helpers';
 
@@ -28,6 +28,26 @@ const emptyMetrics: DashboardMetrics = {
     },
 };
 
+const emptySettings: CompanySettings = {
+    company_id: '',
+    created_at: new Date().toISOString(),
+    dead_stock_days: 90,
+    fast_moving_days: 30,
+    overstock_multiplier: 3,
+    high_value_threshold: 100000,
+    predictive_stock_days: 7,
+    currency: 'USD',
+    tax_rate: 0,
+    timezone: 'UTC',
+    updated_at: null,
+    alert_settings: {},
+    email_notifications: true,
+    morning_briefing_enabled: true,
+    morning_briefing_time: '08:00',
+    low_stock_threshold: 10,
+    critical_stock_threshold: 3,
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -36,7 +56,7 @@ export default async function DashboardPage({
     const dateRange = typeof searchParams?.range === 'string' ? searchParams.range : '90d';
     let metrics: DashboardMetrics = emptyMetrics;
     let briefing;
-    let settings;
+    let settings: CompanySettings = emptySettings;
     let metricsError = null;
     let user;
 
@@ -68,7 +88,6 @@ export default async function DashboardPage({
         // In either error case (new user or unexpected), fall back to safe, empty data to prevent crashes
         metrics = emptyMetrics;
         briefing = { greeting: 'Welcome!', summary: 'Import your data to get started with AI insights.', cta: { text: 'Import Data', link: '/import' } };
-        settings = { company_id: '', created_at: '', dead_stock_days: 90, fast_moving_days: 30, overstock_multiplier: 3, high_value_threshold: 100000, predictive_stock_days: 7, currency: 'USD', tax_rate: 0, timezone: 'UTC', updated_at: null, alert_settings: {} };
     }
 
     return (
