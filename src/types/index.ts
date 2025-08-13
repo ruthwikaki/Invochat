@@ -213,7 +213,7 @@ export const PurchaseOrderWithItemsAndSupplierSchema = z.object({
         sku: z.string(),
         product_name: z.string(),
         variant_id: z.string().uuid(),
-    }))
+    })).nullable()
 });
 
 export type PurchaseOrderWithItemsAndSupplier = z.infer<typeof PurchaseOrderWithItemsAndSupplierSchema>;
@@ -380,7 +380,7 @@ export const DashboardMetricsSchema = z.object({
       dead_stock_value: z.number().int().default(0),
     }).default({ total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 }),
 }).passthrough();
-
+export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 
 export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int().default(0),
@@ -524,10 +524,6 @@ export type FeedbackWithMessages = z.infer<typeof FeedbackWithMessagesSchema>;
 export { SupplierFormSchema };
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 
-export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
-// Order already exported above
-export interface AlertSettings extends CompanySettings {}
-
 export type ImportJob = {
   id: string;
   created_at: string;
@@ -537,6 +533,3 @@ export type ImportJob = {
   processed_rows: number | null;
   failed_rows: number | null;
 }
-
-
-

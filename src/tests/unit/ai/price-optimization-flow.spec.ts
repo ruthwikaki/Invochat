@@ -50,6 +50,7 @@ describe('Price Optimization Flow', () => {
     vi.resetAllMocks();
     suggestPricesPrompt = vi.fn().mockResolvedValue({ output: mockAiResponse });
     vi.spyOn(genkit.ai, 'definePrompt').mockReturnValue(suggestPricesPrompt);
+    (database.getHistoricalSalesForSkus as any).mockResolvedValue([]);
   });
 
   it('should fetch inventory and generate price suggestions', async () => {
@@ -61,10 +62,10 @@ describe('Price Optimization Flow', () => {
     expect(database.getUnifiedInventoryFromDB).toHaveBeenCalledWith(input.companyId, { limit: 50 });
     expect(suggestPricesPrompt).toHaveBeenCalledWith({
       products: [
-        { sku: 'SKU001', name: 'Fast Mover', cost: 500, price: 1000, quantity: 20 },
-        { sku: 'SKU002', name: 'Slow Mover', cost: 2000, price: 2500, quantity: 100 },
+        { sku: 'SKU001', name: 'Fast Mover', cost: 500, price: 1000, inventory_quantity: 20, sales_last_30_days: 0 },
+        { sku: 'SKU002', name: 'Slow Mover', cost: 2000, price: 2500, inventory_quantity: 100, sales_last_30_days: 0 },
       ],
-    });
+    }, expect.anything());
     expect(result.suggestions).toHaveLength(2);
     expect(result.suggestions[0].suggestedPrice).toBe(1100);
     expect(result.suggestions[1].suggestedPrice).toBe(2250);
@@ -79,8 +80,3 @@ describe('Price Optimization Flow', () => {
     expect(suggestPricesPrompt).not.toHaveBeenCalled();
   });
 });
-
-
-
-
-
