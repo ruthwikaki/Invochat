@@ -2,7 +2,7 @@
 'use client';
 
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { formatCentsAsCurrency } from '@/lib/utils';
 import { TrendingUp } from 'lucide-react';
@@ -72,3 +72,4 @@ export function SalesChart({ data, currency }: SalesChartProps) {
     </Card>
   );
 }
+
