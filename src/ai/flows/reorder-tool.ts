@@ -133,7 +133,7 @@ export const getReorderSuggestions = ai.defineTool(
                     product_name: s.product_name,
                     sku: s.sku,
                     lead_time_days: 7,
-                    reorder_point: s.reorder_point || 0,
+                    reorder_point: 0, // Default as field doesn't exist
                     current_inventory: s.current_stock,
                     avg_daily_sales: 0,
                     safety_stock: 0,
@@ -199,4 +199,3 @@ export const getReorderSuggestions = ai.defineTool(
     }
   }
 );
-
