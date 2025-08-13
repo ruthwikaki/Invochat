@@ -10,10 +10,15 @@ export default defineConfig({
   testDir: './src/tests',
   testMatch: '**/*.spec.ts',
   testIgnore: '**/unit/**',
-  fullyParallel: false, // Changed to false for database operations
+  /* Run tests in files in parallel */
+  fullyParallel: true,
+  /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
+  /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  workers: 1, // Single worker to avoid database conflicts
+  /* Opt out of parallel tests on CI. */
+  workers: process.env.CI ? 1 : undefined,
+  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   timeout: 60 * 1000,
   
@@ -37,7 +42,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev:test', // Create a test-specific dev script
+    command: 'npm run dev', // Create a test-specific dev script
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
