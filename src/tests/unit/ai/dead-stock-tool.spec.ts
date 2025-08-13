@@ -7,7 +7,7 @@ import * as database from '@/services/database';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((_config, func) => ({ ..._config, func })),
+    defineTool: vi.fn((_config, func) => func),
   },
 }));
 
@@ -34,7 +34,7 @@ describe('Dead Stock Tool', () => {
     vi.spyOn(database, 'getDeadStockReportFromDB').mockResolvedValue(mockDeadStockData);
 
     const input = { companyId: 'test-company-id' };
-    const result = await getDeadStockReport.run(input);
+    const result = await (getDeadStockReport as any)(input);
 
     expect(database.getDeadStockReportFromDB).toHaveBeenCalledWith(input.companyId);
     expect(result).toEqual(mockDeadStockData.deadStockItems);
@@ -50,7 +50,7 @@ describe('Dead Stock Tool', () => {
     });
 
     const input = { companyId: 'test-company-id' };
-    const result = await getDeadStockReport.run(input);
+    const result = await (getDeadStockReport as any)(input);
 
     expect(result).toEqual([]);
     expect(result).toHaveLength(0);
@@ -62,11 +62,6 @@ describe('Dead Stock Tool', () => {
 
     const input = { companyId: 'test-company-id' };
 
-    await expect(getDeadStockReport.run(input)).rejects.toThrow('An error occurred while trying to generate the dead stock report.');
+    await expect((getDeadStockReport as any)(input)).rejects.toThrow('An error occurred while trying to generate the dead stock report.');
   });
 });
-
-
-
-
-

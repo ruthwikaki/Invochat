@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getReorderSuggestions } from '@/ai/flows/reorder-tool';
 import * as database from '@/services/database';
 import * as genkit from '@/ai/genkit';
-import type { ReorderSuggestion } from '@/types';
+import type { ReorderSuggestion } from '@/schemas/reorder';
 
 // Mock database and AI calls
 vi.mock('@/services/database');

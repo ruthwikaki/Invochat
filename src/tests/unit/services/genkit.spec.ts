@@ -1,19 +1,20 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ai } from '../../../ai/genkit';
-import { testGenkitConnection } from '../../../services/genkit';
-import { envValidation } from '../../../config/app-config';
+import { ai } from '@/ai/genkit';
+import { testGenkitConnection } from '@/services/genkit';
+import { envValidation } from '@/config/app-config';
+import { config } from '@/config/app-config';
 
 // Mock the AI module
-vi.mock('../../../ai/genkit', () => ({
+vi.mock('@/ai/genkit', () => ({
   ai: {
     generate: vi.fn(),
   },
 }));
 
 // Mock the config
-vi.mock('../../../config/app-config', () => ({
-    envValidation: { success: true, data: {} },
+vi.mock('@/config/app-config', () => ({
+    envValidation: { success: true, data: { GOOGLE_API_KEY: 'test-key' } },
     config: {
         ai: {
             model: 'googleai/gemini-1.5-flash',
@@ -45,17 +46,18 @@ describe('testGenkitConnection', () => {
 
   it('should return failure if environment variables are not configured', async () => {
     // Temporarily mock envValidation to be unsuccessful
-    vi.spyOn(envValidation, 'success', 'get').mockReturnValue(false);
-    vi.spyOn(envValidation, 'error', 'get').mockReturnValue({ flatten: () => ({ fieldErrors: { GOOGLE_API_KEY: ['Is not set.'] } }) } as any);
+    const originalSuccess = envValidation.success;
+    const originalError = (envValidation as any).error;
+    (envValidation as any).success = false;
+    (envValidation as any).error = { flatten: () => ({ fieldErrors: { GOOGLE_API_KEY: ['Is not set.'] } }) };
 
     const result = await testGenkitConnection();
     expect(result.success).toBe(false);
     expect(result.isConfigured).toBe(false);
     expect(result.error).toContain('Google AI credentials are not configured');
-    
+
     // Restore mock
-    vi.spyOn(envValidation, 'success', 'get').mockReturnValue(true);
+    (envValidation as any).success = originalSuccess;
+    (envValidation as any).error = originalError;
   });
 });
-
-

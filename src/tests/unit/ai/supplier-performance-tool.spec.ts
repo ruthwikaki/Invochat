@@ -8,7 +8,7 @@ import type { SupplierPerformanceReport } from '@/types';
 vi.mock('@/services/database');
 vi.mock('@/ai/genkit', () => ({
   ai: {
-    defineTool: vi.fn((_config, func) => ({ ..._config, func })),
+    defineTool: vi.fn((_config, func) => func),
   },
 }));
 
@@ -35,7 +35,7 @@ describe('Supplier Performance Tool', () => {
     vi.spyOn(database, 'getSupplierPerformanceFromDB').mockResolvedValue(mockPerformanceData);
 
     const input = { companyId: 'test-company-id' };
-    const result = await getSupplierPerformanceReport.run(input);
+    const result = await (getSupplierPerformanceReport as any)(input);
 
     expect(database.getSupplierPerformanceFromDB).toHaveBeenCalledWith(input.companyId);
     expect(result).toEqual(mockPerformanceData);
@@ -45,7 +45,7 @@ describe('Supplier Performance Tool', () => {
   it('should return an empty array if no data is available', async () => {
     vi.spyOn(database, 'getSupplierPerformanceFromDB').mockResolvedValue([]);
     const input = { companyId: 'test-company-id' };
-    const result = await getSupplierPerformanceReport.run(input);
+    const result = await (getSupplierPerformanceReport as any)(input);
     expect(result).toEqual([]);
   });
 
@@ -53,11 +53,6 @@ describe('Supplier Performance Tool', () => {
     const error = new Error('DB Error');
     vi.spyOn(database, 'getSupplierPerformanceFromDB').mockRejectedValue(error);
     const input = { companyId: 'test-company-id' };
-    await expect(getSupplierPerformanceReport.run(input)).rejects.toThrow('An error occurred while trying to generate the supplier performance report.');
+    await expect((getSupplierPerformanceReport as any)(input)).rejects.toThrow('An error occurred while trying to generate the supplier performance report.');
   });
 });
-
-
-
-
-
