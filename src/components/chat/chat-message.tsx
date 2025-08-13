@@ -128,7 +128,7 @@ function FeedbackActions({ messageId }: { messageId: string }) {
 }
 
 // Animated Bot Avatar
-function BotAvatar({ isError }: { isError?: boolean }) {
+function BotAvatar({ is_error }: { is_error?: boolean | null }) {
     return (
         <motion.div
             initial={{ scale: 0, rotate: -180 }}
@@ -136,12 +136,12 @@ function BotAvatar({ isError }: { isError?: boolean }) {
             transition={{ duration: 0.5, type: 'spring', stiffness: 150 }}
             className={cn(
                 'h-9 w-9 shrink-0 rounded-full bg-gradient-to-br from-primary to-violet-500 flex items-center justify-center shadow-lg',
-                isError && 'from-destructive/80 to-rose-500/80'
+                is_error && 'from-destructive/80 to-rose-500/80'
             )}
         >
             <Avatar className={cn('h-8 w-8 bg-card')}>
-                <AvatarFallback className={cn('bg-transparent text-primary-foreground', isError && 'text-destructive-foreground')}>
-                   {isError ? <AlertTriangle className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+                <AvatarFallback className={cn('bg-transparent text-primary-foreground', is_error && 'text-destructive-foreground')}>
+                   {is_error ? <AlertTriangle className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
                 </AvatarFallback>
             </Avatar>
         </motion.div>
@@ -180,7 +180,7 @@ export function ChatMessage({
         className={cn("flex flex-col gap-3", isUserMessage && "items-end")}
     >
       <div className={cn("flex items-start gap-3 w-full", isUserMessage ? "justify-end" : "justify-start")}>
-        {!isUserMessage && <BotAvatar isError={message.is_error} />}
+        {!isUserMessage && <BotAvatar is_error={message.is_error} />}
         
         <div className={cn(
             'relative max-w-xl rounded-2xl px-4 py-3 shadow-md space-y-2 text-base whitespace-pre-wrap selection:bg-primary/50',

@@ -23,7 +23,7 @@ test.beforeAll(async () => {
     testUser = user;
 
     // Create a second company that this user should NOT have access to
-     const { data: company } = await supabase.from('companies').insert({ name: 'Other Test Company'}).select('id').single();
+     const { data: company } = await supabase.from('companies').insert({ name: 'Other Test Company', owner_id: testUser.id}).select('id').single();
      if(!company) throw new Error('Failed to create other test company');
      otherCompanyId = company.id;
 });

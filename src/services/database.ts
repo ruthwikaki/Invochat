@@ -3,7 +3,7 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Order } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier, Order, DashboardMetrics } from '@/types';
 import { CompanySettingsSchema, UnifiedInventoryItemSchema, OrderSchema, DashboardMetricsSchema, InventoryAnalyticsSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
 import { type Supplier, type SupplierFormData, SupplierFormSchema, SuppliersArraySchema } from '@/schemas/suppliers';
 import { z } from 'zod';
@@ -12,7 +12,6 @@ import type { Json } from '@/types/database.types';
 import { logger } from '@/lib/logger';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { getAuthContext } from '@/lib/auth-helpers';
-import type { DashboardMetrics } from '@/types';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -196,7 +195,7 @@ export async function getInventoryLedgerFromDB(companyId: string, variantId: str
 }
 
 export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
-  const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\D/g, ''), 10);
+  const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
   const supabase = getServiceRoleClient();
   try {
       const { data: rpcData, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
@@ -654,7 +653,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes ?? '',
+        p_notes: poData.notes ?? null,
         p_expected_arrival: poData.expected_arrival_date?.toISOString() ?? null,
         p_line_items: poData.line_items,
     }).select('id').single();
@@ -678,8 +677,8 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes ?? '',
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() ?? '',
+        p_notes: poData.notes ?? null,
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() ?? null,
         p_line_items: poData.line_items,
     });
 
@@ -846,7 +845,7 @@ export async function getImportHistory() {
     const { companyId, userId } = await getAuthContext();
     await checkUserPermission(userId, 'Admin');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.from('imports').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
+    const { data, error } = await supabase.from('imports').select('*, failed_rows').eq('company_id', companyId).order('created_at', { ascending: false }).limit(20);
     if(error) throw error;
     return data;
 }

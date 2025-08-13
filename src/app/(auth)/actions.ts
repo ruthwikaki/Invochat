@@ -89,16 +89,7 @@ export async function login(_prevState: any, formData: FormData): Promise<{ erro
 
             if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
                 await redisClient.setex(`${failedAttemptsKey}:locked`, LOCKOUT_DURATION_SECONDS, 'true');
-                
-                try {
-                    await serviceSupabase.auth.admin.updateUserById(existingUser.id, {
-                       banned_until: new Date(Date.now() + LOCKOUT_DURATION_SECONDS * 1000).toISOString(),
-                    });
-                    logError(new Error(`Account locked for user ${existingUser.id}`), { context: 'Account Lockout Triggered' });
-                } catch (banError) {
-                    logError(banError, { context: 'Failed to set Supabase ban', userId: existingUser.id });
-                }
-                
+                logError(new Error(`Account locked for user ${existingUser.id}`), { context: 'Account Lockout Triggered' });
                 return { 
                     error: 'Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes.' 
                 };
@@ -213,7 +204,7 @@ export async function signOut() {
 }
 
 
-export async function requestPasswordReset(formData: FormData) {
+export async function requestPasswordReset(_prevState: any, formData: FormData) {
     const email = formData.get('email') as string;
     const cookieStore = cookies();
     try {
@@ -242,7 +233,7 @@ export async function requestPasswordReset(formData: FormData) {
 }
 
 
-export async function updatePassword(formData: FormData) {
+export async function updatePassword(_prevState: any, formData: FormData) {
     const password = formData.get('password') as string;
     const confirmPassword = formData.get('confirmPassword') as string;
     const cookieStore = cookies();
