@@ -1,6 +1,6 @@
 
 import { logger } from '../../lib/logger';
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 describe('logger', () => {
   const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});

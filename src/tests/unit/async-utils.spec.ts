@@ -1,6 +1,6 @@
 
 import { withTimeout } from '@/lib/async-utils';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 describe('withTimeout', () => {
   it('should resolve with the promise value if it resolves within the timeout', async () => {

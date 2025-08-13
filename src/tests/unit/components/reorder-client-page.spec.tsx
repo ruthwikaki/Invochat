@@ -1,5 +1,4 @@
 
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReorderClientPage } from '@/app/(app)/analytics/reordering/reorder-client-page';
@@ -65,7 +64,7 @@ describe('Component: ReorderClientPage', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
-        (csrf.generateAndSetCsrfToken as vi.Mock).mockImplementation((setter) => setter('test-csrf-token'));
+        (csrf.generateAndSetCsrfToken as vi.Mock).mockImplementation((setter: (token: string) => void) => setter('test-csrf-token'));
     });
 
     it('should render the table with initial suggestions', () => {

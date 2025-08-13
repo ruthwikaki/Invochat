@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ai } from '@/ai/genkit';
 import { testGenkitConnection } from '@/services/genkit';
-import { envValidation } from '@/config/app-config';
+import { envValidation, config } from '@/config/app-config';
 
 // Mock the AI module
 vi.mock('@/ai/genkit', () => ({
@@ -13,7 +13,13 @@ vi.mock('@/ai/genkit', () => ({
 
 // Mock the config
 vi.mock('@/config/app-config', () => ({
-    envValidation: { success: true, data: {} },
+    envValidation: { success: true, data: { GOOGLE_API_KEY: 'test-key' } },
+    config: {
+        ai: {
+            model: 'googleai/gemini-1.5-flash',
+            maxOutputTokens: 2048,
+        },
+    },
 }));
 
 describe('testGenkitConnection', () => {

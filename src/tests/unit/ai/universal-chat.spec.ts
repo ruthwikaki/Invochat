@@ -1,5 +1,4 @@
 
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import * as genkit from '@/ai/genkit';
@@ -31,7 +30,9 @@ const mockToolResponse: GenerateResponse = {
     }],
     usage: {},
     custom: {},
-    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' }
+    request: { messages: [], tools: [] },
+    toolRequests: [{ name: 'getReorderSuggestions', input: { companyId: mockCompanyId } }],
+    text: () => ''
 };
 
 const mockTextResponse: GenerateResponse = {
@@ -45,13 +46,15 @@ const mockTextResponse: GenerateResponse = {
     }],
     usage: {},
     custom: {},
-    request: { messages: [], tools: [], model: 'googleai/gemini-1.5-pro' }
+    request: { messages: [], tools: [] },
+    toolRequests: [],
+    text: () => 'I cannot help with that.'
 };
 
 const mockFinalResponse = {
     response: "You should reorder these items.",
     data: [{ sku: 'SKU001', quantity: 50 }],
-    visualization: { type: 'table', title: 'Reorder Suggestions' },
+    visualization: { type: 'table', title: 'Reorder Suggestions', data: [] },
     confidence: 0.9,
     assumptions: [],
     toolName: 'getReorderSuggestions'
@@ -67,7 +70,7 @@ describe('Universal Chat Flow', () => {
         finalResponsePromptMock = vi.fn().mockResolvedValue({ output: mockFinalResponse });
 
         vi.spyOn(genkit.ai, 'generate').mockImplementation(generateMock);
-        vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((config, func) => func);
+        vi.spyOn(genkit.ai, 'defineFlow').mockImplementation((config, func) => func as any);
         vi.spyOn(genkit.ai, 'definePrompt').mockImplementation(() => finalResponsePromptMock);
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(false);
     });
@@ -75,7 +78,7 @@ describe('Universal Chat Flow', () => {
     it('should call a tool and format the final response', async () => {
         generateMock.mockResolvedValue(mockToolResponse);
 
-        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory };
+        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
         expect(generateMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -92,7 +95,7 @@ describe('Universal Chat Flow', () => {
     it('should handle a text-only response from the AI', async () => {
         generateMock.mockResolvedValue(mockTextResponse);
 
-        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory };
+        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         await universalChatFlow(input);
         
         expect(finalResponsePromptMock).toHaveBeenCalledWith(
@@ -105,7 +108,7 @@ describe('Universal Chat Flow', () => {
         vi.spyOn(redis, 'isRedisEnabled', 'get').mockReturnValue(true);
         const redisGetMock = vi.spyOn(redis.redisClient, 'get').mockResolvedValue(JSON.stringify(mockFinalResponse));
 
-        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory };
+        const input = { companyId: mockCompanyId, conversationHistory: mockConversationHistory as any };
         const result = await universalChatFlow(input);
 
         expect(redisGetMock).toHaveBeenCalled();
