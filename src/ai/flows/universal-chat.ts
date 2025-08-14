@@ -104,8 +104,7 @@ async function generateWithRetry(request: GenerateOptions): Promise<GenerateResp
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             const modelToUse = attempt === 1 ? config.ai.model : 'googleai/gemini-1.5-flash';
-            const finalRequest: GenerateOptions = { ...request };
-            return await ai.generate({model: modelToUse as any, ...finalRequest});
+            return await ai.generate({ ...request, model: modelToUse as any});
         } catch (e: unknown) {
             lastError = e instanceof Error ? e : new Error(getErrorMessage(e));
             logger.warn(`[AI Generate] Attempt ${attempt} failed: ${lastError.message}`);
@@ -226,7 +225,7 @@ export const universalChatFlow = ai.defineFlow(
         }
        
         if (redis.isRedisEnabled) {
-            await redis.redisClient.set(cacheKey, JSON.stringify(finalResponse), 'EX', config.redis.ttl.aiQuery);
+            await redis.redisClient.set(cacheKey, JSON.stringify(finalResponse), 'EX', 3600);
         }
         return finalResponse;
 

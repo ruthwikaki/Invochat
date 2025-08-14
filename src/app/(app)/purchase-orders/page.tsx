@@ -1,19 +1,17 @@
 
 import { AppPage, AppPageHeader } from "@/components/ui/page";
 import { PurchaseOrdersClientPage } from "./purchase-orders-client-page";
-import { getPurchaseOrdersFromDB, getSuppliersDataFromDB } from "@/services/database";
+import { getPurchaseOrders, getSuppliersData } from "@/app/data-actions";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { getAuthContext } from "@/lib/auth-helpers";
 import type { PurchaseOrderWithItemsAndSupplier, Supplier } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
 export default async function PurchaseOrdersPage() {
-    const { companyId } = await getAuthContext();
     const [purchaseOrders, suppliers] = await Promise.all([
-        getPurchaseOrdersFromDB(companyId),
-        getSuppliersDataFromDB(companyId)
+        getPurchaseOrders(),
+        getSuppliersData()
     ]);
 
     return (

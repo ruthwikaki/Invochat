@@ -2,11 +2,12 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, DashboardMetricsSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, SupplierFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, InventoryAnalytics, Supplier } from '@/types';
+import { CompanySettingsSchema, SupplierFormSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
+import { invalidateCompanyCache } from '@/lib/redis';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -203,7 +204,7 @@ export async function getSuppliersDataFromDB(companyId: string): Promise<Supplie
             logError(error, { context: 'getSuppliersDataFromDB failed', companyId });
             throw new Error('Failed to retrieve suppliers');
         }
-        return z.array(SupplierSchema).parse(data || []);
+        return z.array(SupplierFormSchema).parse(data || []);
     } catch (error) {
         logError(error, { context: 'getSuppliersDataFromDB unexpected error', companyId });
         throw error;
@@ -233,7 +234,7 @@ export async function createSupplierInDb(companyId: string, formData: SupplierFo
     if (!z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid company ID format');
     }
-    const validatedData = SupplierSchema.parse(formData);
+    const validatedData = SupplierFormSchema.parse(formData);
     try {
         const supabase = getServiceRoleClient();
         const { error } = await supabase.from('suppliers').insert({ ...validatedData, company_id: companyId });
@@ -251,7 +252,7 @@ export async function updateSupplierInDb(id: string, companyId: string, formData
     if (!z.string().uuid().safeParse(id).success || !z.string().uuid().safeParse(companyId).success) {
         throw new Error('Invalid ID format');
     }
-    const validatedData = SupplierSchema.parse(formData);
+    const validatedData = SupplierFormSchema.parse(formData);
     const supabase = getServiceRoleClient();
     const { error } = await supabase.from('suppliers').update(validatedData).eq('id', id).eq('company_id', companyId);
     if(error) {
@@ -326,12 +327,12 @@ export async function getSalesFromDB(companyId: string, params: { query?: string
 export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesAnalytics> {
     if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
     const supabase = getServiceRoleClient();
-    const { data, error } = await supabase.rpc('get_sales_analytics', { p_company_id: companyId });
+    const { data, error } = await supabase.rpc('get_sales_analytics_v2', { p_company_id: companyId });
     if (error) {
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    return SalesAnalyticsSchema.parse(data);
+    return data;
 }
 
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
@@ -342,7 +343,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return CustomerAnalyticsSchema.parse(data);
+    return data;
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -582,7 +583,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes,
+        p_notes: poData.notes || '',
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items as any,
     }).select('id').single();
@@ -606,7 +607,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_user_id: userId,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
-        p_notes: poData.notes,
+        p_notes: poData.notes || '',
         p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
         p_line_items: poData.line_items as any,
     });
@@ -852,4 +853,25 @@ export async function refreshMaterializedViews(companyId: string): Promise<void>
     if (error) {
         logError(error, { context: 'refreshMaterializedViews failed', companyId });
     }
+}
+
+export async function getHistoricalSalesForSingleSkuFromDB(
+    companyId: string, 
+    sku: string
+): Promise<Array<{ sale_date: string; total_quantity: number }>> {
+    const supabase = getServiceRoleClient();
+    
+    const { data, error } = await supabase
+        .from('order_line_items')
+        .select('orders(created_at), quantity')
+        .eq('company_id', companyId)
+        .eq('sku', sku)
+        .order('created_at', { referencedTable: 'orders', ascending: true });
+        
+    if (error) throw error;
+    
+    return (data || []).map(item => ({
+        sale_date: (item.orders as {created_at: string}).created_at,
+        total_quantity: item.quantity
+    }));
 }

@@ -1,14 +1,26 @@
+
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
   EnhancedReorderSuggestionSchema,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-import { SupplierSchema as SupplierSchemaImport, SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
+import { SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
+
+export interface Supplier {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  default_lead_time_days?: number | null;
+  company_id: string;
+  created_at: string;
+  updated_at?: string | null;
+}
 
 export const CompanySchema = z.object({
   id: z.string().uuid(),
@@ -388,7 +400,7 @@ export const SalesAnalyticsSchema = z.object({
     total_revenue: z.number().int().default(0),
     total_orders: z.number().int().default(0),
     average_order_value: z.number().default(0),
-}).passthrough().optional();
+}).passthrough();
 export type SalesAnalytics = z.infer<typeof SalesAnalyticsSchema>;
 
 
@@ -411,12 +423,12 @@ export const CustomerAnalyticsSchema = z.object({
         customer_name: z.string().nullable(),
         total_orders: z.number().int(),
         total_spent: z.number().int(),
-    })),
+    })).optional(),
     customer_segments: z.array(z.object({
         segment: z.string(),
         count: z.number().int(),
         revenue: z.number().int(),
-    })),
+    })).optional(),
 }).passthrough();
 export type CustomerAnalytics = z.infer<typeof CustomerAnalyticsSchema>;
 
@@ -546,4 +558,3 @@ export type ImportJob = z.infer<typeof ImportJobSchema>;
 
 export const SupplierFormSchema = SupplierFormSchemaImport;
 export type SupplierFormData = z.infer<typeof SupplierFormSchemaImport>;
-export const SupplierSchema = SupplierSchemaImport;

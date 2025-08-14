@@ -18,7 +18,6 @@ import {
     getSettings,
     updateSettingsInDb,
     getUnifiedInventoryFromDB,
-    getInventoryAnalyticsFromDB,
     getSuppliersDataFromDB,
     getCustomersFromDB,
     deleteCustomerFromDb,
@@ -48,21 +47,21 @@ import {
     getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
-    refreshMaterializedViews,
     getDashboardMetrics,
+    getInventoryAnalyticsFromDB,
+    refreshMaterializedViews,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
 import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion } from '@/types';
-import { SupplierFormSchema } from '@/schemas/suppliers';
+import { SupplierFormSchema } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation } from '@/types';
+import type { Message, Conversation, CustomerAnalytics } from '@/types';
 import { z } from 'zod';
-import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
-import { logger } from '@/lib/logger';
+import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
-import type { Json } from '@/types/database.types';
+import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
 
 
 export async function getProducts() {
@@ -348,17 +347,13 @@ export async function exportCustomers(params: { query: string }) {
     }
 }
 
-export async function getCustomerAnalytics() {
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     try {
         const { companyId } = await getAuthContext();
         const cacheKey = `cache:customer-analytics:${companyId}`;
         if(isRedisEnabled) {
             const cached = await redisClient.get(cacheKey);
-            if(cached) {
-                logger.info(`[Cache] HIT for customer analytics: ${cacheKey}`);
-                return JSON.parse(cached);
-            }
-             logger.info(`[Cache] MISS for customer analytics: ${cacheKey}`);
+            if(cached) return JSON.parse(cached);
         }
         
         const rawAnalytics = await getCustomerAnalyticsFromDB(companyId);
@@ -376,7 +371,7 @@ export async function getCustomerAnalytics() {
         return analyticsData;
     } catch (e) {
         logError(e, { context: 'getCustomerAnalytics action failed, returning default'});
-        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
+        return { total_customers: 0, new_customers_30d: 0, returning_customers: 0, average_order_value: 0, customer_lifetime_value: 0, top_customers: [], customer_segments: [] };
     }
 }
 
@@ -550,11 +545,7 @@ export async function getDashboardData(dateRange: string) {
     if (isRedisEnabled) {
         try {
             const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                logger.info(`[Cache] HIT for dashboard metrics: ${cacheKey}`);
-                return JSON.parse(cached);
-            }
-            logger.info(`[Cache] MISS for dashboard metrics: ${cacheKey}`);
+            if (cached) return JSON.parse(cached);
         } catch (e) {
             logError(e, { context: 'Redis cache get failed for dashboard' });
         }

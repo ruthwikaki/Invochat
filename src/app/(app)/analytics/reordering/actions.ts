@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { getAuthContext } from '@/lib/auth-helpers';
@@ -13,14 +12,9 @@ import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/r
 export async function getReorderReport(): Promise<ReorderSuggestion[]> {
     try {
         const { companyId } = await getAuthContext();
-        // The getReorderSuggestions flow already returns the fully enhanced suggestion object
         return await getReorderSuggestionsFlow({ companyId }) as any;
     } catch (error) {
-        // Log the error for debugging but don't throw it
         logError(error, { context: 'getReorderReport failed' });
-        
-        // Return empty array instead of throwing error
-        // This allows the UI to show the empty state
         return [];
     }
 }
