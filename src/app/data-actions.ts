@@ -34,7 +34,6 @@ import {
     createExportJobInDb,
     reconcileInventoryInDb,
     checkUserPermission,
-    getHistoricalSalesForSkus,
     createAuditLogInDb as createAuditLogInDbService,
     adjustInventoryQuantityInDb,
     getAuditLogFromDB,
@@ -50,20 +49,17 @@ import {
     getDashboardMetrics,
     getInventoryAnalyticsFromDB,
     refreshMaterializedViews,
+    getHistoricalSalesForSkus,
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion } from '@/types';
-import { SupplierFormSchema } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, Customer, SalesAnalytics, CustomerAnalytics, Supplier, SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, Customer, SalesAnalytics, CustomerAnalytics } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient } from '@/lib/redis';
 import { revalidatePath } from 'next/cache';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import { getReorderSuggestions as getReorderSuggestionsFlow } from '@/ai/flows/reorder-tool';
-
 
 export async function getProducts() {
   const { companyId } = await getAuthContext();
@@ -765,23 +761,120 @@ export async function getAdvancedGrossMarginReport() {
     }
 }
 
-export async function adjustInventoryQuantity(formData: FormData) {
+export async function getInventoryLedger(variantId: string) {
+    const { companyId } = await getAuthContext();
+    return getInventoryLedgerFromDB(companyId, variantId);
+}
+
+export async function getChannelFees() {
+    const { companyId } = await getAuthContext();
+    return getChannelFeesFromDB(companyId);
+}
+
+export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
     try {
         const { companyId, userId } = await getAuthContext();
         await checkUserPermission(userId, 'Admin');
         await validateCSRF(formData);
-
-        const variantId = formData.get('variantId') as string;
-        const newQuantity = Number(formData.get('newQuantity'));
-        const reason = formData.get('reason') as string;
-
-        await adjustInventoryQuantityInDb(companyId, userId, variantId, newQuantity, reason);
-
-        revalidatePath('/inventory');
+        const data: Partial<ChannelFee> = {
+            channel_name: formData.get('channel_name') as string,
+            fixed_fee: Number(formData.get('fixed_fee')) || null,
+            percentage_fee: Number(formData.get('percentage_fee')) || null,
+        }
+        await upsertChannelFeeInDb(companyId, data);
+        revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
+}
+
+export async function requestCompanyDataExport(): Promise<{ success: boolean, error?: string, jobId?: string }> {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
+        const job = await createExportJobInDb(companyId, userId);
+        return { success: true, jobId: job.id };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function reconcileInventory(integrationId: string) {
+    try {
+        const { companyId, userId } = await getAuthContext();
+        await checkUserPermission(userId, 'Admin');
+        await reconcileInventoryInDb(companyId, integrationId, userId);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: getErrorMessage(e) };
+    }
+}
+
+export async function getSupplierPerformanceReportData() {
+    try {
+        const { companyId } = await getAuthContext();
+        return await getSupplierPerformanceFromDB(companyId);
+    } catch(e) {
+        logError(e, { context: 'getSupplierPerformanceReportData failed, returning empty array'});
+        return [];
+    }
+}
+
+export async function getInventoryTurnoverReportData() {
+    try {
+        const { companyId } = await getAuthContext();
+        return await getInventoryTurnoverFromDB(companyId, 90);
+    } catch(e) {
+        logError(e, { context: 'getInventoryTurnoverReportData failed, returning null'});
+        return null;
+    }
+}
+
+export async function getConversations(): Promise<Conversation[]> {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('last_accessed_at', { ascending: false });
+    if(error) {
+        logError(error, {context: 'getConversations failed'});
+        return [];
+    }
+    return data || [];
+}
+
+export async function getMessages(conversationId: string): Promise<Message[]> {
+    const user = await getCurrentUser();
+    if (!user) return [];
+    const supabase = getServiceRoleClient();
+    const { data, error } = await supabase
+        .from('messages')
+        .select(`
+            id,
+            conversation_id,
+            company_id,
+            role,
+            content,
+            visualization,
+            component,
+            component_props,
+            confidence,
+            assumptions,
+            created_at,
+            is_error
+        `)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+    
+    if (error) {
+        logError(error, {context: 'getMessages failed'});
+        return [];
+    }
+    return (data as Message[]) || [];
 }
 
 export async function getImportHistory() {

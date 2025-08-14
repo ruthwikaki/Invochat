@@ -5,22 +5,14 @@ import {
   EnhancedReorderSuggestionSchema,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-import { SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
+import { SupplierSchema as SupplierSchemaImport, SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
 
-export interface Supplier {
-  id: string;
-  name: string;
-  email?: string | null;
-  phone?: string | null;
-  default_lead_time_days?: number | null;
-  company_id: string;
-  created_at: string;
-  updated_at?: string | null;
-}
+export const SupplierSchema = SupplierSchemaImport;
+export type Supplier = z.infer<typeof SupplierSchema>;
 
 export const CompanySchema = z.object({
   id: z.string().uuid(),
@@ -558,5 +550,3 @@ export type ImportJob = z.infer<typeof ImportJobSchema>;
 
 export const SupplierFormSchema = SupplierFormSchemaImport;
 export type SupplierFormData = z.infer<typeof SupplierFormSchemaImport>;
-
-    

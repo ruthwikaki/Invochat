@@ -2,14 +2,15 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, DashboardMetrics, ReorderSuggestion, PurchaseOrderWithItems, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, PurchaseOrderFormData, AuditLogEntry, FeedbackWithMessages, PurchaseOrderWithItemsAndSupplier } from '@/types';
-import { CompanySettingsSchema, SupplierFormSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, InventoryAnalytics } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema } from '@/types';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
+import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@supabase/ssr';
 
 
@@ -208,7 +209,7 @@ export async function getSuppliersDataFromDB(companyId: string): Promise<Supplie
             logError(error, { context: 'getSuppliersDataFromDB failed', companyId });
             throw new Error('Failed to retrieve suppliers');
         }
-        return (data || []) as Supplier[];
+        return z.array(SupplierSchema).parse(data || []);
     } catch (error) {
         logError(error, { context: 'getSuppliersDataFromDB unexpected error', companyId });
         throw error;
@@ -336,7 +337,7 @@ export async function getSalesAnalyticsFromDB(companyId: string): Promise<SalesA
         logError(error, { context: 'getSalesAnalyticsFromDB failed' });
         throw error;
     }
-    return data;
+    return SalesAnalyticsSchema.parse(data);
 }
 
 export async function getCustomerAnalyticsFromDB(companyId: string): Promise<CustomerAnalytics> {
@@ -347,7 +348,7 @@ export async function getCustomerAnalyticsFromDB(companyId: string): Promise<Cus
         logError(error, { context: 'getCustomerAnalyticsFromDB failed' });
         throw error;
     }
-    return data;
+    return CustomerAnalyticsSchema.parse(data);
 }
 
 export async function getDeadStockReportFromDB(companyId: string): Promise<{ deadStockItems: z.infer<typeof DeadStockItemSchema>[], totalValue: number, totalUnits: number }> {
@@ -550,26 +551,6 @@ export async function createExportJobInDb(companyId: string, userId: string) {
     return data;
 }
 
-export async function getHistoricalSalesForSkus(companyId: string, skus: string[]): Promise<any[]> {
-    if (!z.string().uuid().safeParse(companyId).success) throw new Error('Invalid Company ID');
-    
-    // Use Promise.all to call the singular function for each SKU
-    const salesPromises = skus.map(sku => 
-        getServiceRoleClient().rpc('get_historical_sales_for_sku', {
-            p_company_id: companyId,
-            p_sku: sku,
-        }).then(({data, error}) => {
-            if(error) {
-                logError(error, { context: `get_historical_sales_for_sku failed for SKU ${sku}`});
-                return { sku, monthly_sales: [] };
-            }
-            return { sku, monthly_sales: data || [] };
-        })
-    );
-    
-    return Promise.all(salesPromises);
-}
-
 export async function reconcileInventoryInDb(companyId: string, integrationId: string, userId: string) {
     if (!z.string().uuid().safeParse(companyId).success || !z.string().uuid().safeParse(integrationId).success || !z.string().uuid().safeParse(userId).success) throw new Error('Invalid ID format');
     const supabase = getServiceRoleClient();
@@ -588,7 +569,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
         p_notes: poData.notes || '',
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || new Date().toISOString(),
         p_line_items: poData.line_items as any,
     }).select('id').single();
 
@@ -612,7 +593,7 @@ export async function updatePurchaseOrderInDb(poId: string, companyId: string, u
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
         p_notes: poData.notes || '',
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || null,
+        p_expected_arrival: poData.expected_arrival_date?.toISOString() || new Date().toISOString(),
         p_line_items: poData.line_items as any,
     });
 
@@ -859,9 +840,9 @@ export async function refreshMaterializedViews(companyId: string): Promise<void>
     }
 }
 
-export async function getHistoricalSalesForSingleSkuFromDB(
+export async function getHistoricalSalesForSkus(
     companyId: string, 
-    sku: string
+    skus: string[]
 ): Promise<Array<{ sale_date: string; total_quantity: number }>> {
     const supabase = getServiceRoleClient();
     
@@ -869,8 +850,7 @@ export async function getHistoricalSalesForSingleSkuFromDB(
         .from('order_line_items')
         .select('orders(created_at), quantity')
         .eq('company_id', companyId)
-        .eq('sku', sku)
-        .order('created_at', { referencedTable: 'orders', ascending: true });
+        .in('sku', skus);
         
     if (error) throw error;
     
@@ -879,5 +859,3 @@ export async function getHistoricalSalesForSingleSkuFromDB(
         total_quantity: item.quantity
     }));
 }
-
-    
