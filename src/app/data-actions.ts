@@ -598,7 +598,7 @@ export async function handleUserMessage(params: { content: string, conversationI
         id: z.string().uuid().parse(crypto.randomUUID()),
         conversation_id: conversationId,
         company_id: companyId,
-        role: 'assistant',
+        role: 'assistant' as const,
         content: aiResponse.response,
         visualization: aiResponse.visualization,
         component: aiResponse.toolName,
@@ -724,5 +724,3 @@ export async function getDashboardData(period: string) {
         return null;
     }
 }
-
-    

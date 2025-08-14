@@ -3,11 +3,13 @@
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logError } from '@/lib/error-handler';
-import type { Integration, Json } from '@/types';
+import type { Integration } from '@/types';
 import { refreshMaterializedViews } from '@/services/database';
 import { invalidateCompanyCache } from '@/lib/redis';
 import { logger } from '@/lib/logger';
 import { getSecret } from '../encryption';
+import type { Json } from '@/types/database.types';
+
 
 // --- DYNAMIC SIMULATION FOR AMAZON FBA ---
 // Amazon's real SP-API is complex and requires a full OAuth flow.
@@ -123,5 +125,3 @@ export async function runAmazonFbaFullSync(integration: Integration) {
         throw e;
     }
 }
-
-    

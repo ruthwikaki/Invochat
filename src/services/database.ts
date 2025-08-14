@@ -2,8 +2,8 @@
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, InventoryAnalytics, CustomerAnalytics, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, DashboardMetrics } from '@/types';
-import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema, DashboardMetricsSchema } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, DashboardMetrics, InventoryAnalytics } from '@/types';
+import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema } from '@/types';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
@@ -580,7 +580,7 @@ export async function createPurchaseOrderInDb(companyId: string, userId: string,
         p_supplier_id: poData.supplier_id,
         p_status: poData.status,
         p_notes: poData.notes,
-        p_expected_arrival: poData.expected_arrival_date?.toISOString() || new Date().toISOString(),
+        p_expected_arrival: poData.expected_arrival_date?.toISOString(),
         p_line_items: poData.line_items,
     }).select('id').single();
 
@@ -817,7 +817,23 @@ export async function getDashboardMetrics(companyId: string, period: string | nu
         
         if (data == null) {
             logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
-            return DashboardMetricsSchema.parse({}); // Return default values
+            return {
+                total_revenue: 0,
+                revenue_change: 0,
+                total_orders: 0,
+                orders_change: 0,
+                new_customers: 0,
+                customers_change: 0,
+                dead_stock_value: 0,
+                sales_over_time: [],
+                top_products: [],
+                inventory_summary: {
+                    total_value: 0,
+                    in_stock_value: 0,
+                    low_stock_value: 0,
+                    dead_stock_value: 0,
+                },
+            };
         }
         
         return DashboardMetricsSchema.parse(data);
@@ -904,5 +920,3 @@ export async function getFeedbackFromDB(companyId: string, params: { query?: str
     
     return { items: FeedbackSchema.array().parse(data || []), totalCount: count || 0 };
 }
-
-    

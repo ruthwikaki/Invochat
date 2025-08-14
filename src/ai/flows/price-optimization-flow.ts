@@ -90,9 +90,9 @@ export const priceOptimizationFlow = ai.defineFlow(
       const salesMap = new Map<string, number>();
       if(Array.isArray(salesData)) {
           salesData.forEach(sale => {
-              if (sale && typeof sale === 'object' && 'sku' in sale && 'monthly_sales' in sale && Array.isArray(sale.monthly_sales)) {
+              if (sale && typeof sale === 'object' && 'sku' in sale && sale.sku && 'monthly_sales' in sale && Array.isArray(sale.monthly_sales)) {
                   const totalSales = sale.monthly_sales.reduce((sum: number, month: any) => sum + (month.total_quantity || 0), 0);
-                  salesMap.set(sale.sku, totalSales);
+                  salesMap.set(sale.sku as string, totalSales);
               }
           });
       }
