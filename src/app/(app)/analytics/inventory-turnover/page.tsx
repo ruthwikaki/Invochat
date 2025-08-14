@@ -1,4 +1,5 @@
 
+
 import { getInventoryTurnoverReportData } from '@/app/data-actions';
 import { AppPage, AppPageHeader } from '@/components/ui/page';
 import { InventoryTurnoverClientPage } from './inventory-turnover-client-page';
@@ -10,7 +11,7 @@ export default async function InventoryTurnoverPage() {
     const reportData = await getInventoryTurnoverReportData();
 
     // Ensure reportData is not null and conforms to the expected type
-    const safeReportData: TurnoverReport = (reportData as unknown as TurnoverReport) || {
+    const safeReportData: TurnoverReport = (reportData as TurnoverReport) || {
         turnover_rate: 0,
         total_cogs: 0,
         average_inventory_value: 0,

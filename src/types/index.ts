@@ -1,17 +1,38 @@
 
+
 import { z } from 'zod';
 import { AnomalySchema, AnomalyExplanationInputSchema, AnomalyExplanationOutputSchema, HealthCheckResultSchema } from './ai-schemas';
 import {
   EnhancedReorderSuggestionSchema,
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
-import { SupplierSchema as SupplierSchemaImport, SupplierFormSchema as SupplierFormSchemaImport } from '@/schemas/suppliers';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
 
-export const SupplierSchema = SupplierSchemaImport;
+export const SupplierFormSchema = z.object({
+    name: z.string().min(2, "Supplier name must be at least 2 characters."),
+    email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
+    phone: z.string().optional().nullable(),
+    default_lead_time_days: z.preprocess(
+        v => (v === '' || v == null ? null : v),
+        z.coerce.number().int().nonnegative().nullable()
+    ),
+    notes: z.string().optional().nullable(),
+});
+export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
+
+export const SupplierSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  default_lead_time_days: z.number().int().nonnegative().nullable().optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }).optional().nullable(),
+  company_id: z.string().uuid(),
+}).passthrough();
 export type Supplier = z.infer<typeof SupplierSchema>;
 
 export const CompanySchema = z.object({
@@ -547,6 +568,3 @@ export const ImportJobSchema = z.object({
   failed_rows: z.number().nullable(),
 });
 export type ImportJob = z.infer<typeof ImportJobSchema>;
-
-export const SupplierFormSchema = SupplierFormSchemaImport;
-export type SupplierFormData = z.infer<typeof SupplierFormSchemaImport>;

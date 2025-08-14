@@ -1,4 +1,5 @@
 
+
 'use server';
 import { getAuthContext, getCurrentUser } from '@/lib/auth-helpers';
 import { getErrorMessage, logError } from '@/lib/error-handler';
@@ -46,19 +47,17 @@ import {
     getGrossMarginAnalysisFromDB,
     createPurchaseOrdersFromSuggestionsInDb,
     logUserFeedbackInDb as logUserFeedbackInDbService,
+    getDashboardMetrics,
     getInventoryAnalyticsFromDB,
     refreshMaterializedViews,
-    getHistoricalSalesForSkus,
-    getDashboardMetrics,
+    getHistoricalSalesForSkus
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, Customer, SalesAnalytics, CustomerAnalytics, Supplier, SupplierFormData } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, Message, Conversation, SalesAnalytics, CustomerAnalytics, SupplierFormData } from '@/types';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
 import { z } from 'zod';
-import { isRedisEnabled, redisClient } from '@/lib/redis';
-import { revalidatePath } from 'next/cache';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 
 export async function getProducts() {
@@ -82,6 +81,7 @@ export async function getCustomers() {
 export async function getUnifiedInventory(params: { query: string, page: number, limit: number, status: string, sortBy: string, sortDirection: string }) {
     try {
         const { companyId } = await getAuthContext();
+        await checkUserPermission(companyId, 'Member');
         const offset = (params.page - 1) * params.limit;
         return await getUnifiedInventoryFromDB(companyId, { ...params, offset });
     } catch (e) {
@@ -93,14 +93,8 @@ export async function getUnifiedInventory(params: { query: string, page: number,
 export async function getInventoryAnalytics() {
     try {
         const { companyId } = await getAuthContext();
-        const cacheKey = `cache:inventory-analytics:${companyId}`;
-        if(isRedisEnabled) {
-            const cached = await redisClient.get(cacheKey);
-            if(cached) return JSON.parse(cached);
-        }
-        const analytics = await getInventoryAnalyticsFromDB(companyId);
-        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', 3600);
-        return analytics;
+        await checkUserPermission(companyId, 'Member');
+        return await getInventoryAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getInventoryAnalytics action failed, returning default'});
         return { total_inventory_value: 0, total_products: 0, total_variants: 0, low_stock_items: 0 };
@@ -121,18 +115,8 @@ export async function createSupplier(formData: FormData) {
     try {
         const { companyId } = await getAuthContext();
         await validateCSRF(formData);
-        const data = z.object({
-            name: z.string().min(2, "Supplier name must be at least 2 characters."),
-            email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
-            phone: z.string().optional().nullable(),
-            default_lead_time_days: z.preprocess(
-                v => (v === '' || v == null ? null : v),
-                z.coerce.number().int().nonnegative().nullable()
-            ),
-            notes: z.string().optional().nullable(),
-        }).parse(Object.fromEntries(formData.entries()));
+        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
         await createSupplierInDb(companyId, data);
-        revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -143,18 +127,8 @@ export async function updateSupplier(id: string, formData: FormData) {
     try {
         const { companyId } = await getAuthContext();
         await validateCSRF(formData);
-        const data = z.object({
-            name: z.string().min(2, "Supplier name must be at least 2 characters."),
-            email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
-            phone: z.string().optional().nullable(),
-            default_lead_time_days: z.preprocess(
-                v => (v === '' || v == null ? null : v),
-                z.coerce.number().int().nonnegative().nullable()
-            ),
-            notes: z.string().optional().nullable(),
-        }).parse(Object.fromEntries(formData.entries()));
+        const data = SupplierFormSchema.parse(Object.fromEntries(formData.entries()));
         await updateSupplierInDb(id, companyId, data);
-        revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -167,7 +141,6 @@ export async function deleteSupplier(formData: FormData) {
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         await deleteSupplierFromDb(id, companyId);
-        revalidatePath('/suppliers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -186,7 +159,6 @@ export async function disconnectIntegration(formData: FormData) {
         await validateCSRF(formData);
         const id = formData.get('integrationId') as string;
         await deleteIntegrationFromDb(id, companyId);
-        revalidatePath('/settings/integrations');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -205,7 +177,6 @@ export async function inviteTeamMember(formData: FormData): Promise<{ success: b
         const email = formData.get('email') as string;
         const company = await getCompanyById(companyId);
         await inviteUserToCompanyInDb(companyId, company?.name || 'your company', email);
-        revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -234,7 +205,6 @@ export async function removeTeamMember(formData: FormData): Promise<{ success: b
         }
 
         await removeTeamMemberFromDb(memberId, companyId);
-        revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -251,7 +221,6 @@ export async function updateTeamMemberRole(formData: FormData): Promise<{ succes
         if (userId === memberId) throw new Error("You cannot change your own role.");
         
         await updateTeamMemberRoleInDb(memberId, companyId, newRole);
-        revalidatePath('/settings/profile');
         return { success: true };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
@@ -278,7 +247,6 @@ export async function updateCompanySettings(formData: FormData) {
         }
         await updateSettingsInDb(companyId, settings);
         await createAuditLogInDbService(companyId, userId, 'company_settings_updated', settings);
-        revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -299,8 +267,10 @@ export async function getSalesData(params: { query: string; page: number, limit:
 export async function exportSales(params: { query: string }) {
     try {
         const { companyId } = await getAuthContext();
-        // Fetch all customers matching the query, up to a reasonable limit.
-        const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 10000 });
+        const { items } = await getSalesFromDB(companyId, { ...params, offset: 0, limit: 5000 });
+        if (items.length >= 5000) {
+            throw new Error("Export limited to 5,000 items. Please filter your results.");
+        }
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -312,14 +282,7 @@ export async function exportSales(params: { query: string }) {
 export async function getSalesAnalytics(): Promise<SalesAnalytics> {
     try {
         const { companyId } = await getAuthContext();
-        const cacheKey = `cache:sales-analytics:${companyId}`;
-        if(isRedisEnabled) {
-            const cached = await redisClient.get(cacheKey);
-            if(cached) return JSON.parse(cached);
-        }
-        const analytics = await getSalesAnalyticsFromDB(companyId);
-        if(isRedisEnabled) await redisClient.set(cacheKey, JSON.stringify(analytics), 'EX', 3600);
-        return analytics;
+        return await getSalesAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, {context: 'getSalesAnalytics action failed, returning default'});
         return { total_revenue: 0, total_orders: 0, average_order_value: 0 };
@@ -343,7 +306,6 @@ export async function deleteCustomer(formData: FormData) {
         await validateCSRF(formData);
         const customerId = formData.get('id') as string;
         await deleteCustomerFromDb(customerId, companyId);
-        revalidatePath('/customers');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -353,8 +315,10 @@ export async function deleteCustomer(formData: FormData) {
 export async function exportCustomers(params: { query: string }) {
     try {
         const { companyId } = await getAuthContext();
-        // Fetch all customers matching the query, up to a reasonable limit.
-        const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 10000 });
+        const { items } = await getCustomersFromDB(companyId, { ...params, offset: 0, limit: 5000 });
+        if (items.length >= 5000) {
+            throw new Error("Export limited to 5,000 items. Please filter your results.");
+        }
         const csv = Papa.unparse(items);
         return { success: true, data: csv };
     } catch (e) {
@@ -366,25 +330,7 @@ export async function exportCustomers(params: { query: string }) {
 export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
     try {
         const { companyId } = await getAuthContext();
-        const cacheKey = `cache:customer-analytics:${companyId}`;
-        if(isRedisEnabled) {
-            const cached = await redisClient.get(cacheKey);
-            if(cached) return JSON.parse(cached);
-        }
-        
-        const rawAnalytics = await getCustomerAnalyticsFromDB(companyId);
-        
-        const analyticsData = Array.isArray(rawAnalytics) ? rawAnalytics[0] : rawAnalytics;
-
-        if (!analyticsData) {
-            throw new Error("Customer analytics data is null or undefined after DB call.");
-        }
-
-        if(isRedisEnabled) {
-            await redisClient.set(cacheKey, JSON.stringify(analyticsData), 'EX', 3600);
-        }
-        
-        return analyticsData;
+        return await getCustomerAnalyticsFromDB(companyId);
     } catch (e) {
         logError(e, { context: 'getCustomerAnalytics action failed, returning default'});
         return { total_customers: 0, new_customers_30d: 0, returning_customers: 0, average_order_value: 0, customer_lifetime_value: 0, top_customers: [], customer_segments: [] };
@@ -394,7 +340,10 @@ export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
 export async function exportInventory(params: { query: string; status: string; sortBy: string; sortDirection: string; }) {
     try {
         const { companyId } = await getAuthContext();
-        const { items } = await getUnifiedInventoryFromDB(companyId, { ...params, offset: 0, limit: 10000 });
+        const { items, totalCount } = await getUnifiedInventoryFromDB(companyId, { ...params, offset: 0, limit: 5000 });
+        if (totalCount >= 5000) {
+            throw new Error("Export limited to 5,000 items. Please filter your results.");
+        }
         
         const dataToExport = items.map(item => ({
             product_title: item.product_title,
@@ -456,7 +405,6 @@ export async function createPurchaseOrder(formData: FormData) {
         await validateCSRF(formData);
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
         const newPoId = await createPurchaseOrderInDb(companyId, userId, data);
-        revalidatePath('/purchase-orders');
         return { success: true, newPoId };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -470,7 +418,6 @@ export async function updatePurchaseOrder(formData: FormData) {
         const id = formData.get('id') as string;
         const data: PurchaseOrderFormData = JSON.parse(formData.get('data') as string);
         await updatePurchaseOrderInDb(id, companyId, userId, data);
-        revalidatePath('/purchase-orders');
         return { success: true, updatedPoId: id };
     } catch(e) {
         return { success: false, error: getErrorMessage(e) };
@@ -483,19 +430,16 @@ export async function deletePurchaseOrder(formData: FormData) {
         await validateCSRF(formData);
         const id = formData.get('id') as string;
         await deletePurchaseOrderFromDb(id, companyId);
-        revalidatePath('/purchase-orders');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
     }
 }
 
-export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]): Promise<{ success: boolean; createdPoCount?: number; error?: string }> {
+export async function createPurchaseOrdersFromSuggestions(suggestions: ReorderSuggestion[]) {
     try {
         const { companyId, userId } = await getAuthContext();
         const createdPoCount = await createPurchaseOrdersFromSuggestionsInDb(companyId, userId, suggestions);
-        revalidatePath('/purchase-orders');
-        revalidatePath('/analytics/reordering');
         return { success: true, createdPoCount };
     } catch (e) {
         logError(e, { context: 'createPurchaseOrdersFromSuggestions failed' });
@@ -525,7 +469,6 @@ export async function upsertChannelFee(formData: FormData): Promise<{ success: b
             percentage_fee: Number(formData.get('percentage_fee')) || null,
         }
         await upsertChannelFeeInDb(companyId, data);
-        revalidatePath('/settings/profile');
         return { success: true };
     } catch (e) {
         return { success: false, error: getErrorMessage(e) };
@@ -556,23 +499,8 @@ export async function reconcileInventory(integrationId: string) {
 
 export async function getDashboardData(dateRange: string) {
     const { companyId } = await getAuthContext();
-    const cacheKey = `cache:dashboard:${dateRange}:${companyId}`;
-
-    if (isRedisEnabled) {
-        try {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) return JSON.parse(cached);
-        } catch (e) {
-            logError(e, { context: 'Redis cache get failed for dashboard' });
-        }
-    }
-
     try {
-        const data = await getDashboardMetrics(companyId, dateRange);
-        if (isRedisEnabled && data) {
-          await redisClient.set(cacheKey, JSON.stringify(data), 'EX', 3600);
-        }
-        return data ?? { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };
+        return await getDashboardMetrics(companyId, dateRange);
     } catch (e) {
         logError(e, { context: 'Failed to fetch dashboard data from database RPC' });
         return { total_revenue: 0, revenue_change: 0, total_orders: 0, orders_change: 0, new_customers: 0, customers_change: 0, dead_stock_value: 0, sales_over_time: [], top_products: [], inventory_summary: { total_value: 0, in_stock_value: 0, low_stock_value: 0, dead_stock_value: 0 } };
@@ -604,9 +532,9 @@ export async function getInventoryTurnoverReportData() {
 }
 
 export async function getConversations(): Promise<Conversation[]> {
+    const supabase = getServiceRoleClient();
     const user = await getCurrentUser();
     if (!user) return [];
-    const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('conversations')
         .select('*')
@@ -620,9 +548,9 @@ export async function getConversations(): Promise<Conversation[]> {
 }
 
 export async function getMessages(conversationId: string): Promise<Message[]> {
+    const supabase = getServiceRoleClient();
     const user = await getCurrentUser();
     if (!user) return [];
-    const supabase = getServiceRoleClient();
     const { data, error } = await supabase
         .from('messages')
         .select(`
@@ -691,6 +619,10 @@ export async function handleUserMessage(params: { content: string, conversationI
             content: [{ text: m.content }] 
         })) || [],
     });
+
+    if (aiResponse.is_error) {
+        aiResponse.response = "The AI service is currently unavailable. Please try again later.";
+    }
 
     const { data: newMessage, error: messageError } = await supabase.from('messages').insert({
         conversation_id: conversationId,
@@ -777,122 +709,6 @@ export async function getAdvancedGrossMarginReport() {
         logError(e, { context: 'getAdvancedGrossMarginReport failed, returning null'});
         return { products: [], summary: { total_revenue: 0, total_cogs: 0, total_gross_margin: 0, average_gross_margin: 0 } };
     }
-}
-
-export async function getInventoryLedger(variantId: string) {
-    const { companyId } = await getAuthContext();
-    return getInventoryLedgerFromDB(companyId, variantId);
-}
-
-export async function getChannelFees() {
-    const { companyId } = await getAuthContext();
-    return getChannelFeesFromDB(companyId);
-}
-
-export async function upsertChannelFee(formData: FormData): Promise<{ success: boolean; error?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
-        await validateCSRF(formData);
-        const data: Partial<ChannelFee> = {
-            channel_name: formData.get('channel_name') as string,
-            fixed_fee: Number(formData.get('fixed_fee')) || null,
-            percentage_fee: Number(formData.get('percentage_fee')) || null,
-        }
-        await upsertChannelFeeInDb(companyId, data);
-        revalidatePath('/settings/profile');
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function requestCompanyDataExport(): Promise<{ success: boolean, error?: string, jobId?: string }> {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
-        const job = await createExportJobInDb(companyId, userId);
-        return { success: true, jobId: job.id };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function reconcileInventory(integrationId: string) {
-    try {
-        const { companyId, userId } = await getAuthContext();
-        await checkUserPermission(userId, 'Admin');
-        await reconcileInventoryInDb(companyId, integrationId, userId);
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: getErrorMessage(e) };
-    }
-}
-
-export async function getSupplierPerformanceReportData() {
-    try {
-        const { companyId } = await getAuthContext();
-        return await getSupplierPerformanceFromDB(companyId);
-    } catch(e) {
-        logError(e, { context: 'getSupplierPerformanceReportData failed, returning empty array'});
-        return [];
-    }
-}
-
-export async function getInventoryTurnoverReportData() {
-    try {
-        const { companyId } = await getAuthContext();
-        return await getInventoryTurnoverFromDB(companyId, 90);
-    } catch(e) {
-        logError(e, { context: 'getInventoryTurnoverReportData failed, returning null'});
-        return null;
-    }
-}
-
-export async function getConversations(): Promise<Conversation[]> {
-    const user = await getCurrentUser();
-    if (!user) return [];
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('last_accessed_at', { ascending: false });
-    if(error) {
-        logError(error, {context: 'getConversations failed'});
-        return [];
-    }
-    return data || [];
-}
-
-export async function getMessages(conversationId: string): Promise<Message[]> {
-    const user = await getCurrentUser();
-    if (!user) return [];
-    const supabase = getServiceRoleClient();
-    const { data, error } = await supabase
-        .from('messages')
-        .select(`
-            id,
-            conversation_id,
-            company_id,
-            role,
-            content,
-            visualization,
-            component,
-            component_props,
-            confidence,
-            assumptions,
-            created_at,
-            is_error
-        `)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true });
-    
-    if (error) {
-        logError(error, {context: 'getMessages failed'});
-        return [];
-    }
-    return (data as Message[]) || [];
 }
 
 export async function getImportHistory() {
