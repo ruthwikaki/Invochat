@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import { useTransition, useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { type Supplier, SupplierFormSchema, type SupplierFormData } from '@/types';
+import { type Supplier, type SupplierFormData, SupplierFormSchema } from '@/types';
 import { createSupplier, updateSupplier } from '@/app/data-actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';

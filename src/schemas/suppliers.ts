@@ -1,4 +1,3 @@
-
 // src/schemas/suppliers.ts
 import { z } from "zod";
 
@@ -11,6 +10,7 @@ export const SupplierSchema = z.object({
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }).optional().nullable(),
   company_id: z.string().uuid(),
+  notes: z.string().nullable().optional(),
 }).passthrough();
 
 
@@ -19,8 +19,8 @@ export const SupplierFormSchema = z.object({
     email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
     phone: z.string().optional().nullable(),
     default_lead_time_days: z.preprocess(
-        v => (v === '' || v == null ? null : v),
-        z.coerce.number().int().nonnegative().nullable()
+        v => (v === '' || v == null ? undefined : v),
+        z.coerce.number().int().nonnegative().optional().nullable()
     ),
     notes: z.string().optional().nullable(),
 });

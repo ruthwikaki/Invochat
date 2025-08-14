@@ -8,6 +8,7 @@ import { motion } from 'framer-motion';
 
 interface TopProductsCardProps {
   data: {
+    product_id: string;
     product_name: string;
     total_revenue: number;
     image_url: string | null;
@@ -30,7 +31,7 @@ export function TopProductsCard({ data, currency }: TopProductsCardProps) {
           <ul className="space-y-4">
             {data.map((product, index) => (
               <motion.li 
-                key={product.product_name} 
+                key={product.product_id} 
                 className="flex items-center gap-4"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}

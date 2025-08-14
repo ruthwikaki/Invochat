@@ -7,33 +7,17 @@ import {
   type ReorderSuggestionBase,
 } from '@/schemas/reorder';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
+import { SupplierFormSchema as SupplierFormSchemaImport, SupplierSchema as SupplierSchemaImport } from '@/schemas/suppliers';
 
 export const UserSchema = z.custom<SupabaseUser>();
 export type User = z.infer<typeof UserSchema>;
 
-export const SupplierFormSchema = z.object({
-    name: z.string().min(2, "Supplier name must be at least 2 characters."),
-    email: z.string().email("Invalid email address.").or(z.literal('')).nullable().optional(),
-    phone: z.string().optional().nullable(),
-    default_lead_time_days: z.preprocess(
-        v => (v === '' || v == null ? null : v),
-        z.coerce.number().int().nonnegative().nullable()
-    ),
-    notes: z.string().optional().nullable(),
-});
+export const SupplierFormSchema = SupplierFormSchemaImport;
 export type SupplierFormData = z.infer<typeof SupplierFormSchema>;
 
-export const SupplierSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  email: z.string().email().nullable().optional(),
-  phone: z.string().nullable().optional(),
-  default_lead_time_days: z.number().int().nonnegative().nullable().optional(),
-  created_at: z.string().datetime({ offset: true }),
-  updated_at: z.string().datetime({ offset: true }).optional().nullable(),
-  company_id: z.string().uuid(),
-}).passthrough();
+export const SupplierSchema = SupplierSchemaImport;
 export type Supplier = z.infer<typeof SupplierSchema>;
+
 
 export const CompanySchema = z.object({
   id: z.string().uuid(),
