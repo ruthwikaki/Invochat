@@ -53,19 +53,18 @@ import {
     refreshMaterializedViews
 } from '@/services/database';
 import { generateMorningBriefing } from '@/ai/flows/morning-briefing-flow';
-import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages } from '@/types';
+import type { DashboardMetrics, PurchaseOrderFormData, ChannelFee, AuditLogEntry, FeedbackWithMessages, Customer, SalesAnalytics, InventoryAnalytics, Integration } from '@/types';
 import { SupplierFormSchema } from '@/schemas/suppliers';
 import { validateCSRF } from '@/lib/csrf';
 import Papa from 'papaparse';
 import { universalChatFlow } from '@/ai/flows/universal-chat';
-import type { Message, Conversation, Customer, SalesAnalytics, Integration, Order } from '@/types';
+import type { Message, Conversation, ReorderSuggestion } from '@/types';
 import { z } from 'zod';
 import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { config } from '@/config/app-config';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 import type { Json } from '@/types/database.types';
-import { ReorderSuggestion } from '@/schemas/reorder';
 
 
 export async function getProducts() {
@@ -380,7 +379,7 @@ export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
         return analyticsData;
     } catch (e) {
         logError(e, {context: 'getCustomerAnalytics action failed, returning default'});
-        return { total_customers: 0, new_customers_30d: 0, returning_customers: 0, average_order_value: 0, customer_lifetime_value: 0, top_customers: [], customer_segments: [] };
+        return { total_customers: 0, new_customers_last_30_days: 0, repeat_customer_rate: 0, average_lifetime_value: 0, top_customers_by_spend: [], top_customers_by_sales: [] };
     }
 }
 
