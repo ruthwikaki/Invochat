@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -114,3 +113,5 @@ export function SupplierForm({ initialData }: SupplierFormProps) {
     </form>
   );
 }
+
+    

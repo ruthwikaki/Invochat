@@ -1,14 +1,15 @@
-
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
-import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, AuditLogEntry, FeedbackWithMessages, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, InventoryAnalytics, SupplierFormData } from '@/types';
+import type { CompanySettings, UnifiedInventoryItem, TeamMember, Supplier, SupplierFormData, Order, ReorderSuggestion, PurchaseOrderWithItemsAndSupplier, PurchaseOrderFormData, ChannelFee, Integration, SalesAnalytics, CustomerAnalytics, InventoryAnalytics, AuditLogEntry, FeedbackWithMessages } from '@/types';
 import { CompanySettingsSchema, SupplierSchema, UnifiedInventoryItemSchema, OrderSchema, DeadStockItemSchema, AuditLogEntrySchema, FeedbackSchema, SupplierPerformanceReportSchema, ReorderSuggestionSchema, SalesAnalyticsSchema, CustomerAnalyticsSchema, InventoryAnalyticsSchema, SupplierFormSchema } from '@/types';
+import { isRedisEnabled, redisClient, invalidateCompanyCache } from '@/lib/redis';
 import { z } from 'zod';
 import { getErrorMessage, logError } from '@/lib/error-handler';
 import type { Json } from '@/types/database.types';
-import { retry } from './async-utils';
+import { config } from '@/config/app-config';
+import { logger } from '@/lib/logger';
+import { revalidatePath } from 'next/cache';
 
 // --- Input Validation Schemas ---
 const DatabaseQueryParamsSchema = z.object({
@@ -898,3 +899,44 @@ export async function getHistoricalSalesForSingleSkuFromDB(
     }
     return data || [];
 }
+
+export async function getDashboardMetrics(companyId: string, period: string | number): Promise<DashboardMetrics> {
+    const days = typeof period === 'number' ? period : parseInt(String(period).replace(/\\D/g, ''), 10);
+    const supabase = getServiceRoleClient();
+    try {
+        const { data, error } = await supabase.rpc('get_dashboard_metrics', { p_company_id: companyId, p_days: days });
+        if (error) {
+            logError(error, { context: 'get_dashboard_metrics failed', companyId, period });
+            throw new Error('Could not retrieve dashboard metrics from the database.');
+        }
+        if (data == null) {
+            logger.warn('[RPC Error] get_dashboard_metrics returned null. This can happen with no data.');
+            throw new Error('No response from get_dashboard_metrics RPC call.');
+        }
+        return DashboardMetricsSchema.parse(data);
+    } catch (e) {
+        logError(e, { context: 'getDashboardMetrics failed', companyId, period });
+        throw new Error('Could not retrieve dashboard metrics from the database.');
+    }
+}
+
+
+export async function getInventoryAnalyticsFromDB(companyId: string): Promise<InventoryAnalytics> {
+    if (!z.string().uuid().safeParse(companyId).success) {
+        throw new Error('Invalid company ID format');
+    }
+    try {
+        const supabase = getServiceRoleClient();
+        const { data, error } = await supabase.rpc('get_inventory_analytics', { p_company_id: companyId });
+        if (error) {
+            logError(error, { context: 'getInventoryAnalyticsFromDB failed', companyId });
+            throw new Error('Failed to retrieve inventory analytics');
+        }
+        return InventoryAnalyticsSchema.parse(data);
+    } catch (error) {
+        logError(error, { context: 'getInventoryAnalyticsFromDB unexpected error', companyId });
+        throw error;
+    }
+}
+
+    

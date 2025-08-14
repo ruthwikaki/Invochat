@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -226,3 +224,5 @@ export function ChatMessage({
     </motion.div>
   );
 }
+
+    

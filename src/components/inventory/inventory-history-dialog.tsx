@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -110,3 +109,5 @@ export function InventoryHistoryDialog({ variant, onClose }: InventoryHistoryDia
     </Dialog>
   );
 }
+
+    

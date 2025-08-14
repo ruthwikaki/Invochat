@@ -1,11 +1,8 @@
-
-
 'use server';
 
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import type { Alert } from '@/types';
-import { z } from 'zod';
 import { CompanySettingsSchema, type CompanySettings } from '@/types';
 
 // This file provides direct-to-database functions for handling alerts
@@ -22,6 +19,7 @@ export async function getAlertsWithStatus(companyId: string): Promise<Alert[]> {
   }
   
   // The data from the RPC call is expected to be JSON, which needs parsing.
+  if (!Array.isArray(data)) return [];
   return (data || []).map((a: any) => a as Alert);
 }
 
@@ -99,3 +97,4 @@ export async function dismissAlert(alertId: string, companyId: string) {
   }
 }
 
+    
