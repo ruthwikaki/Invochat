@@ -94,7 +94,7 @@ function ConfidenceDisplay({ confidence, assumptions }: { confidence?: number | 
 }
 
 function FeedbackActions({ messageId }: { messageId: string }) {
-    const [feedbackSent, setFeedbackSent = useState(false);
+    const [feedbackSent, setFeedbackSent] = useState(false);
     const { toast } = useToast();
 
     const handleFeedback = async (feedbackType: 'helpful' | 'unhelpful') => {
@@ -225,5 +225,3 @@ export function ChatMessage({
     </motion.div>
   );
 }
-
-    
